@@ -1,29 +1,39 @@
 # AlertCalendar
 
-Menu bar app in Swift that shows upcoming Calendar events and Reminders, including source calendar colors, Focus mode status, and a red blinking alert when an item is 5 minutes away (configurable).
+AlertCalendar is a macOS menu bar app that shows upcoming Calendar events and Reminders with visual alerts.
 
-## Run
+## Requirements
+- macOS 13+
+- Xcode Command Line Tools (`xcode-select --install`)
+- Swift 6.2+
 
-1. Open this folder in Xcode.
-2. Select the `AlertCalendar` scheme.
-3. Run the app (`Cmd + R`).
+## Install
+Use the local installer:
+```bash
+./install.sh
+```
+
+Detailed options: [INSTALL.md](INSTALL.md)
+
+## Run in Development
+```bash
+swift run
+```
+
+## Run Tests
+```bash
+swift test
+```
 
 ## Permissions
-
 On first launch, allow:
-
 - Calendar access
 - Reminders access
-- Focus status access (if prompted by macOS)
+- Focus status access (if prompted)
 
-## Features
-
+## Main Features
 - Menu bar text with upcoming items and countdown.
 - Event/Reminder list with calendar colors.
-- Focus mode status line (`On` / `Off` / permission state).
-- Red blinking alert in the menu bar and dropdown when an item is inside the alert window.
-- Settings window in English with:
-  - event/reminder toggles
-  - look-ahead window
-  - alert lead time (default 5 minutes)
-  - number of items shown
+- Focus mode status line.
+- Red blinking alert when an item is inside the alert window.
+- Settings for look-ahead window, alert lead time, and list size.
