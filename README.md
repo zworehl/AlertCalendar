@@ -25,6 +25,11 @@ swift run
 swift test
 ```
 
+## Coverage Gate (95%)
+```bash
+./scripts/check_coverage.sh
+```
+
 ## Permissions
 On first launch, allow:
 - Calendar access
