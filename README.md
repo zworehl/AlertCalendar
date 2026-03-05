@@ -25,7 +25,7 @@ swift run
 swift test
 ```
 
-## Coverage Gate (95%)
+## Coverage Gate (97%)
 ```bash
 ./scripts/check_coverage.sh
 ```

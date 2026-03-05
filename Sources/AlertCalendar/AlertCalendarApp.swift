@@ -6,7 +6,7 @@ struct AlertCalendarApp: App {
     @StateObject private var monitor = CalendarMonitor()
 
     var body: some Scene {
-        MenuBarExtra {
+        MenuBarExtra(isInserted: .constant(true)) {
             MenuContentView(kindFilter: nil, headerTitle: "Alert Calendar")
                 .environmentObject(monitor)
         } label: {
@@ -24,7 +24,7 @@ struct AlertCalendarApp: App {
         }
         .menuBarExtraStyle(.window)
 
-        Window("Settings", id: "preferences") {
+        Window(WindowMetadata.preferencesTitle, id: WindowMetadata.preferencesID) {
             SettingsView(monitor: monitor)
         }
         .windowResizability(.contentSize)

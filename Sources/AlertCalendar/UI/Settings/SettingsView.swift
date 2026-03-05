@@ -438,6 +438,7 @@ struct SettingsView: View {
 
         Task { @MainActor in
             await monitor.requestCalendarAccess()
+            _ = await monitor.requestLocationAuthorizationIfNeeded()
             monitor.refreshAvailableCalendars()
             monitor.refreshNow()
             isRequestingPermissions = false
@@ -445,8 +446,21 @@ struct SettingsView: View {
     }
 
     private func openPrivacySettings() {
-        if let calendarURL = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars") {
-            NSWorkspace.shared.open(calendarURL)
+        let deepLinks = [
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars",
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_Reminders",
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices",
+        ]
+
+        for rawValue in deepLinks {
+            guard let url = URL(string: rawValue) else { continue }
+            if NSWorkspace.shared.open(url) {
+                return
+            }
+        }
+
+        if let settingsAppURL = URL(string: "x-apple.systempreferences:") {
+            NSWorkspace.shared.open(settingsAppURL)
         }
     }
 

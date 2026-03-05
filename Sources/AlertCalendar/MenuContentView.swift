@@ -171,7 +171,7 @@ struct MenuContentView: View {
 
             Button {
                 NSApp.activate(ignoringOtherApps: true)
-                openWindow(id: "preferences")
+                openWindow(id: WindowMetadata.preferencesID)
             } label: {
                 Image(systemName: "gearshape")
             }
