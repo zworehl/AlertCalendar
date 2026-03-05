@@ -1,0 +1,23 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="nightSky" x1="32" y1="8" x2="32" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1E2F6B"/>
+      <stop offset="1" stop-color="#0B142E"/>
+    </linearGradient>
+    <linearGradient id="nightHorizon" x1="32" y1="40" x2="32" y2="54" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6BB8FF" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#3358A2" stop-opacity="0.95"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="10" y="10" width="44" height="30" rx="15" fill="url(#nightSky)" fill-opacity="0.7"/>
+  <path d="M6 42C12 38 20 36 32 36C44 36 52 38 58 42" stroke="url(#nightHorizon)" stroke-width="5" stroke-linecap="round"/>
+  <path d="M12 46C18 43 24 41.5 32 41.5C40 41.5 46 43 52 46" stroke="#8FD0FF" stroke-opacity="0.75" stroke-width="2" stroke-linecap="round"/>
+
+  <path d="M39.5 15.5C36.6 14.8 33.8 16.5 33.1 19.4C32.4 22.2 34.1 25.1 36.9 25.8C33.8 27.1 30.2 25.4 29 22.2C27.7 19 29.3 15.4 32.5 14.2C34.7 13.3 37.2 13.8 39.5 15.5Z" fill="#F0F5FF"/>
+
+  <circle cx="21" cy="18" r="1.6" fill="#D7E3FF"/>
+  <circle cx="45" cy="20" r="1.3" fill="#D7E3FF"/>
+  <circle cx="26" cy="28" r="1.2" fill="#BFD2FF"/>
+  <circle cx="42" cy="28" r="1.1" fill="#BFD2FF"/>
+</svg>
