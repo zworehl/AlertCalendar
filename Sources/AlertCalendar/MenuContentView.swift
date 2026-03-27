@@ -57,14 +57,6 @@ struct MenuContentView: View {
 
                                     Spacer(minLength: 8)
 
-                                    if let meetingURL = item.meetingURL {
-                                        Button("Join \(meetingServiceName(for: meetingURL))") {
-                                            NSWorkspace.shared.open(meetingURL)
-                                        }
-                                        .buttonStyle(.borderedProminent)
-                                        .controlSize(.small)
-                                    }
-
                                     if shouldShowMapForItem,
                                        let locationText {
                                         if let mapURL = mapURL(for: locationText) {
@@ -279,24 +271,36 @@ struct MenuContentView: View {
             }
 
             if isHovered {
-                HStack(spacing: 0) {
+                HStack(spacing: 4) {
+                    if let meetingURL = item.meetingURL {
+                        Button {
+                            NSWorkspace.shared.open(meetingURL)
+                        } label: {
+                            actionPill {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "video.fill")
+                                        .font(.system(size: 11, weight: .semibold))
+                                    Text("Join")
+                                        .font(.system(size: 11, weight: .semibold))
+                                }
+                            }
+                        }
+                        .buttonStyle(.borderless)
+                        .controlSize(.small)
+                        .help("Join")
+                    }
+
                     ForEach(actions.indices, id: \.self) { index in
                         switch actions[index] {
                         case .skip:
                             Button {
                                 monitor.skipItem(item)
                             } label: {
-                                Image(systemName: "forward.fill")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .frame(width: 24, height: 18)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 6)
-                                            .fill(.regularMaterial)
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 6)
-                                                    .stroke(Color.primary.opacity(0.18), lineWidth: 1)
-                                            )
-                                    )
+                                actionPill {
+                                    Image(systemName: "forward.fill")
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .frame(width: 12, height: 12)
+                                }
                             }
                             .buttonStyle(.borderless)
                             .controlSize(.small)
@@ -305,8 +309,11 @@ struct MenuContentView: View {
                             Button {
                                 monitor.markReminderCompleted(item)
                             } label: {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .font(.system(size: 12, weight: .semibold))
+                                actionPill {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .frame(width: 12, height: 12)
+                                }
                             }
                             .buttonStyle(.borderless)
                             .controlSize(.small)
@@ -314,7 +321,7 @@ struct MenuContentView: View {
                         }
                     }
                 }
-                .frame(width: 30, alignment: .trailing)
+                .frame(minWidth: 30, alignment: .trailing)
                 .padding(.trailing, 2)
             }
         }
@@ -356,6 +363,21 @@ struct MenuContentView: View {
         }
         let endText = Self.menuTimeFormatter.string(from: endDate)
         return "\(startText)-\(endText)"
+    }
+
+    @ViewBuilder
+    private func actionPill<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        content()
+            .frame(height: 18)
+            .padding(.horizontal, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(.regularMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(Color.primary.opacity(0.18), lineWidth: 1)
+                    )
+            )
     }
 
     private func timedDetailText(for item: UpcomingItem) -> String? {
@@ -752,7 +774,8 @@ struct MenuContentView: View {
 
     private var contextualActionItems: [UpcomingItem] {
         let candidates = eventItemsForActions.filter { item in
-            item.meetingURL != nil || locationTextForMenuBarItem(item) != nil
+            guard let locationText = locationTextForMenuBarItem(item) else { return false }
+            return shouldShowPhysicalMap(for: item, locationText: locationText)
         }
         guard let anchor = candidates.first else { return [] }
 

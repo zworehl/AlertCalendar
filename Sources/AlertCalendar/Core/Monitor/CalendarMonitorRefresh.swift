@@ -417,127 +417,35 @@ extension CalendarMonitor {
             candidates.append(contentsOf: allURLs(in: location))
         }
 
-        var bestURL: URL?
-        var bestScore = Int.min
-        for candidate in candidates {
-            for resolved in resolvedMeetingURLCandidates(from: candidate) {
-                let score = meetingURLScore(resolved)
-                guard score > bestScore else { continue }
-                bestScore = score
-                bestURL = resolved
-            }
-        }
-        return bestURL
+        return MeetingURLResolver.bestMeetingURL(from: candidates)
     }
 
     func allURLs(in text: String) -> [URL] {
-        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else {
-            return []
-        }
-        let range = NSRange(location: 0, length: text.utf16.count)
-        return detector.matches(in: text, options: [], range: range).compactMap(\.url)
+        MeetingURLResolver.allURLs(in: text)
     }
 
     func resolvedMeetingURL(from url: URL) -> URL? {
-        resolvedMeetingURLCandidates(from: url).first
+        MeetingURLResolver.resolvedMeetingURL(from: url)
     }
 
     func resolvedMeetingURLCandidates(from url: URL) -> [URL] {
-        var results: [URL] = []
-        var visited: Set<String> = []
-        collectMeetingURLCandidates(from: url, results: &results, visited: &visited)
-        return results
+        MeetingURLResolver.resolvedMeetingURLCandidates(from: url)
     }
 
     func collectMeetingURLCandidates(from url: URL, results: inout [URL], visited: inout Set<String>) {
-        let key = url.absoluteString
-        guard visited.insert(key).inserted else { return }
-
-        if let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-           let queryItems = components.queryItems {
-            for queryItem in queryItems {
-                guard let rawValue = queryItem.value else { continue }
-                let decoded = rawValue.removingPercentEncoding ?? rawValue
-
-                if let embeddedURL = URL(string: decoded) {
-                    collectMeetingURLCandidates(from: embeddedURL, results: &results, visited: &visited)
-                }
-
-                for embeddedTextURL in allURLs(in: decoded) {
-                    collectMeetingURLCandidates(from: embeddedTextURL, results: &results, visited: &visited)
-                }
-            }
-        }
-
-        if isKnownMeetingURL(url) {
-            results.append(url)
+        for candidate in MeetingURLResolver.resolvedMeetingURLCandidates(from: url) {
+            let key = candidate.absoluteString
+            guard visited.insert(key).inserted else { continue }
+            results.append(candidate)
         }
     }
 
     func meetingURLScore(_ url: URL) -> Int {
-        guard isKnownMeetingURL(url) else { return Int.min }
-
-        let host = (url.host ?? "").lowercased()
-        let scheme = (url.scheme ?? "").lowercased()
-        let absolute = url.absoluteString.lowercased()
-        var score = 0
-
-        if scheme == "https" { score += 5 }
-
-        if scheme == "msteams" || scheme == "microsoftteams" {
-            score += 160
-        }
-        if absolute.contains("/l/meetup-join/") || absolute.contains("meetup-join") {
-            score += 130
-        }
-        if absolute.contains("meetingid=") || absolute.contains("context=") {
-            score += 25
-        }
-        if host.contains("teams.microsoft.")
-            || host.contains("teams.live.")
-            || host.contains("teams.office.")
-            || host.contains("microsoftteams.")
-            || host.contains("teams.ms") {
-            score += 80
-        }
-
-        if host.contains("aka.ms") { score -= 70 }
-        if absolute.contains("join-a-meeting") { score -= 80 }
-
-        if host.contains("meet.google.") || host.contains("g.co") { score += 70 }
-        if host.contains("zoom.") { score += 70 }
-        if host.contains("webex.") { score += 70 }
-        if host.contains("whereby.") { score += 70 }
-        if host.contains("jitsi.") || host.contains("meet.jit.si") { score += 70 }
-        if host.contains("chime.aws") || host.contains("amazonchime.") { score += 70 }
-
-        return score
+        MeetingURLResolver.meetingURLScore(url)
     }
 
     func isKnownMeetingURL(_ url: URL) -> Bool {
-        let host = (url.host ?? "").lowercased()
-        let scheme = (url.scheme ?? "").lowercased()
-        let absolute = url.absoluteString.lowercased()
-        if host.contains("meet.google.") { return true }
-        if host.contains("g.co") { return true }
-        if host.contains("zoom.") { return true }
-        if scheme == "msteams" || scheme == "microsoftteams" { return true }
-        if host.contains("teams.")
-            || host.contains("teams.microsoft.")
-            || host.contains("teams.live.")
-            || host.contains("teams.office.")
-            || host.contains("microsoftteams.")
-            || host.contains("teams.ms")
-            || absolute.contains("meetup-join")
-            || absolute.contains("teams.microsoft.com")
-            || absolute.contains("teams.live.com")
-            || absolute.contains("teams.office.com") { return true }
-        if host.contains("aka.ms") { return true }
-        if host.contains("webex.") { return true }
-        if host.contains("whereby.") { return true }
-        if host.contains("jitsi.") || host.contains("meet.jit.si") { return true }
-        if host.contains("chime.aws") || host.contains("amazonchime.") { return true }
-        return false
+        MeetingURLResolver.isKnownMeetingURL(url)
     }
 
     func isCalendarSelected(_ calendar: AvailableCalendar) -> Bool {

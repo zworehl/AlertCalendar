@@ -165,12 +165,27 @@ struct SettingsAstronomySectionView: View {
     }
 
     private func coordinateField(title: String, text: Binding<String>, axis: CoordinateAxis) -> some View {
-        HStack {
+        let liveTextBinding = Binding<String>(
+            get: { text.wrappedValue },
+            set: { newValue in
+                text.wrappedValue = newValue
+                if let parsed = parsedCoordinateValue(newValue, axis: axis) {
+                    switch axis {
+                    case .latitude:
+                        astronomyLatitude = parsed
+                    case .longitude:
+                        astronomyLongitude = parsed
+                    }
+                }
+            }
+        )
+
+        return HStack {
             Text(title)
             Spacer()
             TextField(
                 title,
-                text: text
+                text: liveTextBinding
             )
             .focused($focusedCoordinate, equals: axis)
             .onChange(of: focusedCoordinate) { focused in

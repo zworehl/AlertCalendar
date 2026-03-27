@@ -610,12 +610,12 @@ extension CalendarMonitor {
             let monthText = Self.allDayMonthFormatter.string(from: startDay)
             let startDayNumber = calendar.component(.day, from: startDay)
             let endDayNumber = calendar.component(.day, from: lastInclusiveDay)
-            return "\(monthText) \(startDayNumber) - \(endDayNumber)"
+            return "\(monthText) \(startDayNumber)-\(endDayNumber)"
         }
 
         let startText = Self.allDayDateFormatter.string(from: startDay)
         let endText = Self.allDayDateFormatter.string(from: lastInclusiveDay)
-        return "\(startText) - \(endText)"
+        return "\(startText)-\(endText)"
     }
 
     func color(from calendar: EKCalendar) -> NSColor {
