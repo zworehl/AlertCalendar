@@ -28,9 +28,15 @@ final class CalendarMonitor: ObservableObject {
     @Published var calendarAccessDescription = "Requesting access..."
     @Published var astronomyLocationStatus = "Manual coordinates"
     @Published var lastRefreshDate: Date?
+    @Published var footballMenuSections: [FootballMenuCompetitionSection] = []
+    @Published var footballLiveAndNextDaySection = FootballMatchesOverviewSection.placeholder(title: "Live & Next 48 Hours")
+    @Published var managedFootballMatchIDs: Set<String> = []
+    @Published var managedFootballMatches: [FootballFixtureMatch] = []
 
     let eventStore = EKEventStore()
     let defaults = UserDefaults.standard
+    let footballClient = FootballDataAPIClient()
+    let footballImageStore = FootballImageStore()
 
     var heartbeatCancellable: AnyCancellable?
     var defaultsObserver: AnyCancellable?
@@ -55,9 +61,20 @@ final class CalendarMonitor: ObservableObject {
     var oneShotLocationDelegate: OneShotLocationDelegate?
     var locationPermissionManager: CLLocationManager?
     var locationPermissionDelegate: LocationPermissionDelegate?
+    var footballMatchesByID: [String: FootballFixtureMatch] = [:]
+    var managedFootballEventRecords: [ManagedFootballEventRecord] = []
+    var footballLocalLogoPathsByCompetitionSlug: [String: String] = [:]
+    var footballLocalLogoPathsByTeamID: [String: String] = [:]
+    var lastFootballMenuRefreshDate: Date?
+    var lastFootballManagedSyncDate: Date?
+    var lastFootballManagedCleanupDate: Date?
+    var activeFootballGoalHighlight: FootballGoalHighlight?
 
     init() {
         registerDefaultSettings()
+        managedFootballEventRecords = Self.decodeManagedFootballEventRecords(
+            from: defaults.data(forKey: DefaultsKeys.managedFootballEventRecords)
+        )
         skippedItemKeys = Set(defaults.stringArray(forKey: DefaultsKeys.skippedItemKeys) ?? [])
         startObservers()
         startHeartbeat()
@@ -65,6 +82,11 @@ final class CalendarMonitor: ObservableObject {
         Task {
             await bootstrap()
         }
+    }
+
+    private static func decodeManagedFootballEventRecords(from data: Data?) -> [ManagedFootballEventRecord] {
+        guard let data else { return [] }
+        return (try? JSONDecoder().decode([ManagedFootballEventRecord].self, from: data)) ?? []
     }
 
     func refreshNow() {

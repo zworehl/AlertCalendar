@@ -27,6 +27,7 @@ struct AlertCalendarApp: App {
         Window(WindowMetadata.preferencesTitle, id: WindowMetadata.preferencesID) {
             SettingsView(monitor: monitor)
         }
-        .windowResizability(.contentSize)
+        .defaultSize(width: 1040, height: 820)
+        .windowResizability(.automatic)
     }
 }

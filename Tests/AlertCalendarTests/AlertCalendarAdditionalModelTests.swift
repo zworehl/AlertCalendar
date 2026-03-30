@@ -54,9 +54,11 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
             DefaultsKeys.menuBarFontSize,
             DefaultsKeys.skippedItemKeys,
             DefaultsKeys.skippedWeatherUntil,
+            DefaultsKeys.footballTargetCalendarID,
+            DefaultsKeys.managedFootballEventRecords,
         ]
 
-        XCTAssertEqual(keys.count, 26)
+        XCTAssertEqual(keys.count, 28)
         XCTAssertEqual(Set(keys).count, keys.count)
         XCTAssertTrue(keys.contains("activeEventDisplayMode"))
         XCTAssertTrue(keys.contains("menuBarFontSize"))
@@ -79,7 +81,9 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
             calendarID: "cal-1",
             calendarName: "Work",
             calendarColor: NSColor(calibratedRed: 0.20, green: 0.50, blue: 0.90, alpha: 1),
-            kind: .event
+            kind: .event,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
         )
 
         let same = UpcomingItem(
@@ -95,7 +99,9 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
             calendarID: "cal-1",
             calendarName: "Work",
             calendarColor: NSColor(calibratedRed: 0.20, green: 0.50, blue: 0.90, alpha: 1),
-            kind: .event
+            kind: .event,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
         )
 
         let differentKind = UpcomingItem(
@@ -111,7 +117,9 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
             calendarID: "cal-1",
             calendarName: "Work",
             calendarColor: NSColor(calibratedRed: 0.20, green: 0.50, blue: 0.90, alpha: 1),
-            kind: .reminder
+            kind: .reminder,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
         )
 
         let withoutMeetingURL = UpcomingItem(
@@ -127,7 +135,9 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
             calendarID: "cal-1",
             calendarName: "Work",
             calendarColor: NSColor(calibratedRed: 0.20, green: 0.50, blue: 0.90, alpha: 1),
-            kind: .event
+            kind: .event,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
         )
 
         XCTAssertEqual(base, same)
@@ -146,5 +156,53 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
         XCTAssertEqual(Set(AstronomyMoment.allCases.map(\.title)).count, 4)
         XCTAssertTrue(AstronomyMoment.allCases.allSatisfy { !$0.fallbackSymbolName.isEmpty })
         XCTAssertEqual(AstronomyMoment.allCases.filter { $0.svgAssetName != nil }.count, 2)
+    }
+
+    func testContextualActionItemsReturnAllActiveMapCandidates() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+
+        let activeOne = makeUpcomingItem(
+            id: "active-1",
+            title: "Match A",
+            startDate: now.addingTimeInterval(-900),
+            endDate: now.addingTimeInterval(2700)
+        )
+        let activeTwo = makeUpcomingItem(
+            id: "active-2",
+            title: "Match B",
+            startDate: now.addingTimeInterval(-1200),
+            endDate: now.addingTimeInterval(1800)
+        )
+        let upcoming = makeUpcomingItem(
+            id: "upcoming",
+            title: "Match C",
+            startDate: now.addingTimeInterval(900),
+            endDate: now.addingTimeInterval(4500)
+        )
+
+        XCTAssertEqual(
+            MenuContentView.contextualActionItems(from: [upcoming, activeTwo, activeOne], now: now).map(\.id),
+            ["active-2", "active-1"]
+        )
+    }
+
+    private func makeUpcomingItem(id: String, title: String, startDate: Date, endDate: Date) -> UpcomingItem {
+        UpcomingItem(
+            id: id,
+            title: title,
+            date: startDate,
+            endDate: endDate,
+            isAllDay: false,
+            showsMutedBackground: false,
+            travelTimeMinutes: nil,
+            locationText: "Somewhere",
+            meetingURL: nil,
+            calendarID: "cal-1",
+            calendarName: "Work",
+            calendarColor: .systemBlue,
+            kind: .event,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
+        )
     }
 }

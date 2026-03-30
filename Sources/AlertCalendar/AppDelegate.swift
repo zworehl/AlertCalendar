@@ -32,7 +32,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func handleWindowDidBecomeKey(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
         guard isSettingsWindow(window) else { return }
-        setDockIconVisible(true)
+        prepareForSettingsPresentation()
+        configureSettingsWindow(window)
     }
 
     @objc
@@ -55,8 +56,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return window.title == WindowMetadata.preferencesTitle
     }
 
+    func prepareForSettingsPresentation() {
+        setDockIconVisible(true)
+        NSApplication.shared.activate(ignoringOtherApps: true)
+    }
+
     private func setDockIconVisible(_ visible: Bool) {
         let policy: NSApplication.ActivationPolicy = visible ? .regular : .accessory
         _ = NSApplication.shared.setActivationPolicy(policy)
+    }
+
+    func configureSettingsWindow(_ window: NSWindow) {
+        window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable])
+        window.collectionBehavior.insert([.fullScreenPrimary, .fullScreenAllowsTiling])
+        window.tabbingMode = .disallowed
+        window.minSize = NSSize(width: 760, height: 720)
+        window.titleVisibility = .visible
+        window.standardWindowButton(.zoomButton)?.isHidden = false
+        window.level = .normal
     }
 }

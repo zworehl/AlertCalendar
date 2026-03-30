@@ -4,6 +4,7 @@ import SwiftUI
 struct SettingsView: View {
     private enum SettingsTab: String, CaseIterable, Identifiable {
         case general = "General"
+        case feeds = "Feeds"
         case calendars = "Calendars & Reminders"
         case permissions = "Permissions"
 
@@ -13,6 +14,8 @@ struct SettingsView: View {
             switch self {
             case .general:
                 return "slider.horizontal.3"
+            case .feeds:
+                return "sun.max"
             case .calendars:
                 return "calendar"
             case .permissions:
@@ -21,7 +24,23 @@ struct SettingsView: View {
         }
     }
 
-    let monitor: CalendarMonitor
+    private enum FeedsSubsection: String, CaseIterable, Identifiable {
+        case atmosphere = "Sun & Rain"
+        case football = "Football"
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .atmosphere:
+                return "Sunrise, Sunset & Rain"
+            case .football:
+                return "Football Fixtures"
+            }
+        }
+    }
+
+    @ObservedObject var monitor: CalendarMonitor
 
     @AppStorage(DefaultsKeys.includeEvents) private var includeEvents = true
     @AppStorage(DefaultsKeys.includeAllDayEvents) private var includeAllDayEvents = true
@@ -47,7 +66,9 @@ struct SettingsView: View {
     @State private var draft = SettingsDraft.empty
     @State private var didLoad = false
     @State private var selectedTab: SettingsTab = .general
+    @State private var selectedFeedsSubsection: FeedsSubsection = .atmosphere
     @State private var isRequestingPermissions = false
+    @State private var settingsViewportHeight: CGFloat = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -62,13 +83,23 @@ struct SettingsView: View {
             .pickerStyle(.segmented)
             .padding(.bottom, 2)
 
-            if selectedTab == .general {
-                generalSettingsContent
-            } else if selectedTab == .calendars {
-                calendarSettingsContent
-            } else {
-                permissionsSettingsContent
+            ScrollView(.vertical, showsIndicators: true) {
+                VStack(alignment: .leading, spacing: 16) {
+                    activeSettingsContent
+                }
+                .frame(
+                    maxWidth: .infinity,
+                    minHeight: settingsViewportHeight > 0 ? settingsViewportHeight : nil,
+                    alignment: .topLeading
+                )
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(
+                GeometryReader { proxy in
+                    Color.clear
+                        .preference(key: SettingsViewportHeightPreferenceKey.self, value: proxy.size.height)
+                }
+            )
 
             if selectedTab == .permissions {
                 HStack {
@@ -102,14 +133,28 @@ struct SettingsView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
         .background(Color(nsColor: .windowBackgroundColor))
-        .frame(minWidth: 620, idealWidth: 700)
-        .fixedSize(horizontal: false, vertical: true)
-        .onAppear {
-            if !didLoad {
-                monitor.refreshAvailableCalendars()
-                resetDraft()
-                didLoad = true
+        .background(
+            SettingsWindowAccessor { window in
+                guard let appDelegate = NSApp.delegate as? AppDelegate else { return }
+                appDelegate.prepareForSettingsPresentation()
+                appDelegate.configureSettingsWindow(window)
             }
+        )
+        .frame(minWidth: 760, idealWidth: 1040, minHeight: 720, idealHeight: 820)
+        .onAppear {
+            monitor.refreshAvailableCalendars()
+            synchronizeDraftWithStoredSettings(force: true)
+            didLoad = true
+        }
+        .onPreferenceChange(SettingsViewportHeightPreferenceKey.self) { viewportHeight in
+            guard abs(settingsViewportHeight - viewportHeight) > 0.5 else { return }
+            settingsViewportHeight = viewportHeight
+        }
+        .onChange(of: availableEventCalendarSignature) { _ in
+            synchronizeDraftWithStoredSettings()
+        }
+        .onChange(of: availableReminderCalendarSignature) { _ in
+            synchronizeDraftWithStoredSettings()
         }
     }
 
@@ -120,6 +165,20 @@ struct SettingsView: View {
             Text("Alert Calendar")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private var activeSettingsContent: some View {
+        switch selectedTab {
+        case .general:
+            generalSettingsContent
+        case .feeds:
+            liveFeedsSettingsContent
+        case .calendars:
+            calendarSettingsContent
+        case .permissions:
+            permissionsSettingsContent
         }
     }
 
@@ -156,34 +215,6 @@ struct SettingsView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-        }
-
-        GroupBox("Astronomy & Weather") {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 6) {
-                    Toggle("Include sun moments (sunrise/noon/sunset/midnight)", isOn: $draft.includeAstronomy)
-                    InfoTipButton(text: "Adds local sunrise, solar noon, sunset, and solar midnight entries calculated from your configured coordinates.")
-                }
-
-                HStack(spacing: 6) {
-                    Toggle("Include rain forecast (Open-Meteo)", isOn: $draft.includeWeather)
-                    InfoTipButton(text: "Shows upcoming rain estimate in the menu bar. Uses the same coordinates configured below.")
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-
-        if draft.includeAstronomy || draft.includeWeather {
-            SettingsAstronomySectionView(
-                useAutomaticAstronomyLocation: $draft.useAutomaticAstronomyLocation,
-                astronomyLatitude: $draft.astronomyLatitude,
-                astronomyLongitude: $draft.astronomyLongitude,
-                astronomyLocationStatus: monitor.astronomyLocationStatus,
-                onDetectNow: detectLocation,
-                solarTimesProvider: { day, coordinate, timeZone in
-                    monitor.solarTimes(for: day, coordinate: coordinate, timeZone: timeZone)
-                }
-            )
         }
 
         GroupBox("Display") {
@@ -252,6 +283,84 @@ struct SettingsView: View {
     }
 
     @ViewBuilder
+    private var liveFeedsSettingsContent: some View {
+        GroupBox("Live Feeds") {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Manage the non-calendar feeds that can appear in Alert Calendar, including sun moments, rain forecast, and football fixtures.")
+                    .foregroundStyle(.secondary)
+
+                Picker("Feeds subsection", selection: $selectedFeedsSubsection) {
+                    ForEach(FeedsSubsection.allCases) { subsection in
+                        Text(subsection.rawValue).tag(subsection)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Text("Choose a subsection to focus on one feed at a time.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+
+        switch selectedFeedsSubsection {
+        case .atmosphere:
+            atmosphereFeedsSubsection
+        case .football:
+            footballFeedsSubsection
+        }
+    }
+
+    @ViewBuilder
+    private var atmosphereFeedsSubsection: some View {
+        GroupBox("Sunrise & Sunset") {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 6) {
+                    Toggle("Include sun moments (sunrise/noon/sunset/midnight)", isOn: $draft.includeAstronomy)
+                    InfoTipButton(text: "Adds local sunrise, solar noon, sunset, and solar midnight entries calculated from your configured coordinates.")
+                }
+
+                Text("These moments are calculated locally using the coordinates configured below.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+
+        GroupBox("Rain Forecast") {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 6) {
+                    Toggle("Include rain forecast (Open-Meteo)", isOn: $draft.includeWeather)
+                    InfoTipButton(text: "Shows upcoming rain estimate in the menu bar. Uses the same coordinates configured below.")
+                }
+
+                Text("Rain forecasting shares the same location setup used for sun moments.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+
+        SettingsAstronomySectionView(
+            title: "Shared Location & Sun Preview",
+            showsCalculatedTimes: true,
+            useAutomaticAstronomyLocation: $draft.useAutomaticAstronomyLocation,
+            astronomyLatitude: $draft.astronomyLatitude,
+            astronomyLongitude: $draft.astronomyLongitude,
+            astronomyLocationStatus: monitor.astronomyLocationStatus,
+            onDetectNow: detectLocation,
+            solarTimesProvider: { day, coordinate, timeZone in
+                monitor.solarTimes(for: day, coordinate: coordinate, timeZone: timeZone)
+            }
+        )
+    }
+
+    @ViewBuilder
+    private var footballFeedsSubsection: some View {
+        SettingsFootballFixturesSectionView(monitor: monitor)
+    }
+
+    @ViewBuilder
     private var calendarSettingsContent: some View {
         GroupBox("Sources") {
             VStack(alignment: .leading, spacing: 10) {
@@ -279,12 +388,15 @@ struct SettingsView: View {
                 includeReminders: draft.includeReminders,
                 availableEventCalendars: monitor.availableEventCalendars,
                 availableReminderCalendars: monitor.availableReminderCalendars,
+                onSelectionChanged: persistCalendarSelectionDraft,
                 selectedEventCalendarIDs: $draft.selectedEventCalendarIDs,
                 selectedReminderCalendarIDs: $draft.selectedReminderCalendarIDs,
                 weekdayOnlyEventCalendarIDs: $draft.weekdayOnlyEventCalendarIDs,
                 weekdayOnlyReminderCalendarIDs: $draft.weekdayOnlyReminderCalendarIDs
             )
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     @ViewBuilder
@@ -376,6 +488,19 @@ struct SettingsView: View {
         draft = storedDraft()
     }
 
+    private func synchronizeDraftWithStoredSettings(force: Bool = false) {
+        guard force || (didLoad && !hasUnsavedChanges) else { return }
+        resetDraft()
+    }
+
+    private var availableEventCalendarSignature: [String] {
+        monitor.availableEventCalendars.map(\.id)
+    }
+
+    private var availableReminderCalendarSignature: [String] {
+        monitor.availableReminderCalendars.map(\.id)
+    }
+
     private func applyDraft() {
         let oldAutoLocation = useAutomaticAstronomyLocation
 
@@ -413,6 +538,14 @@ struct SettingsView: View {
         } else {
             monitor.refreshNow()
         }
+    }
+
+    private func persistCalendarSelectionDraft() {
+        monitor.defaults.set(Array(draft.selectedEventCalendarIDs), forKey: DefaultsKeys.selectedEventCalendarIDs)
+        monitor.defaults.set(Array(draft.selectedReminderCalendarIDs), forKey: DefaultsKeys.selectedReminderCalendarIDs)
+        monitor.defaults.set(Array(draft.weekdayOnlyEventCalendarIDs), forKey: DefaultsKeys.weekdayOnlyEventCalendarIDs)
+        monitor.defaults.set(Array(draft.weekdayOnlyReminderCalendarIDs), forKey: DefaultsKeys.weekdayOnlyReminderCalendarIDs)
+        monitor.refreshNow()
     }
 
     private func detectLocation() {
@@ -498,6 +631,54 @@ struct SettingsView: View {
         formatter.dateFormat = "MMM d, yyyy h:mm:ss a"
         return formatter
     }()
+}
+
+private struct SettingsViewportHeightPreferenceKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+private struct SettingsWindowAccessor: NSViewRepresentable {
+    let onResolve: (NSWindow) -> Void
+
+    func makeNSView(context: Context) -> SettingsWindowObserverView {
+        SettingsWindowObserverView(onResolve: onResolve)
+    }
+
+    func updateNSView(_ nsView: SettingsWindowObserverView, context: Context) {
+        nsView.onResolve = onResolve
+        nsView.resolveWindowIfNeeded()
+    }
+}
+
+private final class SettingsWindowObserverView: NSView {
+    var onResolve: (NSWindow) -> Void
+
+    init(onResolve: @escaping (NSWindow) -> Void) {
+        self.onResolve = onResolve
+        super.init(frame: .zero)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        resolveWindowIfNeeded()
+    }
+
+    func resolveWindowIfNeeded() {
+        guard let window else { return }
+        DispatchQueue.main.async { [weak self, weak window] in
+            guard let self, let window else { return }
+            self.onResolve(window)
+        }
+    }
 }
 
 private struct SettingsDraft: Equatable {

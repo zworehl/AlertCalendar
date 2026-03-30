@@ -70,7 +70,9 @@ extension CalendarMonitor {
             calendarID: nil,
             calendarName: "Astronomy",
             calendarColor: color,
-            kind: .event
+            kind: .event,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
         )
     }
 

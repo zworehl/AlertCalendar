@@ -6,6 +6,7 @@ struct SettingsCalendarColumnsView: View {
     let includeReminders: Bool
     let availableEventCalendars: [AvailableCalendar]
     let availableReminderCalendars: [AvailableCalendar]
+    let onSelectionChanged: () -> Void
     @Binding var selectedEventCalendarIDs: Set<String>
     @Binding var selectedReminderCalendarIDs: Set<String>
     @Binding var weekdayOnlyEventCalendarIDs: Set<String>
@@ -14,8 +15,6 @@ struct SettingsCalendarColumnsView: View {
     private let rowHoverBackground = Color.primary.opacity(0.08)
     private let headingColor = Color.secondary
     private let disabledColor = Color.secondary.opacity(0.8)
-    private let calendarListMaxHeight: CGFloat = 380
-
     @State private var hoveredCalendarID: String?
 
     var body: some View {
@@ -45,7 +44,7 @@ struct SettingsCalendarColumnsView: View {
             }
             .padding(.vertical, 2)
         }
-        .frame(maxHeight: calendarListMaxHeight)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(14)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -165,13 +164,23 @@ struct SettingsCalendarColumnsView: View {
                     .foregroundStyle(.secondary.opacity(0.85))
             }
 
-            if isSelected && isHovered {
+            if isSelected {
                 Button {
                     setWeekdayOnly(calendarID: calendar.id, weekdayOnlyIDs: weekdayOnlyIDs, isWeekdayOnly: !isWeekdayOnly)
                 } label: {
                     Text(isWeekdayOnly ? "Weekdays" : "Every day")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(isWeekdayOnly ? .primary : .secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(
+                                    isWeekdayOnly
+                                        ? Color.accentColor.opacity(0.16)
+                                        : Color.secondary.opacity(0.12)
+                                )
+                        )
                 }
                 .buttonStyle(.plain)
                 .help("Toggle weekdays-only filtering for this calendar")
@@ -214,6 +223,7 @@ struct SettingsCalendarColumnsView: View {
             selectedIDs.wrappedValue.remove(calendarID)
             weekdayOnlyIDs.wrappedValue.remove(calendarID)
         }
+        onSelectionChanged()
     }
 
     private func setWeekdayOnly(
@@ -226,5 +236,6 @@ struct SettingsCalendarColumnsView: View {
         } else {
             weekdayOnlyIDs.wrappedValue.remove(calendarID)
         }
+        onSelectionChanged()
     }
 }

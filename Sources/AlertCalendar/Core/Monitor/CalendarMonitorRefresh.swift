@@ -13,6 +13,7 @@ extension CalendarMonitor {
         refreshAvailableCalendars()
         let settings = snapshotSettings()
         let now = fixedSecondNow()
+        await refreshFootballDataIfNeeded(now: now)
         let endDate = now.addingTimeInterval(Double(settings.lookAheadHours) * 3600)
 
         var timedCollected: [UpcomingItem] = []
@@ -196,25 +197,33 @@ extension CalendarMonitor {
         }
     }
 
-    func loadEvents(from start: Date, to end: Date, now: Date, calendars: [EKCalendar]) -> (timedItems: [UpcomingItem], allDayItems: [UpcomingItem]) {
+    func loadEvents(
+        from start: Date,
+        to end: Date,
+        now: Date,
+        calendars: [EKCalendar]
+    ) -> (timedItems: [UpcomingItem], allDayItems: [UpcomingItem]) {
         let predicate = eventStore.predicateForEvents(withStart: start, end: end, calendars: calendars)
         var timedItems: [UpcomingItem] = []
         var allDayItems: [UpcomingItem] = []
 
         for event in eventStore.events(matching: predicate) {
             guard let startDate = event.startDate else { continue }
+            let calendarIdentifier = event.calendar.calendarIdentifier
             let eventEnd = event.endDate ?? Calendar.current.date(
                 byAdding: .hour,
                 value: 1,
                 to: startDate
             ) ?? startDate
             let identifier = event.eventIdentifier ?? UUID().uuidString
+            let footballMatch = footballMatch(for: event)
             let title = normalizedTitle(event.title)
             let calendarName = event.calendar.title
             let calendarColor = color(from: event.calendar)
             let showsMutedBackground = requiresMutedParticipationStyle(for: event)
             let meetingURL = meetingURL(for: event)
             let locationText = normalizedLocation(for: event.location)
+            let footballMenuBarDisplay = footballMatch.map(footballMenuBarDisplay(for:))
             let travelTimeMinutes = normalizedTravelTimeMinutes(
                 for: event,
                 meetingURL: meetingURL,
@@ -238,10 +247,12 @@ extension CalendarMonitor {
                         travelTimeMinutes: travelTimeMinutes,
                         locationText: locationText,
                         meetingURL: meetingURL,
-                        calendarID: event.calendar.calendarIdentifier,
+                        calendarID: calendarIdentifier,
                         calendarName: calendarName,
                         calendarColor: calendarColor,
-                        kind: .event
+                        kind: .event,
+                        footballMatch: footballMatch,
+                        footballMenuBarDisplay: footballMenuBarDisplay
                     )
                 )
                 continue
@@ -262,10 +273,12 @@ extension CalendarMonitor {
                     travelTimeMinutes: travelTimeMinutes,
                     locationText: locationText,
                     meetingURL: meetingURL,
-                    calendarID: event.calendar.calendarIdentifier,
+                    calendarID: calendarIdentifier,
                     calendarName: calendarName,
                     calendarColor: calendarColor,
-                    kind: .event
+                    kind: .event,
+                    footballMatch: footballMatch,
+                    footballMenuBarDisplay: footballMenuBarDisplay
                 )
             )
         }
@@ -304,7 +317,9 @@ extension CalendarMonitor {
                 calendarID: reminder.calendar.calendarIdentifier,
                 calendarName: reminder.calendar.title,
                 calendarColor: color(from: reminder.calendar),
-                kind: .reminder
+                kind: .reminder,
+                footballMatch: nil,
+                footballMenuBarDisplay: nil
             )
         }
     }
@@ -554,15 +569,32 @@ extension CalendarMonitor {
     }
 
     private func syncStoredSelection(selectedKey: String, weekdayOnlyKey: String, availableIDs: Set<String>) {
+        guard !availableIDs.isEmpty else { return }
+
+        let sortedAvailableIDs = Array(availableIDs).sorted()
+        let recoveryKey = selectedKey == DefaultsKeys.selectedEventCalendarIDs
+            ? DefaultsKeys.didAutoRecoverEmptyEventCalendarSelection
+            : DefaultsKeys.didAutoRecoverEmptyReminderCalendarSelection
+
         if defaults.object(forKey: selectedKey) == nil {
-            defaults.set(Array(availableIDs), forKey: selectedKey)
+            defaults.set(sortedAvailableIDs, forKey: selectedKey)
         } else if let stored = defaults.stringArray(forKey: selectedKey) {
             let filtered = stored.filter { availableIDs.contains($0) }
-            if filtered != stored {
+            if filtered.isEmpty,
+               !stored.isEmpty,
+               !defaults.bool(forKey: recoveryKey) {
+                defaults.set(sortedAvailableIDs, forKey: selectedKey)
+                defaults.set(true, forKey: recoveryKey)
+            } else if filtered.isEmpty,
+                      stored.isEmpty,
+                      !defaults.bool(forKey: recoveryKey) {
+                defaults.set(sortedAvailableIDs, forKey: selectedKey)
+                defaults.set(true, forKey: recoveryKey)
+            } else if filtered != stored {
                 defaults.set(filtered, forKey: selectedKey)
             }
         } else {
-            defaults.set(Array(availableIDs), forKey: selectedKey)
+            defaults.set(sortedAvailableIDs, forKey: selectedKey)
         }
 
         if let weekdayOnlyStored = defaults.stringArray(forKey: weekdayOnlyKey) {

@@ -37,7 +37,9 @@ extension CalendarMonitor {
                 calendarID: nil,
                 calendarName: "Weather",
                 calendarColor: NSColor.systemTeal,
-                kind: .weather
+                kind: .weather,
+                footballMatch: nil,
+                footballMenuBarDisplay: nil
             )
         } catch {
             return nil

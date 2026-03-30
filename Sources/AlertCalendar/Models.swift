@@ -21,6 +21,8 @@ struct UpcomingItem: Identifiable, Equatable {
     let calendarName: String
     let calendarColor: NSColor
     let kind: CalendarItemKind
+    let footballMatch: FootballFixtureMatch?
+    let footballMenuBarDisplay: FootballMenuBarDisplay?
 
     var notificationKey: String {
         "\(id)|\(Int(date.timeIntervalSince1970))|\(kind.rawValue)|\(isAllDay)"
@@ -98,6 +100,8 @@ extension UpcomingItem {
             && lhs.calendarName == rhs.calendarName
             && colorsAreEqual(lhs.calendarColor, rhs.calendarColor)
             && lhs.kind == rhs.kind
+            && lhs.footballMatch == rhs.footballMatch
+            && lhs.footballMenuBarDisplay == rhs.footballMenuBarDisplay
     }
 }
 

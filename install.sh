@@ -74,6 +74,8 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
   <string>AlertCalendar needs Reminders access to show your pending reminders.</string>
   <key>NSCalendarsFullAccessUsageDescription</key>
   <string>AlertCalendar needs full Calendar access to read upcoming events and trigger alerts.</string>
+  <key>NSAppleEventsUsageDescription</key>
+  <string>AlertCalendar uses Apple Events to open selected fixtures directly in Calendar when you ask it to.</string>
   <key>NSRemindersFullAccessUsageDescription</key>
   <string>AlertCalendar needs full Reminders access to show reminder due times.</string>
   <key>NSLocationWhenInUseUsageDescription</key>

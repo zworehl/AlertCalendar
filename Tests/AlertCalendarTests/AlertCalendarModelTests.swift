@@ -32,7 +32,9 @@ final class AlertCalendarModelTests: XCTestCase {
             calendarID: "cal-1",
             calendarName: "Work",
             calendarColor: .systemBlue,
-            kind: .event
+            kind: .event,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
         )
 
         XCTAssertEqual(item.notificationKey, "abc123|1710000000|Event|false")

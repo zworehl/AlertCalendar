@@ -49,6 +49,7 @@ extension CalendarMonitor {
         let leadSeconds = TimeInterval(max(1, settings.alertLeadMinutes) * 60)
         guard let candidate = upcomingItems.first(where: {
             guard $0.kind != .weather else { return false }
+            guard AstronomyMoment(eventTitle: $0.title) == nil else { return false }
             let remaining = $0.date.timeIntervalSince(now)
             return remaining > 0 && remaining <= leadSeconds
         }) else {
@@ -87,6 +88,11 @@ extension CalendarMonitor {
     }
 
     func updateMenuBarState(now: Date, settings: SettingsSnapshot) {
+        if let highlight = activeFootballGoalHighlight,
+           highlight.expiresAt <= now {
+            activeFootballGoalHighlight = nil
+        }
+
         let previewItems = displayedItemsForMenuBar(now: now, settings: settings)
         if previewItems.isEmpty {
             setIfChanged(\.combinedMenuBarLabel, to: "No upcoming items")
@@ -191,6 +197,19 @@ extension CalendarMonitor {
         } else {
             compactTitle = item.title
         }
+
+        if let footballMatch = item.footballMatch,
+           footballMatch.statusState != .scheduled || item.date <= now {
+            return compactTitle
+        }
+
+        if item.kind == .event,
+           item.date <= now,
+           (item.endDate ?? item.date) > now,
+           FootballFixtureFormatter.looksLikeFootballCalendarTitle(item.title) {
+            return compactTitle
+        }
+
         if item.kind == .weather {
             if let endDate = item.endDate, endDate > item.date {
                 if item.date <= now, endDate > now {
@@ -232,6 +251,13 @@ extension CalendarMonitor {
     func displayedItemsForMenuBar(now: Date, settings: SettingsSnapshot) -> [UpcomingItem] {
         let queue = unifiedMenuBarQueue(now: now, settings: settings)
         guard !queue.isEmpty else { return [] }
+
+        if let highlight = activeFootballGoalHighlight,
+           highlight.expiresAt > now,
+           let highlightedItem = queue.first(where: { $0.footballMatch?.id == highlight.matchID }) {
+            return [highlightedItem]
+        }
+
         let pool = preferredMenuBarRotationPool(from: queue, now: now, settings: settings)
         guard !pool.isEmpty else { return [] }
         guard pool.count > 1 else { return [pool[0]] }
@@ -584,7 +610,6 @@ extension CalendarMonitor {
 
         return total
     }
-
     func allDayLabel(for item: UpcomingItem) -> String? {
         guard item.kind == .event, item.isAllDay else { return nil }
         guard let endDate = item.endDate else { return "all-day" }

@@ -4,6 +4,8 @@ import SwiftUI
 struct SettingsAstronomySectionView: View {
     typealias SolarMoments = (sunrise: Date?, solarNoon: Date?, sunset: Date?, solarMidnight: Date?)
 
+    let title: String
+    let showsCalculatedTimes: Bool
     @Binding var useAutomaticAstronomyLocation: Bool
     @Binding var astronomyLatitude: Double
     @Binding var astronomyLongitude: Double
@@ -15,18 +17,28 @@ struct SettingsAstronomySectionView: View {
     @FocusState private var focusedCoordinate: CoordinateAxis?
 
     var body: some View {
-        GroupBox("Astronomy (Sun Path)") {
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .top, spacing: 14) {
-                    coordinatesSection
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    astronomyTimesSection
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
+        GroupBox(title) {
+            if showsCalculatedTimes {
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .top, spacing: 14) {
+                        coordinatesSection
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        astronomyTimesSection
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
 
+                    VStack(alignment: .leading, spacing: 10) {
+                        coordinatesSection
+                        astronomyTimesSection
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            } else {
                 VStack(alignment: .leading, spacing: 10) {
                     coordinatesSection
-                    astronomyTimesSection
+                    Text("These coordinates are shared by the rain forecast and sun moments feeds.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }

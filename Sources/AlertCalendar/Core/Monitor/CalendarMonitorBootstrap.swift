@@ -39,6 +39,9 @@ extension CalendarMonitor {
             DefaultsKeys.menuBarFontSize: 13.0,
             DefaultsKeys.skippedItemKeys: [],
             DefaultsKeys.skippedWeatherUntil: 0.0,
+            DefaultsKeys.footballTargetCalendarID: "",
+            DefaultsKeys.didAutoRecoverEmptyEventCalendarSelection: false,
+            DefaultsKeys.didAutoRecoverEmptyReminderCalendarSelection: false,
         ])
     }
 
@@ -75,6 +78,8 @@ extension CalendarMonitor {
                 let periodicRefreshInterval: TimeInterval = 5 * 60
                 if lastPeriodicRefreshDate == nil || now.timeIntervalSince(lastPeriodicRefreshDate!) >= periodicRefreshInterval {
                     lastPeriodicRefreshDate = now
+                    enqueueRefresh()
+                } else if shouldRefreshFootballOnHeartbeat(now: now) {
                     enqueueRefresh()
                 }
             }
