@@ -10,6 +10,36 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
         XCTAssertEqual(ActiveEventDisplayMode.elapsed.title, "Show elapsed time")
     }
 
+    func testFootballCalendarAlertOptionMetadataIsStable() {
+        XCTAssertEqual(
+            FootballCalendarAlertOption.allCases.map(\.rawValue),
+            [
+                "none",
+                "atTimeOfEvent",
+                "fiveMinutesBefore",
+                "tenMinutesBefore",
+                "fifteenMinutesBefore",
+                "thirtyMinutesBefore",
+                "oneHourBefore",
+                "twoHoursBefore",
+                "oneDayBefore",
+                "twoDaysBefore",
+            ]
+        )
+        XCTAssertEqual(FootballCalendarAlertOption.none.title, "None")
+        XCTAssertEqual(FootballCalendarAlertOption.atTimeOfEvent.title, "At time of event")
+        XCTAssertEqual(FootballCalendarAlertOption.twoDaysBefore.relativeOffset(), -2 * 24 * 60 * 60)
+    }
+
+    func testFootballCompetitionPresetsSplitBetweenClubAndNationalTeamBuckets() {
+        let grouped = Dictionary(grouping: FootballCompetitionPreset.menuPresets, by: \.category)
+
+        XCTAssertTrue(grouped[.clubCompetitions]?.contains(where: { $0.slug == "eng.1" }) == true)
+        XCTAssertTrue(grouped[.nationalTeams]?.contains(where: { $0.slug == "fifa.world" }) == true)
+        XCTAssertEqual(FootballCompetitionCategory.clubCompetitions.title, "Club Competitions")
+        XCTAssertEqual(FootballCompetitionCategory.nationalTeams.title, "National Teams")
+    }
+
     func testCalendarColorPaletteOptionsHaveUniqueIDsAndKnownFallback() {
         let options = CalendarColorPalette.options
         let uniqueIDs = Set(options.map(\.id))
@@ -55,10 +85,11 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
             DefaultsKeys.skippedItemKeys,
             DefaultsKeys.skippedWeatherUntil,
             DefaultsKeys.footballTargetCalendarID,
+            DefaultsKeys.footballCalendarAlertOption,
             DefaultsKeys.managedFootballEventRecords,
         ]
 
-        XCTAssertEqual(keys.count, 28)
+        XCTAssertEqual(keys.count, 29)
         XCTAssertEqual(Set(keys).count, keys.count)
         XCTAssertTrue(keys.contains("activeEventDisplayMode"))
         XCTAssertTrue(keys.contains("menuBarFontSize"))
@@ -186,6 +217,334 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
         )
     }
 
+    func testQueueItemsForActionsExcludesFootballMatchesAlreadyStartedOrLive() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let liveMatch = makeFootballMatch(
+            id: "live-match",
+            startDate: now.addingTimeInterval(-900),
+            actualStartDate: now.addingTimeInterval(-600),
+            statusState: .inProgress,
+            statusText: "15'"
+        )
+        let delayedMatch = makeFootballMatch(
+            id: "delayed-match",
+            startDate: now.addingTimeInterval(-120),
+            actualStartDate: nil,
+            statusState: .scheduled,
+            statusText: "Starting soon"
+        )
+        let futureMatch = makeFootballMatch(
+            id: "future-match",
+            startDate: now.addingTimeInterval(1800),
+            actualStartDate: nil,
+            statusState: .scheduled,
+            statusText: "7:30 PM"
+        )
+        let reminder = UpcomingItem(
+            id: "reminder-1",
+            title: "Pay bill",
+            date: now.addingTimeInterval(1200),
+            endDate: nil,
+            isAllDay: false,
+            showsMutedBackground: false,
+            travelTimeMinutes: nil,
+            locationText: nil,
+            meetingURL: nil,
+            calendarID: nil,
+            calendarName: "Reminders",
+            calendarColor: .systemBlue,
+            kind: .reminder,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
+        )
+
+        let queued = MenuContentView.queueItemsForActions(
+            from: [
+                makeFootballUpcomingItem(liveMatch),
+                makeFootballUpcomingItem(delayedMatch),
+                makeFootballUpcomingItem(futureMatch),
+                reminder,
+            ],
+            contextualItems: [],
+            now: now,
+            maxItems: 8
+        )
+
+        XCTAssertEqual(queued.map(\.id), ["future-match", "reminder-1"])
+    }
+
+    func testQueueItemsForActionsExcludesFootballMatchesDuplicatedInContextualPanel() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let contextualMatch = makeFootballMatch(
+            id: "context-match",
+            startDate: now.addingTimeInterval(1800),
+            actualStartDate: nil,
+            statusState: .scheduled,
+            statusText: "7:30 PM"
+        )
+        let queueMatch = makeFootballMatch(
+            id: "queue-match",
+            startDate: now.addingTimeInterval(2400),
+            actualStartDate: nil,
+            statusState: .scheduled,
+            statusText: "7:40 PM"
+        )
+
+        let queued = MenuContentView.queueItemsForActions(
+            from: [
+                makeFootballUpcomingItem(contextualMatch),
+                makeFootballUpcomingItem(queueMatch),
+            ],
+            contextualItems: [
+                makeFootballUpcomingItem(contextualMatch)
+            ],
+            now: now,
+            maxItems: 8
+        )
+
+        XCTAssertEqual(queued.map(\.id), ["queue-match"])
+    }
+
+    func testResolvedMenuBarRotationStateKeepsCurrentSelectionWithinSameSlot() {
+        let previousState = CalendarMonitor.MenuBarRotationState(
+            slot: 42,
+            selectedKey: "match-b",
+            selectedIndex: 1
+        )
+
+        let resolvedState = CalendarMonitor.resolvedMenuBarRotationState(
+            for: ["match-a", "match-b", "match-c"],
+            slot: 42,
+            previousState: previousState
+        )
+
+        XCTAssertEqual(resolvedState.slot, 42)
+        XCTAssertEqual(resolvedState.selectedKey, "match-b")
+        XCTAssertEqual(resolvedState.selectedIndex, 1)
+    }
+
+    func testResolvedMenuBarRotationStateAdvancesWhenSlotChanges() {
+        let previousState = CalendarMonitor.MenuBarRotationState(
+            slot: 42,
+            selectedKey: "match-b",
+            selectedIndex: 1
+        )
+
+        let resolvedState = CalendarMonitor.resolvedMenuBarRotationState(
+            for: ["match-a", "match-b", "match-c"],
+            slot: 43,
+            previousState: previousState
+        )
+
+        XCTAssertEqual(resolvedState.slot, 43)
+        XCTAssertEqual(resolvedState.selectedKey, "match-c")
+        XCTAssertEqual(resolvedState.selectedIndex, 2)
+    }
+
+    func testPreservedMenuBarSelectionKeyKeepsCurrentSelectionWhenPreferredPoolChangesWithinSameSlot() {
+        let previousState = CalendarMonitor.MenuBarRotationState(
+            slot: 42,
+            selectedKey: "sunset",
+            selectedIndex: 1
+        )
+
+        let preservedKey = CalendarMonitor.preservedMenuBarSelectionKeyIfNeeded(
+            slot: 42,
+            previousState: previousState,
+            queueKeys: ["event-a", "sunset", "event-b"],
+            preferredPoolKeys: ["event-a", "event-b"],
+            allowMissingSelectedKeyHold: false
+        )
+
+        XCTAssertEqual(preservedKey, "sunset")
+    }
+
+    func testPreservedMenuBarSelectionKeyKeepsElapsedPointEventForRestOfSlot() {
+        let previousState = CalendarMonitor.MenuBarRotationState(
+            slot: 42,
+            selectedKey: "sunset",
+            selectedIndex: 1
+        )
+
+        let preservedKey = CalendarMonitor.preservedMenuBarSelectionKeyIfNeeded(
+            slot: 42,
+            previousState: previousState,
+            queueKeys: ["event-a", "event-b"],
+            preferredPoolKeys: ["event-a", "event-b"],
+            allowMissingSelectedKeyHold: true
+        )
+
+        XCTAssertEqual(preservedKey, "sunset")
+    }
+
+    func testPreservedMenuBarSelectionKeyDoesNotKeepSelectionAfterSlotChanges() {
+        let previousState = CalendarMonitor.MenuBarRotationState(
+            slot: 42,
+            selectedKey: "sunset",
+            selectedIndex: 1
+        )
+
+        let preservedKey = CalendarMonitor.preservedMenuBarSelectionKeyIfNeeded(
+            slot: 43,
+            previousState: previousState,
+            queueKeys: ["event-a", "event-b"],
+            preferredPoolKeys: ["event-a", "event-b"],
+            allowMissingSelectedKeyHold: true
+        )
+
+        XCTAssertNil(preservedKey)
+    }
+
+    func testUpdatedFootballGoalHighlightStaysPendingUntilMatchAppears() {
+        let highlight = FootballGoalHighlight(matchID: "match-b", scoringSide: .home)
+
+        let updated = CalendarMonitor.updatedFootballGoalHighlight(
+            highlight,
+            queueMatchIDs: ["match-a", "match-b", "match-c"],
+            selectedMatchID: "match-a"
+        )
+
+        XCTAssertEqual(updated?.matchID, "match-b")
+        XCTAssertEqual(updated?.scoringSide, .home)
+        XCTAssertEqual(updated?.hasBeenShownInMenuBar, false)
+    }
+
+    func testUpdatedFootballGoalHighlightMarksFirstNaturalAppearance() {
+        let highlight = FootballGoalHighlight(matchID: "match-b", scoringSide: .away)
+
+        let updated = CalendarMonitor.updatedFootballGoalHighlight(
+            highlight,
+            queueMatchIDs: ["match-a", "match-b", "match-c"],
+            selectedMatchID: "match-b"
+        )
+
+        XCTAssertEqual(updated?.matchID, "match-b")
+        XCTAssertEqual(updated?.scoringSide, .away)
+        XCTAssertEqual(updated?.hasBeenShownInMenuBar, true)
+    }
+
+    func testUpdatedFootballGoalHighlightClearsAfterConsumedAppearance() {
+        let highlight = FootballGoalHighlight(
+            matchID: "match-b",
+            scoringSide: .away,
+            hasBeenShownInMenuBar: true
+        )
+
+        let updated = CalendarMonitor.updatedFootballGoalHighlight(
+            highlight,
+            queueMatchIDs: ["match-a", "match-b", "match-c"],
+            selectedMatchID: "match-c"
+        )
+
+        XCTAssertNil(updated)
+    }
+
+    func testShouldHoldElapsedPointInTimeMenuBarItemOnlyForPastInstantEvents() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let pastInstantEvent = UpcomingItem(
+            id: "sunset",
+            title: "Sunset",
+            date: now.addingTimeInterval(-5),
+            endDate: nil,
+            isAllDay: false,
+            showsMutedBackground: false,
+            travelTimeMinutes: nil,
+            locationText: nil,
+            meetingURL: nil,
+            calendarID: nil,
+            calendarName: "Astronomy",
+            calendarColor: .systemOrange,
+            kind: .event,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
+        )
+        let activeTimedEvent = UpcomingItem(
+            id: "meeting",
+            title: "Meeting",
+            date: now.addingTimeInterval(-300),
+            endDate: now.addingTimeInterval(300),
+            isAllDay: false,
+            showsMutedBackground: false,
+            travelTimeMinutes: nil,
+            locationText: nil,
+            meetingURL: nil,
+            calendarID: "cal-1",
+            calendarName: "Work",
+            calendarColor: .systemBlue,
+            kind: .event,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
+        )
+        let futureInstantEvent = UpcomingItem(
+            id: "sunrise",
+            title: "Sunrise",
+            date: now.addingTimeInterval(120),
+            endDate: nil,
+            isAllDay: false,
+            showsMutedBackground: false,
+            travelTimeMinutes: nil,
+            locationText: nil,
+            meetingURL: nil,
+            calendarID: nil,
+            calendarName: "Astronomy",
+            calendarColor: .systemYellow,
+            kind: .event,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
+        )
+
+        XCTAssertTrue(CalendarMonitor.shouldHoldElapsedPointInTimeMenuBarItem(pastInstantEvent, now: now))
+        XCTAssertFalse(CalendarMonitor.shouldHoldElapsedPointInTimeMenuBarItem(activeTimedEvent, now: now))
+        XCTAssertFalse(CalendarMonitor.shouldHoldElapsedPointInTimeMenuBarItem(futureInstantEvent, now: now))
+    }
+
+    func testPreferredLocationTextUsesFootballVenueWhenAvailable() {
+        let value = CalendarMonitor.preferredLocationText(
+            eventLocation: "Buenos Aires, Argentina",
+            footballMatchLocation: "Alberto Jose Armando (La Bombonera), Buenos Aires, Argentina"
+        )
+
+        XCTAssertEqual(value, "Alberto Jose Armando (La Bombonera), Buenos Aires, Argentina")
+    }
+
+    func testPreferredLocationTextFallsBackToEventLocation() {
+        let value = CalendarMonitor.preferredLocationText(
+            eventLocation: "Mercedes-Benz Stadium, Atlanta, Georgia, USA",
+            footballMatchLocation: nil
+        )
+
+        XCTAssertEqual(value, "Mercedes-Benz Stadium, Atlanta, Georgia, USA")
+    }
+
+    func testResolvedFootballSectionMatchesPrefersCachedEnrichedMatch() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let scheduledStart = now.addingTimeInterval(-10 * 60)
+        let actualKickoff = now.addingTimeInterval(-3 * 60)
+        let rawMatch = makeFootballMatch(
+            id: "match-1",
+            startDate: scheduledStart,
+            actualStartDate: nil,
+            statusState: .inProgress,
+            statusText: "15'"
+        )
+        let cachedMatch = makeFootballMatch(
+            id: "match-1",
+            startDate: scheduledStart,
+            actualStartDate: actualKickoff,
+            statusState: .inProgress,
+            statusText: "15'"
+        )
+
+        let resolved = CalendarMonitor.resolvedFootballSectionMatches(
+            [rawMatch],
+            cachedMatchesByID: [rawMatch.id: cachedMatch],
+            now: now
+        )
+
+        XCTAssertEqual(resolved.count, 1)
+        XCTAssertEqual(resolved.first?.actualStartDate, actualKickoff)
+    }
+
     private func makeUpcomingItem(id: String, title: String, startDate: Date, endDate: Date) -> UpcomingItem {
         UpcomingItem(
             id: id,
@@ -202,6 +561,65 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
             calendarColor: .systemBlue,
             kind: .event,
             footballMatch: nil,
+            footballMenuBarDisplay: nil
+        )
+    }
+
+    private func makeFootballMatch(
+        id: String,
+        startDate: Date,
+        actualStartDate: Date?,
+        statusState: FootballFixtureStatusState,
+        statusText: String
+    ) -> FootballFixtureMatch {
+        FootballFixtureMatch(
+            id: id,
+            competitionSlug: "fifa.friendly",
+            competitionName: "International Friendly",
+            competitionStage: nil,
+            competitionLogoURL: nil,
+            locationText: "Mercedes-Benz Stadium, Atlanta, Georgia, USA",
+            startDate: startDate,
+            actualStartDate: actualStartDate,
+            statusState: statusState,
+            statusText: statusText,
+            homeTeam: FootballTeamSummary(
+                id: "home-\(id)",
+                name: "United States",
+                abbreviation: "USA",
+                logoURL: nil,
+                countryName: "United States",
+                isNational: true
+            ),
+            awayTeam: FootballTeamSummary(
+                id: "away-\(id)",
+                name: "Portugal",
+                abbreviation: "POR",
+                logoURL: nil,
+                countryName: "Portugal",
+                isNational: true
+            ),
+            homeScore: "0",
+            awayScore: "0"
+        )
+    }
+
+    private func makeFootballUpcomingItem(_ match: FootballFixtureMatch) -> UpcomingItem {
+        UpcomingItem(
+            id: match.id,
+            title: FootballFixtureFormatter.calendarTitle(for: match),
+            date: match.startDate,
+            endDate: match.startDate.addingTimeInterval(2 * 60 * 60),
+            isAllDay: false,
+            showsMutedBackground: false,
+            travelTimeMinutes: nil,
+            locationText: match.locationText,
+            meetingURL: nil,
+            calendarID: "football-calendar",
+            calendarName: "Football",
+            calendarColor: .systemOrange,
+            kind: .event,
+            footballMatch: match,
             footballMenuBarDisplay: nil
         )
     }

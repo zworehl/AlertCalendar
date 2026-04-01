@@ -11,11 +11,13 @@ extension CalendarMonitor {
     private static let footballTrackedLookaheadDays = 30
     private static let footballManagedCleanupSearchLookbackDays = 365
     private static let footballManagedCleanupSearchLookaheadDays = 365
-    nonisolated private static let footballRegulationMatchDuration: TimeInterval = 120 * 60
-    nonisolated private static let footballExtraTimeMatchDuration: TimeInterval = 150 * 60
-    nonisolated private static let footballPenaltyMatchDuration: TimeInterval = 165 * 60
-    nonisolated private static let footballLiveMinimumTailDuration: TimeInterval = 20 * 60
+    nonisolated private static let footballRegulationMatchDuration: TimeInterval = 110 * 60
+    nonisolated private static let footballExtraTimeMatchDuration: TimeInterval = 140 * 60
+    nonisolated private static let footballPenaltyMatchDuration: TimeInterval = 150 * 60
+    nonisolated private static let footballLiveMinimumTailDuration: TimeInterval = 10 * 60
+    nonisolated private static let footballEstimatedEndMarginDuration: TimeInterval = 5 * 60
     nonisolated private static let footballManagedEventMatchingTolerance: TimeInterval = 5 * 60
+    nonisolated private static let footballStructuredLocationToleranceMeters: CLLocationDistance = 150
 
     private struct ManagedFootballEventSnapshot {
         let event: EKEvent
@@ -56,11 +58,14 @@ extension CalendarMonitor {
 
         do {
             let matchesByCompetition = try await footballClient.fetchMatchesByCompetition(for: [competition])
-            let matches = (matchesByCompetition[competition.slug] ?? [])
-                .sorted { lhs, rhs in
-                    footballFixtureSortPriority(for: lhs, now: now) < footballFixtureSortPriority(for: rhs, now: now)
-                }
-            await cacheFootballMatches(matches)
+            let fetchedMatches = matchesByCompetition[competition.slug] ?? []
+            let refreshedMatches = await footballClient.refreshStatusesIfNeeded(for: fetchedMatches)
+            await cacheFootballMatches(refreshedMatches)
+            let matches = Self.resolvedFootballSectionMatches(
+                refreshedMatches,
+                cachedMatchesByID: footballMatchesByID,
+                now: now
+            )
 
             updateFootballCompetitionSection(competition.id) { _ in
                 FootballMenuCompetitionSection(
@@ -112,9 +117,17 @@ extension CalendarMonitor {
         }
 
         do {
-            let matches = try await footballClient.fetchMatches(for: limitedPresets)
-            let filteredMatches = Self.liveAndNextDayMatches(from: matches, now: now)
-            await cacheFootballMatches(matches)
+            let fetchedMatches = try await footballClient.fetchMatches(for: limitedPresets)
+            let refreshedMatches = await footballClient.refreshStatusesIfNeeded(for: fetchedMatches)
+            await cacheFootballMatches(refreshedMatches)
+            let filteredMatches = Self.liveAndNextDayMatches(
+                from: Self.resolvedFootballSectionMatches(
+                    refreshedMatches,
+                    cachedMatchesByID: footballMatchesByID,
+                    now: now
+                ),
+                now: now
+            )
 
             footballLiveAndNextDaySection = FootballMatchesOverviewSection(
                 title: footballLiveAndNextDaySection.title,
@@ -154,13 +167,8 @@ extension CalendarMonitor {
             lastFootballManagedCleanupDate = now
         }
 
-        _ = removeDuplicateManagedFootballEvents(now: now)
-        let trackedEvents = trackedFootballEvents(now: now)
-        let trackedMatchIDs = Set(trackedEvents.map(\.reference.matchID))
-        if trackedMatchIDs != managedFootballMatchIDs {
-            managedFootballMatchIDs = trackedMatchIDs
-        }
-        updateManagedFootballMatches(using: trackedEvents, now: now)
+        let trackedEvents = trackedFootballSnapshotsByRefreshingState(now: now)
+        applyManagedFootballAlertConfigurationIfNeeded(to: trackedEvents)
 
         guard !trackedEvents.isEmpty else {
             managedFootballMatches = []
@@ -185,6 +193,12 @@ extension CalendarMonitor {
         } catch {
             return
         }
+    }
+
+    func applyManagedFootballAlertConfigurationIfNeeded(now: Date) {
+        guard hasEventsAccess else { return }
+        let trackedEvents = trackedFootballSnapshotsByRefreshingState(now: now)
+        applyManagedFootballAlertConfigurationIfNeeded(to: trackedEvents)
     }
 
     func addFootballMatchToCalendar(_ match: FootballFixtureMatch) async {
@@ -214,14 +228,16 @@ extension CalendarMonitor {
         event.calendar = calendar
         event.title = FootballFixtureFormatter.calendarTitle(for: match)
         await applyFootballLocation(to: event, locationText: match.locationText)
-        event.startDate = match.startDate
+        event.startDate = Self.footballEffectiveStartDate(for: match)
         event.endDate = approximateEndDate(for: match)
+        applyFootballAlertConfiguration(to: event)
 
         do {
             try eventStore.save(event, span: .thisEvent, commit: true)
+            let persistedEvent = persistCleanFootballAlertConfigurationIfNeeded(for: event.eventIdentifier) ?? event
             await cacheFootballMatches([match])
             ensureFootballTargetCalendarIsSelected(calendar.calendarIdentifier)
-            upsertManagedFootballEventRecord(for: event, reference: reference)
+            upsertManagedFootballEventRecord(for: persistedEvent, reference: reference)
             managedFootballMatchIDs.insert(match.id)
             updateManagedFootballMatches(using: trackedFootballEvents(now: Date()), now: Date())
             refreshNow()
@@ -346,14 +362,179 @@ extension CalendarMonitor {
         updateManagedFootballMatches(using: trackedEvents, now: now)
     }
 
+    private func trackedFootballSnapshotsByRefreshingState(now: Date) -> [ManagedFootballEventSnapshot] {
+        _ = removeDuplicateManagedFootballEvents(now: now)
+        let trackedEvents = trackedFootballEvents(now: now)
+        let trackedMatchIDs = Set(trackedEvents.map(\.reference.matchID))
+        if trackedMatchIDs != managedFootballMatchIDs {
+            managedFootballMatchIDs = trackedMatchIDs
+        }
+        updateManagedFootballMatches(using: trackedEvents, now: now)
+        return trackedEvents
+    }
+
+    private func footballCalendarAlertOption() -> FootballCalendarAlertOption {
+        FootballCalendarAlertOption(rawValue: defaults.string(forKey: DefaultsKeys.footballCalendarAlertOption) ?? "")
+            ?? .none
+    }
+
+    private func footballCalendarAlertRelativeOffset() -> TimeInterval? {
+        footballCalendarAlertOption().relativeOffset()
+    }
+
+    private func footballTravelTime(for event: EKEvent) -> TimeInterval {
+        if let raw = (event as NSObject).value(forKey: "travelTime") as? NSNumber {
+            return max(0, raw.doubleValue)
+        }
+        if let raw = (event as NSObject).value(forKey: "travelTime") as? Double {
+            return max(0, raw)
+        }
+        return 0
+    }
+
+    private func resetFootballTravelTime(on event: EKEvent) {
+        (event as NSObject).setValue(0, forKey: "travelTime")
+    }
+
+    private func footballAlertConfigurationNeedsUpdate(
+        for event: EKEvent,
+        desiredRelativeOffset: TimeInterval?
+    ) -> Bool {
+        let alarms = event.alarms ?? []
+
+        guard let desiredRelativeOffset else {
+            return !alarms.isEmpty
+        }
+
+        guard alarms.count == 1, let alarm = alarms.first else {
+            return true
+        }
+
+        if alarm.absoluteDate != nil {
+            return true
+        }
+
+        if abs(alarm.relativeOffset - desiredRelativeOffset) > 1 {
+            return true
+        }
+
+        return footballTravelTime(for: event) > 0
+    }
+
+    private func applyFootballAlertConfiguration(to event: EKEvent) {
+        let desiredRelativeOffset = footballCalendarAlertRelativeOffset()
+
+        guard footballAlertConfigurationNeedsUpdate(for: event, desiredRelativeOffset: desiredRelativeOffset) else {
+            return
+        }
+
+        resetFootballTravelTime(on: event)
+        if let desiredRelativeOffset {
+            event.alarms = [EKAlarm(relativeOffset: desiredRelativeOffset)]
+        } else {
+            event.alarms = nil
+        }
+    }
+
+    @discardableResult
+    private func persistCleanFootballAlertConfigurationIfNeeded(for eventIdentifier: String?) -> EKEvent? {
+        guard let eventIdentifier else { return nil }
+
+        let desiredRelativeOffset = footballCalendarAlertRelativeOffset()
+        var latestEvent = eventStore.event(withIdentifier: eventIdentifier)
+
+        for _ in 0 ..< 2 {
+            guard let event = latestEvent else { return nil }
+            guard footballAlertConfigurationNeedsUpdate(for: event, desiredRelativeOffset: desiredRelativeOffset) else {
+                return event
+            }
+
+            resetFootballTravelTime(on: event)
+            if let desiredRelativeOffset {
+                event.alarms = [EKAlarm(relativeOffset: desiredRelativeOffset)]
+            } else {
+                event.alarms = nil
+            }
+
+            do {
+                try eventStore.save(event, span: .thisEvent, commit: true)
+            } catch {
+                return event
+            }
+
+            latestEvent = eventStore.event(withIdentifier: eventIdentifier) ?? event
+        }
+
+        return latestEvent
+    }
+
+    private func refreshManagedFootballRecordsAfterPersistedAlertCleanup(
+        _ recordsByReference: inout [ManagedFootballFixtureReference: ManagedFootballEventRecord],
+        references: [ManagedFootballFixtureReference]
+    ) {
+        for reference in references {
+            guard let existingRecord = recordsByReference[reference] else { continue }
+            guard let cleanedEvent = persistCleanFootballAlertConfigurationIfNeeded(for: existingRecord.eventIdentifier) else {
+                continue
+            }
+
+            recordsByReference[reference] = managedFootballEventRecord(
+                for: cleanedEvent,
+                reference: reference
+            )
+        }
+    }
+
+    private func applyManagedFootballAlertConfigurationIfNeeded(to trackedEvents: [ManagedFootballEventSnapshot]) {
+        let desiredRelativeOffset = footballCalendarAlertRelativeOffset()
+        var hasPendingChanges = false
+        var refreshedRecordsByReference = Dictionary(uniqueKeysWithValues: managedFootballEventRecords.map { ($0.reference, $0) })
+        var updatedReferences: [ManagedFootballFixtureReference] = []
+
+        for snapshot in trackedEvents {
+            guard footballAlertConfigurationNeedsUpdate(for: snapshot.event, desiredRelativeOffset: desiredRelativeOffset) else {
+                continue
+            }
+
+            resetFootballTravelTime(on: snapshot.event)
+            if let desiredRelativeOffset {
+                snapshot.event.alarms = [EKAlarm(relativeOffset: desiredRelativeOffset)]
+            } else {
+                snapshot.event.alarms = nil
+            }
+
+            do {
+                try eventStore.save(snapshot.event, span: .thisEvent, commit: false)
+                refreshedRecordsByReference[snapshot.reference] = managedFootballEventRecord(
+                    for: snapshot.event,
+                    reference: snapshot.reference
+                )
+                updatedReferences.append(snapshot.reference)
+                hasPendingChanges = true
+            } catch {
+                continue
+            }
+        }
+
+        if hasPendingChanges {
+            try? eventStore.commit()
+            refreshManagedFootballRecordsAfterPersistedAlertCleanup(
+                &refreshedRecordsByReference,
+                references: updatedReferences
+            )
+            persistManagedFootballEventRecords(Array(refreshedRecordsByReference.values))
+        }
+    }
+
     func upcomingManagedFootballEventCount(now: Date) -> Int {
-        trackedFootballEvents(now: now).reduce(into: 0) { count, snapshot in
+        trackedFootballEvents(now: now).reduce(into: Set<String>()) { matchIDs, snapshot in
             let startDate = snapshot.event.startDate ?? snapshot.record.startDate
             let endDate = snapshot.event.endDate ?? startDate
             if startDate > now || endDate > now {
-                count += 1
+                matchIDs.insert(snapshot.reference.matchID)
             }
         }
+        .count
     }
 
     func footballMatchStatusText(_ match: FootballFixtureMatch) -> String {
@@ -538,7 +719,7 @@ extension CalendarMonitor {
                 Self.isManagedFootballEventWithinSuggestionWindow(startDate: match.startDate, now: now)
             }
             .sorted { lhs, rhs in
-                footballFixtureSortPriority(for: lhs, now: now) < footballFixtureSortPriority(for: rhs, now: now)
+                Self.footballFixtureSortPriority(for: lhs, now: now) < Self.footballFixtureSortPriority(for: rhs, now: now)
             }
     }
 
@@ -546,16 +727,21 @@ extension CalendarMonitor {
         let matchesByID = Dictionary(uniqueKeysWithValues: matches.map { ($0.id, $0) })
         var hasPendingChanges = false
         var refreshedRecordsByReference = Dictionary(uniqueKeysWithValues: managedFootballEventRecords.map { ($0.reference, $0) })
+        var updatedReferences: [ManagedFootballFixtureReference] = []
 
         for snapshot in trackedEvents {
             guard let match = matchesByID[snapshot.reference.matchID] else { continue }
             let updatedTitle = FootballFixtureFormatter.calendarTitle(for: match)
             let updatedLocation = match.locationText
-            let updatedStartDate = match.startDate
+            let updatedStartDate = Self.footballEffectiveStartDate(for: match)
             let updatedEndDate = approximateEndDate(for: match)
-            let needsStructuredLocationUpdate = footballStructuredLocationNeedsUpdate(
+            let needsStructuredLocationUpdate = await footballStructuredLocationNeedsUpdate(
                 for: snapshot.event,
                 locationText: updatedLocation
+            )
+            let needsAlertUpdate = footballAlertConfigurationNeedsUpdate(
+                for: snapshot.event,
+                desiredRelativeOffset: footballCalendarAlertRelativeOffset()
             )
 
             let needsUpdate = snapshot.event.title != updatedTitle
@@ -564,6 +750,7 @@ extension CalendarMonitor {
                 || snapshot.event.endDate != updatedEndDate
                 || snapshot.event.url != nil
                 || needsStructuredLocationUpdate
+                || needsAlertUpdate
 
             guard needsUpdate else { continue }
 
@@ -572,6 +759,7 @@ extension CalendarMonitor {
             snapshot.event.startDate = updatedStartDate
             snapshot.event.endDate = updatedEndDate
             snapshot.event.url = nil
+            applyFootballAlertConfiguration(to: snapshot.event)
 
             do {
                 try eventStore.save(snapshot.event, span: .thisEvent, commit: false)
@@ -579,6 +767,7 @@ extension CalendarMonitor {
                     for: snapshot.event,
                     reference: snapshot.reference
                 )
+                updatedReferences.append(snapshot.reference)
                 hasPendingChanges = true
             } catch {
                 continue
@@ -587,6 +776,10 @@ extension CalendarMonitor {
 
         if hasPendingChanges {
             try? eventStore.commit()
+            refreshManagedFootballRecordsAfterPersistedAlertCleanup(
+                &refreshedRecordsByReference,
+                references: updatedReferences
+            )
         }
 
         persistManagedFootballEventRecords(Array(refreshedRecordsByReference.values))
@@ -598,7 +791,7 @@ extension CalendarMonitor {
         event.structuredLocation = await footballStructuredLocation(for: normalizedLocationText)
     }
 
-    private func footballStructuredLocationNeedsUpdate(for event: EKEvent, locationText: String?) -> Bool {
+    private func footballStructuredLocationNeedsUpdate(for event: EKEvent, locationText: String?) async -> Bool {
         let normalizedLocationText = normalizedLocation(for: locationText)
         let currentStructuredTitle = normalizedLocation(for: event.structuredLocation?.title)
 
@@ -606,9 +799,28 @@ extension CalendarMonitor {
         case nil:
             return event.structuredLocation != nil
         case let normalizedLocationText?:
-            return event.structuredLocation == nil
-                || currentStructuredTitle != normalizedLocationText
-                || event.structuredLocation?.geoLocation == nil
+            guard let structuredLocation = event.structuredLocation else {
+                return true
+            }
+
+            guard currentStructuredTitle == normalizedLocationText else {
+                return true
+            }
+
+            guard let currentGeoLocation = structuredLocation.geoLocation else {
+                return true
+            }
+
+            guard let resolvedCoordinate = await LocationCoordinateResolver.shared.coordinate(for: normalizedLocationText) else {
+                return false
+            }
+
+            let resolvedGeoLocation = CLLocation(
+                latitude: resolvedCoordinate.latitude,
+                longitude: resolvedCoordinate.longitude
+            )
+
+            return currentGeoLocation.distance(from: resolvedGeoLocation) > Self.footballStructuredLocationToleranceMeters
         }
     }
 
@@ -627,23 +839,33 @@ extension CalendarMonitor {
     }
 
     private func approximateEndDate(for match: FootballFixtureMatch) -> Date {
-        let now = Date()
-        let approximatedDuration = Self.approximateFootballMatchDuration(for: match, now: now)
+        Self.approximateFootballMatchEndDate(for: match, now: Date())
+    }
+
+    nonisolated static func approximateFootballMatchEndDate(
+        for match: FootballFixtureMatch,
+        now: Date = Date()
+    ) -> Date {
+        let approximatedDuration = approximateFootballMatchDuration(for: match, now: now)
+        let effectiveStartDate = footballEffectiveStartDate(for: match)
+        let bufferedEstimatedEnd = effectiveStartDate.addingTimeInterval(
+            approximatedDuration + footballEstimatedEndMarginDuration
+        )
 
         switch match.statusState {
         case .finished:
-            return match.startDate.addingTimeInterval(approximatedDuration)
+            return bufferedEstimatedEnd
         case .inProgress:
-            let minimumLiveEnd = now.addingTimeInterval(Self.footballLiveMinimumTailDuration)
-            return max(match.startDate.addingTimeInterval(approximatedDuration), minimumLiveEnd)
+            let minimumLiveEnd = now.addingTimeInterval(footballLiveMinimumTailDuration)
+            return max(bufferedEstimatedEnd, minimumLiveEnd)
         case .scheduled:
-            return match.startDate.addingTimeInterval(approximatedDuration)
+            return bufferedEstimatedEnd
         case .unknown:
-            if match.startDate <= now {
-                let minimumLiveEnd = now.addingTimeInterval(Self.footballLiveMinimumTailDuration)
-                return max(match.startDate.addingTimeInterval(approximatedDuration), minimumLiveEnd)
+            if effectiveStartDate <= now {
+                let minimumLiveEnd = now.addingTimeInterval(footballLiveMinimumTailDuration)
+                return max(bufferedEstimatedEnd, minimumLiveEnd)
             }
-            return match.startDate.addingTimeInterval(approximatedDuration)
+            return bufferedEstimatedEnd
         }
     }
 
@@ -651,6 +873,12 @@ extension CalendarMonitor {
         for match: FootballFixtureMatch,
         now: Date = Date()
     ) -> TimeInterval {
+        let normalizedStatus = footballNormalizedStatusText(match.statusText)
+
+        if let interruptionBadge = footballInterruptedStatusBadgeText(from: normalizedStatus) {
+            return footballInterruptedMatchDuration(for: match, badgeText: interruptionBadge)
+        }
+
         if footballStatusIndicatesPenaltyShootout(for: match, now: now) {
             return footballPenaltyMatchDuration
         }
@@ -675,7 +903,10 @@ extension CalendarMonitor {
         }
     }
 
-    private func footballFixtureSortPriority(for match: FootballFixtureMatch, now: Date) -> (Int, TimeInterval, String) {
+    nonisolated private static func footballFixtureSortPriority(
+        for match: FootballFixtureMatch,
+        now: Date
+    ) -> (Int, TimeInterval, String) {
         if match.statusState == .inProgress {
             return (0, match.startDate.timeIntervalSince1970, match.id)
         }
@@ -685,6 +916,18 @@ extension CalendarMonitor {
         }
 
         return (2, -match.startDate.timeIntervalSince1970, match.id)
+    }
+
+    nonisolated static func resolvedFootballSectionMatches(
+        _ matches: [FootballFixtureMatch],
+        cachedMatchesByID: [String: FootballFixtureMatch],
+        now: Date
+    ) -> [FootballFixtureMatch] {
+        matches
+            .map { cachedMatchesByID[$0.id] ?? $0 }
+            .sorted { lhs, rhs in
+                footballFixtureSortPriority(for: lhs, now: now) < footballFixtureSortPriority(for: rhs, now: now)
+            }
     }
 
     private func updateFootballCompetitionSection(
@@ -706,7 +949,7 @@ extension CalendarMonitor {
                 footballMatchesByID[snapshot.reference.matchID]
             }
             .sorted { lhs, rhs in
-                footballFixtureSortPriority(for: lhs, now: now) < footballFixtureSortPriority(for: rhs, now: now)
+                Self.footballFixtureSortPriority(for: lhs, now: now) < Self.footballFixtureSortPriority(for: rhs, now: now)
             }
     }
 
@@ -717,7 +960,7 @@ extension CalendarMonitor {
     ) -> [FootballFixtureMatch] {
         let upperBound = calendar.date(byAdding: .day, value: 2, to: now) ?? now.addingTimeInterval(48 * 60 * 60)
 
-        return matches
+        let filteredMatches = matches
             .filter { match in
                 if match.statusState == .inProgress {
                     return true
@@ -733,13 +976,15 @@ extension CalendarMonitor {
                 }
                 return lhs.id < rhs.id
             }
+
+        return deduplicatedFootballMatches(filteredMatches)
     }
 
     nonisolated static func upcomingManagedFootballMatches(
         from matches: [FootballFixtureMatch],
         now: Date
     ) -> [FootballFixtureMatch] {
-        matches
+        let filteredMatches = matches
             .filter { match in
                 if match.statusState == .inProgress {
                     return true
@@ -760,6 +1005,13 @@ extension CalendarMonitor {
                 }
                 return lhs.id < rhs.id
             }
+
+        return deduplicatedFootballMatches(filteredMatches)
+    }
+
+    nonisolated private static func deduplicatedFootballMatches(_ matches: [FootballFixtureMatch]) -> [FootballFixtureMatch] {
+        var seen = Set<String>()
+        return matches.filter { seen.insert($0.id).inserted }
     }
 
     private func migrateLegacyManagedFootballEventsIfNeeded(now: Date) {
@@ -1242,7 +1494,7 @@ extension CalendarMonitor {
         let eventTitle = normalizedTitle(event.title)
         let eventIdentityKey = FootballFixtureFormatter.calendarIdentityKey(fromCalendarTitle: eventTitle)
         let nearbyMatches = matches.filter { match in
-            abs(match.startDate.timeIntervalSince(eventStartDate)) <= Self.footballManagedEventMatchingTolerance
+            abs(Self.footballEffectiveStartDate(for: match).timeIntervalSince(eventStartDate)) <= Self.footballManagedEventMatchingTolerance
         }
 
         let exactTitleMatches = nearbyMatches.filter { match in
@@ -1276,10 +1528,10 @@ extension CalendarMonitor {
         )
     }
 
-    nonisolated private static func goalHighlight(
+    nonisolated static func goalHighlight(
         from previousMatch: FootballFixtureMatch,
         to currentMatch: FootballFixtureMatch,
-        now: Date
+        now _: Date
     ) -> FootballGoalHighlight? {
         guard currentMatch.statusReliability == .reported else { return nil }
         guard currentMatch.statusState == .inProgress || currentMatch.statusState == .finished else { return nil }
@@ -1292,10 +1544,17 @@ extension CalendarMonitor {
         let homeDelta = currentHomeScore - previousHomeScore
         let awayDelta = currentAwayScore - previousAwayScore
 
-        guard (homeDelta > 0 && awayDelta == 0) || (awayDelta > 0 && homeDelta == 0) else { return nil }
+        let scoringSide: FootballScoreSide
+        if homeDelta > 0 && awayDelta == 0 {
+            scoringSide = .home
+        } else if awayDelta > 0 && homeDelta == 0 {
+            scoringSide = .away
+        } else {
+            return nil
+        }
         return FootballGoalHighlight(
             matchID: currentMatch.id,
-            expiresAt: now.addingTimeInterval(10)
+            scoringSide: scoringSide
         )
     }
 
@@ -1375,6 +1634,10 @@ extension CalendarMonitor {
         let trimmed = match.statusText.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalized = footballNormalizedStatusText(trimmed)
 
+        if let interruptionBadge = footballInterruptedStatusBadgeText(from: normalized) {
+            return interruptionBadge
+        }
+
         if match.statusState == .finished {
             if normalized.contains("AET") {
                 return "AET"
@@ -1386,6 +1649,15 @@ extension CalendarMonitor {
         }
 
         if footballLooksLikeMinuteStatus(trimmed) {
+            if let reportedMinute = footballParsedMinute(from: trimmed),
+               let inferredMinute = footballInferredMinuteFromKickoff(for: match, now: now),
+               shouldPreferInferredLiveMinute(
+                   reportedMinute: reportedMinute,
+                   inferredMinute: inferredMinute,
+                   match: match
+               ) {
+                return "\(inferredMinute)'"
+            }
             return trimmed
         }
 
@@ -1413,7 +1685,46 @@ extension CalendarMonitor {
             return "ET"
         }
 
+        if let inferredMinute = footballLiveMinute(for: match, now: now),
+           inferredMinute > 0,
+           match.statusState == .inProgress,
+           match.statusReliability == .reported {
+            return "\(inferredMinute)'"
+        }
+
         return nil
+    }
+
+    nonisolated static func footballStatusTintColor(for text: String) -> NSColor {
+        let normalized = text.uppercased()
+        if normalized == "ABN" {
+            return .systemRed
+        }
+        if normalized == "SUSP." || normalized == "POSTP." {
+            return .systemOrange
+        }
+        if normalized == "DELAY" {
+            return .systemYellow
+        }
+        if normalized == "FT" {
+            return .systemGray
+        }
+        if normalized.contains("AET") {
+            return .systemPurple
+        }
+        if normalized.contains("PEN") || normalized == "PK" {
+            return .systemRed
+        }
+        if normalized == "HT" {
+            return .systemOrange
+        }
+        if normalized == "ET" {
+            return .systemIndigo
+        }
+        if normalized == "SOON" {
+            return .systemBlue
+        }
+        return .systemGreen
     }
 
     nonisolated static func footballStatusWarningText(for match: FootballFixtureMatch) -> String? {
@@ -1574,6 +1885,10 @@ extension CalendarMonitor {
         return Int(trimmed) ?? 0
     }
 
+    nonisolated private static func footballEffectiveStartDate(for match: FootballFixtureMatch) -> Date {
+        match.actualStartDate ?? match.startDate
+    }
+
     nonisolated private static func footballScoresAreLevel(_ match: FootballFixtureMatch) -> Bool {
         footballGoalValue(match.homeScore) == footballGoalValue(match.awayScore)
     }
@@ -1587,6 +1902,10 @@ extension CalendarMonitor {
         }
 
         let normalizedStatus = footballNormalizedStatusText(match.statusText)
+
+        if footballInterruptedStatusBadgeText(from: normalizedStatus) != nil {
+            return nil
+        }
 
         if normalizedStatus == "HT" || normalizedStatus.contains("HALF") {
             return 45
@@ -1604,11 +1923,36 @@ extension CalendarMonitor {
             return parsed
         }
 
-        guard match.statusState == .inProgress || (match.statusState == .unknown && match.startDate <= now) else {
+        guard match.statusState == .inProgress
+            || (match.statusState == .unknown && footballEffectiveStartDate(for: match) <= now) else {
             return nil
         }
 
-        let elapsedSeconds = max(0, now.timeIntervalSince(match.startDate))
+        return footballInferredMinuteFromKickoff(for: match, now: now)
+    }
+
+    nonisolated private static func footballInterruptedMatchDuration(
+        for match: FootballFixtureMatch,
+        badgeText: String
+    ) -> TimeInterval {
+        switch badgeText {
+        case "ABN", "CANC.":
+            if let minute = footballReportedStatusMinute(for: match) {
+                return footballDuration(forReportedMinute: minute)
+            }
+            return footballRegulationMatchDuration
+        case "SUSP.", "POSTP.", "DELAY":
+            return footballRegulationMatchDuration
+        default:
+            return footballRegulationMatchDuration
+        }
+    }
+
+    nonisolated private static func footballInferredMinuteFromKickoff(
+        for match: FootballFixtureMatch,
+        now: Date
+    ) -> Int? {
+        let elapsedSeconds = max(0, now.timeIntervalSince(footballEffectiveStartDate(for: match)))
         let rawMinutes = Int(elapsedSeconds / 60)
         if rawMinutes <= 45 {
             return rawMinutes
@@ -1617,6 +1961,42 @@ extension CalendarMonitor {
             return 45
         }
         return max(46, rawMinutes - 15)
+    }
+
+    nonisolated private static func shouldPreferInferredLiveMinute(
+        reportedMinute: Int,
+        inferredMinute: Int,
+        match: FootballFixtureMatch
+    ) -> Bool {
+        guard match.statusState == .inProgress,
+              match.statusReliability == .reported else {
+            return false
+        }
+
+        guard inferredMinute >= 60 else { return false }
+        return inferredMinute - reportedMinute >= 35
+    }
+
+    nonisolated private static func footballReportedStatusMinute(for match: FootballFixtureMatch) -> Int? {
+        if let parsed = footballParsedMinute(from: match.statusText) {
+            return parsed
+        }
+
+        guard let statusDetailText = match.statusDetailText else { return nil }
+        return footballParsedMinute(from: statusDetailText)
+    }
+
+    nonisolated private static func footballDuration(forReportedMinute minute: Int) -> TimeInterval {
+        let elapsedMinutes: Int
+        if minute <= 45 {
+            elapsedMinutes = minute
+        } else if minute <= 90 {
+            elapsedMinutes = minute + 15
+        } else {
+            elapsedMinutes = minute + 20
+        }
+
+        return TimeInterval(max(15, elapsedMinutes) * 60)
     }
 
     nonisolated private static func footballParsedMinute(from rawStatusText: String) -> Int? {
@@ -1636,6 +2016,30 @@ extension CalendarMonitor {
         let extraMinute = footballRegexInt(match, in: trimmed, at: 2) ?? 0
         let combinedMinute = baseMinute + extraMinute
         return combinedMinute > 0 ? combinedMinute : nil
+    }
+
+    nonisolated private static func footballInterruptedStatusBadgeText(from normalizedStatus: String) -> String? {
+        if normalizedStatus.contains("ABANDONED") || normalizedStatus.contains("ABN") {
+            return "ABN"
+        }
+
+        if normalizedStatus.contains("SUSPENDED") || normalizedStatus.contains("SUSP") {
+            return "SUSP."
+        }
+
+        if normalizedStatus.contains("POSTPONED") || normalizedStatus.contains("POSTP") {
+            return "POSTP."
+        }
+
+        if normalizedStatus.contains("DELAYED") || normalizedStatus.contains("DELAY") {
+            return "DELAY"
+        }
+
+        if normalizedStatus.contains("CANCELED") || normalizedStatus.contains("CANCELLED") {
+            return "CANC."
+        }
+
+        return nil
     }
 
     nonisolated private static func footballRegexInt(_ result: NSTextCheckingResult, in text: String, at index: Int) -> Int? {

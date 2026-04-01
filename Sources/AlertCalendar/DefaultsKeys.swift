@@ -28,6 +28,7 @@ enum DefaultsKeys {
     static let skippedItemKeys = "skippedItemKeys"
     static let skippedWeatherUntil = "skippedWeatherUntil"
     static let footballTargetCalendarID = "footballTargetCalendarID"
+    static let footballCalendarAlertOption = "footballCalendarAlertOption"
     static let managedFootballEventRecords = "managedFootballEventRecords"
     static let didAutoRecoverEmptyEventCalendarSelection = "didAutoRecoverEmptyEventCalendarSelection"
     static let didAutoRecoverEmptyReminderCalendarSelection = "didAutoRecoverEmptyReminderCalendarSelection"

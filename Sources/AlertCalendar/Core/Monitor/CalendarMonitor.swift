@@ -17,6 +17,12 @@ final class CalendarMonitor: ObservableObject {
     @Published var combinedMenuBarSegments: [String] = ["No upcoming items"]
     @Published var combinedMenuBarSegmentBackgroundColors: [NSColor] = [.clear]
     @Published var combinedMenuBarSegmentBackgroundProgresses: [CGFloat] = [0]
+    @Published var combinedMenuBarFootballDisplay: FootballMenuBarDisplay?
+    @Published var combinedMenuBarFootballTrailingText: String?
+    @Published var combinedMenuBarFootballStatusText: String?
+    @Published var combinedMenuBarFootballStatusColor: NSColor = .systemGreen
+    @Published var combinedMenuBarFootballGoalHighlightSide: FootballScoreSide?
+    @Published var combinedMenuBarFootballGoalHighlightTextOpacity: CGFloat = 0
     @Published var availableEventCalendars: [AvailableCalendar] = []
     @Published var availableReminderCalendars: [AvailableCalendar] = []
     @Published var eventsMenuBarLabel = "No events"
@@ -57,6 +63,8 @@ final class CalendarMonitor: ObservableObject {
     var cachedWeatherItem: UpcomingItem?
     var lastWeatherFetchDate: Date?
     var weatherCacheSignature: String?
+    var weatherLocationTextCache: String?
+    var weatherLocationTextSignature: String?
     var oneShotLocationManager: CLLocationManager?
     var oneShotLocationDelegate: OneShotLocationDelegate?
     var locationPermissionManager: CLLocationManager?
@@ -69,6 +77,7 @@ final class CalendarMonitor: ObservableObject {
     var lastFootballManagedSyncDate: Date?
     var lastFootballManagedCleanupDate: Date?
     var activeFootballGoalHighlight: FootballGoalHighlight?
+    var menuBarRotationState = MenuBarRotationState()
 
     init() {
         registerDefaultSettings()
@@ -171,6 +180,12 @@ final class CalendarMonitor: ObservableObject {
         let activeEventDisplayMode: ActiveEventDisplayMode
         let useEventTitleEllipsis: Bool
         let eventTitleMaxCharacters: Int
+    }
+
+    struct MenuBarRotationState: Equatable {
+        var slot: Int?
+        var selectedKey: String?
+        var selectedIndex: Int?
     }
 
     static let dayFormatter: DateFormatter = {

@@ -13,15 +13,46 @@ enum FootballFixtureStatusReliability: String, Hashable {
     case delayedLiveData
 }
 
+enum FootballCompetitionCategory: String, CaseIterable, Identifiable {
+    case clubCompetitions
+    case nationalTeams
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .clubCompetitions:
+            return "Club Competitions"
+        case .nationalTeams:
+            return "National Teams"
+        }
+    }
+}
+
 struct FootballCompetitionPreset: Identifiable, Hashable {
     let slug: String
     let title: String
     let lookbackDays: Int
     let lookaheadDays: Int
+    let category: FootballCompetitionCategory
 
     var id: String { slug }
 
     private static let suggestionWindowDays = 30
+
+    init(
+        slug: String,
+        title: String,
+        lookbackDays: Int,
+        lookaheadDays: Int,
+        category: FootballCompetitionCategory = .clubCompetitions
+    ) {
+        self.slug = slug
+        self.title = title
+        self.lookbackDays = lookbackDays
+        self.lookaheadDays = lookaheadDays
+        self.category = category
+    }
 
     static let premierLeague = FootballCompetitionPreset(
         slug: "eng.1",
@@ -104,14 +135,16 @@ struct FootballCompetitionPreset: Identifiable, Hashable {
         slug: "fifa.world",
         title: "FIFA World Cup",
         lookbackDays: Self.suggestionWindowDays,
-        lookaheadDays: Self.suggestionWindowDays
+        lookaheadDays: Self.suggestionWindowDays,
+        category: .nationalTeams
     )
 
     static let fifaFriendlies = FootballCompetitionPreset(
         slug: "fifa.friendly",
         title: "FIFA Friendlies",
         lookbackDays: Self.suggestionWindowDays,
-        lookaheadDays: Self.suggestionWindowDays
+        lookaheadDays: Self.suggestionWindowDays,
+        category: .nationalTeams
     )
 
     static let championsLeague = FootballCompetitionPreset(
@@ -139,14 +172,16 @@ struct FootballCompetitionPreset: Identifiable, Hashable {
         slug: "uefa.euro",
         title: "UEFA European Championship",
         lookbackDays: Self.suggestionWindowDays,
-        lookaheadDays: Self.suggestionWindowDays
+        lookaheadDays: Self.suggestionWindowDays,
+        category: .nationalTeams
     )
 
     static let copaAmerica = FootballCompetitionPreset(
         slug: "conmebol.america",
         title: "Copa America",
         lookbackDays: Self.suggestionWindowDays,
-        lookaheadDays: Self.suggestionWindowDays
+        lookaheadDays: Self.suggestionWindowDays,
+        category: .nationalTeams
     )
 
     static let libertadores = FootballCompetitionPreset(
@@ -167,21 +202,24 @@ struct FootballCompetitionPreset: Identifiable, Hashable {
         slug: "concacaf.gold",
         title: "Concacaf Gold Cup",
         lookbackDays: Self.suggestionWindowDays,
-        lookaheadDays: Self.suggestionWindowDays
+        lookaheadDays: Self.suggestionWindowDays,
+        category: .nationalTeams
     )
 
     static let africaCupOfNations = FootballCompetitionPreset(
         slug: "caf.nations",
         title: "Africa Cup of Nations",
         lookbackDays: Self.suggestionWindowDays,
-        lookaheadDays: Self.suggestionWindowDays
+        lookaheadDays: Self.suggestionWindowDays,
+        category: .nationalTeams
     )
 
     static let asianCup = FootballCompetitionPreset(
         slug: "afc.asian.cup",
         title: "AFC Asian Cup",
         lookbackDays: Self.suggestionWindowDays,
-        lookaheadDays: Self.suggestionWindowDays
+        lookaheadDays: Self.suggestionWindowDays,
+        category: .nationalTeams
     )
 
     static let menuPresets: [FootballCompetitionPreset] = [
@@ -241,8 +279,10 @@ struct FootballFixtureMatch: Identifiable, Hashable {
     let competitionLogoURL: URL?
     let locationText: String?
     let startDate: Date
+    let actualStartDate: Date?
     let statusState: FootballFixtureStatusState
     let statusText: String
+    let statusDetailText: String?
     let statusPeriod: Int?
     let statusReliability: FootballFixtureStatusReliability
     let homeTeam: FootballTeamSummary
@@ -264,8 +304,10 @@ struct FootballFixtureMatch: Identifiable, Hashable {
         competitionLogoURL: URL?,
         locationText: String?,
         startDate: Date,
+        actualStartDate: Date? = nil,
         statusState: FootballFixtureStatusState,
         statusText: String,
+        statusDetailText: String? = nil,
         statusPeriod: Int? = nil,
         statusReliability: FootballFixtureStatusReliability = .reported,
         homeTeam: FootballTeamSummary,
@@ -286,8 +328,10 @@ struct FootballFixtureMatch: Identifiable, Hashable {
         self.competitionLogoURL = competitionLogoURL
         self.locationText = locationText
         self.startDate = startDate
+        self.actualStartDate = actualStartDate
         self.statusState = statusState
         self.statusText = statusText
+        self.statusDetailText = statusDetailText
         self.statusPeriod = statusPeriod
         self.statusReliability = statusReliability
         self.homeTeam = homeTeam
@@ -300,13 +344,51 @@ struct FootballFixtureMatch: Identifiable, Hashable {
         self.awayRedCards = awayRedCards
     }
 
+    var hasInterruptedStatus: Bool {
+        let normalizedStatus = statusText
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+            .uppercased()
+
+        let interruptionTokens = [
+            "ABN",
+            "ABANDONED",
+            "SUSP",
+            "SUSPENDED",
+            "POSTP",
+            "POSTPONED",
+            "DELAY",
+            "DELAYED",
+            "CANCELED",
+            "CANCELLED",
+        ]
+
+        return interruptionTokens.contains { normalizedStatus.contains($0) }
+    }
+
     var hasVisibleScore: Bool {
+        if hasInterruptedStatus {
+            return false
+        }
+
         switch statusState {
         case .scheduled:
             return false
         case .inProgress, .finished, .unknown:
             return true
         }
+    }
+
+    var homeGoals: Int {
+        Int(homeScore) ?? 0
+    }
+
+    var awayGoals: Int {
+        Int(awayScore) ?? 0
+    }
+
+    var totalGoals: Int {
+        max(0, homeGoals) + max(0, awayGoals)
     }
 }
 
@@ -348,20 +430,47 @@ struct FootballMatchesOverviewSection: Equatable {
     }
 }
 
+enum FootballScoreSide: String, Equatable {
+    case home
+    case away
+}
+
 struct FootballMenuBarDisplay: Equatable {
     let accessibilityText: String
     let competitionName: String
     let competitionStage: String?
     let homeAbbreviation: String
     let awayAbbreviation: String
+    let showsScore: Bool
+    let homeScore: String
+    let awayScore: String
     let competitionLocalLogoPath: String?
     let homeLocalLogoPath: String?
     let awayLocalLogoPath: String?
 }
 
+struct FootballMatchGoalScorer: Identifiable, Hashable {
+    let id: String
+    let name: String
+    let minute: String?
+}
+
+struct FootballMatchGoalScorers: Hashable {
+    let home: [FootballMatchGoalScorer]
+    let away: [FootballMatchGoalScorer]
+}
+
+struct FootballMatchStatistic: Identifiable, Hashable {
+    let id: String
+    let label: String
+    let homeValue: String
+    let awayValue: String
+}
+
 struct FootballGoalHighlight: Equatable {
     let matchID: String
-    let expiresAt: Date
+    let scoringSide: FootballScoreSide
+    var hasBeenShownInMenuBar: Bool = false
 }
 
 struct ManagedFootballFixtureReference: Hashable {
@@ -419,5 +528,70 @@ struct ManagedFootballEventRecord: Codable, Hashable {
             matchID: matchID,
             competitionSlug: competitionSlug
         )
+    }
+}
+
+enum FootballCalendarAlertOption: String, CaseIterable, Identifiable {
+    case none
+    case atTimeOfEvent
+    case fiveMinutesBefore
+    case tenMinutesBefore
+    case fifteenMinutesBefore
+    case thirtyMinutesBefore
+    case oneHourBefore
+    case twoHoursBefore
+    case oneDayBefore
+    case twoDaysBefore
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .none:
+            return "None"
+        case .atTimeOfEvent:
+            return "At time of event"
+        case .fiveMinutesBefore:
+            return "5 minutes before"
+        case .tenMinutesBefore:
+            return "10 minutes before"
+        case .fifteenMinutesBefore:
+            return "15 minutes before"
+        case .thirtyMinutesBefore:
+            return "30 minutes before"
+        case .oneHourBefore:
+            return "1 hour before"
+        case .twoHoursBefore:
+            return "2 hours before"
+        case .oneDayBefore:
+            return "1 day before"
+        case .twoDaysBefore:
+            return "2 days before"
+        }
+    }
+
+    func relativeOffset() -> TimeInterval? {
+        switch self {
+        case .none:
+            return nil
+        case .atTimeOfEvent:
+            return 0
+        case .fiveMinutesBefore:
+            return -5 * 60
+        case .tenMinutesBefore:
+            return -10 * 60
+        case .fifteenMinutesBefore:
+            return -15 * 60
+        case .thirtyMinutesBefore:
+            return -30 * 60
+        case .oneHourBefore:
+            return -60 * 60
+        case .twoHoursBefore:
+            return -2 * 60 * 60
+        case .oneDayBefore:
+            return -24 * 60 * 60
+        case .twoDaysBefore:
+            return -2 * 24 * 60 * 60
+        }
     }
 }

@@ -22,24 +22,8 @@ struct MenuContentView: View {
         VStack(alignment: .leading, spacing: 12) {
             headerView
 
-            if !filteredAlertDescriptions.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(filteredAlertDescriptions, id: \.self) { alertText in
-                        HStack(alignment: .top, spacing: 8) {
-                            Image(systemName: "exclamationmark.circle.fill")
-                                .foregroundStyle(.red)
-                                .padding(.top, 1)
-                            Text(alertText)
-                                .font(.subheadline.weight(.semibold))
-                        }
-                    }
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color.red.opacity(0.10))
-                )
+            if !shouldUseSplitDropdownLayout && !filteredAlertDescriptions.isEmpty {
+                alertBannerSection
             }
 
             if shouldUseSplitDropdownLayout {
@@ -55,7 +39,13 @@ struct MenuContentView: View {
                             }
                         )
 
-                    upcomingSection
+                    VStack(alignment: .leading, spacing: 8) {
+                        if !filteredAlertDescriptions.isEmpty {
+                            alertBannerSection
+                        }
+
+                        upcomingSection
+                    }
                         .frame(width: splitQueueColumnWidth, alignment: .topLeading)
                         .frame(minHeight: splitActionsSectionHeight, alignment: .topLeading)
                 }
@@ -103,6 +93,30 @@ struct MenuContentView: View {
             guard abs(splitActionsSectionHeight - height) > 0.5 else { return }
             splitActionsSectionHeight = height
         }
+    }
+
+    private var alertBannerSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(filteredAlertDescriptions, id: \.self) { alertText in
+                HStack(alignment: .center, spacing: 8) {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.red)
+                        .frame(width: 20, height: 20, alignment: .center)
+
+                    Text(alertText)
+                        .font(.subheadline.weight(.semibold))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.red.opacity(0.10))
+        )
     }
 
     private var headerView: some View {
@@ -158,16 +172,112 @@ struct MenuContentView: View {
     }
 
     private var shouldUseSplitDropdownLayout: Bool {
-        contextualActionItems.count > 1 && !queueItemsForActions.isEmpty
+        guard !queueItemsForActions.isEmpty else { return false }
+        if contextualActionItems.count > 1 {
+            return true
+        }
+        return contextualActionItems.count == 1 && contextualActionItems.first?.footballMatch != nil
+    }
+
+    private var sharedContextualFootballMatches: [FootballFixtureMatch]? {
+        guard !contextualActionItems.isEmpty else { return nil }
+
+        let footballMatches = contextualActionItems.compactMap(\.footballMatch)
+        guard footballMatches.count == contextualActionItems.count else { return nil }
+
+        return footballMatches
+    }
+
+    private var sharedContextualFootballCompetitionTitle: String? {
+        guard let sharedContextualFootballMatches else { return nil }
+        return FootballFixtureFormatter.sharedCompetitionTitle(for: sharedContextualFootballMatches)
+    }
+
+    private var sharedContextualFootballCompetitionLogoPath: String? {
+        guard sharedContextualFootballCompetitionTitle != nil else { return nil }
+        return contextualActionItems.first?.footballMenuBarDisplay?.competitionLocalLogoPath
+    }
+
+    private var sharedContextualFootballCompetitionLogoURL: URL? {
+        guard let sharedContextualFootballMatches,
+              sharedContextualFootballCompetitionTitle != nil else {
+            return nil
+        }
+
+        return sharedContextualFootballMatches.first?.competitionLogoURL
+    }
+
+    private var contextualSharedCompetitionHeader: some View {
+        HStack(spacing: 6) {
+            footballCompetitionLogo(
+                localPath: sharedContextualFootballCompetitionLogoPath,
+                remoteURL: sharedContextualFootballCompetitionLogoURL
+            )
+
+            Text("All listed matches are from \(sharedContextualFootballCompetitionTitle ?? "")")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+    }
+
+    private var contextualSharedCompetitionIsActive: Bool {
+        sharedContextualFootballCompetitionTitle != nil
+    }
+
+    private enum FootballContextualContentLevel {
+        case statsAndGoals
+        case goalsOnly
+        case compact
+
+        var showsStats: Bool {
+            switch self {
+            case .statsAndGoals:
+                return true
+            case .goalsOnly, .compact:
+                return false
+            }
+        }
+
+        var showsGoalScorers: Bool {
+            switch self {
+            case .statsAndGoals, .goalsOnly:
+                return true
+            case .compact:
+                return false
+            }
+        }
+    }
+
+    private var contextualFootballContentLevel: FootballContextualContentLevel {
+        Self.contextualFootballContentLevel(for: contextualActionItems.count)
+    }
+
+    private static func contextualFootballContentLevel(for itemCount: Int) -> FootballContextualContentLevel {
+        switch max(1, itemCount) {
+        case 1:
+            return .statsAndGoals
+        case 2:
+            return .goalsOnly
+        default:
+            return .compact
+        }
     }
 
     private var contextualActionSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            sectionHeader("ACTIONS")
             calendarSectionContainer {
                 VStack(alignment: .leading, spacing: 8) {
+                    if contextualSharedCompetitionIsActive {
+                        contextualSharedCompetitionHeader
+                    }
+
                     ForEach(Array(contextualActionItems.enumerated()), id: \.element.notificationKey) { index, item in
-                        contextualActionCard(for: item)
+                        contextualActionCard(
+                            for: item,
+                            showsFootballCompetitionLine: !contextualSharedCompetitionIsActive
+                        )
 
                         if index < contextualActionItems.count - 1 {
                             Divider()
@@ -253,7 +363,49 @@ struct MenuContentView: View {
         let allDayItems = monitor.allDayEventItems
         let timedItems = monitor.upcomingItems.filter { $0.kind == .event || $0.kind == .weather || $0.kind == .reminder }
         let combined = deduplicatedItems((allDayItems + timedItems).sorted { $0.date < $1.date })
-        return Array(combined.prefix(max(1, maxListItems)))
+        return Self.queueItemsForActions(
+            from: combined,
+            contextualItems: contextualActionItems,
+            now: Date(),
+            maxItems: max(1, maxListItems)
+        )
+    }
+
+    nonisolated static func queueItemsForActions(
+        from items: [UpcomingItem],
+        contextualItems: [UpcomingItem],
+        now: Date,
+        maxItems: Int
+    ) -> [UpcomingItem] {
+        let contextualFootballMatchIDs = Set(contextualItems.compactMap { $0.footballMatch?.id })
+        let filtered = items.filter { item in
+            shouldIncludeInUpcomingQueue(
+                item,
+                contextualFootballMatchIDs: contextualFootballMatchIDs,
+                now: now
+            )
+        }
+        return Array(filtered.prefix(max(1, maxItems)))
+    }
+
+    nonisolated static func shouldIncludeInUpcomingQueue(
+        _ item: UpcomingItem,
+        contextualFootballMatchIDs: Set<String>,
+        now: Date
+    ) -> Bool {
+        guard let footballMatch = item.footballMatch else {
+            return true
+        }
+
+        if contextualFootballMatchIDs.contains(footballMatch.id) {
+            return false
+        }
+
+        if footballMatch.statusState == .inProgress || item.date <= now {
+            return false
+        }
+
+        return true
     }
 
     private func deduplicatedItems(_ items: [UpcomingItem]) -> [UpcomingItem] {
@@ -704,7 +856,8 @@ struct MenuContentView: View {
             match: match,
             display: item.footballMenuBarDisplay,
             font: titleFont,
-            showsLiveDetailBadges: false
+            showsCardBadges: false,
+            showsStatusAccessories: false
         )
 
         if item.kind != .weather, let locationText = item.locationText {
@@ -750,52 +903,61 @@ struct MenuContentView: View {
         match: FootballFixtureMatch,
         display: FootballMenuBarDisplay?,
         font: Font,
-        showsLiveDetailBadges: Bool
+        showsCardBadges: Bool,
+        showsStatusAccessories: Bool
     ) -> some View {
         HStack(alignment: .center, spacing: 6) {
-            footballTeamLabel(
-                abbreviation: display?.homeAbbreviation ?? FootballFixtureFormatter.teamDisplayIdentifier(for: match.homeTeam),
-                localLogoPath: display?.homeLocalLogoPath,
-                remoteLogoURL: FootballFixtureFormatter.isUnknownTeam(match.homeTeam) ? nil : match.homeTeam.logoURL,
-                isUnknown: FootballFixtureFormatter.isUnknownTeam(match.homeTeam),
-                logoLeading: false,
-                yellowCards: match.homeYellowCards,
-                redCards: match.homeRedCards,
-                showsCardBadges: showsLiveDetailBadges,
-                font: font
-            )
+            HStack(alignment: .center, spacing: 6) {
+                footballTeamLabel(
+                    abbreviation: display?.homeAbbreviation ?? FootballFixtureFormatter.teamDisplayIdentifier(for: match.homeTeam),
+                    localLogoPath: display?.homeLocalLogoPath,
+                    remoteLogoURL: FootballFixtureFormatter.isUnknownTeam(match.homeTeam) ? nil : match.homeTeam.logoURL,
+                    isUnknown: FootballFixtureFormatter.isUnknownTeam(match.homeTeam),
+                    logoLeading: false,
+                    yellowCards: match.homeYellowCards,
+                    redCards: match.homeRedCards,
+                    showsCardBadges: showsCardBadges,
+                    font: font
+                )
 
-            if match.hasVisibleScore {
-                Text(safeFootballScore(match.homeScore))
-                    .frame(minWidth: 10, alignment: .center)
+                if match.hasVisibleScore {
+                    HStack(spacing: 0) {
+                        Text(safeFootballScore(match.homeScore))
+                            .frame(minWidth: 10, alignment: .center)
+
+                        Text("-")
+                            .foregroundStyle(.secondary)
+
+                        Text(safeFootballScore(match.awayScore))
+                            .frame(minWidth: 10, alignment: .center)
+                    }
+                } else {
+                    Text("-")
+                        .foregroundStyle(.secondary)
+                }
+
+                footballTeamLabel(
+                    abbreviation: display?.awayAbbreviation ?? FootballFixtureFormatter.teamDisplayIdentifier(for: match.awayTeam),
+                    localLogoPath: display?.awayLocalLogoPath,
+                    remoteLogoURL: FootballFixtureFormatter.isUnknownTeam(match.awayTeam) ? nil : match.awayTeam.logoURL,
+                    isUnknown: FootballFixtureFormatter.isUnknownTeam(match.awayTeam),
+                    logoLeading: true,
+                    yellowCards: match.awayYellowCards,
+                    redCards: match.awayRedCards,
+                    showsCardBadges: showsCardBadges,
+                    font: font
+                )
             }
+            .fixedSize(horizontal: true, vertical: false)
 
-            Text("-")
-                .foregroundStyle(.secondary)
-
-            if match.hasVisibleScore {
-                Text(safeFootballScore(match.awayScore))
-                    .frame(minWidth: 10, alignment: .center)
-            }
-
-            footballTeamLabel(
-                abbreviation: display?.awayAbbreviation ?? FootballFixtureFormatter.teamDisplayIdentifier(for: match.awayTeam),
-                localLogoPath: display?.awayLocalLogoPath,
-                remoteLogoURL: FootballFixtureFormatter.isUnknownTeam(match.awayTeam) ? nil : match.awayTeam.logoURL,
-                isUnknown: FootballFixtureFormatter.isUnknownTeam(match.awayTeam),
-                logoLeading: true,
-                yellowCards: match.awayYellowCards,
-                redCards: match.awayRedCards,
-                showsCardBadges: showsLiveDetailBadges,
-                font: font
-            )
-
-            if showsLiveDetailBadges {
+            if showsStatusAccessories && footballHasStatusAccessories(for: match) {
                 footballStatusAccessories(for: match)
+                    .fixedSize(horizontal: true, vertical: false)
             }
         }
         .font(font)
         .foregroundStyle(.primary)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
     }
 
@@ -861,7 +1023,7 @@ struct MenuContentView: View {
     }
 
     private func footballStatusBadge(text: String) -> some View {
-        let tint = footballStatusBadgeTint(for: text)
+        let tint = Color(nsColor: CalendarMonitor.footballStatusTintColor(for: text))
 
         return Text(text)
             .font(.system(size: 10, weight: .semibold))
@@ -872,29 +1034,6 @@ struct MenuContentView: View {
                 Capsule(style: .continuous)
                     .fill(tint.opacity(0.16))
             )
-    }
-
-    private func footballStatusBadgeTint(for text: String) -> Color {
-        let normalized = text.uppercased()
-        if normalized == "FT" {
-            return .gray
-        }
-        if normalized.contains("AET") {
-            return .purple
-        }
-        if normalized.contains("PEN") || normalized == "PK" {
-            return .red
-        }
-        if normalized == "HT" {
-            return .orange
-        }
-        if normalized == "ET" {
-            return .indigo
-        }
-        if normalized == "SOON" {
-            return .blue
-        }
-        return .green
     }
 
     @ViewBuilder
@@ -913,6 +1052,11 @@ struct MenuContentView: View {
             .font(.system(size: 10, weight: .semibold))
             .foregroundStyle(.orange)
             .help(helpText)
+    }
+
+    private func footballHasStatusAccessories(for match: FootballFixtureMatch) -> Bool {
+        CalendarMonitor.footballStatusBadgeText(for: match) != nil
+            || CalendarMonitor.footballStatusWarningText(for: match) != nil
     }
 
     @ViewBuilder
@@ -972,12 +1116,10 @@ struct MenuContentView: View {
     private func footballCompetitionDetailText(match: FootballFixtureMatch, display: FootballMenuBarDisplay?) -> String {
         let competitionName = display?.competitionName ?? match.competitionName
         let competitionStage = display?.competitionStage ?? match.competitionStage
-        guard let competitionStage,
-              !competitionStage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              competitionStage.caseInsensitiveCompare(competitionName) != .orderedSame else {
-            return competitionName
-        }
-        return "\(competitionName) • \(competitionStage)"
+        return FootballFixtureFormatter.competitionDetailText(
+            competitionName: competitionName,
+            competitionStage: competitionStage
+        )
     }
 
     private func safeFootballScore(_ rawValue: String) -> String {
@@ -1189,9 +1331,14 @@ struct MenuContentView: View {
     }
 
     @ViewBuilder
-    private func contextualActionCard(for item: UpcomingItem) -> some View {
+    private func contextualActionCard(
+        for item: UpcomingItem,
+        showsFootballCompetitionLine: Bool
+    ) -> some View {
         let locationText = locationTextForMenuBarItem(item)
         let shouldShowMapForItem = shouldShowPhysicalMap(for: item, locationText: locationText)
+        let locationPreviewHeight: CGFloat = shouldUseSplitDropdownLayout ? 90 : 100
+        let footballContentLevel = contextualFootballContentLevel
 
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
@@ -1201,14 +1348,17 @@ struct MenuContentView: View {
                             match: footballMatch,
                             display: item.footballMenuBarDisplay,
                             font: .subheadline.weight(.semibold),
-                            showsLiveDetailBadges: true
+                            showsCardBadges: true,
+                            showsStatusAccessories: true
                         )
 
-                        footballCompetitionLine(
-                            match: footballMatch,
-                            display: item.footballMenuBarDisplay,
-                            font: .caption
-                        )
+                        if showsFootballCompetitionLine {
+                            footballCompetitionLine(
+                                match: footballMatch,
+                                display: item.footballMenuBarDisplay,
+                                font: .caption
+                            )
+                        }
                     }
                 } else {
                     Text(item.title)
@@ -1233,9 +1383,24 @@ struct MenuContentView: View {
 
             if shouldShowMapForItem,
                let locationText {
-                MiniLocationMapView(locationText: locationText)
+                MiniLocationMapView(
+                    locationText: locationText,
+                    preferredHeight: locationPreviewHeight
+                )
                     .id("\(item.notificationKey)|\(locationText)")
             }
+
+            if let footballMatch = item.footballMatch {
+                if footballContentLevel.showsStats {
+                    FootballMatchStatsSection(match: footballMatch)
+                }
+
+                if footballContentLevel.showsGoalScorers,
+                   footballMatch.totalGoals > 0 {
+                    FootballGoalScorersSection(match: footballMatch)
+                }
+            }
+
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -1243,6 +1408,7 @@ struct MenuContentView: View {
 
 private struct MiniLocationMapView: View {
     let locationText: String
+    let preferredHeight: CGFloat
     @State private var region = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 18.4655, longitude: -66.1057),
         span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
@@ -1273,7 +1439,7 @@ private struct MiniLocationMapView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .frame(height: 100)
+            .frame(height: preferredHeight)
             .clipShape(RoundedRectangle(cornerRadius: 8))
         }
         .onAppear {
@@ -1314,6 +1480,334 @@ private struct MiniLocationMapView: View {
             center: coordinate,
             span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
         )
+    }
+}
+
+private struct FootballMatchStatsSection: View {
+    @EnvironmentObject private var monitor: CalendarMonitor
+    let match: FootballFixtureMatch
+
+    @State private var statistics: [FootballMatchStatistic] = []
+    @State private var isLoading = false
+    @State private var hasAttemptedLoad = false
+    @State private var loadTask: Task<Void, Never>?
+
+    private var requestKey: String {
+        let statusPeriod = match.statusPeriod.map(String.init) ?? "n/a"
+        return "\(match.id)|\(match.homeScore)|\(match.awayScore)|\(match.statusText)|\(statusPeriod)"
+    }
+
+    var body: some View {
+        Group {
+            if match.statusState == .scheduled {
+                EmptyView()
+            } else if statistics.isEmpty && (!hasAttemptedLoad || isLoading) {
+                FootballMatchStatsLoadingView()
+            } else if !statistics.isEmpty {
+                FootballMatchStatsView(stats: statistics)
+            }
+        }
+        .onAppear {
+            startLoadingStatistics()
+        }
+        .onChange(of: requestKey) { _ in
+            startLoadingStatistics()
+        }
+        .onDisappear {
+            loadTask?.cancel()
+            loadTask = nil
+        }
+    }
+
+    private func startLoadingStatistics() {
+        loadTask?.cancel()
+
+        guard match.statusState != .scheduled else {
+            statistics = []
+            isLoading = false
+            hasAttemptedLoad = true
+            return
+        }
+
+        let currentRequestKey = requestKey
+        let footballClient = monitor.footballClient
+        let hadStatistics = !statistics.isEmpty
+        isLoading = true
+        if !hadStatistics {
+            hasAttemptedLoad = false
+        }
+
+        loadTask = Task {
+            do {
+                let fetchedStatistics = try await footballClient.fetchMatchStatistics(for: match)
+                await MainActor.run {
+                    guard currentRequestKey == requestKey else { return }
+                    statistics = fetchedStatistics
+                    isLoading = false
+                    hasAttemptedLoad = true
+                }
+            } catch {
+                await MainActor.run {
+                    guard currentRequestKey == requestKey else { return }
+                    isLoading = false
+                    hasAttemptedLoad = true
+                }
+            }
+        }
+    }
+}
+
+private struct FootballMatchStatsView: View {
+    let stats: [FootballMatchStatistic]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Match Stats")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            VStack(spacing: 6) {
+                ForEach(stats) { stat in
+                    HStack(spacing: 8) {
+                        Text(stat.homeValue)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.95))
+                            .frame(maxWidth: .infinity, alignment: .center)
+
+                        Text(stat.label.uppercased())
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .center)
+
+                        Text(stat.awayValue)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.95))
+                            .frame(maxWidth: .infinity, alignment: .center)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(Color.white.opacity(0.045))
+                    )
+                }
+            }
+        }
+    }
+}
+
+private struct FootballMatchStatsLoadingView: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Match Stats")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            VStack(spacing: 6) {
+                ForEach(0..<10, id: \.self) { _ in
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(Color.white.opacity(0.07))
+                        .frame(height: 22)
+                }
+            }
+        }
+    }
+}
+
+private struct FootballGoalScorersSection: View {
+    @EnvironmentObject private var monitor: CalendarMonitor
+    let match: FootballFixtureMatch
+
+    @State private var scorers: FootballMatchGoalScorers?
+    @State private var isLoading = false
+    @State private var hasAttemptedLoad = false
+    @State private var loadTask: Task<Void, Never>?
+
+    private var requestKey: String {
+        let statusDetail = match.statusDetailText ?? ""
+        let statusPeriod = match.statusPeriod.map(String.init) ?? "n/a"
+        return "\(match.id)|\(match.homeScore)|\(match.awayScore)|\(match.statusText)|\(statusDetail)|\(statusPeriod)"
+    }
+
+    var body: some View {
+        Group {
+            if match.totalGoals <= 0 {
+                EmptyView()
+            } else if scorers == nil && (!hasAttemptedLoad || isLoading) {
+                FootballGoalScorersLoadingView()
+            } else if let scorers,
+                      !scorers.home.isEmpty || !scorers.away.isEmpty {
+                FootballGoalScorersView(match: match, scorers: scorers)
+            }
+        }
+        .onAppear {
+            startLoadingScorers()
+        }
+        .onChange(of: requestKey) { _ in
+            startLoadingScorers()
+        }
+        .onDisappear {
+            loadTask?.cancel()
+            loadTask = nil
+        }
+    }
+
+    private func startLoadingScorers() {
+        loadTask?.cancel()
+
+        guard match.totalGoals > 0 else {
+            scorers = nil
+            isLoading = false
+            hasAttemptedLoad = true
+            return
+        }
+
+        let currentRequestKey = requestKey
+        let footballClient = monitor.footballClient
+        let hadScorers = scorers != nil
+        isLoading = true
+        if !hadScorers {
+            hasAttemptedLoad = false
+        }
+
+        loadTask = Task {
+            do {
+                let fetchedScorers = try await footballClient.fetchGoalScorers(for: match)
+                await MainActor.run {
+                    guard currentRequestKey == requestKey else { return }
+                    scorers = fetchedScorers
+                    isLoading = false
+                    hasAttemptedLoad = true
+                }
+            } catch {
+                await MainActor.run {
+                    guard currentRequestKey == requestKey else { return }
+                    isLoading = false
+                    hasAttemptedLoad = true
+                }
+            }
+        }
+    }
+}
+
+private struct FootballGoalScorersView: View {
+    let match: FootballFixtureMatch
+    let scorers: FootballMatchGoalScorers
+
+    var body: some View {
+        let homeScorers = sortedScorers(scorers.home)
+        let awayScorers = sortedScorers(scorers.away)
+        let targetRowCount = max(homeScorers.count, awayScorers.count, 1)
+
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top, spacing: 8) {
+                scorerColumn(
+                    title: match.homeTeam.abbreviation,
+                    scorers: homeScorers,
+                    targetRowCount: targetRowCount
+                )
+
+                scorerColumn(
+                    title: match.awayTeam.abbreviation,
+                    scorers: awayScorers,
+                    targetRowCount: targetRowCount
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func scorerColumn(
+        title: String,
+        scorers: [FootballMatchGoalScorer],
+        targetRowCount: Int
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.95))
+
+            ForEach(scorers) { scorer in
+                HStack(spacing: 6) {
+                    Text(scorer.minute ?? "—")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.95))
+                        .frame(width: 34, alignment: .center)
+
+                    Text(scorer.name)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+
+            ForEach(0..<max(0, targetRowCount - scorers.count), id: \.self) { _ in
+                scorerPlaceholderRow()
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.white.opacity(0.045))
+        )
+    }
+
+    private func sortedScorers(_ scorers: [FootballMatchGoalScorer]) -> [FootballMatchGoalScorer] {
+        scorers.sorted { lhs, rhs in
+            scorerEventIndex(lhs.id) < scorerEventIndex(rhs.id)
+        }
+    }
+
+    private func scorerPlaceholderRow() -> some View {
+        HStack(spacing: 6) {
+            Text("88'")
+                .font(.caption2.weight(.semibold))
+                .frame(width: 34, alignment: .center)
+                .hidden()
+
+            Text("Placeholder")
+                .font(.caption2)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .hidden()
+        }
+    }
+
+    private func scorerEventIndex(_ scorerID: String) -> Int {
+        guard let token = scorerID.split(separator: "-").last,
+              let index = Int(token) else {
+            return .max
+        }
+        return index
+    }
+}
+
+private struct FootballGoalScorersLoadingView: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top, spacing: 8) {
+                ForEach(0..<2, id: \.self) { _ in
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(0..<3, id: \.self) { _ in
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .fill(Color.white.opacity(0.07))
+                                .frame(height: 18)
+                        }
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color.white.opacity(0.045))
+                    )
+                }
+            }
+        }
     }
 }
 

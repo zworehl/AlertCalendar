@@ -72,7 +72,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.tabbingMode = .disallowed
         window.minSize = NSSize(width: 760, height: 720)
         window.titleVisibility = .visible
-        window.standardWindowButton(.zoomButton)?.isHidden = false
+        if let zoomButton = window.standardWindowButton(.zoomButton) {
+            zoomButton.isHidden = false
+            zoomButton.target = window
+            zoomButton.action = #selector(NSWindow.toggleFullScreen(_:))
+            zoomButton.toolTip = "Toggle Full Screen"
+        }
         window.level = .normal
     }
 }

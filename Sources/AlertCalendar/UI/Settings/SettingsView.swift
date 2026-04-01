@@ -331,10 +331,14 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 6) {
                     Toggle("Include rain forecast (Open-Meteo)", isOn: $draft.includeWeather)
-                    InfoTipButton(text: "Shows upcoming rain estimate in the menu bar. Uses the same coordinates configured below.")
+                    InfoTipButton(text: "Shows upcoming rain estimate in the menu bar. Uses the same coordinates configured below and the nearest Open-Meteo forecast grid cell.")
                 }
 
                 Text("Rain forecasting shares the same location setup used for sun moments.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Text("Outside North America and Central Europe, Open-Meteo 15-minute rain data can be interpolated from hourly forecasts, so hyperlocal showers may be missed.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

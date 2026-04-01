@@ -19,7 +19,13 @@ struct AlertCalendarApp: App {
                 markerStyles: monitor.combinedMenuBarMarkerStyles,
                 segments: monitor.combinedMenuBarSegments,
                 segmentBackgroundColors: monitor.combinedMenuBarSegmentBackgroundColors,
-                segmentBackgroundProgresses: monitor.combinedMenuBarSegmentBackgroundProgresses
+                segmentBackgroundProgresses: monitor.combinedMenuBarSegmentBackgroundProgresses,
+                footballDisplay: monitor.combinedMenuBarFootballDisplay,
+                footballTrailingText: monitor.combinedMenuBarFootballTrailingText,
+                footballStatusText: monitor.combinedMenuBarFootballStatusText,
+                footballStatusColor: monitor.combinedMenuBarFootballStatusColor,
+                footballGoalHighlightSide: monitor.combinedMenuBarFootballGoalHighlightSide,
+                footballGoalHighlightTextOpacity: monitor.combinedMenuBarFootballGoalHighlightTextOpacity
             )
         }
         .menuBarExtraStyle(.window)

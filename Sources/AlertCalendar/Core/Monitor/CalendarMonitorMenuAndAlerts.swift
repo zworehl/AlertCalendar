@@ -88,12 +88,16 @@ extension CalendarMonitor {
     }
 
     func updateMenuBarState(now: Date, settings: SettingsSnapshot) {
-        if let highlight = activeFootballGoalHighlight,
-           highlight.expiresAt <= now {
-            activeFootballGoalHighlight = nil
-        }
-
         let previewItems = displayedItemsForMenuBar(now: now, settings: settings)
+        let queueMatchIDs = Set(
+            unifiedMenuBarQueue(now: now, settings: settings)
+                .compactMap { $0.footballMatch?.id }
+        )
+        activeFootballGoalHighlight = Self.updatedFootballGoalHighlight(
+            activeFootballGoalHighlight,
+            queueMatchIDs: queueMatchIDs,
+            selectedMatchID: previewItems.first?.footballMatch?.id
+        )
         if previewItems.isEmpty {
             setIfChanged(\.combinedMenuBarLabel, to: "No upcoming items")
             setColorIfChanged(\.combinedMenuBarColor, to: .systemGray)
@@ -104,6 +108,12 @@ extension CalendarMonitor {
             setIfChanged(\.combinedMenuBarSegments, to: ["No upcoming items"])
             setColorArrayIfChanged(\.combinedMenuBarSegmentBackgroundColors, to: [.clear])
             setIfChanged(\.combinedMenuBarSegmentBackgroundProgresses, to: [0])
+            setIfChanged(\.combinedMenuBarFootballDisplay, to: nil)
+            setIfChanged(\.combinedMenuBarFootballTrailingText, to: nil)
+            setIfChanged(\.combinedMenuBarFootballStatusText, to: nil)
+            setColorIfChanged(\.combinedMenuBarFootballStatusColor, to: .systemGreen)
+            setIfChanged(\.combinedMenuBarFootballGoalHighlightSide, to: nil)
+            setIfChanged(\.combinedMenuBarFootballGoalHighlightTextOpacity, to: 0)
         } else {
             setColorIfChanged(\.combinedMenuBarColor, to: previewItems[0].calendarColor)
             setColorArrayIfChanged(\.combinedMenuBarDotColors, to: previewItems.map(\.calendarColor))
@@ -134,6 +144,32 @@ extension CalendarMonitor {
 
             setIfChanged(\.combinedMenuBarSegments, to: segments)
             setIfChanged(\.combinedMenuBarLabel, to: segments.joined(separator: "  "))
+            setIfChanged(\.combinedMenuBarFootballDisplay, to: previewItems.first?.footballMenuBarDisplay)
+            setIfChanged(
+                \.combinedMenuBarFootballTrailingText,
+                to: previewItems.first.flatMap {
+                    footballMenuBarTrailingText(
+                        for: $0,
+                        now: now,
+                        simplified: settings.useSimplifiedCountdown
+                    )
+                }
+            )
+            let footballStatusText = previewItems.first.flatMap { footballMenuBarStatusText(for: $0, now: now) }
+            setIfChanged(\.combinedMenuBarFootballStatusText, to: footballStatusText)
+            setColorIfChanged(
+                \.combinedMenuBarFootballStatusColor,
+                to: footballStatusText.map(Self.footballStatusTintColor(for:)) ?? .systemGreen
+            )
+
+            if let highlight = activeFootballGoalHighlight,
+               previewItems.first?.footballMatch?.id == highlight.matchID {
+                setIfChanged(\.combinedMenuBarFootballGoalHighlightSide, to: highlight.scoringSide)
+                setIfChanged(\.combinedMenuBarFootballGoalHighlightTextOpacity, to: tickCount.isMultiple(of: 2) ? 1.0 : 0.0)
+            } else {
+                setIfChanged(\.combinedMenuBarFootballGoalHighlightSide, to: nil)
+                setIfChanged(\.combinedMenuBarFootballGoalHighlightTextOpacity, to: 0)
+            }
         }
 
         let nextEvent = rotatingTimedItem(now: now, settings: settings)
@@ -191,11 +227,12 @@ extension CalendarMonitor {
         useEventTitleEllipsis: Bool,
         eventTitleMaxCharacters: Int
     ) -> String {
+        let baseTitle = item.footballMatch.map(FootballFixtureFormatter.calendarTitle(for:)) ?? item.title
         let compactTitle: String
         if useEventTitleEllipsis {
-            compactTitle = trimmedTitle(item.title, maxLength: max(1, eventTitleMaxCharacters))
+            compactTitle = trimmedTitle(baseTitle, maxLength: max(1, eventTitleMaxCharacters))
         } else {
-            compactTitle = item.title
+            compactTitle = baseTitle
         }
 
         if let footballMatch = item.footballMatch,
@@ -207,6 +244,12 @@ extension CalendarMonitor {
            item.date <= now,
            (item.endDate ?? item.date) > now,
            FootballFixtureFormatter.looksLikeFootballCalendarTitle(item.title) {
+            return compactTitle
+        }
+
+        if item.kind == .event,
+           item.endDate == nil,
+           item.date <= now {
             return compactTitle
         }
 
@@ -243,6 +286,30 @@ extension CalendarMonitor {
         return "\(compactTitle) in \(relativeCountdown(to: item.date, from: now, simplified: simplified))"
     }
 
+    func footballMenuBarTrailingText(
+        for item: UpcomingItem,
+        now: Date,
+        simplified: Bool
+    ) -> String? {
+        guard let footballMatch = item.footballMatch else { return nil }
+        guard footballMatch.statusState == .scheduled, item.date > now else { return nil }
+        return "in \(relativeCountdown(to: item.date, from: now, simplified: simplified))"
+    }
+
+    func footballMenuBarStatusText(
+        for item: UpcomingItem,
+        now: Date
+    ) -> String? {
+        guard let footballMatch = item.footballMatch else { return nil }
+        guard let badgeText = Self.footballStatusBadgeText(for: footballMatch, now: now) else { return nil }
+
+        if footballMatch.statusState != .scheduled || footballMatch.statusReliability != .reported {
+            return badgeText
+        }
+
+        return nil
+    }
+
     func isBirthdayItem(_ item: UpcomingItem) -> Bool {
         guard item.kind == .event, let calendarID = item.calendarID else { return false }
         return birthdayCalendarIDs.contains(calendarID)
@@ -250,22 +317,78 @@ extension CalendarMonitor {
 
     func displayedItemsForMenuBar(now: Date, settings: SettingsSnapshot) -> [UpcomingItem] {
         let queue = unifiedMenuBarQueue(now: now, settings: settings)
-        guard !queue.isEmpty else { return [] }
-
-        if let highlight = activeFootballGoalHighlight,
-           highlight.expiresAt > now,
-           let highlightedItem = queue.first(where: { $0.footballMatch?.id == highlight.matchID }) {
-            return [highlightedItem]
+        guard !queue.isEmpty else {
+            menuBarRotationState = MenuBarRotationState()
+            return []
         }
 
         let pool = preferredMenuBarRotationPool(from: queue, now: now, settings: settings)
-        guard !pool.isEmpty else { return [] }
-        guard pool.count > 1 else { return [pool[0]] }
+        guard !pool.isEmpty else {
+            menuBarRotationState = MenuBarRotationState()
+            return []
+        }
 
         let rotationSeconds = max(5, settings.concurrentEventRotationSeconds)
         let slot = rotationSlot(now: now, seconds: rotationSeconds)
-        let rotatingIndex = abs(slot) % pool.count
-        return [pool[rotatingIndex]]
+        let previousState = menuBarRotationState
+        let allCandidates = allMenuBarCandidateItems()
+        let fallbackHeldItem = previousState.selectedKey.flatMap { selectedKey in
+            allCandidates.first(where: { $0.notificationKey == selectedKey })
+        }
+        let heldSelectionKey = Self.preservedMenuBarSelectionKeyIfNeeded(
+            slot: slot,
+            previousState: previousState,
+            queueKeys: queue.map(\.notificationKey),
+            preferredPoolKeys: pool.map(\.notificationKey),
+            allowMissingSelectedKeyHold: fallbackHeldItem.map {
+                Self.shouldHoldElapsedPointInTimeMenuBarItem($0, now: now)
+            } ?? false
+        )
+
+        if let heldSelectionKey,
+           let heldItem = queue.first(where: { $0.notificationKey == heldSelectionKey }) ?? fallbackHeldItem {
+            menuBarRotationState = MenuBarRotationState(
+                slot: slot,
+                selectedKey: heldSelectionKey,
+                selectedIndex: previousState.selectedIndex
+            )
+            return [heldItem]
+        }
+
+        let rotationKeys = pool.map(\.notificationKey)
+        menuBarRotationState = Self.resolvedMenuBarRotationState(
+            for: rotationKeys,
+            slot: slot,
+            previousState: previousState
+        )
+
+        if let selectedKey = menuBarRotationState.selectedKey,
+           let selectedItem = pool.first(where: { $0.notificationKey == selectedKey }) {
+            return [selectedItem]
+        }
+
+        let fallbackIndex = min(max(menuBarRotationState.selectedIndex ?? 0, 0), pool.count - 1)
+        return [pool[fallbackIndex]]
+    }
+
+    nonisolated static func updatedFootballGoalHighlight(
+        _ highlight: FootballGoalHighlight?,
+        queueMatchIDs: Set<String>,
+        selectedMatchID: String?
+    ) -> FootballGoalHighlight? {
+        guard var highlight else { return nil }
+        guard queueMatchIDs.contains(highlight.matchID) else { return nil }
+
+        if selectedMatchID == highlight.matchID {
+            highlight.hasBeenShownInMenuBar = true
+            return highlight
+        }
+
+        if highlight.hasBeenShownInMenuBar {
+            return nil
+        }
+
+        return highlight
     }
 
     func primaryReminderItem(now: Date) -> UpcomingItem? {
@@ -376,8 +499,93 @@ extension CalendarMonitor {
         return Int(now.timeIntervalSince1970 / Double(clamped))
     }
 
+    nonisolated static func resolvedMenuBarRotationState(
+        for poolKeys: [String],
+        slot: Int,
+        previousState: MenuBarRotationState
+    ) -> MenuBarRotationState {
+        guard !poolKeys.isEmpty else {
+            return MenuBarRotationState()
+        }
+
+        let defaultIndex = abs(slot) % poolKeys.count
+        let isSameSlot = previousState.slot == slot
+
+        if isSameSlot {
+            if let selectedKey = previousState.selectedKey,
+               let currentIndex = poolKeys.firstIndex(of: selectedKey) {
+                return MenuBarRotationState(slot: slot, selectedKey: selectedKey, selectedIndex: currentIndex)
+            }
+
+            if let previousIndex = previousState.selectedIndex,
+               poolKeys.indices.contains(previousIndex) {
+                let selectedKey = poolKeys[previousIndex]
+                return MenuBarRotationState(slot: slot, selectedKey: selectedKey, selectedIndex: previousIndex)
+            }
+
+            let selectedKey = poolKeys[defaultIndex]
+            return MenuBarRotationState(slot: slot, selectedKey: selectedKey, selectedIndex: defaultIndex)
+        }
+
+        if let selectedKey = previousState.selectedKey,
+           let currentIndex = poolKeys.firstIndex(of: selectedKey) {
+            let nextIndex = (currentIndex + 1) % poolKeys.count
+            let nextKey = poolKeys[nextIndex]
+            return MenuBarRotationState(slot: slot, selectedKey: nextKey, selectedIndex: nextIndex)
+        }
+
+        if let previousIndex = previousState.selectedIndex {
+            let nextIndex = ((previousIndex % poolKeys.count) + 1) % poolKeys.count
+            let nextKey = poolKeys[nextIndex]
+            return MenuBarRotationState(slot: slot, selectedKey: nextKey, selectedIndex: nextIndex)
+        }
+
+        let selectedKey = poolKeys[defaultIndex]
+        return MenuBarRotationState(slot: slot, selectedKey: selectedKey, selectedIndex: defaultIndex)
+    }
+
+    nonisolated static func preservedMenuBarSelectionKeyIfNeeded(
+        slot: Int,
+        previousState: MenuBarRotationState,
+        queueKeys: [String],
+        preferredPoolKeys: [String],
+        allowMissingSelectedKeyHold: Bool
+    ) -> String? {
+        guard previousState.slot == slot,
+              let selectedKey = previousState.selectedKey
+        else {
+            return nil
+        }
+
+        guard !preferredPoolKeys.contains(selectedKey) else {
+            return nil
+        }
+
+        if queueKeys.contains(selectedKey) {
+            return selectedKey
+        }
+
+        return allowMissingSelectedKeyHold ? selectedKey : nil
+    }
+
+    nonisolated static func shouldHoldElapsedPointInTimeMenuBarItem(_ item: UpcomingItem, now: Date) -> Bool {
+        guard item.kind == .event,
+              !item.isAllDay,
+              item.endDate == nil,
+              item.date <= now
+        else {
+            return false
+        }
+
+        return true
+    }
+
     func menuBarPreviewItems(now: Date, settings: SettingsSnapshot) -> [UpcomingItem] {
         Array(unifiedMenuBarQueue(now: now, settings: settings).prefix(1))
+    }
+
+    private func allMenuBarCandidateItems() -> [UpcomingItem] {
+        deduplicatedItemsByNotificationKey(upcomingItems + allDayEventItems)
     }
 
     private func unifiedMenuBarQueue(now: Date, settings: SettingsSnapshot) -> [UpcomingItem] {

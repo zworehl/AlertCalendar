@@ -75,6 +75,39 @@ final class FootballFixtureFormatterTests: XCTestCase {
         XCTAssertEqual(FootballFixtureFormatter.calendarTitle(for: match), "BAR 🇪🇸 2 - 1 🇩🇪 BAY")
     }
 
+    func testCanceledFixtureDoesNotExposePlaceholderScore() {
+        let match = makeMatch(
+            id: "match-canceled",
+            startDate: Date(timeIntervalSince1970: 1_720_000_000),
+            statusState: .finished,
+            statusText: "Canceled",
+            homeScore: "0",
+            awayScore: "0"
+        )
+
+        let display = FootballFixtureFormatter.menuBarDisplay(
+            for: match,
+            competitionLocalLogoURL: nil,
+            homeLocalLogoURL: nil,
+            awayLocalLogoURL: nil
+        )
+
+        XCTAssertTrue(match.hasInterruptedStatus)
+        XCTAssertFalse(match.hasVisibleScore)
+        XCTAssertEqual(FootballFixtureFormatter.calendarTitle(for: match), "BAR 🇪🇸 - 🇩🇪 BAY")
+        XCTAssertFalse(display.showsScore)
+    }
+
+    func testScoreHighlightRangeFindsHomeAndAwayScoresInCalendarTitle() {
+        let title = "BAR 🇪🇸 2 - 1 🇩🇪 BAY"
+
+        let homeRange = FootballFixtureFormatter.scoreHighlightRange(in: title, side: .home)
+        let awayRange = FootballFixtureFormatter.scoreHighlightRange(in: title, side: .away)
+
+        XCTAssertEqual(homeRange.map { (title as NSString).substring(with: $0) }, "2")
+        XCTAssertEqual(awayRange.map { (title as NSString).substring(with: $0) }, "1")
+    }
+
     func testMenuBarDisplayKeepsFixtureMetadata() {
         let match = FootballFixtureMatch(
             id: "match-badge",
@@ -115,9 +148,206 @@ final class FootballFixtureFormatterTests: XCTestCase {
 
         XCTAssertEqual(display.homeAbbreviation, "BAR")
         XCTAssertEqual(display.awayAbbreviation, "BAY")
+        XCTAssertTrue(display.showsScore)
+        XCTAssertEqual(display.homeScore, "2")
+        XCTAssertEqual(display.awayScore, "1")
         XCTAssertEqual(display.competitionLocalLogoPath, "/tmp/competition.png")
         XCTAssertEqual(display.homeLocalLogoPath, "/tmp/home.png")
         XCTAssertEqual(display.awayLocalLogoPath, "/tmp/away.png")
+    }
+
+    func testCompetitionDetailTextCollapsesRedundantYearPrefixedStage() {
+        XCTAssertEqual(
+            FootballFixtureFormatter.competitionDetailText(
+                competitionName: "International Friendly",
+                competitionStage: "2026 International Friendly"
+            ),
+            "International Friendly"
+        )
+    }
+
+    func testCompetitionDetailTextPreservesMeaningfulStage() {
+        XCTAssertEqual(
+            FootballFixtureFormatter.competitionDetailText(
+                competitionName: "UEFA Champions League",
+                competitionStage: "Quarterfinals"
+            ),
+            "UEFA Champions League • Quarterfinals"
+        )
+    }
+
+    func testSharedCompetitionTitleUsesSharedCompetitionDetailWhenMatchesFullyAlign() {
+        let matches = [
+            FootballFixtureMatch(
+                id: "shared-1",
+                competitionSlug: "fifa.friendly",
+                competitionName: "International Friendly",
+                competitionStage: nil,
+                competitionLogoURL: nil,
+                locationText: nil,
+                startDate: Date(timeIntervalSince1970: 1_720_000_000),
+                statusState: .inProgress,
+                statusText: "12'",
+                homeTeam: FootballTeamSummary(
+                    id: "usa",
+                    name: "United States",
+                    abbreviation: "USA",
+                    logoURL: nil,
+                    countryName: "United States",
+                    isNational: true
+                ),
+                awayTeam: FootballTeamSummary(
+                    id: "por",
+                    name: "Portugal",
+                    abbreviation: "POR",
+                    logoURL: nil,
+                    countryName: "Portugal",
+                    isNational: true
+                ),
+                homeScore: "0",
+                awayScore: "1"
+            ),
+            FootballFixtureMatch(
+                id: "shared-2",
+                competitionSlug: "fifa.friendly",
+                competitionName: "International Friendly",
+                competitionStage: nil,
+                competitionLogoURL: nil,
+                locationText: nil,
+                startDate: Date(timeIntervalSince1970: 1_720_003_600),
+                statusState: .inProgress,
+                statusText: "23'",
+                homeTeam: FootballTeamSummary(
+                    id: "arg",
+                    name: "Argentina",
+                    abbreviation: "ARG",
+                    logoURL: nil,
+                    countryName: "Argentina",
+                    isNational: true
+                ),
+                awayTeam: FootballTeamSummary(
+                    id: "zam",
+                    name: "Zambia",
+                    abbreviation: "ZAM",
+                    logoURL: nil,
+                    countryName: "Zambia",
+                    isNational: true
+                ),
+                homeScore: "1",
+                awayScore: "0"
+            ),
+        ]
+
+        XCTAssertEqual(
+            FootballFixtureFormatter.sharedCompetitionTitle(for: matches),
+            "International Friendly"
+        )
+    }
+
+    func testSharedCompetitionTitleFallsBackToCompetitionNameWhenStagesDiffer() {
+        let quarterfinal = FootballFixtureMatch(
+            id: "knockout-1",
+            competitionSlug: "uefa.champions",
+            competitionName: "UEFA Champions League",
+            competitionStage: "Quarterfinals",
+            competitionLogoURL: nil,
+            locationText: nil,
+            startDate: Date(timeIntervalSince1970: 1_720_000_000),
+            statusState: .scheduled,
+            statusText: "7:00 PM",
+            homeTeam: FootballTeamSummary(
+                id: "bar",
+                name: "Barcelona",
+                abbreviation: "BAR",
+                logoURL: nil,
+                countryName: "Spain",
+                isNational: false
+            ),
+            awayTeam: FootballTeamSummary(
+                id: "bay",
+                name: "Bayern Munich",
+                abbreviation: "BAY",
+                logoURL: nil,
+                countryName: "Germany",
+                isNational: false
+            ),
+            homeScore: "0",
+            awayScore: "0"
+        )
+        let semifinal = FootballFixtureMatch(
+            id: "knockout-2",
+            competitionSlug: "uefa.champions",
+            competitionName: "UEFA Champions League",
+            competitionStage: "Semifinals",
+            competitionLogoURL: nil,
+            locationText: nil,
+            startDate: Date(timeIntervalSince1970: 1_720_003_600),
+            statusState: .scheduled,
+            statusText: "9:00 PM",
+            homeTeam: FootballTeamSummary(
+                id: "psg",
+                name: "PSG",
+                abbreviation: "PSG",
+                logoURL: nil,
+                countryName: "France",
+                isNational: false
+            ),
+            awayTeam: FootballTeamSummary(
+                id: "int",
+                name: "Internazionale",
+                abbreviation: "INT",
+                logoURL: nil,
+                countryName: "Italy",
+                isNational: false
+            ),
+            homeScore: "0",
+            awayScore: "0"
+        )
+
+        XCTAssertEqual(
+            FootballFixtureFormatter.sharedCompetitionTitle(for: [quarterfinal, semifinal]),
+            "UEFA Champions League"
+        )
+    }
+
+    func testSharedCompetitionTitleReturnsNilWhenCompetitionsDiffer() {
+        let championsMatch = makeMatch(
+            id: "mixed-1",
+            startDate: Date(timeIntervalSince1970: 1_720_000_000),
+            statusState: .scheduled,
+            competitionSlug: "uefa.champions"
+        )
+        let leagueMatch = FootballFixtureMatch(
+            id: "mixed-2",
+            competitionSlug: "eng.1",
+            competitionName: "Premier League",
+            competitionStage: nil,
+            competitionLogoURL: nil,
+            locationText: nil,
+            startDate: Date(timeIntervalSince1970: 1_720_003_600),
+            statusState: .scheduled,
+            statusText: "8:00 PM",
+            homeTeam: FootballTeamSummary(
+                id: "ars",
+                name: "Arsenal",
+                abbreviation: "ARS",
+                logoURL: nil,
+                countryName: "England",
+                isNational: false
+            ),
+            awayTeam: FootballTeamSummary(
+                id: "liv",
+                name: "Liverpool",
+                abbreviation: "LIV",
+                logoURL: nil,
+                countryName: "England",
+                isNational: false
+            ),
+            homeScore: "0",
+            awayScore: "0"
+        )
+
+        XCTAssertNil(FootballFixtureFormatter.sharedCompetitionTitle(for: [championsMatch, leagueMatch]))
     }
 
     func testManagedFixtureReferenceRoundTripsThroughURL() {
@@ -189,6 +419,20 @@ final class FootballFixtureFormatterTests: XCTestCase {
         )
 
         XCTAssertEqual(FootballFixtureFormatter.teamDisplayIdentifier(for: team), "CRC")
+    }
+
+    func testFlagEmojiSupportsNationalTeamAliasesFromFeeds() {
+        XCTAssertEqual(FootballFixtureFormatter.flagEmoji(for: "IR Iran"), "🇮🇷")
+        XCTAssertEqual(FootballFixtureFormatter.flagEmoji(for: "Korea Republic"), "🇰🇷")
+        XCTAssertEqual(FootballFixtureFormatter.flagEmoji(for: "Korea DPR"), "🇰🇵")
+        XCTAssertEqual(FootballFixtureFormatter.flagEmoji(for: "DR Congo"), "🇨🇩")
+        XCTAssertEqual(FootballFixtureFormatter.flagEmoji(for: "China PR"), "🇨🇳")
+        XCTAssertEqual(FootballFixtureFormatter.flagEmoji(for: "Palestine"), "🇵🇸")
+    }
+
+    func testFlagEmojiNormalizesPunctuationAndDiacritics() {
+        XCTAssertEqual(FootballFixtureFormatter.flagEmoji(for: "Cote d'Ivoire"), "🇨🇮")
+        XCTAssertEqual(FootballFixtureFormatter.flagEmoji(for: "Curacao"), "🇨🇼")
     }
 
     func testCalendarIdentityKeyIgnoresFlagsAndLiveScore() {
@@ -467,6 +711,31 @@ final class FootballFixtureFormatterTests: XCTestCase {
         XCTAssertEqual(CalendarMonitor.footballStatusWarningSummary(for: delayed), "Live data fetch delayed")
     }
 
+    func testLiveAndNextDayMatchesDeduplicateRepeatedMatchIDs() {
+        let calendar = Calendar(identifier: .gregorian)
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+
+        let duplicateLive = makeMatch(
+            id: "duplicate-live",
+            startDate: calendar.date(byAdding: .minute, value: -30, to: now)!,
+            statusState: .inProgress
+        )
+        let upcoming = makeMatch(
+            id: "upcoming",
+            startDate: calendar.date(byAdding: .hour, value: 4, to: now)!,
+            statusState: .scheduled
+        )
+
+        XCTAssertEqual(
+            CalendarMonitor.liveAndNextDayMatches(
+                from: [duplicateLive, upcoming, duplicateLive],
+                now: now,
+                calendar: calendar
+            ).map(\.id),
+            ["duplicate-live", "upcoming"]
+        )
+    }
+
     func testUpcomingManagedFootballMatchesIncludeLiveAndFutureButExcludeFinished() {
         let calendar = Calendar(identifier: .gregorian)
         let now = Date(timeIntervalSince1970: 1_720_000_000)
@@ -505,6 +774,30 @@ final class FootballFixtureFormatterTests: XCTestCase {
         )
     }
 
+    func testUpcomingManagedFootballMatchesDeduplicateRepeatedMatchIDs() {
+        let calendar = Calendar(identifier: .gregorian)
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+
+        let duplicateLive = makeMatch(
+            id: "duplicate-live",
+            startDate: calendar.date(byAdding: .minute, value: -30, to: now)!,
+            statusState: .inProgress
+        )
+        let upcoming = makeMatch(
+            id: "upcoming",
+            startDate: calendar.date(byAdding: .hour, value: 4, to: now)!,
+            statusState: .scheduled
+        )
+
+        XCTAssertEqual(
+            CalendarMonitor.upcomingManagedFootballMatches(
+                from: [upcoming, duplicateLive, duplicateLive],
+                now: now
+            ).map(\.id),
+            ["duplicate-live", "upcoming"]
+        )
+    }
+
     func testScheduledSecondLegKeepsExtraTimeBuffer() {
         let match = makeMatch(
             id: "second-leg",
@@ -515,7 +808,37 @@ final class FootballFixtureFormatterTests: XCTestCase {
             competitionNote: "2nd Leg - Tied on aggregate"
         )
 
-        XCTAssertEqual(CalendarMonitor.approximateFootballMatchDuration(for: match), 150 * 60)
+        XCTAssertEqual(CalendarMonitor.approximateFootballMatchDuration(for: match), 140 * 60)
+    }
+
+    func testApproximateFootballMatchEndDateAddsFiveMinuteMargin() {
+        let startDate = Date(timeIntervalSince1970: 1_720_000_000)
+        let match = makeMatch(
+            id: "scheduled-margin",
+            startDate: startDate,
+            statusState: .scheduled
+        )
+
+        XCTAssertEqual(
+            CalendarMonitor.approximateFootballMatchEndDate(for: match, now: startDate),
+            startDate.addingTimeInterval((110 + 5) * 60)
+        )
+    }
+
+    func testApproximateFootballMatchEndDateUsesActualKickoffWithFiveMinuteMargin() {
+        let scheduledStart = Date(timeIntervalSince1970: 1_720_000_000)
+        let actualKickoff = scheduledStart.addingTimeInterval(7 * 60)
+        let match = makeMatch(
+            id: "actual-kickoff-margin",
+            startDate: scheduledStart,
+            actualStartDate: actualKickoff,
+            statusState: .finished
+        )
+
+        XCTAssertEqual(
+            CalendarMonitor.approximateFootballMatchEndDate(for: match, now: scheduledStart),
+            actualKickoff.addingTimeInterval((110 + 5) * 60)
+        )
     }
 
     func testLateOneGoalLeadFallsBackToRegulationBuffer() {
@@ -532,7 +855,7 @@ final class FootballFixtureFormatterTests: XCTestCase {
             awayScore: "0"
         )
 
-        XCTAssertEqual(CalendarMonitor.approximateFootballMatchDuration(for: match, now: now), 120 * 60)
+        XCTAssertEqual(CalendarMonitor.approximateFootballMatchDuration(for: match, now: now), 110 * 60)
     }
 
     func testFootballStatusBadgeSupportsExtraTimeAndPenalties() {
@@ -576,6 +899,58 @@ final class FootballFixtureFormatterTests: XCTestCase {
         XCTAssertEqual(CalendarMonitor.footballStatusBadgeText(for: fullTimeMatch, now: now), "FT")
     }
 
+    func testFootballStatusBadgePrefersInterruptedStateOverReportedMinute() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let delayedMatch = makeMatch(
+            id: "delay-minute",
+            startDate: now.addingTimeInterval(-100 * 60),
+            statusState: .inProgress,
+            statusText: "Delay",
+            statusDetailText: "11'",
+            statusReliability: .reported
+        )
+        let abandonedMatch = makeMatch(
+            id: "abandoned-minute",
+            startDate: now.addingTimeInterval(-100 * 60),
+            statusState: .finished,
+            statusText: "Abandoned",
+            statusDetailText: "11'",
+            statusReliability: .reported
+        )
+
+        XCTAssertEqual(CalendarMonitor.footballStatusBadgeText(for: delayedMatch, now: now), "DELAY")
+        XCTAssertEqual(CalendarMonitor.footballStatusBadgeText(for: abandonedMatch, now: now), "ABN")
+    }
+
+    func testInterruptedAbandonedMatchUsesReportedMinuteForCalendarDuration() {
+        let match = makeMatch(
+            id: "abandoned-duration",
+            startDate: Date(timeIntervalSince1970: 1_720_000_000),
+            statusState: .finished,
+            statusText: "Abandoned",
+            statusDetailText: "11'"
+        )
+
+        XCTAssertEqual(CalendarMonitor.approximateFootballMatchDuration(for: match), 15 * 60)
+    }
+
+    func testInterruptedDelayedMatchKeepsRegulationDurationForCalendarDuration() {
+        let match = makeMatch(
+            id: "delayed-duration",
+            startDate: Date(timeIntervalSince1970: 1_720_000_000),
+            statusState: .inProgress,
+            statusText: "Delay",
+            statusDetailText: "11'",
+            competitionSlug: "uefa.champions",
+            seasonSlug: "quarterfinals",
+            competitionNote: "2nd Leg - Tied on aggregate",
+            homeScore: "1",
+            awayScore: "1"
+        )
+
+        XCTAssertEqual(CalendarMonitor.approximateFootballMatchDuration(for: match), 110 * 60)
+    }
+
     func testFootballStatusBadgeUsesSoonWhenAwaitingLiveData() {
         let match = makeMatch(
             id: "awaiting-live-data",
@@ -587,6 +962,46 @@ final class FootballFixtureFormatterTests: XCTestCase {
 
         XCTAssertEqual(CalendarMonitor.footballStatusBadgeText(for: match), "Soon")
         XCTAssertNil(CalendarMonitor.footballStatusWarningText(for: match))
+    }
+
+    func testFootballStatusBadgeFallsBackToInferredMinuteForReportedLiveMatch() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let match = makeMatch(
+            id: "reported-live-no-minute",
+            startDate: now.addingTimeInterval(-40 * 60),
+            statusState: .inProgress,
+            statusText: "",
+            statusReliability: .reported
+        )
+
+        XCTAssertEqual(CalendarMonitor.footballStatusBadgeText(for: match, now: now), "40'")
+    }
+
+    func testFootballStatusBadgeUsesActualKickoffDateWhenAvailable() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let match = makeMatch(
+            id: "reported-live-actual-kickoff",
+            startDate: now.addingTimeInterval(-40 * 60),
+            actualStartDate: now.addingTimeInterval(-25 * 60),
+            statusState: .inProgress,
+            statusText: "",
+            statusReliability: .reported
+        )
+
+        XCTAssertEqual(CalendarMonitor.footballStatusBadgeText(for: match, now: now), "25'")
+    }
+
+    func testFootballStatusBadgeOverridesClearlyStaleReportedMinute() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let match = makeMatch(
+            id: "reported-live-stale-minute",
+            startDate: now.addingTimeInterval(-100 * 60),
+            statusState: .inProgress,
+            statusText: "11'",
+            statusReliability: .reported
+        )
+
+        XCTAssertEqual(CalendarMonitor.footballStatusBadgeText(for: match, now: now), "85'")
     }
 
     func testFootballStatusWarningAppearsWhenLiveDataLooksDelayed() {
@@ -605,11 +1020,57 @@ final class FootballFixtureFormatterTests: XCTestCase {
         )
     }
 
+    func testGoalHighlightDetectsHomeSideScoreChange() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let previous = makeMatch(
+            id: "goal-home",
+            startDate: now.addingTimeInterval(-900),
+            statusState: .inProgress,
+            homeScore: "1",
+            awayScore: "1"
+        )
+        let current = makeMatch(
+            id: "goal-home",
+            startDate: now.addingTimeInterval(-900),
+            statusState: .inProgress,
+            homeScore: "2",
+            awayScore: "1"
+        )
+
+        let highlight = CalendarMonitor.goalHighlight(from: previous, to: current, now: now)
+
+        XCTAssertEqual(highlight?.matchID, "goal-home")
+        XCTAssertEqual(highlight?.scoringSide, .home)
+        XCTAssertEqual(highlight?.hasBeenShownInMenuBar, false)
+    }
+
+    func testGoalHighlightIgnoresMultiSideScoreCorrections() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let previous = makeMatch(
+            id: "goal-correction",
+            startDate: now.addingTimeInterval(-900),
+            statusState: .inProgress,
+            homeScore: "1",
+            awayScore: "0"
+        )
+        let current = makeMatch(
+            id: "goal-correction",
+            startDate: now.addingTimeInterval(-900),
+            statusState: .inProgress,
+            homeScore: "2",
+            awayScore: "1"
+        )
+
+        XCTAssertNil(CalendarMonitor.goalHighlight(from: previous, to: current, now: now))
+    }
+
     private func makeMatch(
         id: String,
         startDate: Date,
+        actualStartDate: Date? = nil,
         statusState: FootballFixtureStatusState,
         statusText: String? = nil,
+        statusDetailText: String? = nil,
         statusReliability: FootballFixtureStatusReliability = .reported,
         competitionSlug: String = "uefa.champions",
         seasonSlug: String? = nil,
@@ -627,8 +1088,10 @@ final class FootballFixtureFormatterTests: XCTestCase {
             competitionLogoURL: nil,
             locationText: nil,
             startDate: startDate,
+            actualStartDate: actualStartDate,
             statusState: statusState,
             statusText: statusText ?? (statusState == .inProgress ? "55'" : "7:00 PM"),
+            statusDetailText: statusDetailText,
             statusReliability: statusReliability,
             homeTeam: FootballTeamSummary(
                 id: "83",

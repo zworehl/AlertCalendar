@@ -10,9 +10,12 @@ actor FootballDataAPIClient {
     private struct SummarySnapshot {
         let statusState: FootballFixtureStatusState
         let statusText: String
+        let statusDetailText: String?
         let statusPeriod: Int?
         let statusReliability: FootballFixtureStatusReliability
         let competitionNote: String?
+        let locationText: String?
+        let actualStartDate: Date?
         let homeScore: String
         let awayScore: String
         let homeYellowCards: Int
@@ -23,11 +26,45 @@ actor FootballDataAPIClient {
 
     private let session: URLSession
     private var teamCache: [String: TeamResponse] = [:]
+    private var goalScorersCache: [String: FootballMatchGoalScorers] = [:]
+    private var statisticsCache: [String: [FootballMatchStatistic]] = [:]
     private static let requestTimeout: TimeInterval = 8
     private static let resourceTimeout: TimeInterval = 20
     private static let summaryPreBufferBeforeKickoff: TimeInterval = 15 * 60
     private static let summaryPreBufferAfterKickoff: TimeInterval = 3 * 60 * 60
     private static let delayedLiveDataWarningAfterKickoff: TimeInterval = 15 * 60
+    private static let clubCountryByLeaguePrefix: [String: String] = [
+        "arg": "Argentina",
+        "aut": "Austria",
+        "bel": "Belgium",
+        "bra": "Brazil",
+        "col": "Colombia",
+        "cze": "Czech Republic",
+        "den": "Denmark",
+        "eng": "England",
+        "esp": "Spain",
+        "fra": "France",
+        "ger": "Germany",
+        "gre": "Greece",
+        "irl": "Republic of Ireland",
+        "ita": "Italy",
+        "jpn": "Japan",
+        "mex": "Mexico",
+        "ned": "Netherlands",
+        "nir": "Northern Ireland",
+        "nor": "Norway",
+        "pol": "Poland",
+        "por": "Portugal",
+        "rou": "Romania",
+        "sco": "Scotland",
+        "srb": "Serbia",
+        "sui": "Switzerland",
+        "swe": "Sweden",
+        "tur": "Turkey",
+        "ukr": "Ukraine",
+        "usa": "United States",
+        "wal": "Wales",
+    ]
 
     init(session: URLSession? = nil) {
         if let session {
@@ -80,6 +117,102 @@ actor FootballDataAPIClient {
         return Dictionary(grouping: matches, by: \.competitionSlug)
     }
 
+    func fetchGoalScorers(for match: FootballFixtureMatch) async throws -> FootballMatchGoalScorers? {
+        guard match.totalGoals > 0 else { return nil }
+
+        let cacheKey = Self.goalScorersCacheKey(for: match)
+        if let cached = goalScorersCache[cacheKey] {
+            return cached
+        }
+
+        let urls = Self.summaryURLs(for: match)
+        var bestScorers: FootballMatchGoalScorers?
+        var bestCount = 0
+        var lastTransportError: Error?
+
+        for url in urls {
+            do {
+                guard let root = try await Self.fetchSummaryRoot(url: url, session: session) else {
+                    continue
+                }
+
+                guard let candidate = Self.matchGoalScorers(from: root, match: match) else {
+                    continue
+                }
+
+                let candidateCount = candidate.home.count + candidate.away.count
+                if candidateCount > bestCount {
+                    bestScorers = candidate
+                    bestCount = candidateCount
+                }
+
+                if candidateCount >= match.totalGoals {
+                    goalScorersCache[cacheKey] = candidate
+                    return candidate
+                }
+            } catch {
+                lastTransportError = error
+            }
+        }
+
+        if let bestScorers {
+            goalScorersCache[cacheKey] = bestScorers
+            return bestScorers
+        }
+
+        if let lastTransportError {
+            throw lastTransportError
+        }
+
+        return nil
+    }
+
+    func fetchMatchStatistics(for match: FootballFixtureMatch) async throws -> [FootballMatchStatistic] {
+        guard match.statusState != .scheduled else { return [] }
+
+        let cacheKey = Self.statisticsCacheKey(for: match)
+        if let cached = statisticsCache[cacheKey] {
+            return cached
+        }
+
+        let urls = Self.summaryURLs(for: match)
+        var bestStatistics: [FootballMatchStatistic] = []
+        var bestCount = 0
+        var lastTransportError: Error?
+
+        for url in urls {
+            do {
+                guard let root = try await Self.fetchSummaryRoot(url: url, session: session) else {
+                    continue
+                }
+
+                let candidate = Self.matchStatistics(from: root)
+                if candidate.count > bestCount {
+                    bestStatistics = candidate
+                    bestCount = candidate.count
+                }
+
+                if candidate.count >= 10 {
+                    statisticsCache[cacheKey] = candidate
+                    return candidate
+                }
+            } catch {
+                lastTransportError = error
+            }
+        }
+
+        if !bestStatistics.isEmpty {
+            statisticsCache[cacheKey] = bestStatistics
+            return bestStatistics
+        }
+
+        if let lastTransportError {
+            throw lastTransportError
+        }
+
+        return []
+    }
+
     func refreshStatusesIfNeeded(for matches: [FootballFixtureMatch]) async -> [FootballFixtureMatch] {
         guard !matches.isEmpty else { return matches }
 
@@ -125,11 +258,19 @@ actor FootballDataAPIClient {
 
         return matches.map { match in
             guard let snapshot = snapshots[match.id] else { return match }
+            let refreshedLocationText = Self.bestAvailableLocationText(
+                reportedLocationText: snapshot.locationText,
+                fallbackLocationText: match.locationText
+            )
+            let refreshedActualStartDate = snapshot.actualStartDate ?? match.actualStartDate
             guard snapshot.statusState != match.statusState
                 || snapshot.statusText != match.statusText
+                || snapshot.statusDetailText != match.statusDetailText
                 || snapshot.statusPeriod != match.statusPeriod
                 || snapshot.statusReliability != match.statusReliability
                 || snapshot.competitionNote != match.competitionNote
+                || refreshedLocationText != match.locationText
+                || refreshedActualStartDate != match.actualStartDate
                 || snapshot.homeScore != match.homeScore
                 || snapshot.awayScore != match.awayScore
                 || snapshot.homeYellowCards != match.homeYellowCards
@@ -147,10 +288,12 @@ actor FootballDataAPIClient {
                 seasonSlug: match.seasonSlug,
                 competitionNote: snapshot.competitionNote ?? match.competitionNote,
                 competitionLogoURL: match.competitionLogoURL,
-                locationText: match.locationText,
+                locationText: refreshedLocationText,
                 startDate: match.startDate,
+                actualStartDate: refreshedActualStartDate,
                 statusState: snapshot.statusState,
                 statusText: snapshot.statusText,
+                statusDetailText: snapshot.statusDetailText ?? match.statusDetailText,
                 statusPeriod: snapshot.statusPeriod ?? match.statusPeriod,
                 statusReliability: snapshot.statusReliability,
                 homeTeam: match.homeTeam,
@@ -213,8 +356,10 @@ actor FootballDataAPIClient {
                 competitionLogoURL: match.competitionLogoURL,
                 locationText: match.locationText,
                 startDate: match.startDate,
+                actualStartDate: match.actualStartDate,
                 statusState: match.statusState,
                 statusText: match.statusText,
+                statusDetailText: match.statusDetailText,
                 statusPeriod: match.statusPeriod,
                 statusReliability: match.statusReliability,
                 homeTeam: match.homeTeam.withResolvedDetails(
@@ -268,6 +413,58 @@ actor FootballDataAPIClient {
             .filter { match in
                 match.startDate >= start && match.startDate < endExclusive
             }
+    }
+
+    private static func goalScorersCacheKey(for match: FootballFixtureMatch) -> String {
+        let statusDetail = match.statusDetailText ?? ""
+        let statusPeriod = match.statusPeriod.map(String.init) ?? "n/a"
+        return "\(match.id)|\(match.homeScore)|\(match.awayScore)|\(match.statusText)|\(statusDetail)|\(statusPeriod)"
+    }
+
+    private static func statisticsCacheKey(for match: FootballFixtureMatch) -> String {
+        let statusPeriod = match.statusPeriod.map(String.init) ?? "n/a"
+        return "\(match.id)|\(match.homeScore)|\(match.awayScore)|\(match.statusText)|\(statusPeriod)"
+    }
+
+    private static func summaryURLs(for match: FootballFixtureMatch) -> [URL] {
+        var urls: [URL] = []
+
+        let leagueSlug = match.competitionSlug.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !leagueSlug.isEmpty,
+           var components = URLComponents(
+               url: URL(string: "https://site.api.espn.com/apis/site/v2/sports/soccer/\(leagueSlug)/summary")!,
+               resolvingAgainstBaseURL: false
+           ) {
+            components.queryItems = [URLQueryItem(name: "event", value: match.id)]
+            if let url = components.url {
+                urls.append(url)
+            }
+        }
+
+        if var allComponents = URLComponents(
+            url: URL(string: "https://site.api.espn.com/apis/site/v2/sports/soccer/all/summary")!,
+            resolvingAgainstBaseURL: false
+        ) {
+            allComponents.queryItems = [URLQueryItem(name: "event", value: match.id)]
+            if let allURL = allComponents.url, !urls.contains(allURL) {
+                urls.append(allURL)
+            }
+        }
+
+        return urls
+    }
+
+    private static func fetchSummaryRoot(
+        url: URL,
+        session: URLSession
+    ) async throws -> [String: Any]? {
+        var request = URLRequest(url: url)
+        request.timeoutInterval = Self.requestTimeout
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            return nil
+        }
+        return try jsonDictionary(from: data)
     }
 
     private static func fetchMatchesPage(
@@ -339,10 +536,8 @@ actor FootballDataAPIClient {
             }
 
             let root = try jsonDictionary(from: data)
-            let venueCountry = stringValue(((root["venue"] as? [String: Any])?["address"] as? [String: Any])?["country"])
-            let location = stringValue(root["location"])
             let isNational = (root["isNational"] as? Bool) == true
-            let countryName = isNational ? (location ?? venueCountry) : (venueCountry ?? location)
+            let countryName = resolvedTeamCountryName(from: root)
 
             let logos = root["logos"] as? [[String: Any]] ?? []
             let preferredLogo = logos.first(where: { (($0["rel"] as? [String]) ?? []).contains("default") }) ?? logos.first
@@ -355,6 +550,40 @@ actor FootballDataAPIClient {
         } catch {
             return nil
         }
+    }
+
+    static func resolvedTeamCountryName(from root: [String: Any]) -> String? {
+        let venue = root["venue"] as? [String: Any]
+        let venueCountry = stringValue(((venue?["address"] as? [String: Any])?["country"]))
+        let location = sanitizedCountryCandidate(
+            stringValue(root["location"]),
+            teamName: stringValue(root["displayName"]),
+            teamAbbreviation: stringValue(root["abbreviation"])
+        )
+        let inferredLeagueCountry = teamCountryNameFromVenueReference(stringValue(venue?["$ref"]))
+        let isNational = (root["isNational"] as? Bool) == true
+
+        if isNational {
+            return location ?? venueCountry ?? inferredLeagueCountry
+        }
+
+        return venueCountry ?? inferredLeagueCountry ?? location
+    }
+
+    static func teamCountryNameFromVenueReference(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+        let normalized = raw.replacingOccurrences(of: "http://", with: "https://")
+        guard let url = URL(string: normalized) else { return nil }
+
+        let pathComponents = url.pathComponents
+        guard let leaguesIndex = pathComponents.firstIndex(of: "leagues"),
+              leaguesIndex + 1 < pathComponents.count else {
+            return nil
+        }
+
+        let leagueSlug = pathComponents[leaguesIndex + 1].lowercased()
+        let prefix = leagueSlug.split(separator: ".", maxSplits: 1).first.map(String.init) ?? leagueSlug
+        return clubCountryByLeaguePrefix[prefix]
     }
 
     private static func fetchSummarySnapshot(
@@ -392,15 +621,23 @@ actor FootballDataAPIClient {
             let status = competition["status"] as? [String: Any]
             let statusType = status?["type"] as? [String: Any]
             let rawState = matchStatusState(from: stringValue(statusType?["state"]))
-            let statusText = stringValue(statusType?["shortDetail"])
-                ?? stringValue(statusType?["detail"])
-                ?? stringValue(status?["displayClock"])
-                ?? "LIVE"
+            let statusText = preferredStatusText(
+                shortDetail: stringValue(statusType?["shortDetail"]),
+                detail: stringValue(statusType?["detail"]),
+                displayClock: stringValue(status?["displayClock"])
+            )
+            let statusDetailText = supplementalStatusText(
+                preferredStatusText: statusText,
+                detail: stringValue(statusType?["detail"]),
+                displayClock: stringValue(status?["displayClock"])
+            )
             let statusPeriod = intValue(statusType?["period"]) ?? intValue(status?["period"])
             let competitors = competition["competitors"] as? [[String: Any]] ?? []
             let home = competitors.first(where: { stringValue($0["homeAway"])?.lowercased() == "home" })
             let away = competitors.first(where: { stringValue($0["homeAway"])?.lowercased() == "away" })
             let competitionNote = competitionNoteText(from: competition)
+            let locationText = summaryVenueLocationText(from: root, competition: competition)
+            let actualStartDate = actualKickoffDate(from: root, fallbackStartDate: fallbackStartDate)
 
             let inferred = inferredKickoffStatusIfNeeded(
                 from: rawState,
@@ -412,9 +649,12 @@ actor FootballDataAPIClient {
             return SummarySnapshot(
                 statusState: inferred.state,
                 statusText: inferred.statusText,
+                statusDetailText: statusDetailText,
                 statusPeriod: statusPeriod,
                 statusReliability: inferred.statusReliability,
                 competitionNote: competitionNote,
+                locationText: locationText,
+                actualStartDate: actualStartDate,
                 homeScore: (inferred.inferred && inferred.state == .inProgress) ? "0" : (stringValue(home?["score"]) ?? "0"),
                 awayScore: (inferred.inferred && inferred.state == .inProgress) ? "0" : (stringValue(away?["score"]) ?? "0"),
                 homeYellowCards: cards.homeYellowCards,
@@ -425,6 +665,205 @@ actor FootballDataAPIClient {
         } catch {
             return nil
         }
+    }
+
+    static func matchGoalScorers(from root: [String: Any], match: FootballFixtureMatch) -> FootballMatchGoalScorers? {
+        guard match.totalGoals > 0 else { return nil }
+        guard match.statusState != .scheduled else { return nil }
+
+        let competitors = ((root["header"] as? [String: Any])?["competitions"] as? [[String: Any]])?
+            .first?["competitors"] as? [[String: Any]] ?? []
+
+        let homeCompetitor = competitors.first(where: { Self.stringValue($0["homeAway"])?.lowercased() == "home" })
+        let awayCompetitor = competitors.first(where: { Self.stringValue($0["homeAway"])?.lowercased() == "away" })
+
+        let homeTeam = homeCompetitor?["team"] as? [String: Any] ?? [:]
+        let awayTeam = awayCompetitor?["team"] as? [String: Any] ?? [:]
+        let homeTeamID = stringValue(homeTeam["id"]) ?? stringValue(homeCompetitor?["id"]) ?? match.homeTeam.id
+        let awayTeamID = stringValue(awayTeam["id"]) ?? stringValue(awayCompetitor?["id"]) ?? match.awayTeam.id
+        let homeTeamName = stringValue(homeTeam["displayName"])
+            ?? stringValue(homeTeam["shortDisplayName"])
+            ?? match.homeTeam.name
+        let awayTeamName = stringValue(awayTeam["displayName"])
+            ?? stringValue(awayTeam["shortDisplayName"])
+            ?? match.awayTeam.name
+
+        let keyEvents = ((root["keyEvents"] as? [[String: Any]]) ?? [])
+            + ((root["scoringPlays"] as? [[String: Any]]) ?? [])
+        var homeScorers: [FootballMatchGoalScorer] = []
+        var awayScorers: [FootballMatchGoalScorer] = []
+        var seenEventSignatures = Set<String>()
+
+        for (index, event) in keyEvents.enumerated() {
+            guard isGoalScoringEvent(event) else { continue }
+            guard let scorerName = goalScorerName(from: event), !scorerName.isEmpty else { continue }
+
+            let minute = goalEventMinute(from: event)
+            let teamID = stringValue((event["team"] as? [String: Any])?["id"])
+            let signature = "\(teamID ?? "unknown")|\(minute ?? "n/a")|\(stringValue(event["text"]) ?? scorerName)"
+            guard seenEventSignatures.insert(signature).inserted else { continue }
+            let scorer = FootballMatchGoalScorer(
+                id: "\(teamID ?? "unknown")-\(minute ?? "n/a")-\(index)",
+                name: scorerName,
+                minute: minute
+            )
+
+            if let teamID, teamID == homeTeamID {
+                homeScorers.append(scorer)
+                continue
+            }
+            if let teamID, teamID == awayTeamID {
+                awayScorers.append(scorer)
+                continue
+            }
+
+            let text = stringValue(event["text"]) ?? ""
+            if text.localizedCaseInsensitiveContains("(\(homeTeamName))") {
+                homeScorers.append(scorer)
+            } else if text.localizedCaseInsensitiveContains("(\(awayTeamName))") {
+                awayScorers.append(scorer)
+            }
+        }
+
+        guard !homeScorers.isEmpty || !awayScorers.isEmpty else { return nil }
+        return FootballMatchGoalScorers(home: homeScorers, away: awayScorers)
+    }
+
+    static func matchStatistics(from root: [String: Any]) -> [FootballMatchStatistic] {
+        guard let teams = (root["boxscore"] as? [String: Any])?["teams"] as? [[String: Any]], !teams.isEmpty else {
+            return []
+        }
+
+        guard let home = teams.first(where: { Self.stringValue($0["homeAway"])?.lowercased() == "home" }),
+              let away = teams.first(where: { Self.stringValue($0["homeAway"])?.lowercased() == "away" }) else {
+            return []
+        }
+
+        let homeStats = Self.teamStatisticsMap(from: home)
+        let awayStats = Self.teamStatisticsMap(from: away)
+        let homeTeamID = teamIdentifier(from: home)
+        let awayTeamID = teamIdentifier(from: away)
+        let substitutions = substitutionCountsByTeam(from: root["keyEvents"] as? [[String: Any]] ?? [])
+        let homeSubstitutions = homeTeamID.flatMap { substitutions[$0] } ?? 0
+        let awaySubstitutions = awayTeamID.flatMap { substitutions[$0] } ?? 0
+
+        if homeStats.isEmpty && awayStats.isEmpty && homeSubstitutions == 0 && awaySubstitutions == 0 {
+            return []
+        }
+
+        return Self.mergeStatistics(
+            home: homeStats,
+            away: awayStats,
+            homeSubstitutions: homeSubstitutions,
+            awaySubstitutions: awaySubstitutions
+        )
+    }
+
+    static func actualKickoffDate(from root: [String: Any], fallbackStartDate: Date) -> Date? {
+        let keyEvents = root["keyEvents"] as? [[String: Any]] ?? []
+        let kickoffDates = keyEvents.compactMap { event -> Date? in
+            let typeText = stringValue((event["type"] as? [String: Any])?["text"])?.lowercased()
+            let typeValue = stringValue((event["type"] as? [String: Any])?["type"])?.lowercased()
+            guard typeText == "kickoff" || typeValue == "kickoff" else { return nil }
+            guard let wallclock = stringValue(event["wallclock"]) else { return nil }
+            return parseEventDate(wallclock)
+        }
+
+        guard let actualKickoff = kickoffDates.min() else { return nil }
+
+        let earliestAllowed = fallbackStartDate.addingTimeInterval(-15 * 60)
+        let latestAllowed = fallbackStartDate.addingTimeInterval(2 * 60 * 60)
+        guard actualKickoff >= earliestAllowed, actualKickoff <= latestAllowed else {
+            return nil
+        }
+
+        return actualKickoff
+    }
+
+    private static func isGoalScoringEvent(_ event: [String: Any]) -> Bool {
+        if (event["scoringPlay"] as? Bool) == true { return true }
+        guard let typeText = stringValue((event["type"] as? [String: Any])?["text"])?.lowercased() else {
+            return false
+        }
+        return typeText.contains("goal")
+            || typeText.contains("penalty - scored")
+            || typeText.contains("penalty scored")
+    }
+
+    private static func goalEventMinute(from event: [String: Any]) -> String? {
+        let clock = (event["clock"] as? [String: Any])?["displayValue"]
+        guard let minute = stringValue(clock)?.trimmingCharacters(in: .whitespacesAndNewlines), !minute.isEmpty else {
+            return nil
+        }
+        return minute
+    }
+
+    private static func goalScorerName(from event: [String: Any]) -> String? {
+        if let text = stringValue(event["text"]),
+           let ownGoalScorer = ownGoalScorerName(from: text) {
+            return "\(ownGoalScorer) (OG)"
+        }
+
+        if let athletes = event["athletesInvolved"] as? [[String: Any]],
+           let athlete = athletes.first,
+           let displayName = stringValue(athlete["displayName"]),
+           !displayName.isEmpty {
+            return displayName
+        }
+
+        guard let text = stringValue(event["text"]), !text.isEmpty else { return nil }
+        let components = text.split(separator: ".", maxSplits: 1, omittingEmptySubsequences: true)
+        guard components.count >= 2 else { return nil }
+
+        let detail = components[1].trimmingCharacters(in: .whitespacesAndNewlines)
+        if detail.isEmpty { return nil }
+
+        let ownGoalPrefix = "own goal by "
+        if detail.lowercased().hasPrefix(ownGoalPrefix) {
+            let remainder = String(detail.dropFirst(ownGoalPrefix.count))
+            let untilParen = remainder.split(separator: "(", maxSplits: 1, omittingEmptySubsequences: true).first
+            let name = untilParen?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return (name?.isEmpty == false) ? name : nil
+        }
+
+        if let range = detail.range(of: " (") {
+            let candidate = detail[..<range.lowerBound].trimmingCharacters(in: .whitespacesAndNewlines)
+            return candidate.isEmpty ? nil : candidate
+        }
+
+        return nil
+    }
+
+    private static func ownGoalScorerName(from text: String) -> String? {
+        let normalizedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedText.isEmpty else { return nil }
+
+        let lowercasedText = normalizedText.lowercased()
+        guard let ownGoalRange = lowercasedText.range(of: "own goal by ") else { return nil }
+
+        let originalStart = normalizedText.index(
+            normalizedText.startIndex,
+            offsetBy: lowercasedText.distance(from: lowercasedText.startIndex, to: ownGoalRange.upperBound)
+        )
+        let remainder = String(normalizedText[originalStart...])
+
+        let firstSentence = remainder
+            .split(separator: ".", maxSplits: 1, omittingEmptySubsequences: true)
+            .first
+            .map(String.init)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? remainder
+
+        let candidate = firstSentence
+            .split(separator: ",", maxSplits: 1, omittingEmptySubsequences: true)
+            .first
+            .map(String.init)?
+            .split(separator: "(", maxSplits: 1, omittingEmptySubsequences: true)
+            .first
+            .map(String.init)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard let candidate, !candidate.isEmpty else { return nil }
+        return candidate
     }
 
     private static func liveMatch(
@@ -442,10 +881,16 @@ actor FootballDataAPIClient {
         let status = competition["status"] as? [String: Any]
         let statusType = status?["type"] as? [String: Any]
         let rawState = matchStatusState(from: stringValue(statusType?["state"]))
-        let statusText = stringValue(statusType?["shortDetail"])
-            ?? stringValue(statusType?["detail"])
-            ?? stringValue(status?["displayClock"])
-            ?? "LIVE"
+        let statusText = preferredStatusText(
+            shortDetail: stringValue(statusType?["shortDetail"]),
+            detail: stringValue(statusType?["detail"]),
+            displayClock: stringValue(status?["displayClock"])
+        )
+        let statusDetailText = supplementalStatusText(
+            preferredStatusText: statusText,
+            detail: stringValue(statusType?["detail"]),
+            displayClock: stringValue(status?["displayClock"])
+        )
         let statusPeriod = intValue(statusType?["period"]) ?? intValue(status?["period"])
         let inferred = inferredKickoffStatusIfNeeded(
             from: rawState,
@@ -497,6 +942,7 @@ actor FootballDataAPIClient {
             startDate: startDate,
             statusState: inferred.state,
             statusText: inferred.statusText,
+            statusDetailText: statusDetailText,
             statusPeriod: statusPeriod,
             statusReliability: inferred.statusReliability,
             homeTeam: homeSummary,
@@ -523,6 +969,87 @@ actor FootballDataAPIClient {
         )
     }
 
+    private static func teamStatisticsMap(from entry: [String: Any]) -> [String: (label: String, value: String)] {
+        let raw = entry["statistics"] as? [[String: Any]] ?? []
+        var mapped: [String: (label: String, value: String)] = [:]
+        for stat in raw {
+            guard let name = stringValue(stat["name"])?.lowercased() else { continue }
+            guard let value = stringValue(stat["displayValue"]) else { continue }
+            let label = stringValue(stat["label"]) ?? name
+            mapped[name] = (label: label, value: value)
+        }
+        return mapped
+    }
+
+    private static func mergeStatistics(
+        home: [String: (label: String, value: String)],
+        away: [String: (label: String, value: String)],
+        homeSubstitutions: Int,
+        awaySubstitutions: Int
+    ) -> [FootballMatchStatistic] {
+        let preferred: [(name: String, label: String)] = [
+            ("possessionpct", "Possession"),
+            ("totalshots", "Shots"),
+            ("shotsontarget", "Shots On Target"),
+            ("woncorners", "Corner Kicks"),
+            ("offsides", "Offsides"),
+            ("foulscommitted", "Fouls"),
+            ("yellowcards", "Yellow Cards"),
+            ("redcards", "Red Cards"),
+            ("saves", "Saves"),
+        ]
+
+        var merged: [FootballMatchStatistic] = []
+        for item in preferred {
+            let homeValue = formatStatisticValue(name: item.name, rawValue: home[item.name]?.value ?? "--")
+            let awayValue = formatStatisticValue(name: item.name, rawValue: away[item.name]?.value ?? "--")
+            merged.append(
+                FootballMatchStatistic(
+                    id: item.name,
+                    label: item.label,
+                    homeValue: homeValue,
+                    awayValue: awayValue
+                )
+            )
+        }
+
+        merged.append(
+            FootballMatchStatistic(
+                id: "substitutions",
+                label: "Substitutions",
+                homeValue: "\(homeSubstitutions)",
+                awayValue: "\(awaySubstitutions)"
+            )
+        )
+        return merged
+    }
+
+    private static func teamIdentifier(from entry: [String: Any]) -> String? {
+        let team = entry["team"] as? [String: Any] ?? [:]
+        return stringValue(team["id"])
+    }
+
+    private static func substitutionCountsByTeam(from keyEvents: [[String: Any]]) -> [String: Int] {
+        var counts: [String: Int] = [:]
+        for event in keyEvents {
+            let type = ((event["type"] as? [String: Any])?["type"] as? String)?.lowercased() ?? ""
+            guard type.contains("substitution") else { continue }
+            guard let teamID = stringValue((event["team"] as? [String: Any])?["id"]) else { continue }
+            counts[teamID, default: 0] += 1
+        }
+        return counts
+    }
+
+    private static func formatStatisticValue(name: String, rawValue: String) -> String {
+        if rawValue == "--" {
+            return rawValue
+        }
+        if name == "possessionpct" {
+            return rawValue.contains("%") ? rawValue : "\(rawValue)%"
+        }
+        return rawValue
+    }
+
     private static func statisticValue(named name: String, from teamBoxscore: [String: Any]?) -> Int {
         let statistics = teamBoxscore?["statistics"] as? [[String: Any]] ?? []
         guard let entry = statistics.first(where: { stringValue($0["name"])?.caseInsensitiveCompare(name) == .orderedSame }) else {
@@ -547,6 +1074,55 @@ actor FootballDataAPIClient {
         default:
             return .unknown
         }
+    }
+
+    static func preferredStatusText(
+        shortDetail: String?,
+        detail: String?,
+        displayClock: String?
+    ) -> String {
+        let resolvedShortDetail = shortDetail?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedDetail = detail?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedDisplayClock = displayClock?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if let resolvedShortDetail, !resolvedShortDetail.isEmpty {
+            if let resolvedDetail,
+               statusTextShouldPreferDetail(shortDetail: resolvedShortDetail, detail: resolvedDetail) {
+                return resolvedDetail
+            }
+
+            return resolvedShortDetail
+        }
+
+        if let resolvedDetail, !resolvedDetail.isEmpty {
+            return resolvedDetail
+        }
+
+        if let resolvedDisplayClock, !resolvedDisplayClock.isEmpty {
+            return resolvedDisplayClock
+        }
+
+        return "LIVE"
+    }
+
+    static func supplementalStatusText(
+        preferredStatusText: String,
+        detail: String?,
+        displayClock: String?
+    ) -> String? {
+        let candidates = [
+            detail?.trimmingCharacters(in: .whitespacesAndNewlines),
+            displayClock?.trimmingCharacters(in: .whitespacesAndNewlines),
+        ]
+
+        for candidate in candidates {
+            guard let candidate, !candidate.isEmpty else { continue }
+            if normalizedStatusToken(candidate) != normalizedStatusToken(preferredStatusText) {
+                return candidate
+            }
+        }
+
+        return nil
     }
 
     private static func inferredKickoffStatusIfNeeded(
@@ -588,15 +1164,75 @@ actor FootballDataAPIClient {
             .uppercased()
 
         let preservedTokens = [
+            "ABN",
             "POSTPONED",
+            "POSTP",
             "DELAYED",
+            "DELAY",
             "CANCELED",
             "CANCELLED",
             "SUSPENDED",
+            "SUSP",
             "ABANDONED",
         ]
 
         return preservedTokens.contains { normalized.contains($0) }
+    }
+
+    private static func statusTextShouldPreferDetail(shortDetail: String, detail: String) -> Bool {
+        let normalizedShort = normalizedStatusToken(shortDetail)
+        let normalizedDetail = normalizedStatusToken(detail)
+
+        if normalizedDetail.isEmpty || normalizedShort == normalizedDetail {
+            return false
+        }
+
+        if statusTextIndicatesInterruptedPlay(normalizedShort) {
+            return false
+        }
+
+        if statusTextIndicatesInterruptedPlay(normalizedDetail) && !statusTextIndicatesInterruptedPlay(normalizedShort) {
+            return true
+        }
+
+        if statusTextLooksLikeMinute(detail) && !statusTextLooksLikeMinute(shortDetail) {
+            return true
+        }
+
+        let preciseTokens = ["FT", "HT", "ET", "AET", "PEN", "PK", "PENALTY", "EXTRA TIME"]
+        let detailIsPrecise = preciseTokens.contains { normalizedDetail.contains($0) }
+        let shortIsPrecise = preciseTokens.contains { normalizedShort.contains($0) }
+
+        return detailIsPrecise && !shortIsPrecise
+    }
+
+    private static func statusTextLooksLikeMinute(_ text: String) -> Bool {
+        let pattern = #"\d{1,3}(?:\+\d{1,2})?\s*'"#
+        return text.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    private static func normalizedStatusToken(_ text: String) -> String {
+        text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+            .uppercased()
+    }
+
+    private static func statusTextIndicatesInterruptedPlay(_ normalizedStatus: String) -> Bool {
+        let interruptionTokens = [
+            "ABN",
+            "ABANDONED",
+            "SUSP",
+            "SUSPENDED",
+            "POSTP",
+            "POSTPONED",
+            "DELAY",
+            "DELAYED",
+            "CANCELED",
+            "CANCELLED",
+        ]
+
+        return interruptionTokens.contains { normalizedStatus.contains($0) }
     }
 
     static func parseEventDate(_ rawDate: String) -> Date? {
@@ -680,7 +1316,46 @@ actor FootballDataAPIClient {
     }
 
     static func venueLocationText(from competition: [String: Any]) -> String? {
-        let venue = competition["venue"] as? [String: Any]
+        venueLocationText(fromVenue: competition["venue"] as? [String: Any])
+    }
+
+    static func summaryVenueLocationText(from root: [String: Any], competition: [String: Any]) -> String? {
+        let headerVenue = venueLocationText(from: competition)
+        let gameInfoVenue = venueLocationText(
+            fromVenue: ((root["gameInfo"] as? [String: Any])?["venue"] as? [String: Any])
+        )
+
+        return bestAvailableLocationText(
+            reportedLocationText: gameInfoVenue,
+            fallbackLocationText: headerVenue
+        )
+    }
+
+    static func bestAvailableLocationText(
+        reportedLocationText: String?,
+        fallbackLocationText: String?
+    ) -> String? {
+        let normalizedReported = normalizedLocationTextValue(reportedLocationText)
+        let normalizedFallback = normalizedLocationTextValue(fallbackLocationText)
+
+        switch (normalizedReported, normalizedFallback) {
+        case let (reported?, fallback?):
+            if reported.caseInsensitiveCompare(fallback) == .orderedSame {
+                return reported
+            }
+            return locationTextSpecificityScore(reported) >= locationTextSpecificityScore(fallback)
+                ? reported
+                : fallback
+        case let (reported?, nil):
+            return reported
+        case let (nil, fallback?):
+            return fallback
+        case (nil, nil):
+            return nil
+        }
+    }
+
+    private static func venueLocationText(fromVenue venue: [String: Any]?) -> String? {
         let address = venue?["address"] as? [String: Any]
 
         let candidates = [
@@ -700,6 +1375,44 @@ actor FootballDataAPIClient {
 
         guard !components.isEmpty else { return nil }
         return components.joined(separator: ", ")
+    }
+
+    private static func normalizedLocationTextValue(_ rawValue: String?) -> String? {
+        guard let rawValue else { return nil }
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func locationTextSpecificityScore(_ locationText: String) -> Int {
+        let normalized = locationText
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+            .uppercased()
+
+        let placeholderTokens = [
+            "TBC",
+            "TBD",
+            "TO BE CONFIRMED",
+            "TO BE ANNOUNCED",
+            "VENUE TBC",
+            "VENUE TBD",
+        ]
+
+        if placeholderTokens.contains(where: { normalized == $0 || normalized.contains($0) }) {
+            return 0
+        }
+
+        let commaSeparatedParts = locationText
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        let wordCount = locationText
+            .split(whereSeparator: \.isWhitespace)
+            .count
+
+        let aliasBonus = (locationText.contains("(") && locationText.contains(")")) ? 5 : 0
+        return (commaSeparatedParts.count * 10) + wordCount + aliasBonus
     }
 
     private static func teamAbbreviation(from team: [String: Any], fallbackName: String) -> String {
@@ -751,6 +1464,32 @@ actor FootballDataAPIClient {
         guard let raw, !raw.isEmpty else { return nil }
         let normalized = raw.replacingOccurrences(of: "http://", with: "https://")
         return URL(string: normalized)
+    }
+
+    private static func sanitizedCountryCandidate(
+        _ raw: String?,
+        teamName: String?,
+        teamAbbreviation: String?
+    ) -> String? {
+        guard let candidate = stringValue(raw) else { return nil }
+        let normalizedCandidate = normalizedLookupKey(candidate)
+
+        if normalizedCandidate == normalizedLookupKey(teamName)
+            || normalizedCandidate == normalizedLookupKey(teamAbbreviation) {
+            return nil
+        }
+
+        return candidate
+    }
+
+    private static func normalizedLookupKey(_ raw: String?) -> String {
+        guard let raw = stringValue(raw) else { return "" }
+        return raw
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+            .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+            .map(String.init)
+            .joined(separator: " ")
+            .lowercased()
     }
 
     private static func jsonDictionary(from data: Data) throws -> [String: Any] {

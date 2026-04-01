@@ -19,6 +19,31 @@ enum FootballFixtureFormatter {
         "turkiye": "🇹🇷",
     ]
 
+    private static let regionCodeAliases: [String: String] = [
+        "ir iran": "IR",
+        "korea republic": "KR",
+        "republic of korea": "KR",
+        "korea dpr": "KP",
+        "dpr korea": "KP",
+        "dr congo": "CD",
+        "congo dr": "CD",
+        "congo kinshasa": "CD",
+        "china pr": "CN",
+        "pr china": "CN",
+        "palestine": "PS",
+        "uae": "AE",
+        "hong kong china": "HK",
+        "cape verde islands": "CV",
+        "cabo verde": "CV",
+        "st kitts and nevis": "KN",
+        "saint kitts and nevis": "KN",
+        "st lucia": "LC",
+        "saint lucia": "LC",
+        "st vincent and the grenadines": "VC",
+        "saint vincent and the grenadines": "VC",
+        "st vincent grenadines": "VC",
+    ]
+
     private static let regionNameLookup: [String: String] = {
         let locale = Locale(identifier: "en_US_POSIX")
         var values: [String: String] = [:]
@@ -57,10 +82,52 @@ enum FootballFixtureFormatter {
             competitionStage: match.competitionStage,
             homeAbbreviation: homeCode,
             awayAbbreviation: awayCode,
+            showsScore: match.hasVisibleScore,
+            homeScore: safeScore(match.homeScore),
+            awayScore: safeScore(match.awayScore),
             competitionLocalLogoPath: competitionLocalLogoURL?.path,
             homeLocalLogoPath: isUnknownTeam(match.homeTeam) ? nil : homeLocalLogoURL?.path,
             awayLocalLogoPath: isUnknownTeam(match.awayTeam) ? nil : awayLocalLogoURL?.path
         )
+    }
+
+    static func competitionDetailText(
+        competitionName: String,
+        competitionStage: String?
+    ) -> String {
+        let trimmedCompetitionName = competitionName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let competitionStage else { return trimmedCompetitionName }
+
+        let trimmedCompetitionStage = competitionStage.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedCompetitionStage.isEmpty else { return trimmedCompetitionName }
+
+        if normalizedCompetitionComparisonKey(trimmedCompetitionStage) == normalizedCompetitionComparisonKey(trimmedCompetitionName) {
+            return trimmedCompetitionName
+        }
+
+        return "\(trimmedCompetitionName) • \(trimmedCompetitionStage)"
+    }
+
+    static func sharedCompetitionTitle(for matches: [FootballFixtureMatch]) -> String? {
+        guard matches.count > 1, let firstMatch = matches.first else { return nil }
+
+        let sharedCompetitionSlug = firstMatch.competitionSlug
+        guard matches.allSatisfy({ $0.competitionSlug == sharedCompetitionSlug }) else {
+            return nil
+        }
+
+        let sharedCompetitionDetails = Set(matches.map {
+            competitionDetailText(
+                competitionName: $0.competitionName,
+                competitionStage: $0.competitionStage
+            )
+        })
+
+        if sharedCompetitionDetails.count == 1 {
+            return sharedCompetitionDetails.first
+        }
+
+        return firstMatch.competitionName
     }
 
     static func flagEmoji(for countryName: String?) -> String {
@@ -68,6 +135,9 @@ enum FootballFixtureFormatter {
         let normalized = normalizedCountryKey(countryName)
         if let special = specialRegionFlags[normalized] {
             return special
+        }
+        if let aliasedRegionCode = regionCodeAliases[normalized] {
+            return flagEmoji(forRegionCode: aliasedRegionCode)
         }
         guard let regionCode = regionNameLookup[normalized] else {
             return "🏳️"
@@ -159,6 +229,23 @@ enum FootballFixtureFormatter {
         return identifiers.joined(separator: "|")
     }
 
+    static func scoreHighlightRange(in title: String, side: FootballScoreSide) -> NSRange? {
+        let fullRange = NSRange(title.startIndex..., in: title)
+        guard let regex = try? NSRegularExpression(pattern: #"\b(\d+)\s-\s(\d+)\b"#) else {
+            return nil
+        }
+        guard let match = regex.firstMatch(in: title, options: [], range: fullRange) else {
+            return nil
+        }
+
+        switch side {
+        case .home:
+            return match.range(at: 1)
+        case .away:
+            return match.range(at: 2)
+        }
+    }
+
     static func isUnknownTeam(_ team: FootballTeamSummary) -> Bool {
         let abbreviation = team.abbreviation.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         let normalizedName = normalizedCountryKey(team.name)
@@ -218,7 +305,19 @@ enum FootballFixtureFormatter {
         raw
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+            .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+            .map(String.init)
+            .joined(separator: " ")
             .lowercased()
+    }
+
+    private static func normalizedCompetitionComparisonKey(_ raw: String) -> String {
+        raw
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+            .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+            .map(String.init)
+            .filter { !$0.allSatisfy(\.isNumber) }
+            .joined(separator: " ")
     }
 
     private static func flagEmoji(forRegionCode regionCode: String) -> String {

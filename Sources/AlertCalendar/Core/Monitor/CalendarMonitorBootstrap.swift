@@ -40,6 +40,7 @@ extension CalendarMonitor {
             DefaultsKeys.skippedItemKeys: [],
             DefaultsKeys.skippedWeatherUntil: 0.0,
             DefaultsKeys.footballTargetCalendarID: "",
+            DefaultsKeys.footballCalendarAlertOption: FootballCalendarAlertOption.none.rawValue,
             DefaultsKeys.didAutoRecoverEmptyEventCalendarSelection: false,
             DefaultsKeys.didAutoRecoverEmptyReminderCalendarSelection: false,
         ])

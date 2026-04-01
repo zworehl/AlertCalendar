@@ -222,7 +222,10 @@ extension CalendarMonitor {
             let calendarColor = color(from: event.calendar)
             let showsMutedBackground = requiresMutedParticipationStyle(for: event)
             let meetingURL = meetingURL(for: event)
-            let locationText = normalizedLocation(for: event.location)
+            let locationText = Self.preferredLocationText(
+                eventLocation: event.location,
+                footballMatchLocation: footballMatch?.locationText
+            )
             let footballMenuBarDisplay = footballMatch.map(footballMenuBarDisplay(for:))
             let travelTimeMinutes = normalizedTravelTimeMinutes(
                 for: event,
@@ -286,6 +289,20 @@ extension CalendarMonitor {
         timedItems.sort { $0.date < $1.date }
         allDayItems.sort { $0.date < $1.date }
         return (timedItems, allDayItems)
+    }
+
+    nonisolated static func preferredLocationText(eventLocation: String?, footballMatchLocation: String?) -> String? {
+        if let footballLocation = normalizedLocationText(footballMatchLocation) {
+            return footballLocation
+        }
+
+        return normalizedLocationText(eventLocation)
+    }
+
+    private nonisolated static func normalizedLocationText(_ rawLocation: String?) -> String? {
+        guard let rawLocation else { return nil }
+        let trimmed = rawLocation.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     func loadReminders(from start: Date?, to end: Date, calendars: [EKCalendar]) async -> [UpcomingItem] {
@@ -359,6 +376,10 @@ extension CalendarMonitor {
     }
 
     func normalizedTravelTimeMinutes(for event: EKEvent, meetingURL: URL?, locationText: String?) -> Int? {
+        if managedFootballReference(for: event) != nil {
+            return nil
+        }
+
         // Virtual meetings should not be treated as trips to a physical place.
         if meetingURL != nil || isVirtualLocationText(locationText) {
             return nil
