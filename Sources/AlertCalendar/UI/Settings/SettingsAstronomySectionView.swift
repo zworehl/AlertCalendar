@@ -36,7 +36,7 @@ struct SettingsAstronomySectionView: View {
             } else {
                 VStack(alignment: .leading, spacing: 10) {
                     coordinatesSection
-                    Text("These coordinates are shared by the rain forecast and sun moments feeds.")
+                    Text("These coordinates are used for sun moments.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

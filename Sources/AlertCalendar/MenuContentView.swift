@@ -141,8 +141,16 @@ struct MenuContentView: View {
             .help("Refresh")
 
             Button {
-                (NSApp.delegate as? AppDelegate)?.prepareForSettingsPresentation()
-                openWindow(id: WindowMetadata.preferencesID)
+                DispatchQueue.main.async {
+                    let appDelegate = NSApp.delegate as? AppDelegate
+                    appDelegate?.prepareForSettingsPresentation()
+                    openWindow(id: WindowMetadata.preferencesID)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                        if appDelegate?.revealSettingsWindowIfPresent() != true {
+                            appDelegate?.showSettingsWindow(monitor: monitor)
+                        }
+                    }
+                }
             } label: {
                 Image(systemName: "gearshape")
             }
@@ -328,7 +336,6 @@ struct MenuContentView: View {
         let now = Date()
         let leadSeconds = TimeInterval(max(1, alertLeadMinutes) * 60)
         let items = monitor.upcomingItems.filter { item in
-            guard item.kind != .weather else { return false }
             guard AstronomyMoment(eventTitle: item.title) == nil else { return false }
             if let kindFilter, item.kind != kindFilter {
                 return false
@@ -355,13 +362,13 @@ struct MenuContentView: View {
 
     private var allEventItemsForContextualActions: [UpcomingItem] {
         let allDayItems = monitor.allDayEventItems
-        let timedItems = monitor.upcomingItems.filter { $0.kind == .event || $0.kind == .weather }
+        let timedItems = monitor.upcomingItems.filter { $0.kind == .event }
         return deduplicatedItems((allDayItems + timedItems).sorted { $0.date < $1.date })
     }
 
     private var queueItemsForActions: [UpcomingItem] {
         let allDayItems = monitor.allDayEventItems
-        let timedItems = monitor.upcomingItems.filter { $0.kind == .event || $0.kind == .weather || $0.kind == .reminder }
+        let timedItems = monitor.upcomingItems.filter { $0.kind == .event || $0.kind == .reminder }
         let combined = deduplicatedItems((allDayItems + timedItems).sorted { $0.date < $1.date })
         return Self.queueItemsForActions(
             from: combined,
@@ -616,7 +623,7 @@ struct MenuContentView: View {
         let detailFont = Font.system(size: 11, weight: .medium)
         let detailIconFont = Font.system(size: 12, weight: .regular)
         let hasVirtualLocation = monitor.isVirtualLocationText(item.locationText)
-        let usesEventStyleLayout = item.kind == .event || item.kind == .weather
+        let usesEventStyleLayout = item.kind == .event
         let showTravelTime = item.kind == .event
             && !item.isAllDay
             && item.meetingURL == nil
@@ -677,7 +684,7 @@ struct MenuContentView: View {
                                 .lineLimit(1)
                                 .truncationMode(.tail)
 
-                            if item.kind != .weather, let locationText = item.locationText {
+                            if let locationText = item.locationText {
                                 let locationName = displayLocationName(from: locationText)
                                 if shouldShowLocationRow(locationName: locationName, meetingURL: item.meetingURL) {
                                     HStack(alignment: .center, spacing: 4) {
@@ -860,7 +867,7 @@ struct MenuContentView: View {
             showsStatusAccessories: false
         )
 
-        if item.kind != .weather, let locationText = item.locationText {
+        if let locationText = item.locationText {
             let locationName = displayLocationName(from: locationText)
             if shouldShowLocationRow(locationName: locationName, meetingURL: item.meetingURL) {
                 HStack(alignment: .center, spacing: 4) {
@@ -1134,9 +1141,6 @@ struct MenuContentView: View {
                 isFilled: hoveredReminderItemID == item.id
             )
         }
-        if item.kind == .weather {
-            return weatherMarkerImage(for: item.title)
-        }
         guard let moment = AstronomyMoment(eventTitle: item.title) else { return nil }
         return astronomyMarkerImage(for: moment)
     }
@@ -1177,28 +1181,6 @@ struct MenuContentView: View {
             return image
         }
         return NSImage(size: NSSize(width: 16, height: 12))
-    }
-
-    private func weatherMarkerImage(for title: String) -> NSImage {
-        let symbolName: String
-        switch title.lowercased() {
-        case "drizzle":
-            symbolName = "cloud.drizzle.fill"
-        case "thunderstorm":
-            symbolName = "cloud.bolt.rain.fill"
-        default:
-            symbolName = "cloud.rain.fill"
-        }
-
-        let config = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
-            .applying(NSImage.SymbolConfiguration.preferringMulticolor())
-        if let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
-            .withSymbolConfiguration(config) {
-            symbol.isTemplate = false
-            return symbol
-        }
-
-        return NSImage(size: NSSize(width: 12, height: 12))
     }
 
     private func markerTopPadding(for item: UpcomingItem) -> CGFloat {
@@ -1316,18 +1298,7 @@ struct MenuContentView: View {
             }
             return locationText
         }
-
-        guard item.kind == .weather else {
-            return nil
-        }
-
-        let settings = monitor.snapshotSettings()
-        guard (-90 ... 90).contains(settings.astronomyLatitude),
-              (-180 ... 180).contains(settings.astronomyLongitude) else {
-            return nil
-        }
-
-        return "\(settings.astronomyLatitude), \(settings.astronomyLongitude)"
+        return nil
     }
 
     @ViewBuilder

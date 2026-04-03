@@ -48,7 +48,6 @@ extension CalendarMonitor {
     func evaluateAlert(now: Date, settings: SettingsSnapshot) {
         let leadSeconds = TimeInterval(max(1, settings.alertLeadMinutes) * 60)
         guard let candidate = upcomingItems.first(where: {
-            guard $0.kind != .weather else { return false }
             guard AstronomyMoment(eventTitle: $0.title) == nil else { return false }
             let remaining = $0.date.timeIntervalSince(now)
             return remaining > 0 && remaining <= leadSeconds
@@ -251,19 +250,6 @@ extension CalendarMonitor {
            item.endDate == nil,
            item.date <= now {
             return compactTitle
-        }
-
-        if item.kind == .weather {
-            if let endDate = item.endDate, endDate > item.date {
-                if item.date <= now, endDate > now {
-                    let elapsed = elapsedCountdown(from: item.date, to: now, simplified: simplified)
-                    let remaining = relativeCountdown(to: endDate, from: now, simplified: simplified)
-                    return "\(compactTitle) \(elapsed) elapsed, \(remaining) left"
-                }
-                let duration = relativeCountdown(to: endDate, from: item.date, simplified: simplified)
-                return "\(compactTitle) in about \(relativeCountdown(to: item.date, from: now, simplified: simplified)) for \(duration)"
-            }
-            return "\(compactTitle) in about \(relativeCountdown(to: item.date, from: now, simplified: simplified))"
         }
         if item.isAllDay {
             if isBirthdayItem(item) {
@@ -688,7 +674,6 @@ extension CalendarMonitor {
             includeEvents: defaults.bool(forKey: DefaultsKeys.includeEvents),
             includeAllDayEvents: defaults.bool(forKey: DefaultsKeys.includeAllDayEvents),
             includeReminders: defaults.bool(forKey: DefaultsKeys.includeReminders),
-            includeWeather: defaults.bool(forKey: DefaultsKeys.includeWeather),
             includeAstronomy: defaults.bool(forKey: DefaultsKeys.includeAstronomy),
             useAutomaticAstronomyLocation: defaults.bool(forKey: DefaultsKeys.useAutomaticAstronomyLocation),
             astronomyColorID: defaults.string(forKey: DefaultsKeys.astronomyColorID) ?? "blue",
@@ -724,16 +709,6 @@ extension CalendarMonitor {
     func markerStyle(for item: UpcomingItem) -> MenuMarkerStyle {
         if item.kind == .reminder {
             return .reminder(item.calendarColor)
-        }
-        if item.kind == .weather {
-            switch item.title.lowercased() {
-            case "drizzle":
-                return .drizzle
-            case "thunderstorm":
-                return .thunderstorm
-            default:
-                return .rain
-            }
         }
         if isBirthdayItem(item) {
             return .birthday(item.calendarColor)
@@ -780,7 +755,7 @@ extension CalendarMonitor {
     }
 
     func activeEventProgress(for item: UpcomingItem, now: Date, settings: SettingsSnapshot) -> CGFloat? {
-        guard item.kind == .event || item.kind == .weather else { return nil }
+        guard item.kind == .event else { return nil }
         guard let endDate = item.endDate, endDate > item.date else { return nil }
         guard item.date <= now, now < endDate else { return nil }
 

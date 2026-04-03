@@ -25,7 +25,7 @@ struct SettingsView: View {
     }
 
     private enum FeedsSubsection: String, CaseIterable, Identifiable {
-        case atmosphere = "Sun & Rain"
+        case atmosphere = "Sun"
         case football = "Football"
 
         var id: String { rawValue }
@@ -33,7 +33,7 @@ struct SettingsView: View {
         var title: String {
             switch self {
             case .atmosphere:
-                return "Sunrise, Sunset & Rain"
+                return "Sunrise & Sunset"
             case .football:
                 return "Football Fixtures"
             }
@@ -45,7 +45,6 @@ struct SettingsView: View {
     @AppStorage(DefaultsKeys.includeEvents) private var includeEvents = true
     @AppStorage(DefaultsKeys.includeAllDayEvents) private var includeAllDayEvents = true
     @AppStorage(DefaultsKeys.includeReminders) private var includeReminders = true
-    @AppStorage(DefaultsKeys.includeWeather) private var includeWeather = true
     @AppStorage(DefaultsKeys.lookAheadHours) private var lookAheadHours = 24
     @AppStorage(DefaultsKeys.alertLeadMinutes) private var alertLeadMinutes = 5
     @AppStorage(DefaultsKeys.nearUpcomingAlternateMinutes) private var nearUpcomingAlternateMinutes = 10
@@ -130,6 +129,12 @@ struct SettingsView: View {
                 }
             }
         }
+        .contentShape(Rectangle())
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                activateSettingsWindowIfNeeded()
+            }
+        )
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
         .background(Color(nsColor: .windowBackgroundColor))
@@ -140,8 +145,16 @@ struct SettingsView: View {
                 appDelegate.configureSettingsWindow(window)
             }
         )
+        .toolbar {
+            ToolbarItemGroup {
+                Text("Alert Calendar")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
         .frame(minWidth: 760, idealWidth: 1040, minHeight: 720, idealHeight: 820)
         .onAppear {
+            activateSettingsWindowIfNeeded()
             monitor.refreshAvailableCalendars()
             synchronizeDraftWithStoredSettings(force: true)
             didLoad = true
@@ -166,6 +179,32 @@ struct SettingsView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    private func activateSettingsWindowIfNeeded() {
+        guard let window = resolvedSettingsWindow() else { return }
+        if let appDelegate = NSApp.delegate as? AppDelegate {
+            appDelegate.prepareForSettingsPresentation()
+            appDelegate.configureSettingsWindow(window)
+        } else {
+            NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps, .activateAllWindows])
+        }
+        window.makeKeyAndOrderFront(nil)
+    }
+
+    private func resolvedSettingsWindow() -> NSWindow? {
+        let settingsIdentifier = NSUserInterfaceItemIdentifier(WindowMetadata.preferencesID)
+        let matchesSettingsWindow: (NSWindow) -> Bool = { window in
+            window.identifier == settingsIdentifier || window.title == WindowMetadata.preferencesTitle
+        }
+
+        return [NSApp.keyWindow, NSApp.mainWindow]
+            .compactMap { $0 }
+            .first(where: matchesSettingsWindow)
+            ?? NSApp.windows.first(where: { window in
+                matchesSettingsWindow(window) && window.isVisible
+            })
+            ?? NSApp.windows.first(where: matchesSettingsWindow)
     }
 
     @ViewBuilder
@@ -286,7 +325,7 @@ struct SettingsView: View {
     private var liveFeedsSettingsContent: some View {
         GroupBox("Live Feeds") {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Manage the non-calendar feeds that can appear in Alert Calendar, including sun moments, rain forecast, and football fixtures.")
+                Text("Manage the non-calendar feeds that can appear in Alert Calendar, including sun moments and football fixtures.")
                     .foregroundStyle(.secondary)
 
                 Picker("Feeds subsection", selection: $selectedFeedsSubsection) {
@@ -327,26 +366,8 @@ struct SettingsView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
 
-        GroupBox("Rain Forecast") {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 6) {
-                    Toggle("Include rain forecast (Open-Meteo)", isOn: $draft.includeWeather)
-                    InfoTipButton(text: "Shows upcoming rain estimate in the menu bar. Uses the same coordinates configured below and the nearest Open-Meteo forecast grid cell.")
-                }
-
-                Text("Rain forecasting shares the same location setup used for sun moments.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Text("Outside North America and Central Europe, Open-Meteo 15-minute rain data can be interpolated from hourly forecasts, so hyperlocal showers may be missed.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-
         SettingsAstronomySectionView(
-            title: "Shared Location & Sun Preview",
+            title: "Sun Location & Preview",
             showsCalculatedTimes: true,
             useAutomaticAstronomyLocation: $draft.useAutomaticAstronomyLocation,
             astronomyLatitude: $draft.astronomyLatitude,
@@ -464,7 +485,6 @@ struct SettingsView: View {
             includeEvents: includeEvents,
             includeAllDayEvents: includeAllDayEvents,
             includeReminders: includeReminders,
-            includeWeather: includeWeather,
             lookAheadHours: lookAheadHours,
             alertLeadMinutes: alertLeadMinutes,
             nearUpcomingAlternateMinutes: normalizedNearUpcomingAlternateMinutes(nearUpcomingAlternateMinutes),
@@ -511,7 +531,6 @@ struct SettingsView: View {
         includeEvents = draft.includeEvents
         includeAllDayEvents = draft.includeAllDayEvents
         includeReminders = draft.includeReminders
-        includeWeather = draft.includeWeather
         lookAheadHours = draft.lookAheadHours
         alertLeadMinutes = draft.alertLeadMinutes
         nearUpcomingAlternateMinutes = normalizedNearUpcomingAlternateMinutes(draft.nearUpcomingAlternateMinutes)
@@ -660,6 +679,7 @@ private struct SettingsWindowAccessor: NSViewRepresentable {
 
 private final class SettingsWindowObserverView: NSView {
     var onResolve: (NSWindow) -> Void
+    private weak var lastResolvedWindow: NSWindow?
 
     init(onResolve: @escaping (NSWindow) -> Void) {
         self.onResolve = onResolve
@@ -673,11 +693,14 @@ private final class SettingsWindowObserverView: NSView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        resolveWindowIfNeeded()
+        lastResolvedWindow = nil
+        resolveWindowIfNeeded(force: true)
     }
 
-    func resolveWindowIfNeeded() {
+    func resolveWindowIfNeeded(force: Bool = false) {
         guard let window else { return }
+        guard force || lastResolvedWindow !== window else { return }
+        lastResolvedWindow = window
         DispatchQueue.main.async { [weak self, weak window] in
             guard let self, let window else { return }
             self.onResolve(window)
@@ -689,7 +712,6 @@ private struct SettingsDraft: Equatable {
     var includeEvents: Bool
     var includeAllDayEvents: Bool
     var includeReminders: Bool
-    var includeWeather: Bool
     var lookAheadHours: Int
     var alertLeadMinutes: Int
     var nearUpcomingAlternateMinutes: Int
@@ -715,7 +737,6 @@ private struct SettingsDraft: Equatable {
         includeEvents: true,
         includeAllDayEvents: true,
         includeReminders: true,
-        includeWeather: true,
         lookAheadHours: 24,
         alertLeadMinutes: 5,
         nearUpcomingAlternateMinutes: 10,

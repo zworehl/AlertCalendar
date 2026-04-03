@@ -5,6 +5,10 @@ struct AlertCalendarApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var monitor = CalendarMonitor()
 
+    init() {
+        NSWindow.allowsAutomaticWindowTabbing = false
+    }
+
     var body: some Scene {
         MenuBarExtra(isInserted: .constant(true)) {
             MenuContentView(kindFilter: nil, headerTitle: "Alert Calendar")

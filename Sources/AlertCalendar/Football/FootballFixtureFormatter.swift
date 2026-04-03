@@ -170,6 +170,14 @@ enum FootballFixtureFormatter {
         if isUnknownTeam(team) {
             return "🏴"
         }
+        if team.isNational {
+            for candidate in nationalTeamCountryCandidates(for: team) {
+                let flag = flagEmoji(for: candidate)
+                if flag != "🏳️" {
+                    return flag
+                }
+            }
+        }
         return flagEmoji(for: team.countryName)
     }
 
@@ -278,6 +286,22 @@ enum FootballFixtureFormatter {
     private static func safeScore(_ value: String) -> String {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? "0" : trimmed
+    }
+
+    private static func nationalTeamCountryCandidates(for team: FootballTeamSummary) -> [String] {
+        var candidates: [String] = []
+        var seen = Set<String>()
+
+        for raw in [team.name, team.countryName] {
+            guard let raw else { continue }
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            let normalized = normalizedCountryKey(trimmed)
+            guard seen.insert(normalized).inserted else { continue }
+            candidates.append(trimmed)
+        }
+
+        return candidates
     }
 
     private static func fifaCode(for team: FootballTeamSummary) -> String {

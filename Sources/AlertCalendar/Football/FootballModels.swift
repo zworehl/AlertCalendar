@@ -247,6 +247,10 @@ struct FootballCompetitionPreset: Identifiable, Hashable {
         .africaCupOfNations,
         .asianCup,
     ]
+
+    static func category(forCompetitionSlug slug: String) -> FootballCompetitionCategory {
+        menuPresets.first(where: { $0.slug == slug })?.category ?? .clubCompetitions
+    }
 }
 
 struct FootballTeamSummary: Identifiable, Hashable {
@@ -389,6 +393,10 @@ struct FootballFixtureMatch: Identifiable, Hashable {
 
     var totalGoals: Int {
         max(0, homeGoals) + max(0, awayGoals)
+    }
+
+    var competitionCategory: FootballCompetitionCategory {
+        FootballCompetitionPreset.category(forCompetitionSlug: competitionSlug)
     }
 }
 

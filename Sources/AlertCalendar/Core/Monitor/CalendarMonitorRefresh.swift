@@ -3,8 +3,6 @@ import EventKit
 import Foundation
 
 extension CalendarMonitor {
-    private static let weatherLookAheadDays = 7
-
     func refreshUpcomingItems() async {
         await enqueueRefreshAndWait()
     }
@@ -44,26 +42,6 @@ extension CalendarMonitor {
             )
             let reminders = await loadReminders(from: nil, to: endDate, calendars: selectedCalendars)
             timedCollected.append(contentsOf: reminders)
-        }
-
-        if settings.includeWeather,
-           let weatherItem = await weatherItemForRefresh(now: now, end: endDate, settings: settings) {
-            let skippedWeatherUntilRaw = defaults.double(forKey: DefaultsKeys.skippedWeatherUntil)
-            if skippedWeatherUntilRaw > 0 {
-                let skippedWeatherUntil = Date(timeIntervalSince1970: skippedWeatherUntilRaw)
-                if now >= skippedWeatherUntil {
-                    defaults.removeObject(forKey: DefaultsKeys.skippedWeatherUntil)
-                    timedCollected.append(weatherItem)
-                } else if weatherItem.date >= skippedWeatherUntil {
-                    timedCollected.append(weatherItem)
-                }
-            } else {
-                timedCollected.append(weatherItem)
-            }
-        } else {
-            cachedWeatherItem = nil
-            lastWeatherFetchDate = nil
-            weatherCacheSignature = nil
         }
 
         if settings.includeAstronomy {
@@ -114,9 +92,6 @@ extension CalendarMonitor {
     func skipItem(_ item: UpcomingItem) {
         skippedItemKeys.insert(item.notificationKey)
         persistSkippedItemKeys()
-        if item.kind == .weather, let endDate = item.endDate {
-            defaults.set(endDate.timeIntervalSince1970, forKey: DefaultsKeys.skippedWeatherUntil)
-        }
         upcomingItems.removeAll { $0.notificationKey == item.notificationKey }
         allDayEventItems.removeAll { $0.notificationKey == item.notificationKey }
         if activeAlertItem?.notificationKey == item.notificationKey {
@@ -146,34 +121,6 @@ extension CalendarMonitor {
         let currentValue = (defaults.stringArray(forKey: DefaultsKeys.skippedItemKeys) ?? []).sorted()
         guard newValue != currentValue else { return }
         defaults.set(newValue, forKey: DefaultsKeys.skippedItemKeys)
-    }
-
-    func weatherItemForRefresh(now: Date, end: Date, settings: SettingsSnapshot) async -> UpcomingItem? {
-        let refreshInterval: TimeInterval = 5 * 60
-        let signature = "\(settings.astronomyLatitude)|\(settings.astronomyLongitude)|\(settings.lookAheadHours)"
-        let shouldFetchFresh: Bool
-        let weatherHorizonEnd = now.addingTimeInterval(Double(Self.weatherLookAheadDays) * 86_400)
-
-        if weatherCacheSignature != signature {
-            shouldFetchFresh = true
-        } else if let lastWeatherFetchDate {
-            shouldFetchFresh = now.timeIntervalSince(lastWeatherFetchDate) >= refreshInterval
-        } else {
-            shouldFetchFresh = true
-        }
-
-        if shouldFetchFresh {
-            cachedWeatherItem = await loadWeatherRainItem(now: now, end: weatherHorizonEnd, settings: settings)
-            lastWeatherFetchDate = now
-            weatherCacheSignature = signature
-        }
-
-        guard let cachedWeatherItem else { return nil }
-        guard cachedWeatherItem.date <= weatherHorizonEnd else { return nil }
-        if let weatherEnd = cachedWeatherItem.endDate, weatherEnd <= now {
-            return nil
-        }
-        return cachedWeatherItem
     }
 
     func markReminderCompleted(_ item: UpcomingItem) {

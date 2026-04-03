@@ -60,11 +60,6 @@ final class CalendarMonitor: ObservableObject {
     var alreadyNotified: Set<String> = []
     var silencedAlertKeys: Set<String> = []
     var skippedItemKeys: Set<String> = []
-    var cachedWeatherItem: UpcomingItem?
-    var lastWeatherFetchDate: Date?
-    var weatherCacheSignature: String?
-    var weatherLocationTextCache: String?
-    var weatherLocationTextSignature: String?
     var oneShotLocationManager: CLLocationManager?
     var oneShotLocationDelegate: OneShotLocationDelegate?
     var locationPermissionManager: CLLocationManager?
@@ -128,17 +123,6 @@ final class CalendarMonitor: ObservableObject {
             case .elapsed:
                 tail = "started \(elapsedCountdown(from: item.date, to: now, simplified: settings.useSimplifiedCountdown)) ago"
             }
-        } else if item.kind == .weather, let endDate = item.endDate, endDate > item.date {
-            if item.date <= now, endDate > now {
-                let elapsed = elapsedCountdown(from: item.date, to: now, simplified: settings.useSimplifiedCountdown)
-                let remaining = relativeCountdown(to: endDate, from: now, simplified: settings.useSimplifiedCountdown)
-                tail = "\(elapsed) elapsed • \(remaining) left"
-            } else if item.date > now {
-                let duration = relativeCountdown(to: endDate, from: item.date, simplified: settings.useSimplifiedCountdown)
-                tail = "in \(relativeCountdown(to: item.date, from: now, simplified: settings.useSimplifiedCountdown)) • for \(duration)"
-            } else {
-                tail = "\(elapsedCountdown(from: item.date, to: endDate, simplified: settings.useSimplifiedCountdown)) total"
-            }
         } else if item.kind == .reminder, item.date <= now {
             tail = "\(elapsedCountdown(from: item.date, to: now, simplified: settings.useSimplifiedCountdown)) ago"
         } else {
@@ -161,7 +145,6 @@ final class CalendarMonitor: ObservableObject {
         let includeEvents: Bool
         let includeAllDayEvents: Bool
         let includeReminders: Bool
-        let includeWeather: Bool
         let includeAstronomy: Bool
         let useAutomaticAstronomyLocation: Bool
         let astronomyColorID: String

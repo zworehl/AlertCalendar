@@ -4,7 +4,6 @@ import Foundation
 enum CalendarItemKind: String {
     case event = "Event"
     case reminder = "Reminder"
-    case weather = "Weather"
 }
 
 struct UpcomingItem: Identifiable, Equatable {
@@ -63,9 +62,6 @@ enum MenuMarkerStyle: Equatable {
     case solarNoon
     case sunset
     case solarMidnight
-    case drizzle
-    case rain
-    case thunderstorm
 
     static func == (lhs: MenuMarkerStyle, rhs: MenuMarkerStyle) -> Bool {
         switch (lhs, rhs) {
@@ -77,7 +73,7 @@ enum MenuMarkerStyle: Equatable {
             return left.isEqual(right)
         case let (.allDay(left), .allDay(right)):
             return left.isEqual(right)
-        case (.sunrise, .sunrise), (.solarNoon, .solarNoon), (.sunset, .sunset), (.solarMidnight, .solarMidnight), (.drizzle, .drizzle), (.rain, .rain), (.thunderstorm, .thunderstorm):
+        case (.sunrise, .sunrise), (.solarNoon, .solarNoon), (.sunset, .sunset), (.solarMidnight, .solarMidnight):
             return true
         default:
             return false

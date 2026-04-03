@@ -79,9 +79,9 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
   <key>NSRemindersFullAccessUsageDescription</key>
   <string>AlertCalendar needs full Reminders access to show reminder due times.</string>
   <key>NSLocationWhenInUseUsageDescription</key>
-  <string>AlertCalendar uses your location to calculate local sun events and weather forecast.</string>
+  <string>AlertCalendar uses your location to calculate local sun events.</string>
   <key>NSLocationUsageDescription</key>
-  <string>AlertCalendar uses your location to calculate local sun events and weather forecast.</string>
+  <string>AlertCalendar uses your location to calculate local sun events.</string>
   <key>NSHighResolutionCapable</key>
   <true/>
 </dict>

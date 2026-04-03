@@ -165,18 +165,30 @@ struct SettingsFootballFixturesSectionView: View {
         return monitor.footballLiveAndNextDaySection.matches.first?.competitionLogoURL
     }
 
+    private var liveAndNextDayMatchesByCategory: [(category: FootballCompetitionCategory, matches: [FootballFixtureMatch])] {
+        FootballCompetitionCategory.allCases.compactMap { category in
+            let matches = monitor.footballLiveAndNextDaySection.matches.filter { $0.competitionCategory == category }
+            guard !matches.isEmpty else { return nil }
+            return (category, matches)
+        }
+    }
+
     private var footballTopControlsSection: some View {
         ViewThatFits(in: .horizontal) {
             HStack(alignment: .top, spacing: 16) {
                 footballPrimaryControlsSection
                     .frame(maxWidth: .infinity, alignment: .leading)
-                footballManagedMatchesSection
-                    .frame(minWidth: 320, idealWidth: 352, maxWidth: 384, alignment: .leading)
+                if hasUpcomingAddedMatches {
+                    footballManagedMatchesSection
+                        .frame(minWidth: 320, idealWidth: 352, maxWidth: 384, alignment: .leading)
+                }
             }
 
             VStack(alignment: .leading, spacing: 12) {
                 footballPrimaryControlsSection
-                footballManagedMatchesSection
+                if hasUpcomingAddedMatches {
+                    footballManagedMatchesSection
+                }
             }
         }
     }
@@ -470,13 +482,18 @@ struct SettingsFootballFixturesSectionView: View {
             } else if section.matches.isEmpty {
                 emptyState("No live matches or fixtures in the next 48 hours are available right now.")
             } else {
-                LazyVGrid(columns: matchGridColumns, alignment: .leading, spacing: 12) {
-                    ForEach(section.matches) { match in
-                        matchCard(
-                            match,
-                            showsCompetitionName: sharedLiveAndNextDayCompetitionTitle == nil,
-                            showsSeparateMetadataRows: true
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(Array(liveAndNextDayMatchesByCategory.enumerated()), id: \.element.category.id) { index, entry in
+                        liveMatchesCategorySection(
+                            title: entry.category.title,
+                            matches: entry.matches,
+                            showsCompetitionName: sharedLiveAndNextDayCompetitionTitle == nil
                         )
+
+                        if index < liveAndNextDayMatchesByCategory.count - 1 {
+                            Divider()
+                                .padding(.vertical, 2)
+                        }
                     }
                 }
             }
@@ -489,6 +506,34 @@ struct SettingsFootballFixturesSectionView: View {
                     .preference(key: FootballFixturesPanelHeightPreferenceKey.self, value: proxy.size.height)
             }
         )
+    }
+
+    private func liveMatchesCategorySection(
+        title: String,
+        matches: [FootballFixtureMatch],
+        showsCompetitionName: Bool
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(matches.count)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+
+            LazyVGrid(columns: matchGridColumns, alignment: .leading, spacing: 12) {
+                ForEach(matches) { match in
+                    matchCard(
+                        match,
+                        showsCompetitionName: showsCompetitionName,
+                        showsSeparateMetadataRows: true
+                    )
+                }
+            }
+        }
     }
 
     private var panelChrome: some View {
@@ -518,7 +563,7 @@ struct SettingsFootballFixturesSectionView: View {
                             Text(statusText)
                         }
                         if showsCompetitionName {
-                            Text(match.competitionName)
+                            competitionInlineLabel(match)
                         }
                     }
                     .font(.system(size: 11, weight: .medium))
@@ -555,7 +600,7 @@ struct SettingsFootballFixturesSectionView: View {
         }
 
         if showsCompetitionName {
-            matchMetadataRow(footballCompetitionDetailText(match))
+            competitionMetadataRow(for: match)
         }
     }
 
@@ -566,6 +611,27 @@ struct SettingsFootballFixturesSectionView: View {
             .lineLimit(1)
             .truncationMode(.tail)
             .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func competitionMetadataRow(for match: FootballFixtureMatch) -> some View {
+        HStack(spacing: 6) {
+            competitionLogo(url: match.competitionLogoURL)
+            Text(footballCompetitionDetailText(match))
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+        .font(.system(size: 11, weight: .medium))
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func competitionInlineLabel(_ match: FootballFixtureMatch) -> some View {
+        HStack(spacing: 6) {
+            competitionLogo(url: match.competitionLogoURL)
+            Text(match.competitionName)
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
     }
 
     private func sharedCompetitionHeader(text: String, logoURL: URL?) -> some View {

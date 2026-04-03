@@ -555,19 +555,21 @@ actor FootballDataAPIClient {
     static func resolvedTeamCountryName(from root: [String: Any]) -> String? {
         let venue = root["venue"] as? [String: Any]
         let venueCountry = stringValue(((venue?["address"] as? [String: Any])?["country"]))
-        let location = sanitizedCountryCandidate(
-            stringValue(root["location"]),
-            teamName: stringValue(root["displayName"]),
+        let displayName = stringValue(root["displayName"])
+        let location = stringValue(root["location"])
+        let sanitizedClubLocation = sanitizedCountryCandidate(
+            location,
+            teamName: displayName,
             teamAbbreviation: stringValue(root["abbreviation"])
         )
         let inferredLeagueCountry = teamCountryNameFromVenueReference(stringValue(venue?["$ref"]))
         let isNational = (root["isNational"] as? Bool) == true
 
         if isNational {
-            return location ?? venueCountry ?? inferredLeagueCountry
+            return location ?? displayName ?? venueCountry ?? inferredLeagueCountry
         }
 
-        return venueCountry ?? inferredLeagueCountry ?? location
+        return venueCountry ?? inferredLeagueCountry ?? sanitizedClubLocation
     }
 
     static func teamCountryNameFromVenueReference(_ raw: String?) -> String? {
@@ -1357,17 +1359,23 @@ actor FootballDataAPIClient {
 
     private static func venueLocationText(fromVenue venue: [String: Any]?) -> String? {
         let address = venue?["address"] as? [String: Any]
+        let rawVenueName = stringValue(venue?["fullName"])
+
+        // ESPN sometimes marks unknown venues as TBD/TBC while still attaching loose address data.
+        // In those cases we prefer leaving the event location empty rather than storing a misleading placeholder.
+        if let rawVenueName, isPlaceholderLocationText(rawVenueName) {
+            return nil
+        }
 
         let candidates = [
-            stringValue(venue?["fullName"]),
+            rawVenueName,
             stringValue(address?["city"]),
             stringValue(address?["country"]),
         ]
 
         var components: [String] = []
         var seen = Set<String>()
-        for candidate in candidates.compactMap({ $0?.trimmingCharacters(in: .whitespacesAndNewlines) }) {
-            guard !candidate.isEmpty else { continue }
+        for candidate in candidates.compactMap(normalizedLocationTextValue) {
             let normalized = candidate.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
             guard seen.insert(normalized).inserted else { continue }
             components.append(candidate)
@@ -1380,7 +1388,8 @@ actor FootballDataAPIClient {
     private static func normalizedLocationTextValue(_ rawValue: String?) -> String? {
         guard let rawValue else { return nil }
         let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        guard !trimmed.isEmpty, !isPlaceholderLocationText(trimmed) else { return nil }
+        return trimmed
     }
 
     private static func locationTextSpecificityScore(_ locationText: String) -> Int {
@@ -1413,6 +1422,41 @@ actor FootballDataAPIClient {
 
         let aliasBonus = (locationText.contains("(") && locationText.contains(")")) ? 5 : 0
         return (commaSeparatedParts.count * 10) + wordCount + aliasBonus
+    }
+
+    private static func isPlaceholderLocationText(_ rawValue: String) -> Bool {
+        let normalized = rawValue
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+            .uppercased()
+
+        guard !normalized.isEmpty else { return false }
+
+        let compactWhitespace = normalized.replacingOccurrences(
+            of: #"\s+"#,
+            with: " ",
+            options: .regularExpression
+        )
+
+        let placeholderTokens = [
+            "TBC",
+            "TBD",
+            "TO BE ANNOUNCED",
+            "TO BE CONFIRMED",
+            "TO BE DETERMINED",
+            "VENUE TBC",
+            "VENUE TBD",
+            "VENUE TO BE ANNOUNCED",
+            "VENUE TO BE CONFIRMED",
+            "VENUE TO BE DETERMINED",
+            "LOCATION TBC",
+            "LOCATION TBD",
+            "UNKNOWN",
+        ]
+
+        return placeholderTokens.contains(where: { token in
+            compactWhitespace == token || compactWhitespace.contains(token)
+        })
     }
 
     private static func teamAbbreviation(from team: [String: Any], fallbackName: String) -> String {

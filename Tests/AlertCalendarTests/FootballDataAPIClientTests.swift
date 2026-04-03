@@ -51,6 +51,24 @@ final class FootballDataAPIClientTests: XCTestCase {
         XCTAssertEqual(FootballDataAPIClient.resolvedTeamCountryName(from: root), "England")
     }
 
+    func testResolvedTeamCountryNamePrefersNationalTeamNameOverVenueCountry() {
+        let root: [String: Any] = [
+            "displayName": "IR Iran",
+            "abbreviation": "IRN",
+            "location": "IR Iran",
+            "isNational": true,
+            "venue": [
+                "$ref": "http://sports.core.api.espn.com/v2/sports/soccer/leagues/fifa.world/venues/7614?lang=en&region=us",
+                "address": [
+                    "city": "Antalya",
+                    "country": "Türkiye",
+                ],
+            ],
+        ]
+
+        XCTAssertEqual(FootballDataAPIClient.resolvedTeamCountryName(from: root), "IR Iran")
+    }
+
     func testResolvedTeamCountryNamePrefersVenueCountryForClubs() {
         let root: [String: Any] = [
             "displayName": "Sporting CP",
@@ -104,6 +122,15 @@ final class FootballDataAPIClientTests: XCTestCase {
         )
 
         XCTAssertEqual(value, "Alberto Jose Armando (La Bombonera), Buenos Aires, Argentina")
+    }
+
+    func testBestAvailableLocationTextReturnsNilWhenOnlyPlaceholderVenueExists() {
+        let value = FootballDataAPIClient.bestAvailableLocationText(
+            reportedLocationText: "Venue TBD",
+            fallbackLocationText: nil
+        )
+
+        XCTAssertNil(value)
     }
 
     func testMatchGoalScorersParsesHomeAndAwayGoalEvents() {

@@ -112,7 +112,8 @@ extension CalendarMonitor {
                 slug: $0.slug,
                 title: $0.title,
                 lookbackDays: 1,
-                lookaheadDays: 2
+                lookaheadDays: 2,
+                category: $0.category
             )
         }
 
@@ -353,13 +354,7 @@ extension CalendarMonitor {
             managedFootballMatches = []
             return
         }
-
-        let trackedEvents = trackedFootballEvents(now: now)
-        let trackedMatchIDs = Set(trackedEvents.map(\.reference.matchID))
-        if trackedMatchIDs != managedFootballMatchIDs {
-            managedFootballMatchIDs = trackedMatchIDs
-        }
-        updateManagedFootballMatches(using: trackedEvents, now: now)
+        _ = trackedFootballSnapshotsByRefreshingState(now: now)
     }
 
     private func trackedFootballSnapshotsByRefreshingState(now: Date) -> [ManagedFootballEventSnapshot] {

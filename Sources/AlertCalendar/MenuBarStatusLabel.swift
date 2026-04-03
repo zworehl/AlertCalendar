@@ -339,12 +339,6 @@ struct MenuBarStatusLabel: View {
             drawAstronomyMarker(moment: .sunset, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
         case .solarMidnight:
             drawAstronomyMarker(moment: .solarMidnight, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
-        case .drizzle:
-            drawWeatherMarker(symbolName: "cloud.drizzle.fill", x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
-        case .rain:
-            drawWeatherMarker(symbolName: "cloud.rain.fill", x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
-        case .thunderstorm:
-            drawWeatherMarker(symbolName: "cloud.bolt.rain.fill", x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
         }
     }
 
@@ -352,7 +346,7 @@ struct MenuBarStatusLabel: View {
         switch style {
         case .color:
             return defaultWidth
-        case .reminder, .birthday, .allDay, .sunrise, .solarNoon, .sunset, .solarMidnight, .drizzle, .rain, .thunderstorm:
+        case .reminder, .birthday, .allDay, .sunrise, .solarNoon, .sunset, .solarMidnight:
             return imageWidth
         }
     }
@@ -414,23 +408,6 @@ struct MenuBarStatusLabel: View {
 
         if let icon = AstronomyIconProvider.image(for: moment, pointSize: pointSize) {
             icon.draw(in: rect)
-        }
-    }
-
-    private static func drawWeatherMarker(symbolName: String, x: CGFloat, height: CGFloat, markerWidth: CGFloat, markerHeight: CGFloat) {
-        let pointSize = max(markerWidth, markerHeight)
-        let config = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .regular)
-            .applying(NSImage.SymbolConfiguration.preferringMulticolor())
-        let rect = NSRect(
-            x: x,
-            y: floor((height - markerHeight) / 2),
-            width: markerWidth,
-            height: markerHeight
-        )
-        if let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
-            .withSymbolConfiguration(config) {
-            symbol.isTemplate = false
-            symbol.draw(in: rect)
         }
     }
 

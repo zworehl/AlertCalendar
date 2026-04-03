@@ -435,6 +435,19 @@ final class FootballFixtureFormatterTests: XCTestCase {
         XCTAssertEqual(FootballFixtureFormatter.flagEmoji(for: "Curacao"), "🇨🇼")
     }
 
+    func testNationalTeamFlagPrefersTeamNameWhenStoredCountryNameIsWrong() {
+        let team = FootballTeamSummary(
+            id: "469",
+            name: "IR Iran",
+            abbreviation: "IRN",
+            logoURL: nil,
+            countryName: "Türkiye",
+            isNational: true
+        )
+
+        XCTAssertEqual(FootballFixtureFormatter.teamFlag(for: team), "🇮🇷")
+    }
+
     func testCalendarIdentityKeyIgnoresFlagsAndLiveScore() {
         XCTAssertEqual(
             FootballFixtureFormatter.calendarIdentityKey(fromCalendarTitle: "CAP 🇧🇷 1 - 0 🇧🇷 BOT"),

@@ -38,6 +38,8 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
         XCTAssertTrue(grouped[.nationalTeams]?.contains(where: { $0.slug == "fifa.world" }) == true)
         XCTAssertEqual(FootballCompetitionCategory.clubCompetitions.title, "Club Competitions")
         XCTAssertEqual(FootballCompetitionCategory.nationalTeams.title, "National Teams")
+        XCTAssertEqual(FootballCompetitionPreset.category(forCompetitionSlug: "fifa.world"), .nationalTeams)
+        XCTAssertEqual(FootballCompetitionPreset.category(forCompetitionSlug: "eng.1"), .clubCompetitions)
     }
 
     func testCalendarColorPaletteOptionsHaveUniqueIDsAndKnownFallback() {
@@ -61,7 +63,6 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
             DefaultsKeys.includeEvents,
             DefaultsKeys.includeAllDayEvents,
             DefaultsKeys.includeReminders,
-            DefaultsKeys.includeWeather,
             DefaultsKeys.includeAstronomy,
             DefaultsKeys.useAutomaticAstronomyLocation,
             DefaultsKeys.astronomyColorID,
@@ -83,13 +84,12 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
             DefaultsKeys.enableBlinkAlert,
             DefaultsKeys.menuBarFontSize,
             DefaultsKeys.skippedItemKeys,
-            DefaultsKeys.skippedWeatherUntil,
             DefaultsKeys.footballTargetCalendarID,
             DefaultsKeys.footballCalendarAlertOption,
             DefaultsKeys.managedFootballEventRecords,
         ]
 
-        XCTAssertEqual(keys.count, 29)
+        XCTAssertEqual(keys.count, 27)
         XCTAssertEqual(Set(keys).count, keys.count)
         XCTAssertTrue(keys.contains("activeEventDisplayMode"))
         XCTAssertTrue(keys.contains("menuBarFontSize"))
