@@ -1268,24 +1268,7 @@ actor FootballDataAPIClient {
     }
 
     private static func statusTextShouldRemainAsReported(_ statusText: String) -> Bool {
-        let normalized = statusText
-            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
-            .uppercased()
-
-        let preservedTokens = [
-            "ABN",
-            "POSTPONED",
-            "POSTP",
-            "DELAYED",
-            "DELAY",
-            "CANCELED",
-            "CANCELLED",
-            "SUSPENDED",
-            "SUSP",
-            "ABANDONED",
-        ]
-
-        return preservedTokens.contains { normalized.contains($0) }
+        FootballStatusText.indicatesInterruptedPlay(normalizedStatusToken(statusText))
     }
 
     private static func statusTextShouldPreferDetail(shortDetail: String, detail: String) -> Bool {
@@ -1296,11 +1279,12 @@ actor FootballDataAPIClient {
             return false
         }
 
-        if statusTextIndicatesInterruptedPlay(normalizedShort) {
+        if FootballStatusText.indicatesInterruptedPlay(normalizedShort) {
             return false
         }
 
-        if statusTextIndicatesInterruptedPlay(normalizedDetail) && !statusTextIndicatesInterruptedPlay(normalizedShort) {
+        if FootballStatusText.indicatesInterruptedPlay(normalizedDetail)
+            && !FootballStatusText.indicatesInterruptedPlay(normalizedShort) {
             return true
         }
 
@@ -1321,27 +1305,7 @@ actor FootballDataAPIClient {
     }
 
     private static func normalizedStatusToken(_ text: String) -> String {
-        text
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
-            .uppercased()
-    }
-
-    private static func statusTextIndicatesInterruptedPlay(_ normalizedStatus: String) -> Bool {
-        let interruptionTokens = [
-            "ABN",
-            "ABANDONED",
-            "SUSP",
-            "SUSPENDED",
-            "POSTP",
-            "POSTPONED",
-            "DELAY",
-            "DELAYED",
-            "CANCELED",
-            "CANCELLED",
-        ]
-
-        return interruptionTokens.contains { normalizedStatus.contains($0) }
+        FootballStatusText.normalized(text)
     }
 
     static func parseEventDate(_ rawDate: String) -> Date? {
@@ -1351,19 +1315,21 @@ actor FootballDataAPIClient {
             return value
         }
 
-        let formatterWithSeconds = DateFormatter()
-        formatterWithSeconds.calendar = Calendar(identifier: .gregorian)
-        formatterWithSeconds.locale = Locale(identifier: "en_US_POSIX")
-        formatterWithSeconds.dateFormat = "yyyy-MM-dd'T'HH:mm:ssX"
+        let formatterWithSeconds = gregorianPOSIXDateFormatter("yyyy-MM-dd'T'HH:mm:ssX")
         if let value = formatterWithSeconds.date(from: rawDate) {
             return value
         }
 
-        let formatterWithoutSeconds = DateFormatter()
-        formatterWithoutSeconds.calendar = Calendar(identifier: .gregorian)
-        formatterWithoutSeconds.locale = Locale(identifier: "en_US_POSIX")
-        formatterWithoutSeconds.dateFormat = "yyyy-MM-dd'T'HH:mmX"
+        let formatterWithoutSeconds = gregorianPOSIXDateFormatter("yyyy-MM-dd'T'HH:mmX")
         return formatterWithoutSeconds.date(from: rawDate)
+    }
+
+    private static func gregorianPOSIXDateFormatter(_ dateFormat: String) -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = dateFormat
+        return formatter
     }
 
     private static func parsedEventDate(from event: [String: Any]) -> Date? {

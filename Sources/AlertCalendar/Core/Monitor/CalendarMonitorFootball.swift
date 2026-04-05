@@ -1571,10 +1571,11 @@ extension CalendarMonitor {
         var resolvedCalendar = calendar
         resolvedCalendar.timeZone = timeZone
 
-        let timeFormatter = DateFormatter()
-        timeFormatter.locale = locale
-        timeFormatter.timeZone = timeZone
-        timeFormatter.setLocalizedDateFormatFromTemplate("h:mm a")
+        let timeFormatter = footballLocalizedDateFormatter(
+            template: "h:mm a",
+            locale: locale,
+            timeZone: timeZone
+        )
 
         let todayStart = resolvedCalendar.startOfDay(for: now)
         let tomorrowStart = resolvedCalendar.date(byAdding: .day, value: 1, to: todayStart) ?? todayStart
@@ -1590,12 +1591,12 @@ extension CalendarMonitor {
 
         let dayDistance = abs(resolvedCalendar.dateComponents([.day], from: now, to: startDate).day ?? 0)
         let template = dayDistance < 7 ? "EEE h:mm a" : "MMM d h:mm a"
-
-        let formatter = DateFormatter()
-        formatter.locale = locale
-        formatter.timeZone = timeZone
-        formatter.setLocalizedDateFormatFromTemplate(template)
-        return formatter.string(from: startDate)
+        return footballLocalizedDateFormatter(
+            template: template,
+            locale: locale,
+            timeZone: timeZone
+        )
+        .string(from: startDate)
     }
 
     nonisolated static func footballStartedStatusText(
@@ -1611,18 +1612,22 @@ extension CalendarMonitor {
         let todayStart = resolvedCalendar.startOfDay(for: now)
         let startOfMatchDay = resolvedCalendar.startOfDay(for: startDate)
 
-        let formatter = DateFormatter()
-        formatter.locale = locale
-        formatter.timeZone = timeZone
-
         if startOfMatchDay == todayStart {
-            formatter.setLocalizedDateFormatFromTemplate("h:mm a")
+            let formatter = footballLocalizedDateFormatter(
+                template: "h:mm a",
+                locale: locale,
+                timeZone: timeZone
+            )
             return "Started \(formatter.string(from: startDate))"
         }
 
         let dayDistance = abs(resolvedCalendar.dateComponents([.day], from: startDate, to: now).day ?? 0)
         let template = dayDistance < 7 ? "EEE h:mm a" : "MMM d h:mm a"
-        formatter.setLocalizedDateFormatFromTemplate(template)
+        let formatter = footballLocalizedDateFormatter(
+            template: template,
+            locale: locale,
+            timeZone: timeZone
+        )
         return "Started \(formatter.string(from: startDate))"
     }
 
@@ -2022,27 +2027,7 @@ extension CalendarMonitor {
     }
 
     nonisolated private static func footballInterruptedStatusBadgeText(from normalizedStatus: String) -> String? {
-        if normalizedStatus.contains("ABANDONED") || normalizedStatus.contains("ABN") {
-            return "ABN"
-        }
-
-        if normalizedStatus.contains("SUSPENDED") || normalizedStatus.contains("SUSP") {
-            return "SUSP."
-        }
-
-        if normalizedStatus.contains("POSTPONED") || normalizedStatus.contains("POSTP") {
-            return "POSTP."
-        }
-
-        if normalizedStatus.contains("DELAYED") || normalizedStatus.contains("DELAY") {
-            return "DELAY"
-        }
-
-        if normalizedStatus.contains("CANCELED") || normalizedStatus.contains("CANCELLED") {
-            return "CANC."
-        }
-
-        return nil
+        FootballStatusText.interruptedBadge(for: normalizedStatus)
     }
 
     nonisolated private static func footballRegexInt(_ result: NSTextCheckingResult, in text: String, at index: Int) -> Int? {
@@ -2060,9 +2045,18 @@ extension CalendarMonitor {
     }
 
     nonisolated private static func footballNormalizedStatusText(_ rawStatusText: String) -> String {
-        rawStatusText
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
-            .uppercased()
+        FootballStatusText.normalized(rawStatusText)
+    }
+
+    nonisolated private static func footballLocalizedDateFormatter(
+        template: String,
+        locale: Locale,
+        timeZone: TimeZone
+    ) -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.timeZone = timeZone
+        formatter.setLocalizedDateFormatFromTemplate(template)
+        return formatter
     }
 }

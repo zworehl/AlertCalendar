@@ -1274,14 +1274,13 @@ final class FootballFixtureFormatterTests: XCTestCase {
         homeScore: String = "0",
         awayScore: String = "0"
     ) -> FootballFixtureMatch {
-        FootballFixtureMatch(
+        FootballTestData.match(
             id: id,
             competitionSlug: competitionSlug,
             competitionName: "UEFA Champions League",
             competitionStage: nil,
             seasonSlug: seasonSlug,
             competitionNote: competitionNote,
-            competitionLogoURL: nil,
             locationText: nil,
             startDate: startDate,
             actualStartDate: actualStartDate,
@@ -1289,22 +1288,8 @@ final class FootballFixtureFormatterTests: XCTestCase {
             statusText: statusText ?? (statusState == .inProgress ? "55'" : "7:00 PM"),
             statusDetailText: statusDetailText,
             statusReliability: statusReliability,
-            homeTeam: homeTeam ?? FootballTeamSummary(
-                id: "83",
-                name: "Barcelona",
-                abbreviation: "BAR",
-                logoURL: nil,
-                countryName: "Spain",
-                isNational: false
-            ),
-            awayTeam: awayTeam ?? FootballTeamSummary(
-                id: "132",
-                name: "Bayern Munich",
-                abbreviation: "BAY",
-                logoURL: nil,
-                countryName: "Germany",
-                isNational: false
-            ),
+            homeTeam: homeTeam ?? FootballTestData.defaultClubHomeTeam,
+            awayTeam: awayTeam ?? FootballTestData.defaultClubAwayTeam,
             homeScore: homeScore,
             awayScore: awayScore
         )

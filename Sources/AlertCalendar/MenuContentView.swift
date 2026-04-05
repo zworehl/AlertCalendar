@@ -217,9 +217,10 @@ struct MenuContentView: View {
 
     private var contextualSharedCompetitionHeader: some View {
         HStack(spacing: 6) {
-            footballCompetitionLogo(
+            FootballCompetitionLogoView(
                 localPath: sharedContextualFootballCompetitionLogoPath,
-                remoteURL: sharedContextualFootballCompetitionLogoURL
+                remoteURL: sharedContextualFootballCompetitionLogoURL,
+                placeholderSymbolSize: 11
             )
 
             Text("All listed matches are from \(sharedContextualFootballCompetitionTitle ?? "")")
@@ -892,9 +893,10 @@ struct MenuContentView: View {
         font: Font
     ) -> some View {
         HStack(alignment: .center, spacing: 4) {
-            footballCompetitionLogo(
+            FootballCompetitionLogoView(
                 localPath: display?.competitionLocalLogoPath,
-                remoteURL: match.competitionLogoURL
+                remoteURL: match.competitionLogoURL,
+                placeholderSymbolSize: 11
             )
 
             Text(footballCompetitionDetailText(match: match, display: display))
@@ -929,13 +931,13 @@ struct MenuContentView: View {
 
                 if match.hasVisibleScore {
                     HStack(spacing: 0) {
-                        Text(safeFootballScore(match.homeScore))
+                        Text(FootballFixtureFormatter.scoreText(match.homeScore))
                             .frame(minWidth: 10, alignment: .center)
 
                         Text("-")
                             .foregroundStyle(.secondary)
 
-                        Text(safeFootballScore(match.awayScore))
+                        Text(FootballFixtureFormatter.scoreText(match.awayScore))
                             .frame(minWidth: 10, alignment: .center)
                     }
                 } else {
@@ -957,8 +959,8 @@ struct MenuContentView: View {
             }
             .fixedSize(horizontal: true, vertical: false)
 
-            if showsStatusAccessories && footballHasStatusAccessories(for: match) {
-                footballStatusAccessories(for: match)
+            if showsStatusAccessories && FootballStatusAccessoriesView.hasAccessories(for: match) {
+                FootballStatusAccessoriesView(match: match)
                     .fixedSize(horizontal: true, vertical: false)
             }
         }
@@ -986,13 +988,21 @@ struct MenuContentView: View {
             }
 
             if logoLeading {
-                footballTeamLogo(localPath: localLogoPath, remoteURL: remoteLogoURL, isUnknown: isUnknown)
+                FootballTeamLogoView(
+                    localPath: localLogoPath,
+                    remoteURL: remoteLogoURL,
+                    isUnknown: isUnknown
+                )
                 Text(abbreviation)
                     .font(font)
             } else {
                 Text(abbreviation)
                     .font(font)
-                footballTeamLogo(localPath: localLogoPath, remoteURL: remoteLogoURL, isUnknown: isUnknown)
+                FootballTeamLogoView(
+                    localPath: localLogoPath,
+                    remoteURL: remoteLogoURL,
+                    isUnknown: isUnknown
+                )
             }
 
             if showsCardBadges && logoLeading {
@@ -1029,109 +1039,8 @@ struct MenuContentView: View {
         }
     }
 
-    private func footballStatusBadge(text: String) -> some View {
-        let tint = Color(nsColor: CalendarMonitor.footballStatusTintColor(for: text))
-
-        return Text(text)
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(tint)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(tint.opacity(0.16))
-            )
-    }
-
-    @ViewBuilder
-    private func footballStatusAccessories(for match: FootballFixtureMatch) -> some View {
-        if let liveStatusText = CalendarMonitor.footballStatusBadgeText(for: match) {
-            footballStatusBadge(text: liveStatusText)
-        }
-
-        if let warningText = CalendarMonitor.footballStatusWarningText(for: match) {
-            footballStatusWarningIcon(helpText: warningText)
-        }
-    }
-
-    private func footballStatusWarningIcon(helpText: String) -> some View {
-        Image(systemName: "exclamationmark.triangle.fill")
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(.orange)
-            .help(helpText)
-    }
-
-    private func footballHasStatusAccessories(for match: FootballFixtureMatch) -> Bool {
-        CalendarMonitor.footballStatusBadgeText(for: match) != nil
-            || CalendarMonitor.footballStatusWarningText(for: match) != nil
-    }
-
-    @ViewBuilder
-    private func footballTeamLogo(localPath: String?, remoteURL: URL?, isUnknown: Bool) -> some View {
-        if let localPath,
-           let image = NSImage(contentsOfFile: localPath) {
-            Image(nsImage: image)
-                .resizable()
-                .interpolation(.high)
-                .scaledToFit()
-                .frame(width: 16, height: 16)
-        } else {
-            AsyncImage(url: isUnknown ? nil : remoteURL, transaction: Transaction(animation: nil)) { phase in
-                if let image = phase.image {
-                    image
-                        .resizable()
-                        .scaledToFit()
-                } else {
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .fill(Color.secondary.opacity(0.15))
-                        .overlay(
-                            Image(systemName: "shield")
-                                .font(.system(size: 8, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                        )
-                }
-            }
-            .frame(width: 16, height: 16)
-        }
-    }
-
-    @ViewBuilder
-    private func footballCompetitionLogo(localPath: String?, remoteURL: URL?) -> some View {
-        if let localPath,
-           let image = NSImage(contentsOfFile: localPath) {
-            Image(nsImage: image)
-                .resizable()
-                .interpolation(.high)
-                .scaledToFit()
-                .frame(width: 14, height: 14)
-        } else {
-            AsyncImage(url: remoteURL, transaction: Transaction(animation: nil)) { phase in
-                if let image = phase.image {
-                    image
-                        .resizable()
-                        .scaledToFit()
-                } else {
-                    Image(systemName: "trophy")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .frame(width: 14, height: 14)
-        }
-    }
-
     private func footballCompetitionDetailText(match: FootballFixtureMatch, display: FootballMenuBarDisplay?) -> String {
-        let competitionName = display?.competitionName ?? match.competitionName
-        let competitionStage = display?.competitionStage ?? match.competitionStage
-        return FootballFixtureFormatter.competitionDetailText(
-            competitionName: competitionName,
-            competitionStage: competitionStage
-        )
-    }
-
-    private func safeFootballScore(_ rawValue: String) -> String {
-        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "0" : trimmed
+        FootballFixtureFormatter.competitionDetailText(for: match, display: display)
     }
 
     private func markerImage(for item: UpcomingItem) -> NSImage? {

@@ -69,7 +69,7 @@ enum FootballFixtureFormatter {
         let awayCode = teamDisplayIdentifier(for: match.awayTeam)
 
         if match.hasVisibleScore {
-            return "\(homeCode) \(homeFlag) \(safeScore(match.homeScore)) - \(safeScore(match.awayScore)) \(awayFlag) \(awayCode)"
+            return "\(homeCode) \(homeFlag) \(scoreText(match.homeScore)) - \(scoreText(match.awayScore)) \(awayFlag) \(awayCode)"
         }
 
         return "\(homeCode) \(homeFlag) - \(awayFlag) \(awayCode)"
@@ -91,11 +91,18 @@ enum FootballFixtureFormatter {
             homeAbbreviation: homeCode,
             awayAbbreviation: awayCode,
             showsScore: match.hasVisibleScore,
-            homeScore: safeScore(match.homeScore),
-            awayScore: safeScore(match.awayScore),
+            homeScore: scoreText(match.homeScore),
+            awayScore: scoreText(match.awayScore),
             competitionLocalLogoPath: competitionLocalLogoURL?.path,
             homeLocalLogoPath: isUnknownTeam(match.homeTeam) ? nil : homeLocalLogoURL?.path,
             awayLocalLogoPath: isUnknownTeam(match.awayTeam) ? nil : awayLocalLogoURL?.path
+        )
+    }
+
+    static func competitionDetailText(for match: FootballFixtureMatch, display: FootballMenuBarDisplay? = nil) -> String {
+        competitionDetailText(
+            competitionName: display?.competitionName ?? match.competitionName,
+            competitionStage: display?.competitionStage ?? match.competitionStage
         )
     }
 
@@ -300,7 +307,7 @@ enum FootballFixtureFormatter {
         return false
     }
 
-    private static func safeScore(_ value: String) -> String {
+    static func scoreText(_ value: String) -> String {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? "0" : trimmed
     }

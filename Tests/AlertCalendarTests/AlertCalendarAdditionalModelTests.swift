@@ -800,32 +800,24 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
         statusState: FootballFixtureStatusState,
         statusText: String
     ) -> FootballFixtureMatch {
-        FootballFixtureMatch(
+        FootballTestData.friendlyMatch(
             id: id,
-            competitionSlug: "fifa.friendly",
-            competitionName: "International Friendly",
-            competitionStage: nil,
-            competitionLogoURL: nil,
-            locationText: "Mercedes-Benz Stadium, Atlanta, Georgia, USA",
             startDate: startDate,
             actualStartDate: actualStartDate,
             statusState: statusState,
             statusText: statusText,
-            homeTeam: FootballTeamSummary(
+            locationText: "Mercedes-Benz Stadium, Atlanta, Georgia, USA",
+            homeTeam: FootballTestData.nationalTeam(
                 id: "home-\(id)",
                 name: "United States",
                 abbreviation: "USA",
-                logoURL: nil,
-                countryName: "United States",
-                isNational: true
+                countryName: "United States"
             ),
-            awayTeam: FootballTeamSummary(
+            awayTeam: FootballTestData.nationalTeam(
                 id: "away-\(id)",
                 name: "Portugal",
                 abbreviation: "POR",
-                logoURL: nil,
-                countryName: "Portugal",
-                isNational: true
+                countryName: "Portugal"
             ),
             homeScore: "0",
             awayScore: "0"
@@ -833,22 +825,9 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
     }
 
     private func makeFootballUpcomingItem(_ match: FootballFixtureMatch) -> UpcomingItem {
-        UpcomingItem(
-            id: match.id,
-            title: FootballFixtureFormatter.calendarTitle(for: match),
-            date: match.startDate,
-            endDate: match.startDate.addingTimeInterval(2 * 60 * 60),
-            isAllDay: false,
-            showsMutedBackground: false,
-            travelTimeMinutes: nil,
-            locationText: match.locationText,
-            meetingURL: nil,
-            calendarID: "football-calendar",
-            calendarName: "Football",
-            calendarColor: .systemOrange,
-            kind: .event,
-            footballMatch: match,
-            footballMenuBarDisplay: nil
+        FootballTestData.upcomingFootballItem(
+            for: match,
+            endDate: match.startDate.addingTimeInterval(2 * 60 * 60)
         )
     }
 }

@@ -709,32 +709,11 @@ final class FootballDataAPIClientTests: XCTestCase {
         homeScore: String,
         awayScore: String
     ) -> FootballFixtureMatch {
-        FootballFixtureMatch(
+        FootballTestData.friendlyMatch(
             id: id,
-            competitionSlug: "fifa.friendly",
-            competitionName: "International Friendly",
-            competitionStage: nil,
-            competitionLogoURL: nil,
-            locationText: nil,
             startDate: Date(timeIntervalSince1970: 1_720_000_000),
             statusState: statusState,
             statusText: "55'",
-            homeTeam: FootballTeamSummary(
-                id: "home-id",
-                name: "Argentina",
-                abbreviation: "ARG",
-                logoURL: nil,
-                countryName: "Argentina",
-                isNational: true
-            ),
-            awayTeam: FootballTeamSummary(
-                id: "away-id",
-                name: "Guatemala",
-                abbreviation: "GUA",
-                logoURL: nil,
-                countryName: "Guatemala",
-                isNational: true
-            ),
             homeScore: homeScore,
             awayScore: awayScore
         )
