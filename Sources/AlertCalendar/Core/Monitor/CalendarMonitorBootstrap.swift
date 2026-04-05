@@ -1,11 +1,12 @@
-import Foundation
+import AppKit
 import Combine
+import Foundation
 
 extension CalendarMonitor {
     func bootstrap() async {
         await requestCalendarAccess()
         if defaults.bool(forKey: DefaultsKeys.useAutomaticAstronomyLocation) {
-            await updateAstronomyCoordinatesFromSystem()
+            await refreshAutomaticAstronomyLocationIfNeeded(trigger: .launch)
         } else {
             astronomyLocationStatus = "Manual coordinates"
         }
@@ -59,6 +60,15 @@ extension CalendarMonitor {
                 guard let self else { return }
                 self.enqueueRefresh()
             }
+
+        appActivationObserver = NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.scheduleAutomaticAstronomyLocationRefresh(trigger: .appActivation)
+            }
+
+        startWiFiNetworkMonitoring()
     }
 
     func startHeartbeat() {
@@ -73,6 +83,7 @@ extension CalendarMonitor {
 
                 evaluateAlert(now: now, settings: settings)
                 updateMenuBarState(now: now, settings: settings)
+                scheduleHourlyAutomaticAstronomyLocationRefreshIfNeeded(now: now)
 
                 let periodicRefreshInterval: TimeInterval = 5 * 60
                 if lastPeriodicRefreshDate == nil || now.timeIntervalSince(lastPeriodicRefreshDate!) >= periodicRefreshInterval {

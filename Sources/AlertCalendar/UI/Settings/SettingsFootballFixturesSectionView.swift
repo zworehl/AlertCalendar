@@ -1,24 +1,30 @@
 import AppKit
+import Combine
 import SwiftUI
 
 struct SettingsFootballFixturesSectionView: View {
     private enum FootballBrowseMode: String, CaseIterable, Identifiable {
         case competitions = "Competitions"
-        case liveAndNextDay = "Live + 48h"
+        case liveAndNextDay = "Now + Next 24h"
 
         var id: String { rawValue }
     }
 
-    @ObservedObject var monitor: CalendarMonitor
+    let monitor: CalendarMonitor
 
     @AppStorage(DefaultsKeys.footballTargetCalendarID) private var footballTargetCalendarID = ""
     @AppStorage(DefaultsKeys.footballCalendarAlertOption) private var footballCalendarAlertOptionRaw = FootballCalendarAlertOption.none.rawValue
     @State private var browseMode: FootballBrowseMode = .competitions
     @State private var expandedCompetitionIDs: Set<String> = []
-    @State private var competitionListHeight: CGFloat = 0
-    @State private var addedMatchesContentHeight: CGFloat = 0
     @State private var isRefreshingManagedMatches = false
     @State private var visibleNow = Date()
+    @State private var hasEventsAccess = false
+    @State private var availableEventCalendars: [AvailableCalendar] = []
+    @State private var writableEventCalendars: [AvailableCalendar] = []
+    @State private var footballMenuSections: [FootballMenuCompetitionSection] = []
+    @State private var footballLiveAndNextDaySection = FootballMatchesOverviewSection.placeholder(title: "Now & Next 24 Hours")
+    @State private var managedFootballMatchIDs: Set<String> = []
+    @State private var managedFootballMatches: [FootballFixtureMatch] = []
 
     private let matchGridColumns = [
         GridItem(.adaptive(minimum: 280, maximum: 340), spacing: 12, alignment: .top),
@@ -31,11 +37,11 @@ struct SettingsFootballFixturesSectionView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                Text("Suggestions only include matches from the last 30 days and next 30 days. If a managed fixture falls outside that window, Alert Calendar removes it automatically from Apple Calendar.")
+                Text("Suggestions only include matches from the \(FootballCompetitionPreset.suggestionWindowDescription). If a managed fixture falls outside that window, Alert Calendar removes it automatically from Apple Calendar.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                if !monitor.hasEventsAccess {
+                if !hasEventsAccess {
                     emptyState("Grant Calendar access to add football fixtures.")
                 } else if writableCalendars.isEmpty {
                     emptyState("No writable event calendars are available.")
@@ -53,13 +59,14 @@ struct SettingsFootballFixturesSectionView: View {
             }
             monitor.ensureFootballCompetitionSections()
             monitor.refreshManagedFootballTrackingSnapshot(now: visibleNow)
+            synchronizeViewStateFromMonitor()
         }
         .task(id: browseMode) {
             guard browseMode == .liveAndNextDay else { return }
             await monitor.loadFootballLiveAndNextDaySection(force: true)
         }
         .task {
-            await refreshManagedMatchesPanel(now: visibleNow)
+            await refreshManagedMatchesPanel(now: visibleNow, force: true)
         }
         .task {
             await runVisibleRefreshLoop()
@@ -67,16 +74,42 @@ struct SettingsFootballFixturesSectionView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             let now = Self.minuteReferenceDate(for: Date())
             visibleNow = now
-            monitor.refreshManagedFootballTrackingSnapshot(now: now)
             Task {
+                if shouldRefreshManagedMatchesOnVisibleTick {
+                    await MainActor.run {
+                        monitor.refreshManagedFootballTrackingSnapshot(now: now)
+                    }
+                }
                 if browseMode == .liveAndNextDay {
                     await monitor.loadFootballLiveAndNextDaySection(force: true)
                 }
-                await refreshManagedMatchesPanel(now: now)
+                if shouldRefreshManagedMatchesOnVisibleTick {
+                    await refreshManagedMatchesPanel(now: now)
+                }
             }
         }
         .onChange(of: footballCalendarAlertOptionRaw) { _ in
             applyFootballCalendarAlertPreference()
+        }
+        .onReceive(monitor.$hasEventsAccess.removeDuplicates()) { value in
+            hasEventsAccess = value
+            refreshWritableCalendars()
+        }
+        .onReceive(monitor.$availableEventCalendars.removeDuplicates()) { calendars in
+            availableEventCalendars = calendars
+            refreshWritableCalendars()
+        }
+        .onReceive(monitor.$footballMenuSections.removeDuplicates()) { sections in
+            footballMenuSections = sections
+        }
+        .onReceive(monitor.$footballLiveAndNextDaySection.removeDuplicates()) { section in
+            footballLiveAndNextDaySection = section
+        }
+        .onReceive(monitor.$managedFootballMatchIDs.removeDuplicates()) { ids in
+            managedFootballMatchIDs = ids
+        }
+        .onReceive(monitor.$managedFootballMatches.removeDuplicates()) { matches in
+            managedFootballMatches = matches
         }
     }
 
@@ -85,21 +118,17 @@ struct SettingsFootballFixturesSectionView: View {
             footballTopControlsSection
             addedMatchesPanel
 
-            if browseMode == .competitions && monitor.footballMenuSections.isEmpty {
+            if browseMode == .competitions && footballMenuSections.isEmpty {
                 emptyState("No competitions are configured right now.")
             } else {
                 activeMatchesPanel
                     .frame(maxWidth: .infinity, alignment: .topLeading)
             }
         }
-        .onPreferenceChange(FootballFixturesPanelHeightPreferenceKey.self) { newHeight in
-            guard abs(newHeight - competitionListHeight) > 0.5 else { return }
-            competitionListHeight = newHeight
-        }
     }
 
     private var writableCalendars: [AvailableCalendar] {
-        monitor.writableFootballTargetCalendars()
+        writableEventCalendars
     }
 
     private var footballCalendarAlertOption: FootballCalendarAlertOption {
@@ -132,11 +161,11 @@ struct SettingsFootballFixturesSectionView: View {
     }
 
     private var upcomingManagedMatches: [FootballFixtureMatch] {
-        CalendarMonitor.upcomingManagedFootballMatches(from: monitor.managedFootballMatches, now: visibleNow)
+        CalendarMonitor.upcomingManagedFootballMatches(from: managedFootballMatches, now: visibleNow)
     }
 
     private var upcomingManagedEventCount: Int {
-        monitor.upcomingManagedFootballEventCount(now: visibleNow)
+        upcomingManagedMatches.count
     }
 
     private var hasUpcomingAddedMatches: Bool {
@@ -156,21 +185,53 @@ struct SettingsFootballFixturesSectionView: View {
         return upcomingManagedMatches.first?.competitionLogoURL
     }
 
+    private var sharedAddedMatchesCompetitionLocalLogoPath: String? {
+        guard let match = upcomingManagedMatches.first,
+              sharedAddedMatchesCompetitionTitle != nil else { return nil }
+        return localCompetitionLogoPath(for: match)
+    }
+
     private var sharedLiveAndNextDayCompetitionTitle: String? {
-        FootballFixtureFormatter.sharedCompetitionTitle(for: monitor.footballLiveAndNextDaySection.matches)
+        FootballFixtureFormatter.sharedCompetitionTitle(for: footballLiveAndNextDaySection.matches)
     }
 
     private var sharedLiveAndNextDayCompetitionLogoURL: URL? {
         guard sharedLiveAndNextDayCompetitionTitle != nil else { return nil }
-        return monitor.footballLiveAndNextDaySection.matches.first?.competitionLogoURL
+        return footballLiveAndNextDaySection.matches.first?.competitionLogoURL
     }
 
-    private var liveAndNextDayMatchesByCategory: [(category: FootballCompetitionCategory, matches: [FootballFixtureMatch])] {
-        FootballCompetitionCategory.allCases.compactMap { category in
-            let matches = monitor.footballLiveAndNextDaySection.matches.filter { $0.competitionCategory == category }
-            guard !matches.isEmpty else { return nil }
-            return (category, matches)
+    private var sharedLiveAndNextDayCompetitionLocalLogoPath: String? {
+        guard let match = footballLiveAndNextDaySection.matches.first,
+              sharedLiveAndNextDayCompetitionTitle != nil else { return nil }
+        return localCompetitionLogoPath(for: match)
+    }
+
+    private var competitionSectionsByRegion: [(region: FootballCompetitionRegion, sections: [FootballMenuCompetitionSection])] {
+        FootballCompetitionRegion.allCases.compactMap { region in
+            let sections = footballMenuSections.filter { $0.competition.region == region }
+            guard !sections.isEmpty else { return nil }
+            return (region, sections)
         }
+    }
+
+    private var liveAndNextDayMatchesByRegion: [(region: FootballCompetitionRegion, matches: [FootballFixtureMatch])] {
+        FootballCompetitionRegion.allCases.compactMap { region in
+            let matches = footballLiveAndNextDaySection.matches.filter { $0.competitionRegion == region }
+            guard !matches.isEmpty else { return nil }
+            return (region, matches)
+        }
+    }
+
+    private var competitionSectionsWithErrors: [FootballMenuCompetitionSection] {
+        footballMenuSections.filter { $0.errorMessage != nil }
+    }
+
+    private var hasAnyCompetitionCards: Bool {
+        footballMenuSections.contains { !$0.matches.isEmpty }
+    }
+
+    private var hasAttemptedCompetitionLoads: Bool {
+        footballMenuSections.contains { $0.hasLoaded || $0.isLoading || $0.errorMessage != nil }
     }
 
     private var footballTopControlsSection: some View {
@@ -219,10 +280,6 @@ struct SettingsFootballFixturesSectionView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var measuredAddedMatchesContentHeight: CGFloat? {
-        addedMatchesContentHeight > 0 ? addedMatchesContentHeight : nil
     }
 
     private var addToControlField: some View {
@@ -287,33 +344,58 @@ struct SettingsFootballFixturesSectionView: View {
 
     private var competitionListPanel: some View {
         VStack(alignment: .leading, spacing: 12) {
-            competitionCategorySection(
-                title: FootballCompetitionCategory.clubCompetitions.title,
-                sections: monitor.footballMenuSections.filter { $0.competition.category == .clubCompetitions }
-            )
+            competitionListFeedback
 
-            if !monitor.footballMenuSections.filter({ $0.competition.category == .nationalTeams }).isEmpty {
-                Divider()
-                    .padding(.vertical, 2)
+            ForEach(Array(competitionSectionsByRegion.enumerated()), id: \.element.region.id) { index, entry in
+                competitionRegionSection(
+                    title: entry.region.title,
+                    sections: entry.sections
+                )
+
+                if index < competitionSectionsByRegion.count - 1 {
+                    Divider()
+                        .padding(.vertical, 2)
+                }
             }
-
-            competitionCategorySection(
-                title: FootballCompetitionCategory.nationalTeams.title,
-                sections: monitor.footballMenuSections.filter { $0.competition.category == .nationalTeams }
-            )
         }
         .padding(14)
         .background(panelChrome)
-        .background(
-            GeometryReader { proxy in
-                Color.clear
-                    .preference(key: FootballFixturesPanelHeightPreferenceKey.self, value: proxy.size.height)
-            }
-        )
     }
 
     @ViewBuilder
-    private func competitionCategorySection(
+    private var competitionListFeedback: some View {
+        if !hasAnyCompetitionCards && !competitionSectionsWithErrors.isEmpty {
+            feedbackState(
+                title: "Could not load football fixtures",
+                text: competitionRetryMessage,
+                systemImage: "exclamationmark.triangle.fill",
+                tint: .orange,
+                buttonTitle: "Retry Failed Loads",
+                isButtonDisabled: footballMenuSections.contains(where: \.isLoading)
+            ) {
+                await retryFailedCompetitionLoads()
+            }
+        } else if !hasAnyCompetitionCards && !hasAttemptedCompetitionLoads {
+            feedbackState(
+                title: "No football cards loaded yet",
+                text: "Expand a competition below to load its matches. If a request fails, you will see a retry button in that section.",
+                systemImage: "sportscourt",
+                tint: .secondary
+            )
+        }
+    }
+
+    private var competitionRetryMessage: String {
+        if competitionSectionsWithErrors.count == 1,
+           let errorMessage = competitionSectionsWithErrors.first?.errorMessage {
+            return errorMessage
+        }
+
+        return "Several competitions could not be loaded right now. Try again in a moment."
+    }
+
+    @ViewBuilder
+    private func competitionRegionSection(
         title: String,
         sections: [FootballMenuCompetitionSection]
     ) -> some View {
@@ -338,7 +420,7 @@ struct SettingsFootballFixturesSectionView: View {
                     if isExpanded {
                         expandedCompetitionIDs.insert(section.id)
                         Task {
-                            await monitor.loadFootballCompetitionSection(section.competition, force: true)
+                            await loadCompetitionFixtures(section)
                         }
                     } else {
                         expandedCompetitionIDs.remove(section.id)
@@ -350,13 +432,30 @@ struct SettingsFootballFixturesSectionView: View {
                 if section.isLoading && !section.hasLoaded && section.matches.isEmpty {
                     loadingState("Loading fixtures for \(section.competition.title)...")
                 } else if let errorMessage = section.errorMessage {
-                    errorState(errorMessage)
+                    feedbackState(
+                        title: "Could not load \(section.competition.title)",
+                        text: errorMessage,
+                        systemImage: "exclamationmark.triangle.fill",
+                        tint: .orange,
+                        buttonTitle: "Retry",
+                        isButtonDisabled: section.isLoading
+                    ) {
+                        await loadCompetitionFixtures(section)
+                    }
                 }
 
                 if !section.hasLoaded && !section.isLoading && section.matches.isEmpty {
-                    emptyState("Click this competition to load its matches.")
+                    feedbackState(
+                        title: "No matches loaded yet",
+                        text: "Use Load Fixtures to fetch the \(FootballCompetitionPreset.suggestionWindowDescription) for this competition.",
+                        systemImage: "sportscourt",
+                        tint: .secondary,
+                        buttonTitle: "Load Fixtures"
+                    ) {
+                        await loadCompetitionFixtures(section)
+                    }
                 } else if section.matches.isEmpty {
-                    emptyState("No matches available in the last or next 30 days.")
+                    emptyState("No matches available in the \(FootballCompetitionPreset.suggestionWindowDescription).")
                 } else {
                     LazyVGrid(columns: matchGridColumns, alignment: .leading, spacing: 12) {
                         ForEach(section.matches) { match in
@@ -375,6 +474,10 @@ struct SettingsFootballFixturesSectionView: View {
                 if section.isLoading && !section.hasLoaded && section.matches.isEmpty {
                     ProgressView()
                         .controlSize(.small)
+                } else if section.errorMessage != nil {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.orange)
                 } else if section.hasLoaded {
                     Text("\(section.matches.count)")
                         .font(.caption.weight(.semibold))
@@ -403,44 +506,31 @@ struct SettingsFootballFixturesSectionView: View {
             if let sharedAddedMatchesCompetitionTitle {
                 sharedCompetitionHeader(
                     text: "All added matches are from \(sharedAddedMatchesCompetitionTitle)",
-                    logoURL: sharedAddedMatchesCompetitionLogoURL
+                    localLogoPath: sharedAddedMatchesCompetitionLocalLogoPath,
+                    remoteLogoURL: sharedAddedMatchesCompetitionLogoURL
                 )
             }
 
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 0) {
-                    if isLoadingUpcomingAddedMatches {
-                        loadingState("Loading added fixtures...")
-                            .padding(.top, 4)
-                    } else if upcomingManagedMatches.isEmpty {
-                        emptyState("Added matches will appear here once you add a fixture.")
-                            .padding(.top, 4)
-                    } else {
-                        LazyVGrid(columns: matchGridColumns, alignment: .leading, spacing: 12) {
-                            ForEach(upcomingManagedMatches) { match in
-                                matchCard(
-                                    match,
-                                    showsCompetitionName: sharedAddedMatchesCompetitionTitle == nil,
-                                    showsSeparateMetadataRows: true
-                                )
-                            }
+            VStack(alignment: .leading, spacing: 0) {
+                if isLoadingUpcomingAddedMatches {
+                    loadingState("Loading added fixtures...")
+                        .padding(.top, 4)
+                } else if upcomingManagedMatches.isEmpty {
+                    emptyState("Added matches will appear here once you add a fixture.")
+                        .padding(.top, 4)
+                } else {
+                    LazyVGrid(columns: matchGridColumns, alignment: .leading, spacing: 12) {
+                        ForEach(upcomingManagedMatches) { match in
+                            matchCard(
+                                match,
+                                showsCompetitionName: sharedAddedMatchesCompetitionTitle == nil,
+                                showsSeparateMetadataRows: true
+                            )
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
-                .background(
-                    GeometryReader { proxy in
-                        Color.clear
-                            .preference(key: AddedMatchesContentHeightPreferenceKey.self, value: proxy.size.height)
-                    }
-                )
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
-            .frame(height: measuredAddedMatchesContentHeight, alignment: .topLeading)
-            .onPreferenceChange(AddedMatchesContentHeightPreferenceKey.self) { newHeight in
-                guard abs(newHeight - addedMatchesContentHeight) > 0.5 else { return }
-                addedMatchesContentHeight = newHeight
-            }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -448,7 +538,7 @@ struct SettingsFootballFixturesSectionView: View {
     }
 
     private var liveAndNextDayPanel: some View {
-        let section = monitor.footballLiveAndNextDaySection
+        let section = footballLiveAndNextDaySection
 
         return VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
@@ -467,30 +557,50 @@ struct SettingsFootballFixturesSectionView: View {
             }
 
             if let errorMessage = section.errorMessage {
-                errorState(errorMessage)
+                feedbackState(
+                    title: "Could not load \(section.title)",
+                    text: errorMessage,
+                    systemImage: "exclamationmark.triangle.fill",
+                    tint: .orange,
+                    buttonTitle: "Retry",
+                    isButtonDisabled: section.isLoading
+                ) {
+                    await retryLiveAndNextDayLoad()
+                }
             }
 
             if let sharedLiveAndNextDayCompetitionTitle {
                 sharedCompetitionHeader(
                     text: "All listed matches are from \(sharedLiveAndNextDayCompetitionTitle)",
-                    logoURL: sharedLiveAndNextDayCompetitionLogoURL
+                    localLogoPath: sharedLiveAndNextDayCompetitionLocalLogoPath,
+                    remoteLogoURL: sharedLiveAndNextDayCompetitionLogoURL
                 )
             }
 
             if section.isLoading && !section.hasLoaded && section.matches.isEmpty {
-                loadingState("Loading live and 48-hour fixtures...")
+                loadingState("Loading live and upcoming fixtures...")
+            } else if !section.hasLoaded && section.matches.isEmpty {
+                feedbackState(
+                    title: "Nothing loaded yet",
+                    text: "Use Retry to fetch live matches and the next 24 hours of fixtures.",
+                    systemImage: "sportscourt",
+                    tint: .secondary,
+                    buttonTitle: "Retry"
+                ) {
+                    await retryLiveAndNextDayLoad()
+                }
             } else if section.matches.isEmpty {
-                emptyState("No live matches or fixtures in the next 48 hours are available right now.")
+                emptyState("No live matches or fixtures in the next 24 hours are available right now.")
             } else {
                 VStack(alignment: .leading, spacing: 12) {
-                    ForEach(Array(liveAndNextDayMatchesByCategory.enumerated()), id: \.element.category.id) { index, entry in
-                        liveMatchesCategorySection(
-                            title: entry.category.title,
+                    ForEach(Array(liveAndNextDayMatchesByRegion.enumerated()), id: \.element.region.id) { index, entry in
+                        liveMatchesRegionSection(
+                            title: entry.region.title,
                             matches: entry.matches,
                             showsCompetitionName: sharedLiveAndNextDayCompetitionTitle == nil
                         )
 
-                        if index < liveAndNextDayMatchesByCategory.count - 1 {
+                        if index < liveAndNextDayMatchesByRegion.count - 1 {
                             Divider()
                                 .padding(.vertical, 2)
                         }
@@ -500,15 +610,9 @@ struct SettingsFootballFixturesSectionView: View {
         }
         .padding(14)
         .background(panelChrome)
-        .background(
-            GeometryReader { proxy in
-                Color.clear
-                    .preference(key: FootballFixturesPanelHeightPreferenceKey.self, value: proxy.size.height)
-            }
-        )
     }
 
-    private func liveMatchesCategorySection(
+    private func liveMatchesRegionSection(
         title: String,
         matches: [FootballFixtureMatch],
         showsCompetitionName: Bool
@@ -615,7 +719,10 @@ struct SettingsFootballFixturesSectionView: View {
 
     private func competitionMetadataRow(for match: FootballFixtureMatch) -> some View {
         HStack(spacing: 6) {
-            competitionLogo(url: match.competitionLogoURL)
+            competitionLogo(
+                localPath: localCompetitionLogoPath(for: match),
+                remoteURL: match.competitionLogoURL
+            )
             Text(footballCompetitionDetailText(match))
                 .lineLimit(1)
                 .truncationMode(.tail)
@@ -627,16 +734,19 @@ struct SettingsFootballFixturesSectionView: View {
 
     private func competitionInlineLabel(_ match: FootballFixtureMatch) -> some View {
         HStack(spacing: 6) {
-            competitionLogo(url: match.competitionLogoURL)
+            competitionLogo(
+                localPath: localCompetitionLogoPath(for: match),
+                remoteURL: match.competitionLogoURL
+            )
             Text(match.competitionName)
                 .lineLimit(1)
                 .truncationMode(.tail)
         }
     }
 
-    private func sharedCompetitionHeader(text: String, logoURL: URL?) -> some View {
+    private func sharedCompetitionHeader(text: String, localLogoPath: String?, remoteLogoURL: URL?) -> some View {
         HStack(spacing: 6) {
-            competitionLogo(url: logoURL)
+            competitionLogo(localPath: localLogoPath, remoteURL: remoteLogoURL)
             Text(text)
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
@@ -647,7 +757,7 @@ struct SettingsFootballFixturesSectionView: View {
 
     @ViewBuilder
     private func matchCardActions(_ match: FootballFixtureMatch) -> some View {
-        if monitor.isFootballMatchTracked(match) {
+        if managedFootballMatchIDs.contains(match.id) {
             HStack(spacing: 8) {
                 openMatchButton(match)
                 removeMatchButton(match)
@@ -777,49 +887,82 @@ struct SettingsFootballFixturesSectionView: View {
     private func teamLabelRow(_ team: FootballTeamSummary, logoLeading: Bool) -> some View {
         HStack(spacing: 4) {
             if logoLeading {
-                teamLogo(url: FootballFixtureFormatter.isUnknownTeam(team) ? nil : team.logoURL)
+                teamLogo(
+                    localPath: localTeamLogoPath(for: team),
+                    remoteURL: FootballFixtureFormatter.isUnknownTeam(team) ? nil : team.logoURL
+                )
                 Text(FootballFixtureFormatter.teamDisplayIdentifier(for: team))
             } else {
                 Text(FootballFixtureFormatter.teamDisplayIdentifier(for: team))
-                teamLogo(url: FootballFixtureFormatter.isUnknownTeam(team) ? nil : team.logoURL)
+                teamLogo(
+                    localPath: localTeamLogoPath(for: team),
+                    remoteURL: FootballFixtureFormatter.isUnknownTeam(team) ? nil : team.logoURL
+                )
             }
         }
     }
 
     @ViewBuilder
-    private func teamLogo(url: URL?) -> some View {
-        AsyncImage(url: url, transaction: Transaction(animation: nil)) { phase in
-            if let image = phase.image {
-                image
-                    .resizable()
-                    .scaledToFit()
-            } else {
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(Color.secondary.opacity(0.15))
-                    .overlay(
-                        Image(systemName: "shield")
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                    )
+    private func teamLogo(localPath: String?, remoteURL: URL?) -> some View {
+        if let localPath,
+           let image = NSImage(contentsOfFile: localPath) {
+            Image(nsImage: image)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(width: 18, height: 18)
+        } else {
+            AsyncImage(url: remoteURL, transaction: Transaction(animation: nil)) { phase in
+                if let image = phase.image {
+                    image
+                        .resizable()
+                        .scaledToFit()
+                } else {
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(Color.secondary.opacity(0.15))
+                        .overlay(
+                            Image(systemName: "shield")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                        )
+                }
             }
+            .frame(width: 18, height: 18)
         }
-        .frame(width: 18, height: 18)
     }
 
     @ViewBuilder
-    private func competitionLogo(url: URL?) -> some View {
-        AsyncImage(url: url, transaction: Transaction(animation: nil)) { phase in
-            if let image = phase.image {
-                image
-                    .resizable()
-                    .scaledToFit()
-            } else {
-                Image(systemName: "trophy")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.secondary)
+    private func competitionLogo(localPath: String?, remoteURL: URL?) -> some View {
+        if let localPath,
+           let image = NSImage(contentsOfFile: localPath) {
+            Image(nsImage: image)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(width: 14, height: 14)
+        } else {
+            AsyncImage(url: remoteURL, transaction: Transaction(animation: nil)) { phase in
+                if let image = phase.image {
+                    image
+                        .resizable()
+                        .scaledToFit()
+                } else {
+                    Image(systemName: "trophy")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
             }
+            .frame(width: 14, height: 14)
         }
-        .frame(width: 14, height: 14)
+    }
+
+    private func localTeamLogoPath(for team: FootballTeamSummary) -> String? {
+        guard !FootballFixtureFormatter.isUnknownTeam(team) else { return nil }
+        return monitor.footballLocalLogoPathsByTeamID[team.id]
+    }
+
+    private func localCompetitionLogoPath(for match: FootballFixtureMatch) -> String? {
+        monitor.footballLocalLogoPathsByCompetitionSlug[match.competitionSlug]
     }
 
     private func safeScore(_ rawValue: String) -> String {
@@ -936,6 +1079,48 @@ struct SettingsFootballFixturesSectionView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    @ViewBuilder
+    private func feedbackState(
+        title: String,
+        text: String,
+        systemImage: String,
+        tint: Color,
+        buttonTitle: String? = nil,
+        isButtonDisabled: Bool = false,
+        action: (() async -> Void)? = nil
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: systemImage)
+                    .foregroundStyle(tint)
+                    .frame(width: 16, alignment: .center)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    Text(text)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            if let buttonTitle,
+               let action {
+                Button(buttonTitle) {
+                    Task {
+                        await action()
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(isButtonDisabled)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     private static func minuteReferenceDate(for date: Date) -> Date {
         Calendar.autoupdatingCurrent.dateInterval(of: .minute, for: date)?.start ?? date
     }
@@ -951,6 +1136,42 @@ struct SettingsFootballFixturesSectionView: View {
         monitor.refreshManagedFootballTrackingSnapshot(now: now)
     }
 
+    private var shouldRefreshManagedMatchesOnVisibleTick: Bool {
+        !managedFootballMatchIDs.isEmpty || !managedFootballMatches.isEmpty
+    }
+
+    private func synchronizeViewStateFromMonitor() {
+        hasEventsAccess = monitor.hasEventsAccess
+        availableEventCalendars = monitor.availableEventCalendars
+        footballMenuSections = monitor.footballMenuSections
+        footballLiveAndNextDaySection = monitor.footballLiveAndNextDaySection
+        managedFootballMatchIDs = monitor.managedFootballMatchIDs
+        managedFootballMatches = monitor.managedFootballMatches
+        refreshWritableCalendars()
+    }
+
+    private func refreshWritableCalendars() {
+        writableEventCalendars = hasEventsAccess ? monitor.writableFootballTargetCalendars() : []
+    }
+
+    private func loadCompetitionFixtures(_ section: FootballMenuCompetitionSection) async {
+        expandedCompetitionIDs.insert(section.id)
+        await monitor.loadFootballCompetitionSection(section.competition, force: true)
+    }
+
+    private func retryFailedCompetitionLoads() async {
+        let sectionsToRetry = competitionSectionsWithErrors.isEmpty
+            ? footballMenuSections.filter { expandedCompetitionIDs.contains($0.id) }
+            : competitionSectionsWithErrors
+        for section in sectionsToRetry {
+            await loadCompetitionFixtures(section)
+        }
+    }
+
+    private func retryLiveAndNextDayLoad() async {
+        await monitor.loadFootballLiveAndNextDaySection(force: true)
+    }
+
     private func runVisibleRefreshLoop() async {
         while !Task.isCancelled {
             let now = Date()
@@ -964,36 +1185,25 @@ struct SettingsFootballFixturesSectionView: View {
             let refreshedNow = Self.minuteReferenceDate(for: Date())
             await MainActor.run {
                 visibleNow = refreshedNow
-                monitor.refreshManagedFootballTrackingSnapshot(now: refreshedNow)
+                if shouldRefreshManagedMatchesOnVisibleTick {
+                    monitor.refreshManagedFootballTrackingSnapshot(now: refreshedNow)
+                }
             }
 
             if browseMode == .liveAndNextDay {
                 await monitor.loadFootballLiveAndNextDaySection(force: true)
             }
-            await refreshManagedMatchesPanel(now: refreshedNow)
+            if shouldRefreshManagedMatchesOnVisibleTick {
+                await refreshManagedMatchesPanel(now: refreshedNow)
+            }
         }
     }
 
     @MainActor
-    private func refreshManagedMatchesPanel(now: Date) async {
+    private func refreshManagedMatchesPanel(now: Date, force: Bool = false) async {
+        guard force || shouldRefreshManagedMatchesOnVisibleTick else { return }
         isRefreshingManagedMatches = true
         defer { isRefreshingManagedMatches = false }
-        await monitor.syncManagedFootballEventsIfNeeded(now: now)
-    }
-}
-
-private struct FootballFixturesPanelHeightPreferenceKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
-    }
-}
-
-private struct AddedMatchesContentHeightPreferenceKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
+        await monitor.syncManagedFootballEventsIfNeeded(now: now, force: force)
     }
 }

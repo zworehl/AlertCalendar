@@ -395,6 +395,41 @@ final class FootballFixtureFormatterTests: XCTestCase {
         XCTAssertEqual(FootballFixtureFormatter.calendarTitle(for: match), "TBD 🏴 - 🏴 TBD")
     }
 
+    func testCalendarTitleUsesBlackFlagAndTBDForCompactWorldCupSlotCodes() {
+        let match = FootballFixtureMatch(
+            id: "match-compact-slots",
+            competitionSlug: "fifa.world",
+            competitionName: "FIFA World Cup",
+            competitionStage: "Round of 16",
+            competitionLogoURL: nil,
+            locationText: nil,
+            startDate: Date(timeIntervalSince1970: 1_720_000_000),
+            statusState: .scheduled,
+            statusText: "TBD",
+            homeTeam: FootballTeamSummary(
+                id: "ga2",
+                name: "GA2",
+                abbreviation: "GA2",
+                logoURL: nil,
+                countryName: nil,
+                isNational: true
+            ),
+            awayTeam: FootballTeamSummary(
+                id: "rd3",
+                name: "RD3",
+                abbreviation: "RD3",
+                logoURL: nil,
+                countryName: nil,
+                isNational: true
+            ),
+            homeScore: "0",
+            awayScore: "0"
+        )
+
+        XCTAssertEqual(FootballFixtureFormatter.calendarTitle(for: match), "TBD 🏴 - 🏴 TBD")
+        XCTAssertTrue(FootballFixtureFormatter.hasUnknownParticipants(in: match))
+    }
+
     func testClubIdentifiersAreTrimmedToThreeLetters() {
         let team = FootballTeamSummary(
             id: "1",
@@ -422,12 +457,20 @@ final class FootballFixtureFormatterTests: XCTestCase {
     }
 
     func testFlagEmojiSupportsNationalTeamAliasesFromFeeds() {
+        XCTAssertEqual(FootballFixtureFormatter.flagEmoji(for: "Bonaire"), "🇧🇶")
+        XCTAssertEqual(FootballFixtureFormatter.flagEmoji(for: "Bosnia and Herzegovina"), "🇧🇦")
+        XCTAssertEqual(FootballFixtureFormatter.flagEmoji(for: "China"), "🇨🇳")
+        XCTAssertEqual(FootballFixtureFormatter.flagEmoji(for: "Ivory Coast"), "🇨🇮")
         XCTAssertEqual(FootballFixtureFormatter.flagEmoji(for: "IR Iran"), "🇮🇷")
+        XCTAssertEqual(FootballFixtureFormatter.flagEmoji(for: "Kyrgyz Republic"), "🇰🇬")
         XCTAssertEqual(FootballFixtureFormatter.flagEmoji(for: "Korea Republic"), "🇰🇷")
         XCTAssertEqual(FootballFixtureFormatter.flagEmoji(for: "Korea DPR"), "🇰🇵")
+        XCTAssertEqual(FootballFixtureFormatter.flagEmoji(for: "Macau"), "🇲🇴")
         XCTAssertEqual(FootballFixtureFormatter.flagEmoji(for: "DR Congo"), "🇨🇩")
         XCTAssertEqual(FootballFixtureFormatter.flagEmoji(for: "China PR"), "🇨🇳")
         XCTAssertEqual(FootballFixtureFormatter.flagEmoji(for: "Palestine"), "🇵🇸")
+        XCTAssertEqual(FootballFixtureFormatter.flagEmoji(for: "Trinidad and Tobago"), "🇹🇹")
+        XCTAssertEqual(FootballFixtureFormatter.flagEmoji(for: "US Virgin Islands"), "🇻🇮")
     }
 
     func testFlagEmojiNormalizesPunctuationAndDiacritics() {
@@ -493,7 +536,7 @@ final class FootballFixtureFormatterTests: XCTestCase {
         XCTAssertEqual(FootballFixtureFormatter.calendarIdentityKey(for: match), "CRC|PAL")
     }
 
-    func testCompetitionPresetsCoverSupportedLeaguesAndUseThirtyDayWindow() {
+    func testCompetitionPresetsCoverSupportedLeaguesAndUseConfiguredSuggestionWindow() {
         let expectedSlugs: Set<String> = [
             "eng.1",
             "esp.1",
@@ -505,6 +548,7 @@ final class FootballFixtureFormatterTests: XCTestCase {
             "arg.1",
             "ned.1",
             "col.1",
+            "mex.1",
             "usa.1",
             "fifa.world",
             "fifa.friendly",
@@ -521,17 +565,22 @@ final class FootballFixtureFormatterTests: XCTestCase {
         ]
 
         XCTAssertEqual(Set(FootballCompetitionPreset.menuPresets.map(\.slug)), expectedSlugs)
-        XCTAssertTrue(FootballCompetitionPreset.menuPresets.allSatisfy { $0.lookbackDays == 30 && $0.lookaheadDays == 30 })
+        XCTAssertTrue(
+            FootballCompetitionPreset.menuPresets.allSatisfy {
+                $0.lookbackDays == FootballCompetitionPreset.suggestionWindowLookbackDays
+                    && $0.lookaheadDays == FootballCompetitionPreset.suggestionWindowLookaheadDays
+            }
+        )
     }
 
-    func testManagedFootballSuggestionWindowStaysWithinThirtyDays() {
+    func testManagedFootballSuggestionWindowUsesFortyFiveDayLookbackAndNinetyDayLookahead() {
         let calendar = Calendar(identifier: .gregorian)
         let now = Date(timeIntervalSince1970: 1_720_000_000)
 
-        let insidePast = calendar.date(byAdding: .day, value: -29, to: now)!
-        let insideFuture = calendar.date(byAdding: .day, value: 29, to: now)!
-        let outsidePast = calendar.date(byAdding: .day, value: -31, to: now)!
-        let outsideFuture = calendar.date(byAdding: .day, value: 31, to: now)!
+        let insidePast = calendar.date(byAdding: .day, value: -45, to: now)!
+        let insideFuture = calendar.date(byAdding: .day, value: 90, to: now)!
+        let outsidePast = calendar.date(byAdding: .day, value: -46, to: now)!
+        let outsideFuture = calendar.date(byAdding: .day, value: 91, to: now)!
 
         XCTAssertTrue(CalendarMonitor.isManagedFootballEventWithinSuggestionWindow(startDate: insidePast, now: now, calendar: calendar))
         XCTAssertTrue(CalendarMonitor.isManagedFootballEventWithinSuggestionWindow(startDate: insideFuture, now: now, calendar: calendar))
@@ -749,6 +798,106 @@ final class FootballFixtureFormatterTests: XCTestCase {
         )
     }
 
+    func testLiveAndNextDayMatchesExcludeFixturesBeyondTwentyFourHours() {
+        let calendar = Calendar(identifier: .gregorian)
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+
+        let insideWindow = makeMatch(
+            id: "inside",
+            startDate: calendar.date(byAdding: .hour, value: 23, to: now)!,
+            statusState: .scheduled
+        )
+        let outsideWindow = makeMatch(
+            id: "outside",
+            startDate: calendar.date(byAdding: .hour, value: 25, to: now)!,
+            statusState: .scheduled
+        )
+
+        XCTAssertEqual(
+            CalendarMonitor.liveAndNextDayMatches(
+                from: [outsideWindow, insideWindow],
+                now: now,
+                calendar: calendar
+            ).map(\.id),
+            ["inside"]
+        )
+    }
+
+    func testLiveAndNextDayMatchesExcludeFixturesWithUnknownParticipants() {
+        let calendar = Calendar(identifier: .gregorian)
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+
+        let known = makeMatch(
+            id: "known",
+            startDate: calendar.date(byAdding: .hour, value: 4, to: now)!,
+            statusState: .scheduled
+        )
+        let unknown = makeMatch(
+            id: "unknown",
+            startDate: calendar.date(byAdding: .hour, value: 3, to: now)!,
+            statusState: .scheduled,
+            homeTeam: FootballTeamSummary(
+                id: "17631",
+                name: "Quarterfinal 1 Winner",
+                abbreviation: "QFW1",
+                logoURL: nil,
+                countryName: nil,
+                isNational: false
+            )
+        )
+
+        XCTAssertEqual(
+            CalendarMonitor.liveAndNextDayMatches(
+                from: [unknown, known],
+                now: now,
+                calendar: calendar
+            ).map(\.id),
+            ["known"]
+        )
+    }
+
+    func testLiveAndNextDayMatchesExcludeFixturesWithCompactPlaceholderSlotParticipants() {
+        let calendar = Calendar(identifier: .gregorian)
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+
+        let known = makeMatch(
+            id: "known",
+            startDate: calendar.date(byAdding: .hour, value: 4, to: now)!,
+            statusState: .scheduled
+        )
+        let placeholder = makeMatch(
+            id: "placeholder",
+            startDate: calendar.date(byAdding: .hour, value: 2, to: now)!,
+            statusState: .scheduled,
+            competitionSlug: "fifa.world",
+            homeTeam: FootballTeamSummary(
+                id: "ga2",
+                name: "GA2",
+                abbreviation: "GA2",
+                logoURL: nil,
+                countryName: nil,
+                isNational: true
+            ),
+            awayTeam: FootballTeamSummary(
+                id: "rd3",
+                name: "RD3",
+                abbreviation: "RD3",
+                logoURL: nil,
+                countryName: nil,
+                isNational: true
+            )
+        )
+
+        XCTAssertEqual(
+            CalendarMonitor.liveAndNextDayMatches(
+                from: [placeholder, known],
+                now: now,
+                calendar: calendar
+            ).map(\.id),
+            ["known"]
+        )
+    }
+
     func testUpcomingManagedFootballMatchesIncludeLiveAndFutureButExcludeFinished() {
         let calendar = Calendar(identifier: .gregorian)
         let now = Date(timeIntervalSince1970: 1_720_000_000)
@@ -808,6 +957,38 @@ final class FootballFixtureFormatterTests: XCTestCase {
                 now: now
             ).map(\.id),
             ["duplicate-live", "upcoming"]
+        )
+    }
+
+    func testUpcomingManagedFootballMatchesExcludeFixturesWithUnknownParticipants() {
+        let calendar = Calendar(identifier: .gregorian)
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+
+        let known = makeMatch(
+            id: "known",
+            startDate: calendar.date(byAdding: .hour, value: 6, to: now)!,
+            statusState: .scheduled
+        )
+        let unknown = makeMatch(
+            id: "unknown",
+            startDate: calendar.date(byAdding: .hour, value: 5, to: now)!,
+            statusState: .scheduled,
+            awayTeam: FootballTeamSummary(
+                id: "17629",
+                name: "Quarterfinal 2 Winner",
+                abbreviation: "QFW2",
+                logoURL: nil,
+                countryName: nil,
+                isNational: false
+            )
+        )
+
+        XCTAssertEqual(
+            CalendarMonitor.upcomingManagedFootballMatches(
+                from: [unknown, known],
+                now: now
+            ).map(\.id),
+            ["known"]
         )
     }
 
@@ -1088,6 +1269,8 @@ final class FootballFixtureFormatterTests: XCTestCase {
         competitionSlug: String = "uefa.champions",
         seasonSlug: String? = nil,
         competitionNote: String? = nil,
+        homeTeam: FootballTeamSummary? = nil,
+        awayTeam: FootballTeamSummary? = nil,
         homeScore: String = "0",
         awayScore: String = "0"
     ) -> FootballFixtureMatch {
@@ -1106,7 +1289,7 @@ final class FootballFixtureFormatterTests: XCTestCase {
             statusText: statusText ?? (statusState == .inProgress ? "55'" : "7:00 PM"),
             statusDetailText: statusDetailText,
             statusReliability: statusReliability,
-            homeTeam: FootballTeamSummary(
+            homeTeam: homeTeam ?? FootballTeamSummary(
                 id: "83",
                 name: "Barcelona",
                 abbreviation: "BAR",
@@ -1114,7 +1297,7 @@ final class FootballFixtureFormatterTests: XCTestCase {
                 countryName: "Spain",
                 isNational: false
             ),
-            awayTeam: FootballTeamSummary(
+            awayTeam: awayTeam ?? FootballTeamSummary(
                 id: "132",
                 name: "Bayern Munich",
                 abbreviation: "BAY",

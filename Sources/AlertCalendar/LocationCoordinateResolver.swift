@@ -13,6 +13,38 @@ struct ResolvedLocationCoordinate: Equatable, Sendable {
 
 actor LocationCoordinateResolver {
     static let shared = LocationCoordinateResolver()
+    private static let venueQualifierPrefixes = [
+        "Estadio",
+        "Stade",
+        "Stadio",
+    ]
+    private static let venueQualifierSuffixes = [
+        "Stadium",
+        "Arena",
+        "Ground",
+    ]
+    private static let venueDescriptorTokens = [
+        "arena",
+        "autodromo",
+        "ballpark",
+        "centre",
+        "center",
+        "circuit",
+        "coliseo",
+        "coliseum",
+        "court",
+        "dome",
+        "estadio",
+        "field",
+        "ground",
+        "park",
+        "stadion",
+        "stadium",
+        "stade",
+        "stadio",
+        "track",
+        "velodrome",
+    ]
 
     private enum CacheEntry: Sendable {
         case found(ResolvedLocationCoordinate)
@@ -143,14 +175,30 @@ actor LocationCoordinateResolver {
             queries.append(trimmed)
         }
 
-        appendIfNeeded(cleaned)
-
         let commaSeparatedParts = cleaned
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
 
         let trailingContext = commaSeparatedParts.dropFirst().joined(separator: ", ")
+
+        if let first = commaSeparatedParts.first {
+            let strippedFirst = strippingParentheticalAliases(from: first)
+            let aliases = parentheticalAliases(in: first)
+            let venueCandidates = [strippedFirst, first] + aliases
+
+            for venueCandidate in venueCandidates {
+                for variant in venueQualifiedQueries(
+                    for: venueCandidate,
+                    trailingContext: trailingContext
+                ) {
+                    appendIfNeeded(variant)
+                }
+            }
+        }
+
+        appendIfNeeded(cleaned)
+
         if commaSeparatedParts.count >= 2 {
             appendIfNeeded(commaSeparatedParts.suffix(3).joined(separator: ", "))
         }
@@ -158,7 +206,6 @@ actor LocationCoordinateResolver {
         if let first = commaSeparatedParts.first {
             let strippedFirst = strippingParentheticalAliases(from: first)
             let aliases = parentheticalAliases(in: first)
-
             for alias in aliases {
                 if !trailingContext.isEmpty {
                     appendIfNeeded("\(alias), \(trailingContext)")
@@ -175,6 +222,36 @@ actor LocationCoordinateResolver {
         }
 
         return queries
+    }
+
+    private static func venueQualifiedQueries(for venueName: String, trailingContext: String) -> [String] {
+        let trimmedVenueName = venueName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedVenueName.isEmpty else { return [] }
+        guard !looksLikeQualifiedVenueName(trimmedVenueName) else { return [] }
+
+        let contextSuffix = trailingContext.isEmpty ? "" : ", \(trailingContext)"
+        var variants: [String] = []
+
+        for suffix in venueQualifierSuffixes {
+            variants.append("\(trimmedVenueName) \(suffix)\(contextSuffix)")
+        }
+
+        for prefix in venueQualifierPrefixes {
+            variants.append("\(prefix) \(trimmedVenueName)\(contextSuffix)")
+        }
+
+        return variants
+    }
+
+    private static func looksLikeQualifiedVenueName(_ venueName: String) -> Bool {
+        let normalized = venueName
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+            .lowercased()
+        let tokens = normalized
+            .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+            .map(String.init)
+
+        return tokens.contains { venueDescriptorTokens.contains($0) }
     }
 
     private static func parentheticalAliases(in text: String) -> [String] {

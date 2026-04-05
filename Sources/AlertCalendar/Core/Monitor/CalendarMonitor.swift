@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import CoreLocation
+import CoreWLAN
 import EventKit
 import Foundation
 
@@ -23,6 +24,8 @@ final class CalendarMonitor: ObservableObject {
     @Published var combinedMenuBarFootballStatusColor: NSColor = .systemGreen
     @Published var combinedMenuBarFootballGoalHighlightSide: FootballScoreSide?
     @Published var combinedMenuBarFootballGoalHighlightTextOpacity: CGFloat = 0
+    @Published var hasEventsAccess = false
+    @Published var hasRemindersAccess = false
     @Published var availableEventCalendars: [AvailableCalendar] = []
     @Published var availableReminderCalendars: [AvailableCalendar] = []
     @Published var eventsMenuBarLabel = "No events"
@@ -35,7 +38,7 @@ final class CalendarMonitor: ObservableObject {
     @Published var astronomyLocationStatus = "Manual coordinates"
     @Published var lastRefreshDate: Date?
     @Published var footballMenuSections: [FootballMenuCompetitionSection] = []
-    @Published var footballLiveAndNextDaySection = FootballMatchesOverviewSection.placeholder(title: "Live & Next 48 Hours")
+    @Published var footballLiveAndNextDaySection = FootballMatchesOverviewSection.placeholder(title: "Now & Next 24 Hours")
     @Published var managedFootballMatchIDs: Set<String> = []
     @Published var managedFootballMatches: [FootballFixtureMatch] = []
 
@@ -47,14 +50,13 @@ final class CalendarMonitor: ObservableObject {
     var heartbeatCancellable: AnyCancellable?
     var defaultsObserver: AnyCancellable?
     var eventStoreObserver: AnyCancellable?
+    var appActivationObserver: AnyCancellable?
     var refreshQueueTask: Task<Void, Never>?
     var isRefreshRunning = false
     var hasPendingRefresh = false
     var tickCount = 0
     var lastPeriodicRefreshDate: Date?
     var blinkPhase = false
-    var hasEventsAccess = false
-    var hasRemindersAccess = false
     var birthdayCalendarIDs: Set<String> = []
     var allDayEventItems: [UpcomingItem] = []
     var alreadyNotified: Set<String> = []
@@ -64,6 +66,12 @@ final class CalendarMonitor: ObservableObject {
     var oneShotLocationDelegate: OneShotLocationDelegate?
     var locationPermissionManager: CLLocationManager?
     var locationPermissionDelegate: LocationPermissionDelegate?
+    var automaticAstronomyLocationRefreshTask: Task<Void, Never>?
+    var isAutomaticAstronomyLocationRefreshRunning = false
+    var lastAutomaticAstronomyLocationRefreshAttemptDate: Date?
+    var wiFiClient: CWWiFiClient?
+    var wiFiEventDelegate: WiFiNetworkChangeDelegate?
+    var lastObservedWiFiNetworkIdentity: WiFiNetworkIdentity?
     var footballMatchesByID: [String: FootballFixtureMatch] = [:]
     var managedFootballEventRecords: [ManagedFootballEventRecord] = []
     var footballLocalLogoPathsByCompetitionSlug: [String: String] = [:]
@@ -169,6 +177,7 @@ final class CalendarMonitor: ObservableObject {
         var slot: Int?
         var selectedKey: String?
         var selectedIndex: Int?
+        var startedAt: Date?
     }
 
     static let dayFormatter: DateFormatter = {

@@ -20,18 +20,26 @@ enum FootballFixtureFormatter {
     ]
 
     private static let regionCodeAliases: [String: String] = [
+        "bonaire": "BQ",
+        "bosnia and herzegovina": "BA",
+        "china": "CN",
+        "ivory coast": "CI",
         "ir iran": "IR",
+        "kyrgyz republic": "KG",
         "korea republic": "KR",
         "republic of korea": "KR",
         "korea dpr": "KP",
         "dpr korea": "KP",
+        "macau": "MO",
         "dr congo": "CD",
         "congo dr": "CD",
         "congo kinshasa": "CD",
         "china pr": "CN",
         "pr china": "CN",
         "palestine": "PS",
+        "trinidad and tobago": "TT",
         "uae": "AE",
+        "us virgin islands": "VI",
         "hong kong china": "HK",
         "cape verde islands": "CV",
         "cabo verde": "CV",
@@ -189,6 +197,10 @@ enum FootballFixtureFormatter {
         return containsFlagEmoji(in: trimmed)
     }
 
+    static func hasUnknownParticipants(in match: FootballFixtureMatch) -> Bool {
+        isUnknownTeam(match.homeTeam) || isUnknownTeam(match.awayTeam)
+    }
+
     static func calendarIdentityKey(for match: FootballFixtureMatch) -> String {
         [
             teamDisplayIdentifier(for: match.homeTeam),
@@ -257,6 +269,7 @@ enum FootballFixtureFormatter {
     static func isUnknownTeam(_ team: FootballTeamSummary) -> Bool {
         let abbreviation = team.abbreviation.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         let normalizedName = normalizedCountryKey(team.name)
+        let compactName = compactIdentifier(team.name)
 
         if abbreviation == "TBD" || abbreviation == "TBC" {
             return true
@@ -268,6 +281,10 @@ enum FootballFixtureFormatter {
             || normalizedName.contains("to be determined")
             || normalizedName.contains("quarterfinal")
             || normalizedName.contains("semifinal") {
+            return true
+        }
+
+        if isPlaceholderSlotIdentifier(abbreviation) || isPlaceholderSlotIdentifier(compactName) {
             return true
         }
 
@@ -323,6 +340,14 @@ enum FootballFixtureFormatter {
             .filter { CharacterSet.alphanumerics.contains($0) }
             .map(String.init)
             .joined()
+    }
+
+    private static func isPlaceholderSlotIdentifier(_ raw: String) -> Bool {
+        let compact = compactIdentifier(raw)
+        guard !compact.isEmpty else { return false }
+
+        return compact.range(of: #"^G[A-Z]\d+$"#, options: .regularExpression) != nil
+            || compact.range(of: #"^RD\d+$"#, options: .regularExpression) != nil
     }
 
     private static func normalizedCountryKey(_ raw: String) -> String {

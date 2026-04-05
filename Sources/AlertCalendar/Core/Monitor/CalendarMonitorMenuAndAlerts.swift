@@ -308,53 +308,31 @@ extension CalendarMonitor {
             return []
         }
 
-        let pool = preferredMenuBarRotationPool(from: queue, now: now, settings: settings)
-        guard !pool.isEmpty else {
-            menuBarRotationState = MenuBarRotationState()
-            return []
-        }
-
-        let rotationSeconds = max(5, settings.concurrentEventRotationSeconds)
-        let slot = rotationSlot(now: now, seconds: rotationSeconds)
         let previousState = menuBarRotationState
         let allCandidates = allMenuBarCandidateItems()
         let fallbackHeldItem = previousState.selectedKey.flatMap { selectedKey in
             allCandidates.first(where: { $0.notificationKey == selectedKey })
         }
-        let heldSelectionKey = Self.preservedMenuBarSelectionKeyIfNeeded(
-            slot: slot,
-            previousState: previousState,
-            queueKeys: queue.map(\.notificationKey),
-            preferredPoolKeys: pool.map(\.notificationKey),
-            allowMissingSelectedKeyHold: fallbackHeldItem.map {
-                Self.shouldHoldElapsedPointInTimeMenuBarItem($0, now: now)
-            } ?? false
-        )
+        let allowMissingSelectedKeyHold = fallbackHeldItem.map {
+            Self.shouldHoldElapsedPointInTimeMenuBarItem($0, now: now)
+        } ?? false
 
-        if let heldSelectionKey,
-           let heldItem = queue.first(where: { $0.notificationKey == heldSelectionKey }) ?? fallbackHeldItem {
-            menuBarRotationState = MenuBarRotationState(
-                slot: slot,
-                selectedKey: heldSelectionKey,
-                selectedIndex: previousState.selectedIndex
-            )
-            return [heldItem]
-        }
-
-        let rotationKeys = pool.map(\.notificationKey)
         menuBarRotationState = Self.resolvedMenuBarRotationState(
-            for: rotationKeys,
-            slot: slot,
-            previousState: previousState
+            for: queue.map(\.notificationKey),
+            now: now,
+            rotationInterval: TimeInterval(max(5, settings.concurrentEventRotationSeconds)),
+            previousState: previousState,
+            allowMissingSelectedKeyHold: allowMissingSelectedKeyHold
         )
 
         if let selectedKey = menuBarRotationState.selectedKey,
-           let selectedItem = pool.first(where: { $0.notificationKey == selectedKey }) {
+           let selectedItem = queue.first(where: { $0.notificationKey == selectedKey })
+            ?? fallbackHeldItem.flatMap({ $0.notificationKey == selectedKey ? $0 : nil }) {
             return [selectedItem]
         }
 
-        let fallbackIndex = min(max(menuBarRotationState.selectedIndex ?? 0, 0), pool.count - 1)
-        return [pool[fallbackIndex]]
+        let fallbackIndex = min(max(menuBarRotationState.selectedIndex ?? 0, 0), queue.count - 1)
+        return [queue[fallbackIndex]]
     }
 
     nonisolated static func updatedFootballGoalHighlight(
@@ -528,6 +506,76 @@ extension CalendarMonitor {
 
         let selectedKey = poolKeys[defaultIndex]
         return MenuBarRotationState(slot: slot, selectedKey: selectedKey, selectedIndex: defaultIndex)
+    }
+
+    nonisolated static func resolvedMenuBarRotationState(
+        for queueKeys: [String],
+        now: Date,
+        rotationInterval: TimeInterval,
+        previousState: MenuBarRotationState,
+        allowMissingSelectedKeyHold: Bool
+    ) -> MenuBarRotationState {
+        guard !queueKeys.isEmpty || (allowMissingSelectedKeyHold && previousState.selectedKey != nil) else {
+            return MenuBarRotationState()
+        }
+
+        let normalizedInterval = max(1, rotationInterval)
+        let shouldKeepCurrentSelection = previousState.selectedKey != nil
+            && previousState.startedAt.map { now.timeIntervalSince($0) < normalizedInterval } == true
+
+        if shouldKeepCurrentSelection {
+            if let selectedKey = previousState.selectedKey,
+               let currentIndex = queueKeys.firstIndex(of: selectedKey) {
+                return MenuBarRotationState(
+                    slot: previousState.slot ?? 0,
+                    selectedKey: selectedKey,
+                    selectedIndex: currentIndex,
+                    startedAt: previousState.startedAt
+                )
+            }
+
+            if allowMissingSelectedKeyHold,
+               let selectedKey = previousState.selectedKey {
+                return MenuBarRotationState(
+                    slot: previousState.slot ?? 0,
+                    selectedKey: selectedKey,
+                    selectedIndex: previousState.selectedIndex,
+                    startedAt: previousState.startedAt
+                )
+            }
+
+            if !queueKeys.isEmpty {
+                let preservedIndex = min(max(previousState.selectedIndex ?? 0, 0), queueKeys.count - 1)
+                return MenuBarRotationState(
+                    slot: previousState.slot ?? 0,
+                    selectedKey: queueKeys[preservedIndex],
+                    selectedIndex: preservedIndex,
+                    startedAt: previousState.startedAt
+                )
+            }
+        }
+
+        guard !queueKeys.isEmpty else {
+            return MenuBarRotationState()
+        }
+
+        let nextIndex: Int
+        if let selectedKey = previousState.selectedKey,
+           let currentIndex = queueKeys.firstIndex(of: selectedKey) {
+            nextIndex = queueKeys.count == 1 ? 0 : (currentIndex + 1) % queueKeys.count
+        } else if let previousIndex = previousState.selectedIndex {
+            let normalizedPreviousIndex = min(max(previousIndex, -1), queueKeys.count - 1)
+            nextIndex = queueKeys.count == 1 ? 0 : (normalizedPreviousIndex + 1 + queueKeys.count) % queueKeys.count
+        } else {
+            nextIndex = 0
+        }
+
+        return MenuBarRotationState(
+            slot: (previousState.slot ?? -1) + 1,
+            selectedKey: queueKeys[nextIndex],
+            selectedIndex: nextIndex,
+            startedAt: now
+        )
     }
 
     nonisolated static func preservedMenuBarSelectionKeyIfNeeded(

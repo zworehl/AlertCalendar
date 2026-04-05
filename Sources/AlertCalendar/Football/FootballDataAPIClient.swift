@@ -5,6 +5,7 @@ actor FootballDataAPIClient {
         let countryName: String?
         let isNational: Bool
         let logoURL: URL?
+        let venueLocationText: String?
     }
 
     private struct SummarySnapshot {
@@ -64,6 +65,51 @@ actor FootballDataAPIClient {
         "ukr": "Ukraine",
         "usa": "United States",
         "wal": "Wales",
+    ]
+    private static let britishFootballCountries: Set<String> = [
+        "england",
+        "scotland",
+        "wales",
+        "northern ireland",
+        "united kingdom",
+        "great britain",
+    ]
+    private static let countryIdentityAliases: [String: String] = [
+        "usa": "united states",
+        "us": "united states",
+        "u s a": "united states",
+        "turkiye": "turkey",
+        "great britain": "united kingdom",
+    ]
+    private static let recognizedCountryLookupKeys: Set<String> = {
+        let locale = Locale(identifier: "en_US_POSIX")
+        var values = Set<String>()
+        for regionCode in Locale.Region.isoRegions.map(\.identifier) {
+            guard let name = locale.localizedString(forRegionCode: regionCode) else { continue }
+            values.insert(normalizedLookupKey(name))
+        }
+        return values
+    }()
+    private static let genericClubIdentityTokens: Set<String> = [
+        "ac",
+        "afc",
+        "as",
+        "athletic",
+        "atletico",
+        "cf",
+        "city",
+        "club",
+        "de",
+        "del",
+        "fc",
+        "if",
+        "inter",
+        "real",
+        "sc",
+        "sporting",
+        "sv",
+        "the",
+        "united",
     ]
 
     init(session: URLSession? = nil) {
@@ -345,6 +391,10 @@ actor FootballDataAPIClient {
         return matches.map { match in
             let resolvedHome = teamCache[match.homeTeam.id]
             let resolvedAway = teamCache[match.awayTeam.id]
+            let resolvedLocationText = Self.bestAvailableLocationText(
+                reportedLocationText: match.locationText,
+                fallbackLocationText: resolvedHome?.venueLocationText
+            )
 
             return FootballFixtureMatch(
                 id: match.id,
@@ -354,7 +404,7 @@ actor FootballDataAPIClient {
                 seasonSlug: match.seasonSlug,
                 competitionNote: match.competitionNote,
                 competitionLogoURL: match.competitionLogoURL,
-                locationText: match.locationText,
+                locationText: resolvedLocationText,
                 startDate: match.startDate,
                 actualStartDate: match.actualStartDate,
                 statusState: match.statusState,
@@ -538,6 +588,7 @@ actor FootballDataAPIClient {
             let root = try jsonDictionary(from: data)
             let isNational = (root["isNational"] as? Bool) == true
             let countryName = resolvedTeamCountryName(from: root)
+            let venueLocationText = resolvedTeamVenueLocationText(from: root)
 
             let logos = root["logos"] as? [[String: Any]] ?? []
             let preferredLogo = logos.first(where: { (($0["rel"] as? [String]) ?? []).contains("default") }) ?? logos.first
@@ -545,7 +596,8 @@ actor FootballDataAPIClient {
             return TeamResponse(
                 countryName: countryName,
                 isNational: isNational,
-                logoURL: safeURL(from: stringValue(preferredLogo?["href"]))
+                logoURL: safeURL(from: stringValue(preferredLogo?["href"])),
+                venueLocationText: venueLocationText
             )
         } catch {
             return nil
@@ -554,22 +606,77 @@ actor FootballDataAPIClient {
 
     static func resolvedTeamCountryName(from root: [String: Any]) -> String? {
         let venue = root["venue"] as? [String: Any]
-        let venueCountry = stringValue(((venue?["address"] as? [String: Any])?["country"]))
+        let venueAddress = venue?["address"] as? [String: Any]
+        let venueCountry = stringValue(venueAddress?["country"])
+        let venueCity = stringValue(venueAddress?["city"])
         let displayName = stringValue(root["displayName"])
         let location = stringValue(root["location"])
+        let teamAbbreviation = stringValue(root["abbreviation"])
         let sanitizedClubLocation = sanitizedCountryCandidate(
             location,
             teamName: displayName,
-            teamAbbreviation: stringValue(root["abbreviation"])
+            teamAbbreviation: teamAbbreviation
         )
         let inferredLeagueCountry = teamCountryNameFromVenueReference(stringValue(venue?["$ref"]))
-        let isNational = (root["isNational"] as? Bool) == true
+        let inferredNationalCountry = inferredNationalCountryName(
+            displayName: displayName,
+            location: location
+        )
+        let isNational = (root["isNational"] as? Bool) == true || inferredNationalCountry != nil
 
         if isNational {
-            return location ?? displayName ?? venueCountry ?? inferredLeagueCountry
+            return inferredNationalCountry ?? location ?? displayName ?? venueCountry ?? inferredLeagueCountry
         }
 
-        return venueCountry ?? inferredLeagueCountry ?? sanitizedClubLocation
+        return resolvedClubCountryName(
+            venueCountry: venueCountry,
+            inferredLeagueCountry: inferredLeagueCountry,
+            sanitizedClubLocation: sanitizedClubLocation,
+            teamName: displayName,
+            teamLocation: location,
+            teamAbbreviation: teamAbbreviation,
+            venueCity: venueCity
+        )
+    }
+
+    static func resolvedTeamVenueLocationText(from root: [String: Any]) -> String? {
+        let venue = root["venue"] as? [String: Any]
+        let venueLocationText = venueLocationText(fromVenue: venue)
+        guard let venueLocationText else { return nil }
+
+        let displayName = stringValue(root["displayName"])
+        let location = stringValue(root["location"])
+        let inferredNationalCountry = inferredNationalCountryName(
+            displayName: displayName,
+            location: location
+        )
+        let isNational = (root["isNational"] as? Bool) == true || inferredNationalCountry != nil
+        guard !isNational else { return venueLocationText }
+
+        let venueAddress = venue?["address"] as? [String: Any]
+        let venueCountry = stringValue(venueAddress?["country"])
+        let venueCity = stringValue(venueAddress?["city"])
+        let teamAbbreviation = stringValue(root["abbreviation"])
+        let sanitizedClubLocation = sanitizedCountryCandidate(
+            location,
+            teamName: displayName,
+            teamAbbreviation: teamAbbreviation
+        )
+        let inferredLeagueCountry = teamCountryNameFromVenueReference(stringValue(venue?["$ref"]))
+
+        guard shouldTrustClubVenueCountry(
+            venueCountry: venueCountry,
+            inferredLeagueCountry: inferredLeagueCountry,
+            sanitizedClubLocation: sanitizedClubLocation,
+            teamName: displayName,
+            teamLocation: location,
+            teamAbbreviation: teamAbbreviation,
+            venueCity: venueCity
+        ) else {
+            return nil
+        }
+
+        return venueLocationText
     }
 
     static func teamCountryNameFromVenueReference(_ raw: String?) -> String? {
@@ -1370,6 +1477,7 @@ actor FootballDataAPIClient {
         let candidates = [
             rawVenueName,
             stringValue(address?["city"]),
+            stringValue(address?["state"]),
             stringValue(address?["country"]),
         ]
 
@@ -1422,6 +1530,105 @@ actor FootballDataAPIClient {
 
         let aliasBonus = (locationText.contains("(") && locationText.contains(")")) ? 5 : 0
         return (commaSeparatedParts.count * 10) + wordCount + aliasBonus
+    }
+
+    private static func resolvedClubCountryName(
+        venueCountry: String?,
+        inferredLeagueCountry: String?,
+        sanitizedClubLocation: String?,
+        teamName: String?,
+        teamLocation: String?,
+        teamAbbreviation: String?,
+        venueCity: String?
+    ) -> String? {
+        if let venueCountry,
+           shouldTrustClubVenueCountry(
+               venueCountry: venueCountry,
+               inferredLeagueCountry: inferredLeagueCountry,
+               sanitizedClubLocation: sanitizedClubLocation,
+               teamName: teamName,
+               teamLocation: teamLocation,
+               teamAbbreviation: teamAbbreviation,
+               venueCity: venueCity
+           ) {
+            return venueCountry
+        }
+
+        return inferredLeagueCountry ?? sanitizedClubLocation ?? venueCountry
+    }
+
+    private static func shouldTrustClubVenueCountry(
+        venueCountry: String?,
+        inferredLeagueCountry: String?,
+        sanitizedClubLocation: String?,
+        teamName: String?,
+        teamLocation: String?,
+        teamAbbreviation: String?,
+        venueCity: String?
+    ) -> Bool {
+        guard let venueCountry = stringValue(venueCountry) else { return false }
+        guard let inferredLeagueCountry = stringValue(inferredLeagueCountry) else { return true }
+
+        if countryNamesMatch(venueCountry, inferredLeagueCountry) {
+            return true
+        }
+
+        if let sanitizedClubLocation,
+           countryNamesMatch(venueCountry, sanitizedClubLocation) {
+            return true
+        }
+
+        if clubVenueMatchesIdentity(
+            teamName: teamName,
+            teamLocation: teamLocation,
+            teamAbbreviation: teamAbbreviation,
+            venueCity: venueCity,
+            venueCountry: venueCountry
+        ) {
+            return true
+        }
+
+        return areRelatedBritishFootballCountries(venueCountry, inferredLeagueCountry)
+    }
+
+    private static func countryNamesMatch(_ lhs: String?, _ rhs: String?) -> Bool {
+        let normalizedLeft = normalizedCountryIdentityKey(lhs)
+        let normalizedRight = normalizedCountryIdentityKey(rhs)
+
+        guard !normalizedLeft.isEmpty, !normalizedRight.isEmpty else { return false }
+        return normalizedLeft == normalizedRight
+    }
+
+    private static func areRelatedBritishFootballCountries(_ lhs: String?, _ rhs: String?) -> Bool {
+        let normalizedLeft = normalizedCountryIdentityKey(lhs)
+        let normalizedRight = normalizedCountryIdentityKey(rhs)
+
+        guard !normalizedLeft.isEmpty, !normalizedRight.isEmpty else { return false }
+        guard britishFootballCountries.contains(normalizedLeft),
+              britishFootballCountries.contains(normalizedRight) else {
+            return false
+        }
+
+        return true
+    }
+
+    private static func clubVenueMatchesIdentity(
+        teamName: String?,
+        teamLocation: String?,
+        teamAbbreviation: String?,
+        venueCity: String?,
+        venueCountry: String?
+    ) -> Bool {
+        let identityTokens = clubIdentityTokens(
+            teamName: teamName,
+            teamLocation: teamLocation,
+            teamAbbreviation: teamAbbreviation
+        )
+        guard !identityTokens.isEmpty else { return false }
+
+        let localityTokens = locationIdentityTokens(venueCity).union(locationIdentityTokens(venueCountry))
+        guard !localityTokens.isEmpty else { return false }
+        return !identityTokens.isDisjoint(with: localityTokens)
     }
 
     private static func isPlaceholderLocationText(_ rawValue: String) -> Bool {
@@ -1526,6 +1733,30 @@ actor FootballDataAPIClient {
         return candidate
     }
 
+    private static func inferredNationalCountryName(
+        displayName: String?,
+        location: String?
+    ) -> String? {
+        let displayKey = normalizedCountryIdentityKey(displayName)
+        let locationKey = normalizedCountryIdentityKey(location)
+
+        if !locationKey.isEmpty,
+           locationKey == displayKey,
+           recognizedCountryLookupKeys.contains(locationKey) {
+            return stringValue(location) ?? stringValue(displayName)
+        }
+
+        if !locationKey.isEmpty, recognizedCountryLookupKeys.contains(locationKey) {
+            return stringValue(location)
+        }
+
+        if !displayKey.isEmpty, recognizedCountryLookupKeys.contains(displayKey) {
+            return stringValue(displayName)
+        }
+
+        return nil
+    }
+
     private static func normalizedLookupKey(_ raw: String?) -> String {
         guard let raw = stringValue(raw) else { return "" }
         return raw
@@ -1534,6 +1765,35 @@ actor FootballDataAPIClient {
             .map(String.init)
             .joined(separator: " ")
             .lowercased()
+    }
+
+    private static func normalizedCountryIdentityKey(_ raw: String?) -> String {
+        let normalized = normalizedLookupKey(raw)
+        guard !normalized.isEmpty else { return "" }
+        return countryIdentityAliases[normalized] ?? normalized
+    }
+
+    private static func clubIdentityTokens(
+        teamName: String?,
+        teamLocation: String?,
+        teamAbbreviation: String?
+    ) -> Set<String> {
+        locationIdentityTokens(teamName)
+            .union(locationIdentityTokens(teamLocation))
+            .subtracting(locationIdentityTokens(teamAbbreviation))
+    }
+
+    private static func locationIdentityTokens(_ raw: String?) -> Set<String> {
+        let normalized = normalizedLookupKey(raw)
+        guard !normalized.isEmpty else { return [] }
+        return Set(
+            normalized
+                .split(separator: " ")
+                .map(String.init)
+                .filter { token in
+                    token.count > 1 && !genericClubIdentityTokens.contains(token)
+                }
+        )
     }
 
     private static func jsonDictionary(from data: Data) throws -> [String: Any] {

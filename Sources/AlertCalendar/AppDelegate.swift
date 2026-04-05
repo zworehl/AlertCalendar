@@ -8,7 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindowController: NSWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        ensureRegularActivationPolicy()
+        ensureAccessoryActivationPolicy()
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleWindowDidBecomeKey(_:)),
@@ -56,7 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func prepareForSettingsPresentation() {
-        ensureRegularActivationPolicy()
+        ensureAccessoryActivationPolicy()
         NSRunningApplication.current.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
     }
 
@@ -97,8 +97,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         presentSettingsWindow(window)
     }
 
-    private func ensureRegularActivationPolicy() {
-        _ = NSApplication.shared.setActivationPolicy(.regular)
+    private func ensureAccessoryActivationPolicy() {
+        _ = NSApplication.shared.setActivationPolicy(.accessory)
     }
 
     private func makeSettingsWindow(rootView: AnyView) -> NSWindow {

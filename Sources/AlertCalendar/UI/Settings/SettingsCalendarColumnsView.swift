@@ -15,11 +15,10 @@ struct SettingsCalendarColumnsView: View {
     private let rowHoverBackground = Color.primary.opacity(0.08)
     private let headingColor = Color.secondary
     private let disabledColor = Color.secondary.opacity(0.8)
-    @State private var hoveredCalendarID: String?
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: true) {
-            VStack(alignment: .leading, spacing: 18) {
+            LazyVStack(alignment: .leading, spacing: 18) {
                 if includeEvents || includeAllDayEvents {
                     sourceSection(
                         title: "Event Calendars",
@@ -106,7 +105,7 @@ struct SettingsCalendarColumnsView: View {
             let grouped = Dictionary(grouping: calendars, by: \.accountTitle)
             let sortedAccounts = grouped.keys.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
 
-            VStack(alignment: .leading, spacing: 20) {
+            LazyVStack(alignment: .leading, spacing: 20) {
                 ForEach(sortedAccounts, id: \.self) { account in
                     VStack(alignment: .leading, spacing: 8) {
                         Text(account)
@@ -117,10 +116,12 @@ struct SettingsCalendarColumnsView: View {
                             .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
 
                         ForEach(items) { calendar in
-                            calendarRow(
+                            SettingsCalendarRowView(
                                 calendar: calendar,
                                 selectedIDs: selectedIDs,
-                                weekdayOnlyIDs: weekdayOnlyIDs
+                                weekdayOnlyIDs: weekdayOnlyIDs,
+                                onSelectionChanged: onSelectionChanged,
+                                rowHoverBackground: rowHoverBackground
                             )
                         }
                     }
@@ -128,24 +129,23 @@ struct SettingsCalendarColumnsView: View {
             }
         }
     }
+}
 
-    private func calendarRow(
-        calendar: AvailableCalendar,
-        selectedIDs: Binding<Set<String>>,
-        weekdayOnlyIDs: Binding<Set<String>>
-    ) -> some View {
+private struct SettingsCalendarRowView: View {
+    let calendar: AvailableCalendar
+    let selectedIDs: Binding<Set<String>>
+    let weekdayOnlyIDs: Binding<Set<String>>
+    let onSelectionChanged: () -> Void
+    let rowHoverBackground: Color
+    @State private var isHovered = false
+
+    var body: some View {
         let isSelected = selectedIDs.wrappedValue.contains(calendar.id)
         let isWeekdayOnly = weekdayOnlyIDs.wrappedValue.contains(calendar.id)
-        let isHovered = hoveredCalendarID == calendar.id
 
-        return HStack(spacing: 10) {
+        HStack(spacing: 10) {
             Button {
-                setCalendarSelection(
-                    calendarID: calendar.id,
-                    selectedIDs: selectedIDs,
-                    weekdayOnlyIDs: weekdayOnlyIDs,
-                    isSelected: !isSelected
-                )
+                setCalendarSelection(isSelected: !isSelected)
             } label: {
                 HStack(spacing: 11) {
                     checkSquare(color: Color(nsColor: calendar.color), isSelected: isSelected)
@@ -166,7 +166,7 @@ struct SettingsCalendarColumnsView: View {
 
             if isSelected {
                 Button {
-                    setWeekdayOnly(calendarID: calendar.id, weekdayOnlyIDs: weekdayOnlyIDs, isWeekdayOnly: !isWeekdayOnly)
+                    setWeekdayOnly(isWeekdayOnly: !isWeekdayOnly)
                 } label: {
                     Text(isWeekdayOnly ? "Weekdays" : "Every day")
                         .font(.caption.weight(.semibold))
@@ -194,7 +194,7 @@ struct SettingsCalendarColumnsView: View {
         )
         .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .onHover { hovering in
-            hoveredCalendarID = hovering ? calendar.id : nil
+            isHovered = hovering
         }
     }
 
@@ -211,30 +211,21 @@ struct SettingsCalendarColumnsView: View {
             }
     }
 
-    private func setCalendarSelection(
-        calendarID: String,
-        selectedIDs: Binding<Set<String>>,
-        weekdayOnlyIDs: Binding<Set<String>>,
-        isSelected: Bool
-    ) {
+    private func setCalendarSelection(isSelected: Bool) {
         if isSelected {
-            selectedIDs.wrappedValue.insert(calendarID)
+            selectedIDs.wrappedValue.insert(calendar.id)
         } else {
-            selectedIDs.wrappedValue.remove(calendarID)
-            weekdayOnlyIDs.wrappedValue.remove(calendarID)
+            selectedIDs.wrappedValue.remove(calendar.id)
+            weekdayOnlyIDs.wrappedValue.remove(calendar.id)
         }
         onSelectionChanged()
     }
 
-    private func setWeekdayOnly(
-        calendarID: String,
-        weekdayOnlyIDs: Binding<Set<String>>,
-        isWeekdayOnly: Bool
-    ) {
+    private func setWeekdayOnly(isWeekdayOnly: Bool) {
         if isWeekdayOnly {
-            weekdayOnlyIDs.wrappedValue.insert(calendarID)
+            weekdayOnlyIDs.wrappedValue.insert(calendar.id)
         } else {
-            weekdayOnlyIDs.wrappedValue.remove(calendarID)
+            weekdayOnlyIDs.wrappedValue.remove(calendar.id)
         }
         onSelectionChanged()
     }

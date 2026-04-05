@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 struct SettingsView: View {
@@ -40,7 +41,7 @@ struct SettingsView: View {
         }
     }
 
-    @ObservedObject var monitor: CalendarMonitor
+    let monitor: CalendarMonitor
 
     @AppStorage(DefaultsKeys.includeEvents) private var includeEvents = true
     @AppStorage(DefaultsKeys.includeAllDayEvents) private var includeAllDayEvents = true
@@ -67,7 +68,12 @@ struct SettingsView: View {
     @State private var selectedTab: SettingsTab = .general
     @State private var selectedFeedsSubsection: FeedsSubsection = .atmosphere
     @State private var isRequestingPermissions = false
-    @State private var settingsViewportHeight: CGFloat = 0
+    @State private var hasEventsAccess = false
+    @State private var availableEventCalendars: [AvailableCalendar] = []
+    @State private var availableReminderCalendars: [AvailableCalendar] = []
+    @State private var calendarAccessDescription = "Requesting access..."
+    @State private var astronomyLocationStatus = "Manual coordinates"
+    @State private var lastRefreshDate: Date?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -83,22 +89,12 @@ struct SettingsView: View {
             .padding(.bottom, 2)
 
             ScrollView(.vertical, showsIndicators: true) {
-                VStack(alignment: .leading, spacing: 16) {
+                LazyVStack(alignment: .leading, spacing: 16) {
                     activeSettingsContent
                 }
-                .frame(
-                    maxWidth: .infinity,
-                    minHeight: settingsViewportHeight > 0 ? settingsViewportHeight : nil,
-                    alignment: .topLeading
-                )
+                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(
-                GeometryReader { proxy in
-                    Color.clear
-                        .preference(key: SettingsViewportHeightPreferenceKey.self, value: proxy.size.height)
-                }
-            )
 
             if selectedTab == .permissions {
                 HStack {
@@ -156,12 +152,27 @@ struct SettingsView: View {
         .onAppear {
             activateSettingsWindowIfNeeded()
             monitor.refreshAvailableCalendars()
+            synchronizeSettingsStateFromMonitor()
             synchronizeDraftWithStoredSettings(force: true)
             didLoad = true
         }
-        .onPreferenceChange(SettingsViewportHeightPreferenceKey.self) { viewportHeight in
-            guard abs(settingsViewportHeight - viewportHeight) > 0.5 else { return }
-            settingsViewportHeight = viewportHeight
+        .onReceive(monitor.$hasEventsAccess.removeDuplicates()) { value in
+            hasEventsAccess = value
+        }
+        .onReceive(monitor.$availableEventCalendars.removeDuplicates()) { calendars in
+            availableEventCalendars = calendars
+        }
+        .onReceive(monitor.$availableReminderCalendars.removeDuplicates()) { calendars in
+            availableReminderCalendars = calendars
+        }
+        .onReceive(monitor.$calendarAccessDescription.removeDuplicates()) { description in
+            calendarAccessDescription = description
+        }
+        .onReceive(monitor.$astronomyLocationStatus.removeDuplicates()) { status in
+            astronomyLocationStatus = status
+        }
+        .onReceive(monitor.$lastRefreshDate.removeDuplicates()) { date in
+            lastRefreshDate = date
         }
         .onChange(of: availableEventCalendarSignature) { _ in
             synchronizeDraftWithStoredSettings()
@@ -372,7 +383,7 @@ struct SettingsView: View {
             useAutomaticAstronomyLocation: $draft.useAutomaticAstronomyLocation,
             astronomyLatitude: $draft.astronomyLatitude,
             astronomyLongitude: $draft.astronomyLongitude,
-            astronomyLocationStatus: monitor.astronomyLocationStatus,
+            astronomyLocationStatus: astronomyLocationStatus,
             onDetectNow: detectLocation,
             solarTimesProvider: { day, coordinate, timeZone in
                 monitor.solarTimes(for: day, coordinate: coordinate, timeZone: timeZone)
@@ -384,7 +395,6 @@ struct SettingsView: View {
     private var footballFeedsSubsection: some View {
         SettingsFootballFixturesSectionView(monitor: monitor)
     }
-
     @ViewBuilder
     private var calendarSettingsContent: some View {
         GroupBox("Sources") {
@@ -411,8 +421,8 @@ struct SettingsView: View {
                 includeEvents: draft.includeEvents,
                 includeAllDayEvents: draft.includeAllDayEvents,
                 includeReminders: draft.includeReminders,
-                availableEventCalendars: monitor.availableEventCalendars,
-                availableReminderCalendars: monitor.availableReminderCalendars,
+                availableEventCalendars: availableEventCalendars,
+                availableReminderCalendars: availableReminderCalendars,
                 onSelectionChanged: persistCalendarSelectionDraft,
                 selectedEventCalendarIDs: $draft.selectedEventCalendarIDs,
                 selectedReminderCalendarIDs: $draft.selectedReminderCalendarIDs,
@@ -429,17 +439,17 @@ struct SettingsView: View {
         GroupBox("Access Status") {
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 18) {
-                    statusPill(title: "Calendar Access", value: monitor.calendarAccessDescription)
+                    statusPill(title: "Calendar Access", value: calendarAccessDescription)
                     statusPill(
                         title: "Last Refresh",
-                        value: monitor.lastRefreshDate.map { Self.settingsDateFormatter.string(from: $0) } ?? "Waiting for first sync..."
+                        value: lastRefreshDate.map { Self.settingsDateFormatter.string(from: $0) } ?? "Waiting for first sync..."
                     )
                 }
                 VStack(alignment: .leading, spacing: 8) {
-                    statusPill(title: "Calendar Access", value: monitor.calendarAccessDescription)
+                    statusPill(title: "Calendar Access", value: calendarAccessDescription)
                     statusPill(
                         title: "Last Refresh",
-                        value: monitor.lastRefreshDate.map { Self.settingsDateFormatter.string(from: $0) } ?? "Waiting for first sync..."
+                        value: lastRefreshDate.map { Self.settingsDateFormatter.string(from: $0) } ?? "Waiting for first sync..."
                     )
                 }
             }
@@ -518,11 +528,20 @@ struct SettingsView: View {
     }
 
     private var availableEventCalendarSignature: [String] {
-        monitor.availableEventCalendars.map(\.id)
+        availableEventCalendars.map(\.id)
     }
 
     private var availableReminderCalendarSignature: [String] {
-        monitor.availableReminderCalendars.map(\.id)
+        availableReminderCalendars.map(\.id)
+    }
+
+    private func synchronizeSettingsStateFromMonitor() {
+        hasEventsAccess = monitor.hasEventsAccess
+        availableEventCalendars = monitor.availableEventCalendars
+        availableReminderCalendars = monitor.availableReminderCalendars
+        calendarAccessDescription = monitor.calendarAccessDescription
+        astronomyLocationStatus = monitor.astronomyLocationStatus
+        lastRefreshDate = monitor.lastRefreshDate
     }
 
     private func applyDraft() {
@@ -596,6 +615,7 @@ struct SettingsView: View {
             await monitor.requestCalendarAccess()
             _ = await monitor.requestLocationAuthorizationIfNeeded()
             monitor.refreshAvailableCalendars()
+            synchronizeSettingsStateFromMonitor()
             monitor.refreshNow()
             isRequestingPermissions = false
         }

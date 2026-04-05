@@ -7,8 +7,8 @@ extension CalendarMonitor {
     private static let footballMenuRefreshInterval: TimeInterval = 60
     private static let footballManagedSyncInterval: TimeInterval = 60
     private static let footballManagedCleanupInterval: TimeInterval = 6 * 60 * 60
-    private static let footballTrackedLookbackDays = 30
-    private static let footballTrackedLookaheadDays = 30
+    private static let footballTrackedLookbackDays = FootballCompetitionPreset.suggestionWindowLookbackDays
+    private static let footballTrackedLookaheadDays = FootballCompetitionPreset.suggestionWindowLookaheadDays
     private static let footballManagedCleanupSearchLookbackDays = 365
     private static let footballManagedCleanupSearchLookaheadDays = 365
     nonisolated private static let footballRegulationMatchDuration: TimeInterval = 110 * 60
@@ -112,8 +112,9 @@ extension CalendarMonitor {
                 slug: $0.slug,
                 title: $0.title,
                 lookbackDays: 1,
-                lookaheadDays: 2,
-                category: $0.category
+                lookaheadDays: 1,
+                category: $0.category,
+                region: $0.region
             )
         }
 
@@ -142,8 +143,8 @@ extension CalendarMonitor {
                 title: footballLiveAndNextDaySection.title,
                 matches: hasCachedMatches ? cachedMatches : footballLiveAndNextDaySection.matches,
                 errorMessage: footballLiveAndNextDaySection.hasLoaded || hasCachedMatches
-                    ? "Could not refresh live or 48-hour fixtures right now. Showing cached matches."
-                    : "Could not load live or 48-hour fixtures right now.",
+                    ? "Could not refresh live or next-24-hour fixtures right now. Showing cached matches."
+                    : "Could not load live or next-24-hour fixtures right now.",
                 isLoading: false,
                 hasLoaded: footballLiveAndNextDaySection.hasLoaded || hasCachedMatches
             )
@@ -663,8 +664,8 @@ extension CalendarMonitor {
             return FootballCompetitionPreset(
                 slug: slug,
                 title: slug.replacingOccurrences(of: ".", with: " ").capitalized,
-                lookbackDays: 30,
-                lookaheadDays: 30
+                lookbackDays: FootballCompetitionPreset.suggestionWindowLookbackDays,
+                lookaheadDays: FootballCompetitionPreset.suggestionWindowLookaheadDays
             )
         }
     }
@@ -920,6 +921,7 @@ extension CalendarMonitor {
     ) -> [FootballFixtureMatch] {
         matches
             .map { cachedMatchesByID[$0.id] ?? $0 }
+            .filter { !FootballFixtureFormatter.hasUnknownParticipants(in: $0) }
             .sorted { lhs, rhs in
                 footballFixtureSortPriority(for: lhs, now: now) < footballFixtureSortPriority(for: rhs, now: now)
             }
@@ -953,10 +955,13 @@ extension CalendarMonitor {
         now: Date,
         calendar: Calendar = .autoupdatingCurrent
     ) -> [FootballFixtureMatch] {
-        let upperBound = calendar.date(byAdding: .day, value: 2, to: now) ?? now.addingTimeInterval(48 * 60 * 60)
+        let upperBound = calendar.date(byAdding: .hour, value: 24, to: now) ?? now.addingTimeInterval(24 * 60 * 60)
 
         let filteredMatches = matches
             .filter { match in
+                guard !FootballFixtureFormatter.hasUnknownParticipants(in: match) else {
+                    return false
+                }
                 if match.statusState == .inProgress {
                     return true
                 }
@@ -981,6 +986,9 @@ extension CalendarMonitor {
     ) -> [FootballFixtureMatch] {
         let filteredMatches = matches
             .filter { match in
+                guard !FootballFixtureFormatter.hasUnknownParticipants(in: match) else {
+                    return false
+                }
                 if match.statusState == .inProgress {
                     return true
                 }
@@ -1271,8 +1279,8 @@ extension CalendarMonitor {
         now: Date,
         calendar: Calendar = Calendar(identifier: .gregorian)
     ) -> Bool {
-        let trackedLookbackDays = 30
-        let trackedLookaheadDays = 30
+        let trackedLookbackDays = FootballCompetitionPreset.suggestionWindowLookbackDays
+        let trackedLookaheadDays = FootballCompetitionPreset.suggestionWindowLookaheadDays
         let lowerBound = calendar.date(byAdding: .day, value: -trackedLookbackDays, to: now) ?? now
         let upperBound = calendar.date(byAdding: .day, value: trackedLookaheadDays, to: now) ?? now
         return startDate >= lowerBound && startDate <= upperBound
@@ -1811,7 +1819,7 @@ extension CalendarMonitor {
 
     nonisolated private static func footballCanReachExtraTime(_ match: FootballFixtureMatch) -> Bool {
         switch match.competitionSlug {
-        case "eng.1", "esp.1", "bra.1", "ita.1", "ger.1", "fra.1", "por.1", "arg.1", "ned.1", "col.1", "usa.1", "fifa.friendly":
+        case "eng.1", "esp.1", "bra.1", "ita.1", "ger.1", "fra.1", "por.1", "arg.1", "ned.1", "col.1", "mex.1", "usa.1", "fifa.friendly":
             return false
         case "uefa.super_cup":
             return true

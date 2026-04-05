@@ -42,6 +42,25 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
         XCTAssertEqual(FootballCompetitionPreset.category(forCompetitionSlug: "eng.1"), .clubCompetitions)
     }
 
+    func testFootballCompetitionPresetsExposeRegionalBuckets() {
+        let grouped = Dictionary(grouping: FootballCompetitionPreset.menuPresets, by: \.region)
+
+        XCTAssertEqual(FootballCompetitionRegion.northAmerica.title, "North America")
+        XCTAssertEqual(FootballCompetitionRegion.southAmerica.title, "South America")
+        XCTAssertEqual(FootballCompetitionRegion.europe.title, "Europe")
+        XCTAssertEqual(FootballCompetitionRegion.global.title, "Global")
+
+        XCTAssertTrue(grouped[.northAmerica]?.contains(where: { $0.slug == "mex.1" }) == true)
+        XCTAssertTrue(grouped[.southAmerica]?.contains(where: { $0.slug == "conmebol.libertadores" }) == true)
+        XCTAssertTrue(grouped[.europe]?.contains(where: { $0.slug == "uefa.champions" }) == true)
+        XCTAssertTrue(grouped[.global]?.contains(where: { $0.slug == "fifa.world" }) == true)
+
+        XCTAssertEqual(FootballCompetitionPreset.region(forCompetitionSlug: "mex.1"), .northAmerica)
+        XCTAssertEqual(FootballCompetitionPreset.region(forCompetitionSlug: "conmebol.america"), .southAmerica)
+        XCTAssertEqual(FootballCompetitionPreset.region(forCompetitionSlug: "esp.1"), .europe)
+        XCTAssertEqual(FootballCompetitionPreset.region(forCompetitionSlug: "fifa.world"), .global)
+    }
+
     func testCalendarColorPaletteOptionsHaveUniqueIDsAndKnownFallback() {
         let options = CalendarColorPalette.options
         let uniqueIDs = Set(options.map(\.id))
@@ -341,6 +360,76 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
         XCTAssertEqual(resolvedState.selectedIndex, 2)
     }
 
+    func testTimedMenuBarRotationStateKeepsSelectionUntilIntervalExpires() {
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let previousState = CalendarMonitor.MenuBarRotationState(
+            slot: 7,
+            selectedKey: "match-b",
+            selectedIndex: 1,
+            startedAt: start
+        )
+
+        let resolvedState = CalendarMonitor.resolvedMenuBarRotationState(
+            for: ["match-a", "match-b", "match-c"],
+            now: start.addingTimeInterval(9),
+            rotationInterval: 10,
+            previousState: previousState,
+            allowMissingSelectedKeyHold: false
+        )
+
+        XCTAssertEqual(resolvedState.slot, 7)
+        XCTAssertEqual(resolvedState.selectedKey, "match-b")
+        XCTAssertEqual(resolvedState.selectedIndex, 1)
+        XCTAssertEqual(resolvedState.startedAt, start)
+    }
+
+    func testTimedMenuBarRotationStateAdvancesAfterFullInterval() {
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let previousState = CalendarMonitor.MenuBarRotationState(
+            slot: 7,
+            selectedKey: "match-b",
+            selectedIndex: 1,
+            startedAt: start
+        )
+
+        let advanceDate = start.addingTimeInterval(10)
+        let resolvedState = CalendarMonitor.resolvedMenuBarRotationState(
+            for: ["match-a", "match-b", "match-c"],
+            now: advanceDate,
+            rotationInterval: 10,
+            previousState: previousState,
+            allowMissingSelectedKeyHold: false
+        )
+
+        XCTAssertEqual(resolvedState.slot, 8)
+        XCTAssertEqual(resolvedState.selectedKey, "match-c")
+        XCTAssertEqual(resolvedState.selectedIndex, 2)
+        XCTAssertEqual(resolvedState.startedAt, advanceDate)
+    }
+
+    func testTimedMenuBarRotationStateKeepsReplacementInsideUnifiedQueueWhenItemDisappearsMidInterval() {
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let previousState = CalendarMonitor.MenuBarRotationState(
+            slot: 7,
+            selectedKey: "match-b",
+            selectedIndex: 1,
+            startedAt: start
+        )
+
+        let resolvedState = CalendarMonitor.resolvedMenuBarRotationState(
+            for: ["match-a", "match-c", "match-d"],
+            now: start.addingTimeInterval(5),
+            rotationInterval: 10,
+            previousState: previousState,
+            allowMissingSelectedKeyHold: false
+        )
+
+        XCTAssertEqual(resolvedState.slot, 7)
+        XCTAssertEqual(resolvedState.selectedKey, "match-c")
+        XCTAssertEqual(resolvedState.selectedIndex, 1)
+        XCTAssertEqual(resolvedState.startedAt, start)
+    }
+
     func testPreservedMenuBarSelectionKeyKeepsCurrentSelectionWhenPreferredPoolChangesWithinSameSlot() {
         let previousState = CalendarMonitor.MenuBarRotationState(
             slot: 42,
@@ -516,6 +605,56 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
         XCTAssertEqual(value, "Mercedes-Benz Stadium, Atlanta, Georgia, USA")
     }
 
+    func testAutomaticAstronomyLocationHourlyRefreshWaitsOneHour() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+        XCTAssertFalse(
+            CalendarMonitor.shouldRefreshAutomaticAstronomyLocation(
+                lastAttemptDate: now.addingTimeInterval(-(59 * 60)),
+                now: now,
+                trigger: .hourly
+            )
+        )
+        XCTAssertTrue(
+            CalendarMonitor.shouldRefreshAutomaticAstronomyLocation(
+                lastAttemptDate: now.addingTimeInterval(-(60 * 60)),
+                now: now,
+                trigger: .hourly
+            )
+        )
+    }
+
+    func testAutomaticAstronomyLocationAppActivationSkipsImmediateDuplicateLaunchRefresh() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+        XCTAssertFalse(
+            CalendarMonitor.shouldRefreshAutomaticAstronomyLocation(
+                lastAttemptDate: now.addingTimeInterval(-45),
+                now: now,
+                trigger: .appActivation
+            )
+        )
+        XCTAssertTrue(
+            CalendarMonitor.shouldRefreshAutomaticAstronomyLocation(
+                lastAttemptDate: now.addingTimeInterval(-61),
+                now: now,
+                trigger: .appActivation
+            )
+        )
+    }
+
+    func testAutomaticAstronomyLocationWiFiChangeRefreshesImmediately() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+        XCTAssertTrue(
+            CalendarMonitor.shouldRefreshAutomaticAstronomyLocation(
+                lastAttemptDate: now.addingTimeInterval(-5),
+                now: now,
+                trigger: .wifiNetworkChange
+            )
+        )
+    }
+
     func testResolvedFootballSectionMatchesPrefersCachedEnrichedMatch() {
         let now = Date(timeIntervalSince1970: 1_720_000_000)
         let scheduledStart = now.addingTimeInterval(-10 * 60)
@@ -543,6 +682,95 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
 
         XCTAssertEqual(resolved.count, 1)
         XCTAssertEqual(resolved.first?.actualStartDate, actualKickoff)
+    }
+
+    func testResolvedFootballSectionMatchesExcludeFixturesWithUnknownParticipants() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let knownMatch = makeFootballMatch(
+            id: "known",
+            startDate: now.addingTimeInterval(60 * 60),
+            actualStartDate: nil,
+            statusState: .scheduled,
+            statusText: "7:00 PM"
+        )
+        let unknownMatch = FootballFixtureMatch(
+            id: "unknown",
+            competitionSlug: "uefa.champions",
+            competitionName: "UEFA Champions League",
+            competitionStage: "Semifinals",
+            competitionLogoURL: nil,
+            locationText: nil,
+            startDate: now.addingTimeInterval(30 * 60),
+            statusState: .scheduled,
+            statusText: "TBD",
+            homeTeam: FootballTeamSummary(
+                id: "17631",
+                name: "Quarterfinal 1 Winner",
+                abbreviation: "QFW1",
+                logoURL: nil,
+                countryName: nil,
+                isNational: false
+            ),
+            awayTeam: knownMatch.awayTeam,
+            homeScore: "0",
+            awayScore: "0"
+        )
+
+        let resolved = CalendarMonitor.resolvedFootballSectionMatches(
+            [unknownMatch, knownMatch],
+            cachedMatchesByID: [:],
+            now: now
+        )
+
+        XCTAssertEqual(resolved.map(\.id), ["known"])
+    }
+
+    func testResolvedFootballSectionMatchesExcludeFixturesWithCompactPlaceholderSlots() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let knownMatch = makeFootballMatch(
+            id: "known",
+            startDate: now.addingTimeInterval(60 * 60),
+            actualStartDate: nil,
+            statusState: .scheduled,
+            statusText: "7:00 PM"
+        )
+        let placeholderMatch = FootballFixtureMatch(
+            id: "placeholder",
+            competitionSlug: "fifa.world",
+            competitionName: "FIFA World Cup",
+            competitionStage: "Round of 16",
+            competitionLogoURL: nil,
+            locationText: nil,
+            startDate: now.addingTimeInterval(30 * 60),
+            statusState: .scheduled,
+            statusText: "TBD",
+            homeTeam: FootballTeamSummary(
+                id: "ga2",
+                name: "GA2",
+                abbreviation: "GA2",
+                logoURL: nil,
+                countryName: nil,
+                isNational: true
+            ),
+            awayTeam: FootballTeamSummary(
+                id: "rd3",
+                name: "RD3",
+                abbreviation: "RD3",
+                logoURL: nil,
+                countryName: nil,
+                isNational: true
+            ),
+            homeScore: "0",
+            awayScore: "0"
+        )
+
+        let resolved = CalendarMonitor.resolvedFootballSectionMatches(
+            [placeholderMatch, knownMatch],
+            cachedMatchesByID: [:],
+            now: now
+        )
+
+        XCTAssertEqual(resolved.map(\.id), ["known"])
     }
 
     private func makeUpcomingItem(id: String, title: String, startDate: Date, endDate: Date) -> UpcomingItem {

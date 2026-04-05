@@ -29,227 +29,293 @@ enum FootballCompetitionCategory: String, CaseIterable, Identifiable {
     }
 }
 
+enum FootballCompetitionRegion: String, CaseIterable, Identifiable {
+    case northAmerica
+    case southAmerica
+    case europe
+    case global
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .northAmerica:
+            return "North America"
+        case .southAmerica:
+            return "South America"
+        case .europe:
+            return "Europe"
+        case .global:
+            return "Global"
+        }
+    }
+}
+
 struct FootballCompetitionPreset: Identifiable, Hashable {
     let slug: String
     let title: String
     let lookbackDays: Int
     let lookaheadDays: Int
     let category: FootballCompetitionCategory
+    let region: FootballCompetitionRegion
 
     var id: String { slug }
 
-    private static let suggestionWindowDays = 30
+    static let suggestionWindowLookbackDays = 45
+    static let suggestionWindowLookaheadDays = 90
+
+    static var suggestionWindowDescription: String {
+        "last \(suggestionWindowLookbackDays) days and next \(suggestionWindowLookaheadDays) days"
+    }
 
     init(
         slug: String,
         title: String,
         lookbackDays: Int,
         lookaheadDays: Int,
-        category: FootballCompetitionCategory = .clubCompetitions
+        category: FootballCompetitionCategory = .clubCompetitions,
+        region: FootballCompetitionRegion = .global
     ) {
         self.slug = slug
         self.title = title
         self.lookbackDays = lookbackDays
         self.lookaheadDays = lookaheadDays
         self.category = category
+        self.region = region
     }
 
-    static let premierLeague = FootballCompetitionPreset(
-        slug: "eng.1",
-        title: "Premier League",
-        lookbackDays: Self.suggestionWindowDays,
-        lookaheadDays: Self.suggestionWindowDays
-    )
-
-    static let laLiga = FootballCompetitionPreset(
-        slug: "esp.1",
-        title: "LaLiga",
-        lookbackDays: Self.suggestionWindowDays,
-        lookaheadDays: Self.suggestionWindowDays
-    )
-
-    static let brasileiraoSerieA = FootballCompetitionPreset(
-        slug: "bra.1",
-        title: "Brasileirao Serie A",
-        lookbackDays: Self.suggestionWindowDays,
-        lookaheadDays: Self.suggestionWindowDays
-    )
-
-    static let serieA = FootballCompetitionPreset(
-        slug: "ita.1",
-        title: "Serie A",
-        lookbackDays: Self.suggestionWindowDays,
-        lookaheadDays: Self.suggestionWindowDays
-    )
-
-    static let bundesliga = FootballCompetitionPreset(
-        slug: "ger.1",
-        title: "Bundesliga",
-        lookbackDays: Self.suggestionWindowDays,
-        lookaheadDays: Self.suggestionWindowDays
-    )
-
-    static let ligue1 = FootballCompetitionPreset(
-        slug: "fra.1",
-        title: "Ligue 1",
-        lookbackDays: Self.suggestionWindowDays,
-        lookaheadDays: Self.suggestionWindowDays
-    )
-
-    static let primeiraLiga = FootballCompetitionPreset(
-        slug: "por.1",
-        title: "Primeira Liga",
-        lookbackDays: Self.suggestionWindowDays,
-        lookaheadDays: Self.suggestionWindowDays
-    )
-
-    static let ligaProfesionalArgentina = FootballCompetitionPreset(
-        slug: "arg.1",
-        title: "Liga Argentina",
-        lookbackDays: Self.suggestionWindowDays,
-        lookaheadDays: Self.suggestionWindowDays
-    )
-
-    static let eredivisie = FootballCompetitionPreset(
-        slug: "ned.1",
-        title: "Eredivisie",
-        lookbackDays: Self.suggestionWindowDays,
-        lookaheadDays: Self.suggestionWindowDays
-    )
-
-    static let primeraA = FootballCompetitionPreset(
-        slug: "col.1",
-        title: "Primera A",
-        lookbackDays: Self.suggestionWindowDays,
-        lookaheadDays: Self.suggestionWindowDays
+    static let ligaMX = FootballCompetitionPreset(
+        slug: "mex.1",
+        title: "Liga MX",
+        lookbackDays: Self.suggestionWindowLookbackDays,
+        lookaheadDays: Self.suggestionWindowLookaheadDays,
+        region: .northAmerica
     )
 
     static let majorLeagueSoccer = FootballCompetitionPreset(
         slug: "usa.1",
         title: "MLS",
-        lookbackDays: Self.suggestionWindowDays,
-        lookaheadDays: Self.suggestionWindowDays
-    )
-
-    static let worldCup = FootballCompetitionPreset(
-        slug: "fifa.world",
-        title: "FIFA World Cup",
-        lookbackDays: Self.suggestionWindowDays,
-        lookaheadDays: Self.suggestionWindowDays,
-        category: .nationalTeams
-    )
-
-    static let fifaFriendlies = FootballCompetitionPreset(
-        slug: "fifa.friendly",
-        title: "FIFA Friendlies",
-        lookbackDays: Self.suggestionWindowDays,
-        lookaheadDays: Self.suggestionWindowDays,
-        category: .nationalTeams
-    )
-
-    static let championsLeague = FootballCompetitionPreset(
-        slug: "uefa.champions",
-        title: "UEFA Champions League",
-        lookbackDays: Self.suggestionWindowDays,
-        lookaheadDays: Self.suggestionWindowDays
-    )
-
-    static let europaLeague = FootballCompetitionPreset(
-        slug: "uefa.europa",
-        title: "UEFA Europa League",
-        lookbackDays: Self.suggestionWindowDays,
-        lookaheadDays: Self.suggestionWindowDays
-    )
-
-    static let superCup = FootballCompetitionPreset(
-        slug: "uefa.super_cup",
-        title: "UEFA Super Cup",
-        lookbackDays: Self.suggestionWindowDays,
-        lookaheadDays: Self.suggestionWindowDays
-    )
-
-    static let europeanChampionship = FootballCompetitionPreset(
-        slug: "uefa.euro",
-        title: "UEFA European Championship",
-        lookbackDays: Self.suggestionWindowDays,
-        lookaheadDays: Self.suggestionWindowDays,
-        category: .nationalTeams
-    )
-
-    static let copaAmerica = FootballCompetitionPreset(
-        slug: "conmebol.america",
-        title: "Copa America",
-        lookbackDays: Self.suggestionWindowDays,
-        lookaheadDays: Self.suggestionWindowDays,
-        category: .nationalTeams
-    )
-
-    static let libertadores = FootballCompetitionPreset(
-        slug: "conmebol.libertadores",
-        title: "CONMEBOL Libertadores",
-        lookbackDays: Self.suggestionWindowDays,
-        lookaheadDays: Self.suggestionWindowDays
-    )
-
-    static let clubWorldCup = FootballCompetitionPreset(
-        slug: "fifa.cwc",
-        title: "FIFA Club World Cup",
-        lookbackDays: Self.suggestionWindowDays,
-        lookaheadDays: Self.suggestionWindowDays
+        lookbackDays: Self.suggestionWindowLookbackDays,
+        lookaheadDays: Self.suggestionWindowLookaheadDays,
+        region: .northAmerica
     )
 
     static let goldCup = FootballCompetitionPreset(
         slug: "concacaf.gold",
         title: "Concacaf Gold Cup",
-        lookbackDays: Self.suggestionWindowDays,
-        lookaheadDays: Self.suggestionWindowDays,
-        category: .nationalTeams
+        lookbackDays: Self.suggestionWindowLookbackDays,
+        lookaheadDays: Self.suggestionWindowLookaheadDays,
+        category: .nationalTeams,
+        region: .northAmerica
+    )
+
+    static let brasileiraoSerieA = FootballCompetitionPreset(
+        slug: "bra.1",
+        title: "Brasileirao Serie A",
+        lookbackDays: Self.suggestionWindowLookbackDays,
+        lookaheadDays: Self.suggestionWindowLookaheadDays,
+        region: .southAmerica
+    )
+
+    static let ligaProfesionalArgentina = FootballCompetitionPreset(
+        slug: "arg.1",
+        title: "Liga Argentina",
+        lookbackDays: Self.suggestionWindowLookbackDays,
+        lookaheadDays: Self.suggestionWindowLookaheadDays,
+        region: .southAmerica
+    )
+
+    static let primeraA = FootballCompetitionPreset(
+        slug: "col.1",
+        title: "Primera A",
+        lookbackDays: Self.suggestionWindowLookbackDays,
+        lookaheadDays: Self.suggestionWindowLookaheadDays,
+        region: .southAmerica
+    )
+
+    static let copaAmerica = FootballCompetitionPreset(
+        slug: "conmebol.america",
+        title: "Copa America",
+        lookbackDays: Self.suggestionWindowLookbackDays,
+        lookaheadDays: Self.suggestionWindowLookaheadDays,
+        category: .nationalTeams,
+        region: .southAmerica
+    )
+
+    static let libertadores = FootballCompetitionPreset(
+        slug: "conmebol.libertadores",
+        title: "CONMEBOL Libertadores",
+        lookbackDays: Self.suggestionWindowLookbackDays,
+        lookaheadDays: Self.suggestionWindowLookaheadDays,
+        region: .southAmerica
+    )
+
+    static let premierLeague = FootballCompetitionPreset(
+        slug: "eng.1",
+        title: "Premier League",
+        lookbackDays: Self.suggestionWindowLookbackDays,
+        lookaheadDays: Self.suggestionWindowLookaheadDays,
+        region: .europe
+    )
+
+    static let laLiga = FootballCompetitionPreset(
+        slug: "esp.1",
+        title: "LaLiga",
+        lookbackDays: Self.suggestionWindowLookbackDays,
+        lookaheadDays: Self.suggestionWindowLookaheadDays,
+        region: .europe
+    )
+
+    static let serieA = FootballCompetitionPreset(
+        slug: "ita.1",
+        title: "Serie A",
+        lookbackDays: Self.suggestionWindowLookbackDays,
+        lookaheadDays: Self.suggestionWindowLookaheadDays,
+        region: .europe
+    )
+
+    static let bundesliga = FootballCompetitionPreset(
+        slug: "ger.1",
+        title: "Bundesliga",
+        lookbackDays: Self.suggestionWindowLookbackDays,
+        lookaheadDays: Self.suggestionWindowLookaheadDays,
+        region: .europe
+    )
+
+    static let ligue1 = FootballCompetitionPreset(
+        slug: "fra.1",
+        title: "Ligue 1",
+        lookbackDays: Self.suggestionWindowLookbackDays,
+        lookaheadDays: Self.suggestionWindowLookaheadDays,
+        region: .europe
+    )
+
+    static let primeiraLiga = FootballCompetitionPreset(
+        slug: "por.1",
+        title: "Primeira Liga",
+        lookbackDays: Self.suggestionWindowLookbackDays,
+        lookaheadDays: Self.suggestionWindowLookaheadDays,
+        region: .europe
+    )
+
+    static let eredivisie = FootballCompetitionPreset(
+        slug: "ned.1",
+        title: "Eredivisie",
+        lookbackDays: Self.suggestionWindowLookbackDays,
+        lookaheadDays: Self.suggestionWindowLookaheadDays,
+        region: .europe
+    )
+
+    static let worldCup = FootballCompetitionPreset(
+        slug: "fifa.world",
+        title: "FIFA World Cup",
+        lookbackDays: Self.suggestionWindowLookbackDays,
+        lookaheadDays: Self.suggestionWindowLookaheadDays,
+        category: .nationalTeams,
+        region: .global
+    )
+
+    static let fifaFriendlies = FootballCompetitionPreset(
+        slug: "fifa.friendly",
+        title: "FIFA Friendlies",
+        lookbackDays: Self.suggestionWindowLookbackDays,
+        lookaheadDays: Self.suggestionWindowLookaheadDays,
+        category: .nationalTeams,
+        region: .global
+    )
+
+    static let championsLeague = FootballCompetitionPreset(
+        slug: "uefa.champions",
+        title: "UEFA Champions League",
+        lookbackDays: Self.suggestionWindowLookbackDays,
+        lookaheadDays: Self.suggestionWindowLookaheadDays,
+        region: .europe
+    )
+
+    static let europaLeague = FootballCompetitionPreset(
+        slug: "uefa.europa",
+        title: "UEFA Europa League",
+        lookbackDays: Self.suggestionWindowLookbackDays,
+        lookaheadDays: Self.suggestionWindowLookaheadDays,
+        region: .europe
+    )
+
+    static let superCup = FootballCompetitionPreset(
+        slug: "uefa.super_cup",
+        title: "UEFA Super Cup",
+        lookbackDays: Self.suggestionWindowLookbackDays,
+        lookaheadDays: Self.suggestionWindowLookaheadDays,
+        region: .europe
+    )
+
+    static let europeanChampionship = FootballCompetitionPreset(
+        slug: "uefa.euro",
+        title: "UEFA European Championship",
+        lookbackDays: Self.suggestionWindowLookbackDays,
+        lookaheadDays: Self.suggestionWindowLookaheadDays,
+        category: .nationalTeams,
+        region: .europe
+    )
+
+    static let clubWorldCup = FootballCompetitionPreset(
+        slug: "fifa.cwc",
+        title: "FIFA Club World Cup",
+        lookbackDays: Self.suggestionWindowLookbackDays,
+        lookaheadDays: Self.suggestionWindowLookaheadDays,
+        region: .global
     )
 
     static let africaCupOfNations = FootballCompetitionPreset(
         slug: "caf.nations",
         title: "Africa Cup of Nations",
-        lookbackDays: Self.suggestionWindowDays,
-        lookaheadDays: Self.suggestionWindowDays,
-        category: .nationalTeams
+        lookbackDays: Self.suggestionWindowLookbackDays,
+        lookaheadDays: Self.suggestionWindowLookaheadDays,
+        category: .nationalTeams,
+        region: .global
     )
 
     static let asianCup = FootballCompetitionPreset(
         slug: "afc.asian.cup",
         title: "AFC Asian Cup",
-        lookbackDays: Self.suggestionWindowDays,
-        lookaheadDays: Self.suggestionWindowDays,
-        category: .nationalTeams
+        lookbackDays: Self.suggestionWindowLookbackDays,
+        lookaheadDays: Self.suggestionWindowLookaheadDays,
+        category: .nationalTeams,
+        region: .global
     )
 
     static let menuPresets: [FootballCompetitionPreset] = [
+        .ligaMX,
+        .majorLeagueSoccer,
+        .goldCup,
+        .brasileiraoSerieA,
+        .ligaProfesionalArgentina,
+        .primeraA,
+        .copaAmerica,
+        .libertadores,
         .premierLeague,
         .laLiga,
-        .brasileiraoSerieA,
         .serieA,
         .bundesliga,
         .ligue1,
         .primeiraLiga,
-        .ligaProfesionalArgentina,
         .eredivisie,
-        .primeraA,
-        .majorLeagueSoccer,
-        .worldCup,
-        .fifaFriendlies,
         .championsLeague,
         .europaLeague,
         .superCup,
         .europeanChampionship,
-        .copaAmerica,
-        .libertadores,
+        .worldCup,
+        .fifaFriendlies,
         .clubWorldCup,
-        .goldCup,
         .africaCupOfNations,
         .asianCup,
     ]
 
     static func category(forCompetitionSlug slug: String) -> FootballCompetitionCategory {
         menuPresets.first(where: { $0.slug == slug })?.category ?? .clubCompetitions
+    }
+
+    static func region(forCompetitionSlug slug: String) -> FootballCompetitionRegion {
+        menuPresets.first(where: { $0.slug == slug })?.region ?? .global
     }
 }
 
@@ -397,6 +463,10 @@ struct FootballFixtureMatch: Identifiable, Hashable {
 
     var competitionCategory: FootballCompetitionCategory {
         FootballCompetitionPreset.category(forCompetitionSlug: competitionSlug)
+    }
+
+    var competitionRegion: FootballCompetitionRegion {
+        FootballCompetitionPreset.region(forCompetitionSlug: competitionSlug)
     }
 }
 

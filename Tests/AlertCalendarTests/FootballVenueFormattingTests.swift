@@ -34,6 +34,23 @@ final class FootballVenueFormattingTests: XCTestCase {
         XCTAssertEqual(value, "Monumental, Argentina")
     }
 
+    func testVenueLocationTextIncludesStateWhenAvailable() {
+        let json: [String: Any] = [
+            "venue": [
+                "fullName": "Mercedes-Benz Stadium",
+                "address": [
+                    "city": "Atlanta",
+                    "state": "Georgia",
+                    "country": "USA",
+                ],
+            ],
+        ]
+
+        let value = FootballDataAPIClient.venueLocationText(from: json)
+
+        XCTAssertEqual(value, "Mercedes-Benz Stadium, Atlanta, Georgia, USA")
+    }
+
     func testVenueLocationTextReturnsNilWhenVenueIsStillTBD() {
         let json: [String: Any] = [
             "venue": [

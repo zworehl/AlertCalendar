@@ -5,6 +5,19 @@ import XCTest
 
 @MainActor
 final class AppDelegateTests: XCTestCase {
+    func testPrepareForSettingsPresentationKeepsAppOutOfDock() {
+        let appDelegate = AppDelegate()
+        let application = NSApplication.shared
+        let originalPolicy = application.activationPolicy()
+        defer { _ = application.setActivationPolicy(originalPolicy) }
+
+        _ = application.setActivationPolicy(.regular)
+
+        appDelegate.prepareForSettingsPresentation()
+
+        XCTAssertEqual(application.activationPolicy(), .accessory)
+    }
+
     func testConfigureSettingsWindowEnablesFullScreenZoomButton() throws {
         let appDelegate = AppDelegate()
         let window = NSWindow(
