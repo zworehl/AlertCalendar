@@ -27,8 +27,8 @@ extension CalendarMonitor {
             DefaultsKeys.weekdayOnlyEventCalendarIDs: [],
             DefaultsKeys.weekdayOnlyReminderCalendarIDs: [],
             DefaultsKeys.lookAheadHours: 24,
+            DefaultsKeys.menuBarRotationWindowMinutes: 60,
             DefaultsKeys.alertLeadMinutes: 5,
-            DefaultsKeys.nearUpcomingAlternateMinutes: 10,
             DefaultsKeys.concurrentEventRotationSeconds: 30,
             DefaultsKeys.maxListItems: 8,
             DefaultsKeys.enableBlinkAlert: true,
@@ -40,6 +40,7 @@ extension CalendarMonitor {
             DefaultsKeys.skippedItemKeys: [],
             DefaultsKeys.footballTargetCalendarID: "",
             DefaultsKeys.footballCalendarAlertOption: FootballCalendarAlertOption.none.rawValue,
+            DefaultsKeys.showFinishedFootballMatches: true,
             DefaultsKeys.didAutoRecoverEmptyEventCalendarSelection: false,
             DefaultsKeys.didAutoRecoverEmptyReminderCalendarSelection: false,
         ])
@@ -58,6 +59,7 @@ extension CalendarMonitor {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 guard let self else { return }
+                self.invalidateManagedFootballSnapshotCache(markEventStoreChanged: true)
                 self.enqueueRefresh()
             }
 

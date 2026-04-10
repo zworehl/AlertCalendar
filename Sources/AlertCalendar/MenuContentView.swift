@@ -10,6 +10,7 @@ struct MenuContentView: View {
     let headerTitle: String
 
     @AppStorage(DefaultsKeys.alertLeadMinutes) private var alertLeadMinutes = 5
+    @AppStorage(DefaultsKeys.lookAheadHours) private var dropdownTimeWindowHours = 24
     @AppStorage(DefaultsKeys.maxListItems) private var maxListItems = 8
     @State private var hoveredReminderItemID: String?
     @State private var hoveredActionRowKey: String?
@@ -362,27 +363,47 @@ struct MenuContentView: View {
     }
 
     private var allEventItemsForContextualActions: [UpcomingItem] {
+        let now = Date()
         let allDayItems = monitor.allDayEventItems
-        let timedItems = monitor.upcomingItems.filter { $0.kind == .event }
+        let timedItems = monitor.upcomingItems.filter {
+            $0.kind == .event && Self.shouldIncludeInDropdownTimeWindow(
+                $0,
+                now: now,
+                futureWindowEnd: dropdownFutureWindowEnd(now: now)
+            )
+        }
         return deduplicatedItems((allDayItems + timedItems).sorted { $0.date < $1.date })
     }
 
     private var queueItemsForActions: [UpcomingItem] {
+        let now = Date()
         let allDayItems = monitor.allDayEventItems
-        let timedItems = monitor.upcomingItems.filter { $0.kind == .event || $0.kind == .reminder }
+        let timedItems = monitor.upcomingItems.filter {
+            ($0.kind == .event || $0.kind == .reminder) && Self.shouldIncludeInDropdownTimeWindow(
+                $0,
+                now: now,
+                futureWindowEnd: dropdownFutureWindowEnd(now: now)
+            )
+        }
         let combined = deduplicatedItems((allDayItems + timedItems).sorted { $0.date < $1.date })
         return Self.queueItemsForActions(
             from: combined,
             contextualItems: contextualActionItems,
-            now: Date(),
+            now: now,
+            futureWindowEnd: dropdownFutureWindowEnd(now: now),
             maxItems: max(1, maxListItems)
         )
+    }
+
+    private func dropdownFutureWindowEnd(now: Date) -> Date {
+        now.addingTimeInterval(Double(max(1, dropdownTimeWindowHours)) * 3600)
     }
 
     nonisolated static func queueItemsForActions(
         from items: [UpcomingItem],
         contextualItems: [UpcomingItem],
         now: Date,
+        futureWindowEnd: Date,
         maxItems: Int
     ) -> [UpcomingItem] {
         let contextualFootballMatchIDs = Set(contextualItems.compactMap { $0.footballMatch?.id })
@@ -390,17 +411,46 @@ struct MenuContentView: View {
             shouldIncludeInUpcomingQueue(
                 item,
                 contextualFootballMatchIDs: contextualFootballMatchIDs,
-                now: now
+                now: now,
+                futureWindowEnd: futureWindowEnd
             )
         }
         return Array(filtered.prefix(max(1, maxItems)))
     }
 
+    nonisolated static func shouldIncludeInDropdownTimeWindow(
+        _ item: UpcomingItem,
+        now: Date,
+        futureWindowEnd: Date
+    ) -> Bool {
+        if item.isAllDay {
+            return true
+        }
+
+        if item.kind == .reminder, item.date <= now {
+            return true
+        }
+
+        if item.kind == .event,
+           let endDate = item.endDate,
+           item.date <= now,
+           endDate > now {
+            return true
+        }
+
+        return item.date >= now && item.date <= futureWindowEnd
+    }
+
     nonisolated static func shouldIncludeInUpcomingQueue(
         _ item: UpcomingItem,
         contextualFootballMatchIDs: Set<String>,
-        now: Date
+        now: Date,
+        futureWindowEnd: Date
     ) -> Bool {
+        guard shouldIncludeInDropdownTimeWindow(item, now: now, futureWindowEnd: futureWindowEnd) else {
+            return false
+        }
+
         guard let footballMatch = item.footballMatch else {
             return true
         }
@@ -488,13 +538,9 @@ struct MenuContentView: View {
                             Button {
                                 monitor.markReminderCompleted(item)
                             } label: {
-                                actionPill {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.system(size: 12, weight: .semibold))
-                                        .frame(width: 12, height: 12)
-                                }
+                                reminderCompletionActionLabel(color: Color(nsColor: item.calendarColor))
                             }
-                            .buttonStyle(.borderless)
+                            .buttonStyle(.plain)
                             .controlSize(.small)
                             .help("Complete")
                         }
@@ -557,6 +603,22 @@ struct MenuContentView: View {
                             .stroke(Color.primary.opacity(0.18), lineWidth: 1)
                     )
             )
+    }
+
+    private func reminderCompletionActionLabel(color: Color) -> some View {
+        ZStack {
+            Circle()
+                .stroke(color.opacity(0.92), lineWidth: 1.6)
+
+            Circle()
+                .fill(color.opacity(0.10))
+                .padding(3)
+
+            Image(systemName: "checkmark")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(color.opacity(0.92))
+        }
+        .frame(width: 18, height: 18)
     }
 
     private static let menuTimeFormatter: DateFormatter = {
@@ -685,11 +747,11 @@ struct MenuContentView: View {
                                 .lineLimit(1)
                                 .truncationMode(.tail)
 
-                            if let locationText = item.locationText {
+                            if !item.isAllDay, let locationText = item.locationText {
                                 let locationName = displayLocationName(from: locationText)
                                 if shouldShowLocationRow(locationName: locationName, meetingURL: item.meetingURL) {
                                     HStack(alignment: .center, spacing: 4) {
-                                        Image(systemName: "location.circle")
+                                        Image(systemName: locationSymbolName(for: item))
                                             .font(detailIconFont)
                                             .frame(width: 12, height: 12, alignment: .center)
                                             .foregroundStyle(accentColor)
@@ -754,11 +816,11 @@ struct MenuContentView: View {
                                 .font(titleFont)
                                 .foregroundStyle(titleColor)
 
-                            if let locationText = item.locationText {
+                            if !item.isAllDay, let locationText = item.locationText {
                                 let locationName = displayLocationName(from: locationText)
                                 if shouldShowLocationRow(locationName: locationName, meetingURL: item.meetingURL) {
                                     HStack(alignment: .center, spacing: 4) {
-                                        Image(systemName: "location.circle")
+                                        Image(systemName: locationSymbolName(for: item))
                                             .font(detailIconFont)
                                             .frame(width: 12, height: 12, alignment: .center)
                                             .foregroundStyle(accentColor)
@@ -868,11 +930,11 @@ struct MenuContentView: View {
             showsStatusAccessories: false
         )
 
-        if let locationText = item.locationText {
+        if !item.isAllDay, let locationText = item.locationText {
             let locationName = displayLocationName(from: locationText)
             if shouldShowLocationRow(locationName: locationName, meetingURL: item.meetingURL) {
                 HStack(alignment: .center, spacing: 4) {
-                    Image(systemName: "location.circle")
+                    Image(systemName: locationSymbolName(for: item))
                         .font(detailIconFont)
                         .frame(width: 12, height: 12, alignment: .center)
                         .foregroundStyle(accentColor)
@@ -915,6 +977,8 @@ struct MenuContentView: View {
         showsCardBadges: Bool,
         showsStatusAccessories: Bool
     ) -> some View {
+        let accessories = FootballStatusAccessoriesView.accessories(for: match)
+
         HStack(alignment: .center, spacing: 6) {
             HStack(alignment: .center, spacing: 6) {
                 footballTeamLabel(
@@ -959,8 +1023,8 @@ struct MenuContentView: View {
             }
             .fixedSize(horizontal: true, vertical: false)
 
-            if showsStatusAccessories && FootballStatusAccessoriesView.hasAccessories(for: match) {
-                FootballStatusAccessoriesView(match: match)
+            if showsStatusAccessories && accessories.hasAccessories {
+                FootballStatusAccessoriesView(data: accessories)
                     .fixedSize(horizontal: true, vertical: false)
             }
         }
@@ -1043,6 +1107,42 @@ struct MenuContentView: View {
         FootballFixtureFormatter.competitionDetailText(for: match, display: display)
     }
 
+    private func locationSymbolName(for item: UpcomingItem) -> String {
+        item.footballMatch == nil ? "mappin.circle" : FootballFixtureFormatter.footballLocationSymbolName
+    }
+
+    private func footballContextualVenueName(for item: UpcomingItem, match: FootballFixtureMatch) -> String? {
+        let rawLocation = item.locationText ?? match.locationText
+        guard let rawLocation else { return nil }
+
+        let locationName = displayLocationName(from: rawLocation)
+        guard shouldShowLocationRow(locationName: locationName, meetingURL: item.meetingURL) else {
+            return nil
+        }
+
+        return locationName
+    }
+
+    nonisolated static func footballContextualScheduleText(
+        for match: FootballFixtureMatch,
+        now: Date = Date(),
+        calendar: Calendar = .autoupdatingCurrent,
+        locale: Locale = .autoupdatingCurrent,
+        timeZone: TimeZone = .autoupdatingCurrent
+    ) -> String? {
+        guard match.statusState == .scheduled, match.startDate > now, !match.hasInterruptedStatus else {
+            return nil
+        }
+
+        return CalendarMonitor.footballScheduleText(
+            for: match,
+            now: now,
+            calendar: calendar,
+            locale: locale,
+            timeZone: timeZone
+        )
+    }
+
     private func markerImage(for item: UpcomingItem) -> NSImage? {
         if item.kind == .reminder {
             return reminderMarkerImage(
@@ -1061,14 +1161,24 @@ struct MenuContentView: View {
         defer { image.unlockFocus() }
 
         let rect = NSRect(origin: .zero, size: size)
-
         if isFilled {
-            color.setFill()
-            NSBezierPath(ovalIn: rect.insetBy(dx: 1.2, dy: 1.2)).fill()
+            let filledCircle = NSBezierPath(ovalIn: rect.insetBy(dx: 0.9, dy: 0.9))
+            color.withAlphaComponent(0.95).setFill()
+            filledCircle.fill()
+
+            let checkPath = NSBezierPath()
+            checkPath.lineWidth = 1.55
+            checkPath.lineCapStyle = .round
+            checkPath.lineJoinStyle = .round
+            checkPath.move(to: NSPoint(x: 3.2, y: 6.1))
+            checkPath.line(to: NSPoint(x: 5.0, y: 7.9))
+            checkPath.line(to: NSPoint(x: 8.6, y: 4.3))
+            NSColor.white.withAlphaComponent(0.98).setStroke()
+            checkPath.stroke()
         } else {
-            let outerPath = NSBezierPath(ovalIn: rect.insetBy(dx: 0.7, dy: 0.7))
-            outerPath.lineWidth = 1.8
-            color.setStroke()
+            let outerPath = NSBezierPath(ovalIn: rect.insetBy(dx: 0.9, dy: 0.9))
+            outerPath.lineWidth = 1.6
+            color.withAlphaComponent(0.82).setStroke()
             outerPath.stroke()
         }
 
@@ -1219,18 +1329,62 @@ struct MenuContentView: View {
         let shouldShowMapForItem = shouldShowPhysicalMap(for: item, locationText: locationText)
         let locationPreviewHeight: CGFloat = shouldUseSplitDropdownLayout ? 90 : 100
         let footballContentLevel = contextualFootballContentLevel
+        let now = Date()
 
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 if let footballMatch = item.footballMatch {
+                    let scheduleText = Self.footballContextualScheduleText(for: footballMatch, now: now)
+                    let venueName = footballContextualVenueName(for: item, match: footballMatch)
+
                     VStack(alignment: .leading, spacing: 2) {
-                        footballFixtureHeadline(
-                            match: footballMatch,
-                            display: item.footballMenuBarDisplay,
-                            font: .subheadline.weight(.semibold),
-                            showsCardBadges: true,
-                            showsStatusAccessories: true
-                        )
+                        HStack(alignment: .top, spacing: 10) {
+                            footballFixtureHeadline(
+                                match: footballMatch,
+                                display: item.footballMenuBarDisplay,
+                                font: .subheadline.weight(.semibold),
+                                showsCardBadges: true,
+                                showsStatusAccessories: true
+                            )
+                        }
+
+                        if let venueName {
+                            HStack(alignment: .center, spacing: 4) {
+                                Image(systemName: locationSymbolName(for: item))
+                                    .font(.system(size: 12, weight: .regular))
+                                    .frame(width: 12, height: 12, alignment: .center)
+                                    .foregroundStyle(.secondary)
+
+                                Text(venueName)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+
+                                Spacer(minLength: 8)
+
+                                if let scheduleText,
+                                   !scheduleText.isEmpty {
+                                    Text(scheduleText)
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                        .multilineTextAlignment(.trailing)
+                                        .lineLimit(1)
+                                        .fixedSize(horizontal: true, vertical: false)
+                                }
+                            }
+                        } else if let scheduleText,
+                                  !scheduleText.isEmpty {
+                            HStack {
+                                Spacer(minLength: 0)
+                                Text(scheduleText)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                    .multilineTextAlignment(.trailing)
+                                    .lineLimit(1)
+                                    .fixedSize(horizontal: true, vertical: false)
+                            }
+                        }
 
                         if showsFootballCompetitionLine {
                             footballCompetitionLine(
@@ -1248,16 +1402,26 @@ struct MenuContentView: View {
 
                 Spacer(minLength: 8)
 
-                if shouldShowMapForItem,
-                   let locationText,
-                   let mapURL = mapURL(for: locationText) {
+                HStack(spacing: 6) {
                     Button {
-                        NSWorkspace.shared.open(mapURL)
+                        monitor.skipItem(item)
                     } label: {
-                        Label("Map", systemImage: "map")
+                        Label("Skip", systemImage: "forward.fill")
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
+
+                    if shouldShowMapForItem,
+                       let locationText,
+                       let mapURL = mapURL(for: locationText) {
+                        Button {
+                            NSWorkspace.shared.open(mapURL)
+                        } label: {
+                            Label("Map", systemImage: "map")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
                 }
             }
 

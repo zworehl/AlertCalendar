@@ -1,6 +1,22 @@
 import AppKit
 import SwiftUI
 
+struct FootballStatusAccessoriesData {
+    let badgeText: String?
+    let warningText: String?
+
+    var hasAccessories: Bool {
+        badgeText != nil || warningText != nil
+    }
+
+    static func resolved(for match: FootballFixtureMatch, now: Date = Date()) -> FootballStatusAccessoriesData {
+        FootballStatusAccessoriesData(
+            badgeText: CalendarMonitor.footballStatusBadgeText(for: match, now: now),
+            warningText: CalendarMonitor.footballStatusWarningText(for: match)
+        )
+    }
+}
+
 struct FootballTeamLogoView: View {
     let localPath: String?
     let remoteURL: URL?
@@ -66,24 +82,34 @@ struct FootballStatusWarningIconView: View {
 }
 
 struct FootballStatusAccessoriesView: View {
-    let match: FootballFixtureMatch
-    var now: Date = Date()
+    let data: FootballStatusAccessoriesData
+
+    init(match: FootballFixtureMatch, now: Date = Date()) {
+        data = FootballStatusAccessoriesData.resolved(for: match, now: now)
+    }
+
+    init(data: FootballStatusAccessoriesData) {
+        self.data = data
+    }
 
     var body: some View {
         HStack(spacing: 6) {
-            if let badgeText = CalendarMonitor.footballStatusBadgeText(for: match, now: now) {
+            if let badgeText = data.badgeText {
                 FootballStatusBadgeView(text: badgeText)
             }
 
-            if let warningText = CalendarMonitor.footballStatusWarningText(for: match) {
+            if let warningText = data.warningText {
                 FootballStatusWarningIconView(helpText: warningText)
             }
         }
     }
 
+    static func accessories(for match: FootballFixtureMatch, now: Date = Date()) -> FootballStatusAccessoriesData {
+        .resolved(for: match, now: now)
+    }
+
     static func hasAccessories(for match: FootballFixtureMatch, now: Date = Date()) -> Bool {
-        CalendarMonitor.footballStatusBadgeText(for: match, now: now) != nil
-            || CalendarMonitor.footballStatusWarningText(for: match) != nil
+        accessories(for: match, now: now).hasAccessories
     }
 }
 
@@ -107,7 +133,7 @@ private struct FootballRemoteLogoView<Placeholder: View>: View {
 
     var body: some View {
         if let localPath,
-           let image = NSImage(contentsOfFile: localPath) {
+           let image = FootballLocalImageCache.image(for: localPath) {
             Image(nsImage: image)
                 .resizable()
                 .interpolation(.high)
@@ -125,5 +151,28 @@ private struct FootballRemoteLogoView<Placeholder: View>: View {
             }
             .frame(width: size, height: size)
         }
+    }
+}
+
+@MainActor
+private enum FootballLocalImageCache {
+    private static let cache: NSCache<NSString, NSImage> = {
+        let cache = NSCache<NSString, NSImage>()
+        cache.countLimit = 64
+        return cache
+    }()
+
+    static func image(for path: String) -> NSImage? {
+        let key = path as NSString
+        if let cachedImage = cache.object(forKey: key) {
+            return cachedImage
+        }
+
+        guard let image = NSImage(contentsOfFile: path) else {
+            return nil
+        }
+
+        cache.setObject(image, forKey: key)
+        return image
     }
 }

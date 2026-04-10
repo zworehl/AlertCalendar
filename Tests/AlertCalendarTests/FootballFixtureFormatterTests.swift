@@ -1035,6 +1035,48 @@ final class FootballFixtureFormatterTests: XCTestCase {
         )
     }
 
+    func testFinishedMatchPreservingKnownTimingContextKeepsActualKickoffAndLongerStatusPeriod() {
+        let scheduledStart = Date(timeIntervalSince1970: 1_720_000_000)
+        let actualKickoff = scheduledStart.addingTimeInterval(7 * 60)
+        let previousMatch = makeMatch(
+            id: "finished-preserve",
+            startDate: scheduledStart,
+            actualStartDate: actualKickoff,
+            statusState: .inProgress,
+            statusText: "118'",
+            statusPeriod: 4,
+            competitionSlug: "uefa.super_cup",
+            seasonSlug: "final",
+            competitionNote: "Final",
+            homeScore: "1",
+            awayScore: "1"
+        )
+        let finishedMatch = makeMatch(
+            id: "finished-preserve",
+            startDate: scheduledStart,
+            statusState: .finished,
+            statusText: "FT",
+            statusPeriod: 2,
+            competitionSlug: "uefa.super_cup",
+            seasonSlug: "final",
+            competitionNote: "Final",
+            homeScore: "2",
+            awayScore: "1"
+        )
+
+        let resolvedMatch = CalendarMonitor.footballMatchPreservingKnownTimingContext(
+            finishedMatch,
+            previousMatch: previousMatch
+        )
+
+        XCTAssertEqual(resolvedMatch.actualStartDate, actualKickoff)
+        XCTAssertEqual(resolvedMatch.statusPeriod, 4)
+        XCTAssertEqual(
+            CalendarMonitor.approximateFootballMatchEndDate(for: resolvedMatch, now: scheduledStart),
+            actualKickoff.addingTimeInterval((140 + 5) * 60)
+        )
+    }
+
     func testLateOneGoalLeadFallsBackToRegulationBuffer() {
         let now = Date(timeIntervalSince1970: 1_720_000_000)
         let match = makeMatch(
@@ -1050,6 +1092,40 @@ final class FootballFixtureFormatterTests: XCTestCase {
         )
 
         XCTAssertEqual(CalendarMonitor.approximateFootballMatchDuration(for: match, now: now), 110 * 60)
+    }
+
+    func testFinishedExtraTimeMatchUsesStatusPeriodForCalendarDuration() {
+        let match = makeMatch(
+            id: "finished-extra-time",
+            startDate: Date(timeIntervalSince1970: 1_720_000_000),
+            statusState: .finished,
+            statusText: "FT",
+            statusPeriod: 4,
+            competitionSlug: "uefa.super_cup",
+            seasonSlug: "final",
+            competitionNote: "Final",
+            homeScore: "2",
+            awayScore: "1"
+        )
+
+        XCTAssertEqual(CalendarMonitor.approximateFootballMatchDuration(for: match), 140 * 60)
+    }
+
+    func testFinishedPenaltyMatchUsesStatusPeriodForCalendarDuration() {
+        let match = makeMatch(
+            id: "finished-penalties",
+            startDate: Date(timeIntervalSince1970: 1_720_000_000),
+            statusState: .finished,
+            statusText: "FT",
+            statusPeriod: 5,
+            competitionSlug: "uefa.super_cup",
+            seasonSlug: "final",
+            competitionNote: "Final",
+            homeScore: "5",
+            awayScore: "4"
+        )
+
+        XCTAssertEqual(CalendarMonitor.approximateFootballMatchDuration(for: match), 150 * 60)
     }
 
     func testFootballStatusBadgeSupportsExtraTimeAndPenalties() {
@@ -1265,6 +1341,7 @@ final class FootballFixtureFormatterTests: XCTestCase {
         statusState: FootballFixtureStatusState,
         statusText: String? = nil,
         statusDetailText: String? = nil,
+        statusPeriod: Int? = nil,
         statusReliability: FootballFixtureStatusReliability = .reported,
         competitionSlug: String = "uefa.champions",
         seasonSlug: String? = nil,
@@ -1287,6 +1364,7 @@ final class FootballFixtureFormatterTests: XCTestCase {
             statusState: statusState,
             statusText: statusText ?? (statusState == .inProgress ? "55'" : "7:00 PM"),
             statusDetailText: statusDetailText,
+            statusPeriod: statusPeriod,
             statusReliability: statusReliability,
             homeTeam: homeTeam ?? FootballTestData.defaultClubHomeTeam,
             awayTeam: awayTeam ?? FootballTestData.defaultClubAwayTeam,

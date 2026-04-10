@@ -1,7 +1,42 @@
 import XCTest
 @testable import AlertCalendar
 
+private final class FootballDataAPIClientMockURLProtocol: URLProtocol {
+    nonisolated(unsafe) static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        guard let handler = Self.requestHandler else {
+            XCTFail("Missing request handler")
+            return
+        }
+
+        do {
+            let (response, data) = try handler(request)
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: data)
+            client?.urlProtocolDidFinishLoading(self)
+        } catch {
+            client?.urlProtocol(self, didFailWithError: error)
+        }
+    }
+
+    override func stopLoading() {}
+}
+
 final class FootballDataAPIClientTests: XCTestCase {
+    override func tearDown() {
+        FootballDataAPIClientMockURLProtocol.requestHandler = nil
+        super.tearDown()
+    }
+
     func testParseEventDateSupportsESPNValuesWithoutSeconds() {
         let date = FootballDataAPIClient.parseEventDate("2026-02-25T22:00Z")
 
@@ -703,6 +738,82 @@ final class FootballDataAPIClientTests: XCTestCase {
         )
     }
 
+    func testRefreshStatusesIfNeededCanForceSummaryForFinishedMatchOutsideDefaultWindow() async throws {
+        let scheduledStart = Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970) - 8 * 60 * 60)
+        let actualKickoff = scheduledStart.addingTimeInterval(7 * 60)
+        let match = FootballTestData.match(
+            id: "finished-force-summary",
+            competitionSlug: "fifa.friendly",
+            competitionName: "International Friendly",
+            startDate: scheduledStart,
+            statusState: .finished,
+            statusText: "FT",
+            homeScore: "0",
+            awayScore: "0"
+        )
+        let session = makeMockSession { request in
+            let expectedURL = "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.friendly/summary?event=finished-force-summary"
+            XCTAssertEqual(request.url?.absoluteString, expectedURL)
+
+            let body: [String: Any] = [
+                "header": [
+                    "competitions": [[
+                        "status": [
+                            "type": [
+                                "state": "post",
+                                "shortDetail": "FT",
+                                "detail": "Full Time",
+                                "period": 2,
+                            ],
+                        ],
+                        "competitors": [
+                            [
+                                "homeAway": "home",
+                                "score": "2",
+                            ],
+                            [
+                                "homeAway": "away",
+                                "score": "1",
+                            ],
+                        ],
+                    ]],
+                ],
+                "keyEvents": [
+                    [
+                        "type": [
+                            "text": "Kickoff",
+                            "type": "kickoff",
+                        ],
+                        "wallclock": ISO8601DateFormatter().string(from: actualKickoff),
+                    ],
+                ],
+            ]
+
+            let data = try JSONSerialization.data(withJSONObject: body)
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, data)
+        }
+        let client = FootballDataAPIClient(session: session)
+
+        let unchanged = await client.refreshStatusesIfNeeded(for: [match])
+        XCTAssertNil(unchanged.first?.actualStartDate)
+
+        let refreshed = await client.refreshStatusesIfNeeded(
+            for: [match],
+            forceSummaryForMatchIDs: [match.id]
+        )
+
+        let resolvedKickoff = try XCTUnwrap(refreshed.first?.actualStartDate)
+        XCTAssertEqual(resolvedKickoff.timeIntervalSince1970, actualKickoff.timeIntervalSince1970, accuracy: 0.001)
+        XCTAssertEqual(refreshed.first?.homeScore, "2")
+        XCTAssertEqual(refreshed.first?.awayScore, "1")
+    }
+
     private func makeMatch(
         id: String,
         statusState: FootballFixtureStatusState,
@@ -717,5 +828,14 @@ final class FootballDataAPIClientTests: XCTestCase {
             homeScore: homeScore,
             awayScore: awayScore
         )
+    }
+
+    private func makeMockSession(
+        handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)
+    ) -> URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [FootballDataAPIClientMockURLProtocol.self]
+        FootballDataAPIClientMockURLProtocol.requestHandler = handler
+        return URLSession(configuration: configuration)
     }
 }

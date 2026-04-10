@@ -259,11 +259,18 @@ actor FootballDataAPIClient {
         return []
     }
 
-    func refreshStatusesIfNeeded(for matches: [FootballFixtureMatch]) async -> [FootballFixtureMatch] {
+    func refreshStatusesIfNeeded(
+        for matches: [FootballFixtureMatch],
+        forceSummaryForMatchIDs: Set<String> = []
+    ) async -> [FootballFixtureMatch] {
         guard !matches.isEmpty else { return matches }
 
         let now = Date()
         let candidates = matches.filter { match in
+            if forceSummaryForMatchIDs.contains(match.id) {
+                return true
+            }
+
             let secondsFromKickoff = now.timeIntervalSince(match.startDate)
             switch match.statusState {
             case .inProgress:
@@ -272,7 +279,8 @@ actor FootballDataAPIClient {
                 return secondsFromKickoff >= -Self.summaryPreBufferBeforeKickoff
                     && secondsFromKickoff <= Self.summaryPreBufferAfterKickoff
             case .finished:
-                return false
+                return secondsFromKickoff >= -Self.summaryPreBufferBeforeKickoff
+                    && secondsFromKickoff <= Self.summaryPreBufferAfterKickoff
             }
         }
 

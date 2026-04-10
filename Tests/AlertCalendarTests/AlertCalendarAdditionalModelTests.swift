@@ -45,6 +45,7 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
     func testFootballCompetitionPresetsExposeRegionalBuckets() {
         let grouped = Dictionary(grouping: FootballCompetitionPreset.menuPresets, by: \.region)
 
+        XCTAssertEqual(FootballCompetitionRegion.allCases, [.northAmerica, .southAmerica, .europe, .global])
         XCTAssertEqual(FootballCompetitionRegion.northAmerica.title, "North America")
         XCTAssertEqual(FootballCompetitionRegion.southAmerica.title, "South America")
         XCTAssertEqual(FootballCompetitionRegion.europe.title, "Europe")
@@ -92,8 +93,8 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
             DefaultsKeys.weekdayOnlyEventCalendarIDs,
             DefaultsKeys.weekdayOnlyReminderCalendarIDs,
             DefaultsKeys.lookAheadHours,
+            DefaultsKeys.menuBarRotationWindowMinutes,
             DefaultsKeys.alertLeadMinutes,
-            DefaultsKeys.nearUpcomingAlternateMinutes,
             DefaultsKeys.concurrentEventRotationSeconds,
             DefaultsKeys.useSimplifiedCountdown,
             DefaultsKeys.activeEventDisplayMode,
@@ -105,12 +106,14 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
             DefaultsKeys.skippedItemKeys,
             DefaultsKeys.footballTargetCalendarID,
             DefaultsKeys.footballCalendarAlertOption,
+            DefaultsKeys.showFinishedFootballMatches,
             DefaultsKeys.managedFootballEventRecords,
         ]
 
-        XCTAssertEqual(keys.count, 27)
+        XCTAssertEqual(keys.count, 28)
         XCTAssertEqual(Set(keys).count, keys.count)
         XCTAssertTrue(keys.contains("activeEventDisplayMode"))
+        XCTAssertTrue(keys.contains("menuBarRotationWindowMinutes"))
         XCTAssertTrue(keys.contains("menuBarFontSize"))
     }
 
@@ -236,6 +239,53 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
         )
     }
 
+    func testFootballContextualScheduleTextOnlyShowsForFutureScheduledMatches() {
+        let calendar = Calendar(identifier: .gregorian)
+        let locale = Locale(identifier: "en_US_POSIX")
+        let timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let scheduledMatch = makeFootballMatch(
+            id: "scheduled-match",
+            startDate: now.addingTimeInterval(60 * 60),
+            actualStartDate: nil,
+            statusState: .scheduled,
+            statusText: "1:00 PM"
+        )
+        let liveMatch = makeFootballMatch(
+            id: "live-match",
+            startDate: now.addingTimeInterval(-30 * 60),
+            actualStartDate: now.addingTimeInterval(-28 * 60),
+            statusState: .inProgress,
+            statusText: "15'"
+        )
+
+        XCTAssertEqual(
+            MenuContentView.footballContextualScheduleText(
+                for: scheduledMatch,
+                now: now,
+                calendar: calendar,
+                locale: locale,
+                timeZone: timeZone
+            ),
+            CalendarMonitor.footballScheduleText(
+                for: scheduledMatch,
+                now: now,
+                calendar: calendar,
+                locale: locale,
+                timeZone: timeZone
+            )
+        )
+        XCTAssertNil(
+            MenuContentView.footballContextualScheduleText(
+                for: liveMatch,
+                now: now,
+                calendar: calendar,
+                locale: locale,
+                timeZone: timeZone
+            )
+        )
+    }
+
     func testQueueItemsForActionsExcludesFootballMatchesAlreadyStartedOrLive() {
         let now = Date(timeIntervalSince1970: 1_720_000_000)
         let liveMatch = makeFootballMatch(
@@ -286,6 +336,7 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
             ],
             contextualItems: [],
             now: now,
+            futureWindowEnd: now.addingTimeInterval(24 * 60 * 60),
             maxItems: 8
         )
 
@@ -318,10 +369,94 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
                 makeFootballUpcomingItem(contextualMatch)
             ],
             now: now,
+            futureWindowEnd: now.addingTimeInterval(24 * 60 * 60),
             maxItems: 8
         )
 
         XCTAssertEqual(queued.map(\.id), ["queue-match"])
+    }
+
+    func testQueueItemsForActionsRespectsDropdownTimeWindowButKeepsAllDayAndActiveItems() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let futureWindowEnd = now.addingTimeInterval(2 * 60 * 60)
+        let activeEvent = UpcomingItem(
+            id: "active-event",
+            title: "Match in progress",
+            date: now.addingTimeInterval(-1800),
+            endDate: now.addingTimeInterval(1800),
+            isAllDay: false,
+            showsMutedBackground: false,
+            travelTimeMinutes: nil,
+            locationText: nil,
+            meetingURL: nil,
+            calendarID: nil,
+            calendarName: "Work",
+            calendarColor: .systemBlue,
+            kind: .event,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
+        )
+        let allDayEvent = UpcomingItem(
+            id: "all-day",
+            title: "Holiday",
+            date: now,
+            endDate: nil,
+            isAllDay: true,
+            showsMutedBackground: false,
+            travelTimeMinutes: nil,
+            locationText: "San Jose",
+            meetingURL: nil,
+            calendarID: nil,
+            calendarName: "Personal",
+            calendarColor: .systemGreen,
+            kind: .event,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
+        )
+        let nearFutureEvent = UpcomingItem(
+            id: "near-future",
+            title: "Planning",
+            date: now.addingTimeInterval(90 * 60),
+            endDate: now.addingTimeInterval(120 * 60),
+            isAllDay: false,
+            showsMutedBackground: false,
+            travelTimeMinutes: nil,
+            locationText: nil,
+            meetingURL: nil,
+            calendarID: nil,
+            calendarName: "Work",
+            calendarColor: .systemOrange,
+            kind: .event,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
+        )
+        let farFutureEvent = UpcomingItem(
+            id: "far-future",
+            title: "Dinner",
+            date: now.addingTimeInterval(6 * 60 * 60),
+            endDate: now.addingTimeInterval(7 * 60 * 60),
+            isAllDay: false,
+            showsMutedBackground: false,
+            travelTimeMinutes: nil,
+            locationText: nil,
+            meetingURL: nil,
+            calendarID: nil,
+            calendarName: "Personal",
+            calendarColor: .systemPink,
+            kind: .event,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
+        )
+
+        let queued = MenuContentView.queueItemsForActions(
+            from: [allDayEvent, activeEvent, nearFutureEvent, farFutureEvent],
+            contextualItems: [],
+            now: now,
+            futureWindowEnd: futureWindowEnd,
+            maxItems: 8
+        )
+
+        XCTAssertEqual(queued.map(\.id), ["all-day", "active-event", "near-future"])
     }
 
     func testResolvedMenuBarRotationStateKeepsCurrentSelectionWithinSameSlot() {
@@ -428,6 +563,83 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
         XCTAssertEqual(resolvedState.selectedKey, "match-c")
         XCTAssertEqual(resolvedState.selectedIndex, 1)
         XCTAssertEqual(resolvedState.startedAt, start)
+    }
+
+    func testMenuBarRotationWindowIncludesActiveAndNearFutureItemsButExcludesFarFutureItems() {
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let activeEvent = UpcomingItem(
+            id: "active-event",
+            title: "Active",
+            date: start.addingTimeInterval(-900),
+            endDate: start.addingTimeInterval(900),
+            isAllDay: false,
+            showsMutedBackground: false,
+            travelTimeMinutes: nil,
+            locationText: nil,
+            meetingURL: nil,
+            calendarID: nil,
+            calendarName: "Work",
+            calendarColor: .systemBlue,
+            kind: .event,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
+        )
+        let nearFutureEvent = UpcomingItem(
+            id: "near-event",
+            title: "Near",
+            date: start.addingTimeInterval(45 * 60),
+            endDate: start.addingTimeInterval(75 * 60),
+            isAllDay: false,
+            showsMutedBackground: false,
+            travelTimeMinutes: nil,
+            locationText: nil,
+            meetingURL: nil,
+            calendarID: nil,
+            calendarName: "Work",
+            calendarColor: .systemGreen,
+            kind: .event,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
+        )
+        let farFutureEvent = UpcomingItem(
+            id: "far-event",
+            title: "Far",
+            date: start.addingTimeInterval(3 * 60 * 60),
+            endDate: start.addingTimeInterval(4 * 60 * 60),
+            isAllDay: false,
+            showsMutedBackground: false,
+            travelTimeMinutes: nil,
+            locationText: nil,
+            meetingURL: nil,
+            calendarID: nil,
+            calendarName: "Work",
+            calendarColor: .systemOrange,
+            kind: .event,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
+        )
+
+        XCTAssertTrue(
+            CalendarMonitor.shouldIncludeTimedItemInMenuBarRotation(
+                activeEvent,
+                now: start,
+                futureWindowSeconds: 60 * 60
+            )
+        )
+        XCTAssertTrue(
+            CalendarMonitor.shouldIncludeTimedItemInMenuBarRotation(
+                nearFutureEvent,
+                now: start,
+                futureWindowSeconds: 60 * 60
+            )
+        )
+        XCTAssertFalse(
+            CalendarMonitor.shouldIncludeTimedItemInMenuBarRotation(
+                farFutureEvent,
+                now: start,
+                futureWindowSeconds: 60 * 60
+            )
+        )
     }
 
     func testPreservedMenuBarSelectionKeyKeepsCurrentSelectionWhenPreferredPoolChangesWithinSameSlot() {

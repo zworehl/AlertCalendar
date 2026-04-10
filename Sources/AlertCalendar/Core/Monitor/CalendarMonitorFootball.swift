@@ -3,10 +3,18 @@ import CoreLocation
 import EventKit
 import Foundation
 
+struct ManagedFootballEventSnapshot {
+    let event: EKEvent
+    let reference: ManagedFootballFixtureReference
+    let record: ManagedFootballEventRecord
+}
+
 extension CalendarMonitor {
     private static let footballMenuRefreshInterval: TimeInterval = 60
     private static let footballManagedSyncInterval: TimeInterval = 60
     private static let footballManagedCleanupInterval: TimeInterval = 6 * 60 * 60
+    private static let footballManagedRecoveryInterval: TimeInterval = 15 * 60
+    private static let footballLegacyMigrationInterval: TimeInterval = 6 * 60 * 60
     private static let footballTrackedLookbackDays = FootballCompetitionPreset.suggestionWindowLookbackDays
     private static let footballTrackedLookaheadDays = FootballCompetitionPreset.suggestionWindowLookaheadDays
     private static let footballManagedCleanupSearchLookbackDays = 365
@@ -19,21 +27,40 @@ extension CalendarMonitor {
     nonisolated private static let footballManagedEventMatchingTolerance: TimeInterval = 5 * 60
     nonisolated private static let footballStructuredLocationToleranceMeters: CLLocationDistance = 150
 
-    private struct ManagedFootballEventSnapshot {
-        let event: EKEvent
-        let reference: ManagedFootballFixtureReference
-        let record: ManagedFootballEventRecord
-    }
-
     func refreshFootballDataIfNeeded(now: Date, force: Bool = false) async {
         await syncManagedFootballEventsIfNeeded(now: now, force: force)
     }
 
+    func invalidateManagedFootballSnapshotCache(markEventStoreChanged: Bool = false) {
+        cachedManagedFootballSnapshots = []
+        isManagedFootballSnapshotCacheValid = false
+        if markEventStoreChanged {
+            didFootballEventStoreChange = true
+        }
+    }
+
+    private func shouldRunFootballLegacyMigration(now: Date, force: Bool) -> Bool {
+        force
+            || didFootballEventStoreChange
+            || lastFootballLegacyMigrationDate == nil
+            || now.timeIntervalSince(lastFootballLegacyMigrationDate!) >= Self.footballLegacyMigrationInterval
+    }
+
+    private func shouldRunFootballManagedRecovery(now: Date, force: Bool) -> Bool {
+        force
+            || didFootballEventStoreChange
+            || managedFootballEventRecords.isEmpty
+            || lastFootballManagedRecoveryDate == nil
+            || now.timeIntervalSince(lastFootballManagedRecoveryDate!) >= Self.footballManagedRecoveryInterval
+    }
+
     func ensureFootballCompetitionSections() {
         let existingSectionsByID = Dictionary(uniqueKeysWithValues: footballMenuSections.map { ($0.id, $0) })
-        footballMenuSections = FootballCompetitionPreset.menuPresets.map { preset in
-            existingSectionsByID[preset.id] ?? .placeholder(for: preset)
+        let nextSections = FootballCompetitionPreset.menuPresets.map { preset in
+            existingSectionsByID[preset.id] ?? Self.defaultFootballCompetitionSection(for: preset)
         }
+        guard footballMenuSections != nextSections else { return }
+        footballMenuSections = nextSections
     }
 
     func loadFootballCompetitionSection(_ competition: FootballCompetitionPreset, force: Bool = true) async {
@@ -60,9 +87,10 @@ extension CalendarMonitor {
             let matchesByCompetition = try await footballClient.fetchMatchesByCompetition(for: [competition])
             let fetchedMatches = matchesByCompetition[competition.slug] ?? []
             let refreshedMatches = await footballClient.refreshStatusesIfNeeded(for: fetchedMatches)
-            await cacheFootballMatches(refreshedMatches)
+            let resolvedMatches = matchesPreservingKnownTimingContext(refreshedMatches)
+            await cacheFootballMatches(resolvedMatches)
             let matches = Self.resolvedFootballSectionMatches(
-                refreshedMatches,
+                resolvedMatches,
                 cachedMatchesByID: footballMatchesByID,
                 now: now
             )
@@ -93,19 +121,28 @@ extension CalendarMonitor {
 
     func loadFootballLiveAndNextDaySection(force: Bool = true) async {
         guard !footballLiveAndNextDaySection.isLoading else { return }
-        guard force || !footballLiveAndNextDaySection.hasLoaded else { return }
 
         let now = fixedSecondNow()
+        let needsRefresh = force
+            || !footballLiveAndNextDaySection.hasLoaded
+            || lastFootballMenuRefreshDate == nil
+            || now.timeIntervalSince(lastFootballMenuRefreshDate!) >= Self.footballMenuRefreshInterval
+        guard needsRefresh else { return }
+        lastFootballMenuRefreshDate = now
+
         let cachedMatches = Self.liveAndNextDayMatches(from: Array(footballMatchesByID.values), now: now)
         let hasCachedMatches = !cachedMatches.isEmpty
 
-        footballLiveAndNextDaySection = FootballMatchesOverviewSection(
+        let loadingSection = FootballMatchesOverviewSection(
             title: footballLiveAndNextDaySection.title,
             matches: hasCachedMatches ? cachedMatches : footballLiveAndNextDaySection.matches,
             errorMessage: nil,
             isLoading: true,
             hasLoaded: footballLiveAndNextDaySection.hasLoaded || hasCachedMatches
         )
+        if footballLiveAndNextDaySection != loadingSection {
+            footballLiveAndNextDaySection = loadingSection
+        }
 
         let limitedPresets = FootballCompetitionPreset.menuPresets.map {
             FootballCompetitionPreset(
@@ -121,25 +158,29 @@ extension CalendarMonitor {
         do {
             let fetchedMatches = try await footballClient.fetchMatches(for: limitedPresets)
             let refreshedMatches = await footballClient.refreshStatusesIfNeeded(for: fetchedMatches)
-            await cacheFootballMatches(refreshedMatches)
+            let resolvedMatches = matchesPreservingKnownTimingContext(refreshedMatches)
+            await cacheFootballMatches(resolvedMatches)
             let filteredMatches = Self.liveAndNextDayMatches(
                 from: Self.resolvedFootballSectionMatches(
-                    refreshedMatches,
+                    resolvedMatches,
                     cachedMatchesByID: footballMatchesByID,
                     now: now
                 ),
                 now: now
             )
 
-            footballLiveAndNextDaySection = FootballMatchesOverviewSection(
+            let loadedSection = FootballMatchesOverviewSection(
                 title: footballLiveAndNextDaySection.title,
                 matches: filteredMatches,
                 errorMessage: nil,
                 isLoading: false,
                 hasLoaded: true
             )
+            if footballLiveAndNextDaySection != loadedSection {
+                footballLiveAndNextDaySection = loadedSection
+            }
         } catch {
-            footballLiveAndNextDaySection = FootballMatchesOverviewSection(
+            let failedSection = FootballMatchesOverviewSection(
                 title: footballLiveAndNextDaySection.title,
                 matches: hasCachedMatches ? cachedMatches : footballLiveAndNextDaySection.matches,
                 errorMessage: footballLiveAndNextDaySection.hasLoaded || hasCachedMatches
@@ -148,18 +189,32 @@ extension CalendarMonitor {
                 isLoading: false,
                 hasLoaded: footballLiveAndNextDaySection.hasLoaded || hasCachedMatches
             )
+            if footballLiveAndNextDaySection != failedSection {
+                footballLiveAndNextDaySection = failedSection
+            }
         }
     }
 
     func syncManagedFootballEventsIfNeeded(now: Date, force: Bool = false) async {
         guard hasEventsAccess else {
-            managedFootballMatchIDs = []
-            managedFootballMatches = []
+            if !managedFootballMatchIDs.isEmpty {
+                managedFootballMatchIDs = []
+            }
+            if !managedFootballMatches.isEmpty {
+                managedFootballMatches = []
+            }
             return
         }
 
-        migrateLegacyManagedFootballEventsIfNeeded(now: now)
-        await recoverManagedFootballEventRecordsIfNeeded(now: now)
+        if shouldRunFootballLegacyMigration(now: now, force: force) {
+            migrateLegacyManagedFootballEventsIfNeeded(now: now)
+            lastFootballLegacyMigrationDate = now
+        }
+        if shouldRunFootballManagedRecovery(now: now, force: force) {
+            await recoverManagedFootballEventRecordsIfNeeded(now: now)
+            lastFootballManagedRecoveryDate = now
+        }
+        didFootballEventStoreChange = false
 
         let needsCleanup = force
             || lastFootballManagedCleanupDate == nil
@@ -173,7 +228,9 @@ extension CalendarMonitor {
         applyManagedFootballAlertConfigurationIfNeeded(to: trackedEvents)
 
         guard !trackedEvents.isEmpty else {
-            managedFootballMatches = []
+            if !managedFootballMatches.isEmpty {
+                managedFootballMatches = []
+            }
             return
         }
 
@@ -188,9 +245,10 @@ extension CalendarMonitor {
         do {
             let matches = try await footballClient.fetchMatches(for: trackedPresets)
             let refreshedMatches = await footballClient.refreshStatusesIfNeeded(for: matches)
-            await cacheFootballMatches(refreshedMatches)
+            let resolvedMatches = matchesPreservingKnownTimingContext(refreshedMatches)
+            await cacheFootballMatches(resolvedMatches)
             updateManagedFootballMatches(using: trackedEvents, now: now)
-            await applyFootballEventUpdates(trackedEvents, using: refreshedMatches)
+            await applyFootballEventUpdates(trackedEvents, using: resolvedMatches)
             lastFootballManagedSyncDate = now
         } catch {
             return
@@ -214,6 +272,7 @@ extension CalendarMonitor {
             return
         }
 
+        let match = await resolvedFootballMatchForCalendarAdd(match)
         let reference = ManagedFootballFixtureReference(
             matchID: match.id,
             competitionSlug: match.competitionSlug
@@ -246,6 +305,26 @@ extension CalendarMonitor {
         } catch {
             calendarAccessDescription = "Could not save the selected fixture."
         }
+    }
+
+    private func resolvedFootballMatchForCalendarAdd(_ match: FootballFixtureMatch) async -> FootballFixtureMatch {
+        let previousMatch = footballMatchesByID[match.id]
+        let baseMatch = Self.footballMatchPreservingKnownTimingContext(match, previousMatch: previousMatch)
+        let shouldForceSummary = baseMatch.statusState == .finished
+            || baseMatch.statusState == .inProgress
+            || (baseMatch.statusState == .unknown && baseMatch.startDate <= Date())
+
+        guard shouldForceSummary else { return baseMatch }
+
+        let refreshedMatch = await footballClient.refreshStatusesIfNeeded(
+            for: [baseMatch],
+            forceSummaryForMatchIDs: [baseMatch.id]
+        ).first ?? baseMatch
+
+        return Self.footballMatchPreservingKnownTimingContext(
+            refreshedMatch,
+            previousMatch: previousMatch
+        )
     }
 
     func openFootballMatchInCalendar(_ match: FootballFixtureMatch) {
@@ -351,8 +430,12 @@ extension CalendarMonitor {
 
     func refreshManagedFootballTrackingSnapshot(now: Date) {
         guard hasEventsAccess else {
-            managedFootballMatchIDs = []
-            managedFootballMatches = []
+            if !managedFootballMatchIDs.isEmpty {
+                managedFootballMatchIDs = []
+            }
+            if !managedFootballMatches.isEmpty {
+                managedFootballMatches = []
+            }
             return
         }
         _ = trackedFootballSnapshotsByRefreshingState(now: now)
@@ -569,6 +652,10 @@ extension CalendarMonitor {
     }
 
     private func resolveManagedFootballEventSnapshots() -> [ManagedFootballEventSnapshot] {
+        if isManagedFootballSnapshotCacheValid {
+            return cachedManagedFootballSnapshots
+        }
+
         let deduplicatedRecords = deduplicatedManagedFootballEventRecords(managedFootballEventRecords)
         var resolvedSnapshots: [ManagedFootballEventSnapshot] = []
         var refreshedRecords: [ManagedFootballEventRecord] = []
@@ -590,6 +677,8 @@ extension CalendarMonitor {
         }
 
         persistManagedFootballEventRecords(refreshedRecords)
+        cachedManagedFootballSnapshots = resolvedSnapshots
+        isManagedFootballSnapshotCacheValid = true
         return resolvedSnapshots
     }
 
@@ -708,6 +797,61 @@ extension CalendarMonitor {
         }
     }
 
+    private func matchesPreservingKnownTimingContext(_ matches: [FootballFixtureMatch]) -> [FootballFixtureMatch] {
+        matches.map { match in
+            Self.footballMatchPreservingKnownTimingContext(
+                match,
+                previousMatch: footballMatchesByID[match.id]
+            )
+        }
+    }
+
+    nonisolated static func footballMatchPreservingKnownTimingContext(
+        _ match: FootballFixtureMatch,
+        previousMatch: FootballFixtureMatch?
+    ) -> FootballFixtureMatch {
+        guard let previousMatch, previousMatch.id == match.id else { return match }
+
+        let actualStartDate = match.actualStartDate ?? previousMatch.actualStartDate
+        let statusDetailText = footballPreferredStatusDetailText(
+            current: match.statusDetailText,
+            fallback: previousMatch.statusDetailText
+        )
+        let statusPeriod = footballPreferredStatusPeriod(for: match, previousMatch: previousMatch)
+
+        guard actualStartDate != match.actualStartDate
+            || statusDetailText != match.statusDetailText
+            || statusPeriod != match.statusPeriod else {
+            return match
+        }
+
+        return FootballFixtureMatch(
+            id: match.id,
+            competitionSlug: match.competitionSlug,
+            competitionName: match.competitionName,
+            competitionStage: match.competitionStage,
+            seasonSlug: match.seasonSlug,
+            competitionNote: match.competitionNote,
+            competitionLogoURL: match.competitionLogoURL,
+            locationText: match.locationText,
+            startDate: match.startDate,
+            actualStartDate: actualStartDate,
+            statusState: match.statusState,
+            statusText: match.statusText,
+            statusDetailText: statusDetailText,
+            statusPeriod: statusPeriod,
+            statusReliability: match.statusReliability,
+            homeTeam: match.homeTeam,
+            awayTeam: match.awayTeam,
+            homeScore: match.homeScore,
+            awayScore: match.awayScore,
+            homeYellowCards: match.homeYellowCards,
+            awayYellowCards: match.awayYellowCards,
+            homeRedCards: match.homeRedCards,
+            awayRedCards: match.awayRedCards
+        )
+    }
+
     private func cachedCompetitionMatches(for competition: FootballCompetitionPreset, now: Date) -> [FootballFixtureMatch] {
         Array(footballMatchesByID.values)
             .filter { $0.competitionSlug == competition.slug }
@@ -717,6 +861,10 @@ extension CalendarMonitor {
             .sorted { lhs, rhs in
                 Self.footballFixtureSortPriority(for: lhs, now: now) < Self.footballFixtureSortPriority(for: rhs, now: now)
             }
+    }
+
+    nonisolated private static func defaultFootballCompetitionSection(for preset: FootballCompetitionPreset) -> FootballMenuCompetitionSection {
+        return .placeholder(for: preset)
     }
 
     private func applyFootballEventUpdates(_ trackedEvents: [ManagedFootballEventSnapshot], using matches: [FootballFixtureMatch]) async {
@@ -932,7 +1080,9 @@ extension CalendarMonitor {
         transform: (FootballMenuCompetitionSection) -> FootballMenuCompetitionSection
     ) {
         guard let index = footballMenuSections.firstIndex(where: { $0.id == competitionID }) else { return }
-        footballMenuSections[index] = transform(footballMenuSections[index])
+        let nextSection = transform(footballMenuSections[index])
+        guard footballMenuSections[index] != nextSection else { return }
+        footballMenuSections[index] = nextSection
     }
 
     private func updateManagedFootballMatches(using trackedEvents: [ManagedFootballEventSnapshot], now: Date) {
@@ -941,13 +1091,15 @@ extension CalendarMonitor {
             partialResult[snapshot.reference.matchID] = snapshot
         }
 
-        managedFootballMatches = snapshotsByMatchID.values
+        let nextMatches = snapshotsByMatchID.values
             .compactMap { snapshot in
                 footballMatchesByID[snapshot.reference.matchID]
             }
             .sorted { lhs, rhs in
                 Self.footballFixtureSortPriority(for: lhs, now: now) < Self.footballFixtureSortPriority(for: rhs, now: now)
             }
+        guard managedFootballMatches != nextMatches else { return }
+        managedFootballMatches = nextMatches
     }
 
     nonisolated static func liveAndNextDayMatches(
@@ -1232,6 +1384,7 @@ extension CalendarMonitor {
         let normalizedRecords = deduplicatedManagedFootballEventRecords(records)
         guard normalizedRecords != managedFootballEventRecords else { return }
 
+        invalidateManagedFootballSnapshotCache()
         managedFootballEventRecords = normalizedRecords
         if normalizedRecords.isEmpty {
             defaults.removeObject(forKey: DefaultsKeys.managedFootballEventRecords)
@@ -1444,7 +1597,8 @@ extension CalendarMonitor {
             do {
                 let fetchedMatches = try await footballClient.fetchMatches(for: FootballCompetitionPreset.menuPresets)
                 let refreshedMatches = await footballClient.refreshStatusesIfNeeded(for: fetchedMatches)
-                await cacheFootballMatches(refreshedMatches)
+                let resolvedMatches = matchesPreservingKnownTimingContext(refreshedMatches)
+                await cacheFootballMatches(resolvedMatches)
                 candidateMatches = Array(footballMatchesByID.values)
             } catch {
                 return
@@ -1631,6 +1785,42 @@ extension CalendarMonitor {
         return "Started \(formatter.string(from: startDate))"
     }
 
+    nonisolated static func footballScheduleText(
+        for match: FootballFixtureMatch,
+        now: Date = Date(),
+        calendar: Calendar = .autoupdatingCurrent,
+        locale: Locale = .autoupdatingCurrent,
+        timeZone: TimeZone = .autoupdatingCurrent
+    ) -> String {
+        if match.hasInterruptedStatus {
+            return footballKickoffStatusText(
+                for: match.startDate,
+                now: now,
+                calendar: calendar,
+                locale: locale,
+                timeZone: timeZone
+            )
+        }
+
+        if match.statusState == .inProgress || match.statusState == .finished {
+            return footballStartedStatusText(
+                for: match.actualStartDate ?? match.startDate,
+                now: now,
+                calendar: calendar,
+                locale: locale,
+                timeZone: timeZone
+            )
+        }
+
+        return footballKickoffStatusText(
+            for: match.startDate,
+            now: now,
+            calendar: calendar,
+            locale: locale,
+            timeZone: timeZone
+        )
+    }
+
     nonisolated static func footballStatusBadgeText(
         for match: FootballFixtureMatch,
         now: Date = Date()
@@ -1786,6 +1976,10 @@ extension CalendarMonitor {
             return true
         }
 
+        if footballStatusPeriodIndicatesExtraTime(match.statusPeriod) {
+            return true
+        }
+
         guard footballCanReachExtraTime(match) else { return false }
         guard footballScoresAreLevel(match) else { return false }
 
@@ -1805,6 +1999,10 @@ extension CalendarMonitor {
         let minute = footballLiveMinute(for: match, now: now)
 
         if normalizedStatus.contains("PEN") || normalizedStatus == "PK" || normalizedStatus.contains("PENALTY") {
+            return true
+        }
+
+        if footballStatusPeriodIndicatesPenaltyShootout(match.statusPeriod) {
             return true
         }
 
@@ -1837,6 +2035,16 @@ extension CalendarMonitor {
         default:
             return false
         }
+    }
+
+    nonisolated private static func footballStatusPeriodIndicatesExtraTime(_ statusPeriod: Int?) -> Bool {
+        guard let statusPeriod else { return false }
+        return statusPeriod >= 4
+    }
+
+    nonisolated private static func footballStatusPeriodIndicatesPenaltyShootout(_ statusPeriod: Int?) -> Bool {
+        guard let statusPeriod else { return false }
+        return statusPeriod >= 5
     }
 
     nonisolated private static func footballIsSingleMatchKnockoutContext(_ match: FootballFixtureMatch) -> Bool {
@@ -1895,6 +2103,35 @@ extension CalendarMonitor {
 
     nonisolated private static func footballEffectiveStartDate(for match: FootballFixtureMatch) -> Date {
         match.actualStartDate ?? match.startDate
+    }
+
+    nonisolated private static func footballPreferredStatusDetailText(
+        current: String?,
+        fallback: String?
+    ) -> String? {
+        if let current, !current.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return current
+        }
+        return fallback
+    }
+
+    nonisolated private static func footballPreferredStatusPeriod(
+        for match: FootballFixtureMatch,
+        previousMatch: FootballFixtureMatch
+    ) -> Int? {
+        guard let previousStatusPeriod = previousMatch.statusPeriod else {
+            return match.statusPeriod
+        }
+
+        guard let currentStatusPeriod = match.statusPeriod else {
+            return previousStatusPeriod
+        }
+
+        guard match.statusState == .finished else {
+            return currentStatusPeriod
+        }
+
+        return max(currentStatusPeriod, previousStatusPeriod)
     }
 
     nonisolated private static func footballScoresAreLevel(_ match: FootballFixtureMatch) -> Bool {

@@ -12,7 +12,11 @@ extension CalendarMonitor {
         let settings = snapshotSettings()
         let now = fixedSecondNow()
         await refreshFootballDataIfNeeded(now: now)
-        let endDate = now.addingTimeInterval(Double(settings.lookAheadHours) * 3600)
+        let fetchedLookAheadHours = max(
+            settings.lookAheadHours,
+            Int(ceil(Double(settings.menuBarRotationWindowMinutes) / 60.0))
+        )
+        let endDate = now.addingTimeInterval(Double(fetchedLookAheadHours) * 3600)
 
         var timedCollected: [UpcomingItem] = []
         var allDayCollected: [UpcomingItem] = []
@@ -24,7 +28,7 @@ extension CalendarMonitor {
                 weekdayOnlyIDs: settings.weekdayOnlyEventCalendarIDs,
                 now: now
             )
-            let lookBackHours = max(24, settings.lookAheadHours)
+            let lookBackHours = max(24, fetchedLookAheadHours)
             let eventsStart = now.addingTimeInterval(-Double(lookBackHours) * 3600)
             let events = loadEvents(from: eventsStart, to: endDate, now: now, calendars: selectedCalendars)
             if settings.includeEvents {
@@ -459,7 +463,7 @@ extension CalendarMonitor {
                     .filter { $0.type == .birthday }
                     .map(\.calendarIdentifier)
             )
-            availableEventCalendars = eventCalendars.map {
+            let nextAvailableEventCalendars = eventCalendars.map {
                 AvailableCalendar(
                     id: $0.calendarIdentifier,
                     title: $0.title,
@@ -469,19 +473,24 @@ extension CalendarMonitor {
                     isSubscribed: $0.type == .subscription
                 )
             }
+            if availableEventCalendars != nextAvailableEventCalendars {
+                availableEventCalendars = nextAvailableEventCalendars
+            }
             syncStoredSelection(
                 for: .event,
                 availableIDs: Set(eventCalendars.map(\.calendarIdentifier))
             )
         } else {
-            availableEventCalendars = []
+            if !availableEventCalendars.isEmpty {
+                availableEventCalendars = []
+            }
             birthdayCalendarIDs = []
         }
 
         if hasRemindersAccess {
             let reminderCalendars = eventStore.calendars(for: .reminder)
                 .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
-            availableReminderCalendars = reminderCalendars.map {
+            let nextAvailableReminderCalendars = reminderCalendars.map {
                 AvailableCalendar(
                     id: $0.calendarIdentifier,
                     title: $0.title,
@@ -491,12 +500,17 @@ extension CalendarMonitor {
                     isSubscribed: $0.type == .subscription
                 )
             }
+            if availableReminderCalendars != nextAvailableReminderCalendars {
+                availableReminderCalendars = nextAvailableReminderCalendars
+            }
             syncStoredSelection(
                 for: .reminder,
                 availableIDs: Set(reminderCalendars.map(\.calendarIdentifier))
             )
         } else {
-            availableReminderCalendars = []
+            if !availableReminderCalendars.isEmpty {
+                availableReminderCalendars = []
+            }
         }
     }
 

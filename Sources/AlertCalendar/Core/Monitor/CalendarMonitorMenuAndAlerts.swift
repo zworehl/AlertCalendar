@@ -364,42 +364,16 @@ extension CalendarMonitor {
     }
 
     func rotatingReminderItem(now: Date, settings: SettingsSnapshot) -> UpcomingItem? {
-        let reminders = upcomingItems.filter { $0.kind == .reminder }
-        guard !reminders.isEmpty else { return nil }
-
-        let nearUpcomingLeadSeconds = TimeInterval(max(5, settings.nearUpcomingAlternateMinutes) * 60)
-        let rotationSeconds = max(5, settings.concurrentEventRotationSeconds)
-        let slot = rotationSlot(now: now, seconds: rotationSeconds)
-
-        let overdueReminders = reminders.filter { $0.date <= now }
-        let nearUpcomingReminders = reminders.filter { item in
-            item.date > now && item.date.timeIntervalSince(now) <= nearUpcomingLeadSeconds
+        let futureWindowSeconds = TimeInterval(max(5, settings.menuBarRotationWindowMinutes) * 60)
+        let reminders = upcomingItems.filter {
+            $0.kind == .reminder
+                && Self.shouldIncludeTimedItemInMenuBarRotation(
+                    $0,
+                    now: now,
+                    futureWindowSeconds: futureWindowSeconds
+                )
         }
-
-        if !overdueReminders.isEmpty {
-            let rotatingPool = deduplicatedItemsByNotificationKey(overdueReminders + nearUpcomingReminders)
-            guard !rotatingPool.isEmpty else { return reminders[0] }
-            let rotatingIndex = abs(slot) % rotatingPool.count
-            return rotatingPool[rotatingIndex]
-        }
-
-        if !nearUpcomingReminders.isEmpty {
-            let rotatingPool = deduplicatedItemsByNotificationKey(nearUpcomingReminders)
-            let rotatingIndex = abs(slot) % rotatingPool.count
-            return rotatingPool[rotatingIndex]
-        }
-
-        let upcomingReminders = reminders.filter { $0.date >= now }
-        let baseList = upcomingReminders.isEmpty ? reminders.filter { $0.date < now } : upcomingReminders
-        guard let firstItem = baseList.first else { return nil }
-
-        let calendar = Calendar.current
-        let concurrentItems = baseList.filter {
-            calendar.isDate($0.date, equalTo: firstItem.date, toGranularity: .minute)
-        }
-        guard concurrentItems.count > 1 else { return firstItem }
-        let rotatingIndex = abs(slot) % concurrentItems.count
-        return concurrentItems[rotatingIndex]
+        return rotatingTimedMenuBarItem(from: reminders, now: now, settings: settings)
     }
 
     func rotatingAllDayEventItem(now: Date, settings: SettingsSnapshot) -> UpcomingItem? {
@@ -413,49 +387,51 @@ extension CalendarMonitor {
     }
 
     func rotatingTimedItem(now: Date, settings: SettingsSnapshot) -> UpcomingItem? {
-        let timedItems = upcomingItems.filter { isTimedItemDisplayableInMenuBar($0, now: now) }
-        guard !timedItems.isEmpty else { return nil }
-
-        let nearUpcomingLeadSeconds = TimeInterval(max(1, settings.nearUpcomingAlternateMinutes) * 60)
-        let concurrentRotationInterval = max(5, settings.concurrentEventRotationSeconds)
-        let timeSlot = rotationSlot(now: now, seconds: concurrentRotationInterval)
-
-        let ongoingEvents = timedItems.filter { item in
-            item.endDate.map { item.date <= now && $0 > now } ?? false
+        let futureWindowSeconds = TimeInterval(max(5, settings.menuBarRotationWindowMinutes) * 60)
+        let timedItems = upcomingItems.filter {
+            $0.kind == .event
+                && isTimedItemDisplayableInMenuBar($0, now: now)
+                && Self.shouldIncludeTimedItemInMenuBarRotation(
+                    $0,
+                    now: now,
+                    futureWindowSeconds: futureWindowSeconds
+                )
         }
-        if ongoingEvents.count > 1 {
-            let nearUpcomingEvents = timedItems.filter { item in
-                item.date > now && item.date.timeIntervalSince(now) <= nearUpcomingLeadSeconds
-            }
-            let rotatingPool = nearUpcomingEvents.isEmpty ? ongoingEvents : (ongoingEvents + nearUpcomingEvents)
-            let rotatingIndex = abs(timeSlot) % rotatingPool.count
-            return rotatingPool[rotatingIndex]
-        }
+        return rotatingTimedMenuBarItem(from: timedItems, now: now, settings: settings)
+    }
 
-        if let ongoingEvent = ongoingEvents.first,
-           !timedItems.isEmpty {
-            let nearUpcomingEvents = timedItems.filter { item in
-               item.date > now && item.date.timeIntervalSince(now) <= nearUpcomingLeadSeconds
-            }
-            if !nearUpcomingEvents.isEmpty {
-                let rotatingPool = [ongoingEvent] + nearUpcomingEvents
-                let rotatingIndex = abs(timeSlot) % rotatingPool.count
-                return rotatingPool[rotatingIndex]
-            }
-        }
+    private func rotatingTimedMenuBarItem(
+        from items: [UpcomingItem],
+        now: Date,
+        settings: SettingsSnapshot
+    ) -> UpcomingItem? {
+        guard !items.isEmpty else { return nil }
 
-        let firstItem = timedItems[0]
-        let calendar = Calendar.current
-        let concurrentItems = timedItems.filter {
-            calendar.isDate($0.date, equalTo: firstItem.date, toGranularity: .minute)
-        }
+        let rotationSeconds = max(5, settings.concurrentEventRotationSeconds)
+        let slot = rotationSlot(now: now, seconds: rotationSeconds)
+        let rotatingIndex = abs(slot) % items.count
+        return items[rotatingIndex]
+    }
 
-        guard concurrentItems.count > 1 else {
-            return firstItem
+    nonisolated static func shouldIncludeTimedItemInMenuBarRotation(
+        _ item: UpcomingItem,
+        now: Date,
+        futureWindowSeconds: TimeInterval
+    ) -> Bool {
+        guard !item.isAllDay else { return false }
+
+        if item.kind == .reminder, item.date <= now {
+            return true
         }
 
-        let rotatingIndex = abs(timeSlot) % concurrentItems.count
-        return concurrentItems[rotatingIndex]
+        if item.kind == .event,
+           let endDate = item.endDate,
+           item.date <= now,
+           endDate > now {
+            return true
+        }
+
+        return item.date >= now && item.date.timeIntervalSince(now) <= futureWindowSeconds
     }
 
     func rotationSlot(now: Date, seconds: Int) -> Int {
@@ -623,7 +599,15 @@ extension CalendarMonitor {
     }
 
     private func unifiedMenuBarQueue(now: Date, settings: SettingsSnapshot) -> [UpcomingItem] {
-        let timedItems = upcomingItems.filter { isTimedItemDisplayableInMenuBar($0, now: now) }
+        let futureWindowSeconds = TimeInterval(max(5, settings.menuBarRotationWindowMinutes) * 60)
+        let timedItems = upcomingItems.filter {
+            isTimedItemDisplayableInMenuBar($0, now: now)
+                && Self.shouldIncludeTimedItemInMenuBarRotation(
+                    $0,
+                    now: now,
+                    futureWindowSeconds: futureWindowSeconds
+                )
+        }
         let allDayItems = settings.includeAllDayEvents ? allDayEventItems : []
         let merged = deduplicatedItemsByNotificationKey(timedItems + allDayItems)
 
@@ -649,58 +633,6 @@ extension CalendarMonitor {
 
     private func menuBarQueuePriority(for item: UpcomingItem) -> Int {
         item.isAllDay ? 1 : 0
-    }
-
-    private func preferredMenuBarRotationPool(
-        from queue: [UpcomingItem],
-        now: Date,
-        settings: SettingsSnapshot
-    ) -> [UpcomingItem] {
-        let nearUpcomingLeadSeconds = TimeInterval(max(5, settings.nearUpcomingAlternateMinutes) * 60)
-        let allDayEvents = queue.filter { item in
-            item.kind == .event && item.isAllDay
-        }
-
-        let ongoingTimedEvents = queue.filter { item in
-            guard item.kind == .event, !item.isAllDay else { return false }
-            guard let endDate = item.endDate else { return false }
-            return item.date <= now && endDate > now
-        }
-
-        let overdueReminders = queue.filter { item in
-            item.kind == .reminder && item.date <= now
-        }
-
-        guard !ongoingTimedEvents.isEmpty || !allDayEvents.isEmpty || !overdueReminders.isEmpty else {
-            return queue
-        }
-
-        let nearUpcomingTimedEvents = queue.filter { item in
-            guard item.kind == .event, !item.isAllDay else { return false }
-            guard item.date > now else { return false }
-            return item.date.timeIntervalSince(now) <= nearUpcomingLeadSeconds
-        }
-
-        let nearUpcomingReminders = queue.filter { item in
-            guard item.kind == .reminder else { return false }
-            guard item.date > now else { return false }
-            return item.date.timeIntervalSince(now) <= nearUpcomingLeadSeconds
-        }
-
-        let focusedKeys = Set((ongoingTimedEvents + overdueReminders + nearUpcomingTimedEvents + nearUpcomingReminders).map(\.notificationKey))
-        let focusedPool = queue.filter { item in
-            if item.kind == .event, item.isAllDay {
-                return true
-            }
-            if item.kind == .event, !item.isAllDay {
-                return focusedKeys.contains(item.notificationKey)
-            }
-            if item.kind == .reminder {
-                return focusedKeys.contains(item.notificationKey)
-            }
-            return true
-        }
-        return focusedPool.isEmpty ? queue : focusedPool
     }
 
     private func isTimedItemDisplayableInMenuBar(_ item: UpcomingItem, now: Date) -> Bool {
@@ -731,9 +663,12 @@ extension CalendarMonitor {
             selectedReminderCalendarIDs: selectedCalendarIDs(for: .reminder),
             weekdayOnlyEventCalendarIDs: weekdayOnlyCalendarIDs(for: .event),
             weekdayOnlyReminderCalendarIDs: weekdayOnlyCalendarIDs(for: .reminder),
-            lookAheadHours: max(1, defaults.integer(forKey: DefaultsKeys.lookAheadHours)),
+            lookAheadHours: normalizedDropdownWindowHours(defaults.integer(forKey: DefaultsKeys.lookAheadHours)),
+            menuBarRotationWindowMinutes: normalizedMenuBarRotationWindowMinutes(
+                defaults.integer(forKey: DefaultsKeys.menuBarRotationWindowMinutes),
+                dropdownWindowHours: normalizedDropdownWindowHours(defaults.integer(forKey: DefaultsKeys.lookAheadHours))
+            ),
             alertLeadMinutes: max(1, defaults.integer(forKey: DefaultsKeys.alertLeadMinutes)),
-            nearUpcomingAlternateMinutes: normalizedNearUpcomingAlternateMinutes(defaults.integer(forKey: DefaultsKeys.nearUpcomingAlternateMinutes)),
             concurrentEventRotationSeconds: max(5, defaults.integer(forKey: DefaultsKeys.concurrentEventRotationSeconds)),
             enableBlinkAlert: defaults.bool(forKey: DefaultsKeys.enableBlinkAlert),
             useSimplifiedCountdown: defaults.bool(forKey: DefaultsKeys.useSimplifiedCountdown),
@@ -743,8 +678,15 @@ extension CalendarMonitor {
         )
     }
 
-    private func normalizedNearUpcomingAlternateMinutes(_ value: Int) -> Int {
-        let clamped = max(5, min(120, value))
+    private func normalizedDropdownWindowHours(_ value: Int) -> Int {
+        max(1, min(168, value))
+    }
+
+    private func normalizedMenuBarRotationWindowMinutes(_ value: Int, dropdownWindowHours: Int) -> Int {
+        let upperBound = max(5, (normalizedDropdownWindowHours(dropdownWindowHours) * 60) - 5)
+        let fallback = min(60, upperBound)
+        let candidate = value > 0 ? value : fallback
+        let clamped = max(5, min(upperBound, candidate))
         return Int((Double(clamped) / 5.0).rounded()) * 5
     }
 

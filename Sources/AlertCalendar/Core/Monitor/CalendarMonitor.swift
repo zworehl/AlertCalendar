@@ -79,7 +79,12 @@ final class CalendarMonitor: ObservableObject {
     var lastFootballMenuRefreshDate: Date?
     var lastFootballManagedSyncDate: Date?
     var lastFootballManagedCleanupDate: Date?
+    var lastFootballManagedRecoveryDate: Date?
+    var lastFootballLegacyMigrationDate: Date?
     var activeFootballGoalHighlight: FootballGoalHighlight?
+    var cachedManagedFootballSnapshots: [ManagedFootballEventSnapshot] = []
+    var isManagedFootballSnapshotCacheValid = false
+    var didFootballEventStoreChange = false
     var menuBarRotationState = MenuBarRotationState()
 
     init() {
@@ -163,8 +168,8 @@ final class CalendarMonitor: ObservableObject {
         let weekdayOnlyEventCalendarIDs: Set<String>
         let weekdayOnlyReminderCalendarIDs: Set<String>
         let lookAheadHours: Int
+        let menuBarRotationWindowMinutes: Int
         let alertLeadMinutes: Int
-        let nearUpcomingAlternateMinutes: Int
         let concurrentEventRotationSeconds: Int
         let enableBlinkAlert: Bool
         let useSimplifiedCountdown: Bool

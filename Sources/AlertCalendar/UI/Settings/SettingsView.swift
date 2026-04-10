@@ -47,8 +47,8 @@ struct SettingsView: View {
     @AppStorage(DefaultsKeys.includeAllDayEvents) private var includeAllDayEvents = true
     @AppStorage(DefaultsKeys.includeReminders) private var includeReminders = true
     @AppStorage(DefaultsKeys.lookAheadHours) private var lookAheadHours = 24
+    @AppStorage(DefaultsKeys.menuBarRotationWindowMinutes) private var menuBarRotationWindowMinutes = 60
     @AppStorage(DefaultsKeys.alertLeadMinutes) private var alertLeadMinutes = 5
-    @AppStorage(DefaultsKeys.nearUpcomingAlternateMinutes) private var nearUpcomingAlternateMinutes = 10
     @AppStorage(DefaultsKeys.concurrentEventRotationSeconds) private var concurrentEventRotationSeconds = 30
     @AppStorage(DefaultsKeys.maxListItems) private var maxListItems = 8
     @AppStorage(DefaultsKeys.enableBlinkAlert) private var enableBlinkAlert = true
@@ -77,24 +77,46 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            settingsHeader
+            HStack(alignment: .center, spacing: 16) {
+                Picker("Settings section", selection: $selectedTab) {
+                    ForEach(SettingsTab.allCases) { tab in
+                        Label(tab.rawValue, systemImage: tab.symbolName)
+                            .tag(tab)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 420, alignment: .leading)
 
-            Picker("Settings section", selection: $selectedTab) {
-                ForEach(SettingsTab.allCases) { tab in
-                    Label(tab.rawValue, systemImage: tab.symbolName)
-                        .tag(tab)
+                if selectedTab == .feeds {
+                    Spacer(minLength: 0)
+
+                    Picker("Feeds subsection", selection: $selectedFeedsSubsection) {
+                        ForEach(FeedsSubsection.allCases) { subsection in
+                            Text(subsection.rawValue).tag(subsection)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .frame(width: 240)
                 }
             }
-            .pickerStyle(.segmented)
             .padding(.bottom, 2)
 
-            ScrollView(.vertical, showsIndicators: true) {
-                LazyVStack(alignment: .leading, spacing: 16) {
+            Group {
+                if selectedTab == .feeds {
                     activeSettingsContent
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                } else {
+                    ScrollView(.vertical, showsIndicators: true) {
+                        LazyVStack(alignment: .leading, spacing: 16) {
+                            activeSettingsContent
+                        }
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
-                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
             if selectedTab == .permissions {
                 HStack {
@@ -141,13 +163,6 @@ struct SettingsView: View {
                 appDelegate.configureSettingsWindow(window)
             }
         )
-        .toolbar {
-            ToolbarItemGroup {
-                Text("Alert Calendar")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
         .frame(minWidth: 760, idealWidth: 1040, minHeight: 720, idealHeight: 820)
         .onAppear {
             activateSettingsWindowIfNeeded()
@@ -180,15 +195,20 @@ struct SettingsView: View {
         .onChange(of: availableReminderCalendarSignature) { _ in
             synchronizeDraftWithStoredSettings()
         }
-    }
+        .onChange(of: draft.lookAheadHours) { newValue in
+            let normalizedDropdownHours = normalizedDropdownWindowHours(newValue)
+            if normalizedDropdownHours != draft.lookAheadHours {
+                draft.lookAheadHours = normalizedDropdownHours
+                return
+            }
 
-    private var settingsHeader: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("Preferences")
-                .font(.title2.weight(.semibold))
-            Text("Alert Calendar")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            let normalizedMenuBarMinutes = normalizedMenuBarRotationWindowMinutes(
+                draft.menuBarRotationWindowMinutes,
+                dropdownWindowHours: normalizedDropdownHours
+            )
+            if normalizedMenuBarMinutes != draft.menuBarRotationWindowMinutes {
+                draft.menuBarRotationWindowMinutes = normalizedMenuBarMinutes
+            }
         }
     }
 
@@ -234,6 +254,10 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var generalSettingsContent: some View {
+        let maxMenuBarRotationWindowMinutes = maximumMenuBarRotationWindowMinutes(
+            dropdownWindowHours: draft.lookAheadHours
+        )
+
         GroupBox("Alert") {
             VStack(alignment: .leading, spacing: 10) {
                 Toggle("Enable red blinking alert", isOn: $draft.enableBlinkAlert)
@@ -243,15 +267,6 @@ struct SettingsView: View {
                     helpText: "How many minutes before the event start the alert state begins."
                 ) {
                     Stepper("", value: $draft.alertLeadMinutes, in: 1 ... 60)
-                        .labelsHidden()
-                }
-
-                stepperRow(
-                    title: "Alternate near upcoming event",
-                    valueText: "\(draft.nearUpcomingAlternateMinutes) minutes",
-                    helpText: "If an event is in progress and another starts within this window, the event slot alternates between them."
-                ) {
-                    Stepper("", value: $draft.nearUpcomingAlternateMinutes, in: 5 ... 120, step: 5)
                         .labelsHidden()
                 }
 
@@ -270,8 +285,18 @@ struct SettingsView: View {
         GroupBox("Display") {
             VStack(alignment: .leading, spacing: 10) {
                 stepperRow(
-                    title: "Look-ahead window",
-                    valueText: "\(draft.lookAheadHours) hours"
+                    title: "Menu bar rotation window",
+                    valueText: "\(draft.menuBarRotationWindowMinutes) minutes",
+                    helpText: "Timed events and reminders rotate in the menu bar only if they are active, overdue, or inside this window. This window must stay smaller than the dropdown time window."
+                ) {
+                    Stepper("", value: $draft.menuBarRotationWindowMinutes, in: 5 ... maxMenuBarRotationWindowMinutes, step: 5)
+                        .labelsHidden()
+                }
+
+                stepperRow(
+                    title: "Dropdown time window",
+                    valueText: "\(draft.lookAheadHours) hours",
+                    helpText: "Upcoming timed items only appear in the dropdown if they fall inside this window. It must stay larger than the menu bar rotation window."
                 ) {
                     Stepper("", value: $draft.lookAheadHours, in: 1 ... 168)
                         .labelsHidden()
@@ -334,31 +359,23 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var liveFeedsSettingsContent: some View {
-        GroupBox("Live Feeds") {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Manage the non-calendar feeds that can appear in Alert Calendar, including sun moments and football fixtures.")
-                    .foregroundStyle(.secondary)
-
-                Picker("Feeds subsection", selection: $selectedFeedsSubsection) {
-                    ForEach(FeedsSubsection.allCases) { subsection in
-                        Text(subsection.rawValue).tag(subsection)
-                    }
+        VStack(alignment: .leading, spacing: 16) {
+            GroupBox("Live Feeds") {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Manage the non-calendar feeds that can appear in Alert Calendar, including sun moments and football fixtures.")
+                        .foregroundStyle(.secondary)
                 }
-                .pickerStyle(.segmented)
-
-                Text("Choose a subsection to focus on one feed at a time.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
 
-        switch selectedFeedsSubsection {
-        case .atmosphere:
-            atmosphereFeedsSubsection
-        case .football:
-            footballFeedsSubsection
+            switch selectedFeedsSubsection {
+            case .atmosphere:
+                atmosphereFeedsSubsection
+            case .football:
+                footballFeedsSubsection
+            }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     @ViewBuilder
@@ -495,9 +512,12 @@ struct SettingsView: View {
             includeEvents: includeEvents,
             includeAllDayEvents: includeAllDayEvents,
             includeReminders: includeReminders,
-            lookAheadHours: lookAheadHours,
+            lookAheadHours: normalizedDropdownWindowHours(lookAheadHours),
+            menuBarRotationWindowMinutes: normalizedMenuBarRotationWindowMinutes(
+                menuBarRotationWindowMinutes,
+                dropdownWindowHours: normalizedDropdownWindowHours(lookAheadHours)
+            ),
             alertLeadMinutes: alertLeadMinutes,
-            nearUpcomingAlternateMinutes: normalizedNearUpcomingAlternateMinutes(nearUpcomingAlternateMinutes),
             concurrentEventRotationSeconds: concurrentEventRotationSeconds,
             maxListItems: maxListItems,
             enableBlinkAlert: enableBlinkAlert,
@@ -550,9 +570,12 @@ struct SettingsView: View {
         includeEvents = draft.includeEvents
         includeAllDayEvents = draft.includeAllDayEvents
         includeReminders = draft.includeReminders
-        lookAheadHours = draft.lookAheadHours
+        lookAheadHours = normalizedDropdownWindowHours(draft.lookAheadHours)
+        menuBarRotationWindowMinutes = normalizedMenuBarRotationWindowMinutes(
+            draft.menuBarRotationWindowMinutes,
+            dropdownWindowHours: normalizedDropdownWindowHours(draft.lookAheadHours)
+        )
         alertLeadMinutes = draft.alertLeadMinutes
-        nearUpcomingAlternateMinutes = normalizedNearUpcomingAlternateMinutes(draft.nearUpcomingAlternateMinutes)
         concurrentEventRotationSeconds = draft.concurrentEventRotationSeconds
         maxListItems = draft.maxListItems
         enableBlinkAlert = draft.enableBlinkAlert
@@ -602,8 +625,21 @@ struct SettingsView: View {
         (value * 1000).rounded() / 1000
     }
 
-    private func normalizedNearUpcomingAlternateMinutes(_ value: Int) -> Int {
-        let clamped = max(5, min(120, value))
+    private func normalizedDropdownWindowHours(_ value: Int) -> Int {
+        max(1, min(168, value))
+    }
+
+    private func maximumMenuBarRotationWindowMinutes(dropdownWindowHours: Int) -> Int {
+        let normalizedDropdownHours = normalizedDropdownWindowHours(dropdownWindowHours)
+        let strictUpperBound = max(5, (normalizedDropdownHours * 60) - 5)
+        return min(720, strictUpperBound)
+    }
+
+    private func normalizedMenuBarRotationWindowMinutes(_ value: Int, dropdownWindowHours: Int) -> Int {
+        let upperBound = maximumMenuBarRotationWindowMinutes(dropdownWindowHours: dropdownWindowHours)
+        let fallback = min(60, upperBound)
+        let candidate = value > 0 ? value : fallback
+        let clamped = max(5, min(upperBound, candidate))
         return Int((Double(clamped) / 5.0).rounded()) * 5
     }
 
@@ -733,8 +769,8 @@ private struct SettingsDraft: Equatable {
     var includeAllDayEvents: Bool
     var includeReminders: Bool
     var lookAheadHours: Int
+    var menuBarRotationWindowMinutes: Int
     var alertLeadMinutes: Int
-    var nearUpcomingAlternateMinutes: Int
     var concurrentEventRotationSeconds: Int
     var maxListItems: Int
     var enableBlinkAlert: Bool
@@ -758,8 +794,8 @@ private struct SettingsDraft: Equatable {
         includeAllDayEvents: true,
         includeReminders: true,
         lookAheadHours: 24,
+        menuBarRotationWindowMinutes: 60,
         alertLeadMinutes: 5,
-        nearUpcomingAlternateMinutes: 10,
         concurrentEventRotationSeconds: 30,
         maxListItems: 8,
         enableBlinkAlert: true,
