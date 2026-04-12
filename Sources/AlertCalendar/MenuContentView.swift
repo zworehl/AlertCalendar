@@ -11,51 +11,66 @@ struct MenuContentView: View {
 
     @AppStorage(DefaultsKeys.alertLeadMinutes) private var alertLeadMinutes = 5
     @AppStorage(DefaultsKeys.lookAheadHours) private var dropdownTimeWindowHours = 24
+    @AppStorage(DefaultsKeys.contextualPreviewLeadMinutes) private var contextualPreviewLeadMinutes = 90
     @AppStorage(DefaultsKeys.maxListItems) private var maxListItems = 8
+    @AppStorage(DefaultsKeys.astronomyLatitude) private var astronomyLatitude = 18.4655
+    @AppStorage(DefaultsKeys.astronomyLongitude) private var astronomyLongitude = -66.1057
     @State private var hoveredReminderItemID: String?
     @State private var hoveredActionRowKey: String?
     @State private var splitActionsSectionHeight: CGFloat = 0
+    private let dropdownOuterPadding: CGFloat = 12
     private let upcomingListMaxHeight: CGFloat = 360
-    private let splitActionsColumnWidth: CGFloat = 484
-    private let splitQueueColumnWidth: CGFloat = 396
+    private let splitDropdownMaxColumnHeight: CGFloat = 760
+    private let minimumSingleColumnDropdownWidth: CGFloat = 260
+    private let splitColumnSpacing: CGFloat = 12
+    private let splitActionsColumnWidth: CGFloat = 468
+    private let splitQueueColumnWidth: CGFloat = 336
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             headerView
 
-            if !shouldUseSplitDropdownLayout && !filteredAlertDescriptions.isEmpty {
-                alertBannerSection
-            }
-
-            if shouldUseSplitDropdownLayout {
-                HStack(alignment: .top, spacing: 12) {
-                    contextualActionSection
-                        .frame(width: splitActionsColumnWidth, alignment: .topLeading)
-                        .background(
-                            GeometryReader { proxy in
-                                Color.clear.preference(
-                                    key: SplitDropdownSectionHeightPreferenceKey.self,
-                                    value: proxy.size.height
-                                )
-                            }
-                        )
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        if !filteredAlertDescriptions.isEmpty {
-                            alertBannerSection
-                        }
-
-                        upcomingSection
-                    }
-                        .frame(width: splitQueueColumnWidth, alignment: .topLeading)
-                        .frame(minHeight: splitActionsSectionHeight, alignment: .topLeading)
-                }
+            if monitor.isInitialLoadInProgress {
+                initialLoadingSection
             } else {
-                if !contextualActionItems.isEmpty {
-                    contextualActionSection
+                if !shouldUseSplitDropdownLayout && !filteredAlertDescriptions.isEmpty {
+                    alertBannerSection
                 }
 
-                upcomingSection
+                if shouldUseSplitDropdownLayout {
+                    HStack(alignment: .top, spacing: splitColumnSpacing) {
+                        ScrollView(.vertical, showsIndicators: true) {
+                            contextualActionSection
+                        }
+                            .frame(width: splitActionsColumnWidth, alignment: .topLeading)
+                            .frame(maxHeight: splitDropdownColumnHeightLimit, alignment: .topLeading)
+                            .background(
+                                GeometryReader { proxy in
+                                    Color.clear.preference(
+                                        key: SplitDropdownSectionHeightPreferenceKey.self,
+                                        value: proxy.size.height
+                                    )
+                                }
+                            )
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            if !filteredAlertDescriptions.isEmpty {
+                                alertBannerSection
+                            }
+
+                            upcomingSection
+                        }
+                            .frame(width: splitQueueColumnWidth, alignment: .topLeading)
+                            .frame(maxHeight: splitDropdownColumnHeightLimit, alignment: .topLeading)
+                            .frame(minHeight: splitActionsSectionHeight, alignment: .topLeading)
+                    }
+                } else {
+                    if !displayedContextualActionItems.isEmpty {
+                        contextualActionSection
+                    }
+
+                    upcomingSection
+                }
             }
 
             HStack {
@@ -83,10 +98,16 @@ struct MenuContentView: View {
                 .buttonStyle(.link)
             }
         }
-        .padding(12)
+        .padding(dropdownOuterPadding)
         .background(Color(nsColor: .windowBackgroundColor))
-        .frame(width: dropdownWidth, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
+        .frame(
+            minWidth: dropdownMinimumWidth,
+            idealWidth: shouldUseSplitDropdownLayout ? dropdownPreferredWidth : nil,
+            maxWidth: shouldUseSplitDropdownLayout ? dropdownPreferredWidth : dropdownMinimumWidth,
+            alignment: .leading
+        )
+        .id(shouldUseSplitDropdownLayout ? "split-dropdown" : "single-dropdown")
         .onChange(of: alertLeadMinutes) { _ in
             monitor.refreshNow()
         }
@@ -132,6 +153,11 @@ struct MenuContentView: View {
 
             Spacer()
 
+            if monitor.isInitialLoadInProgress {
+                ProgressView()
+                    .controlSize(.small)
+            }
+
             Button {
                 monitor.refreshNow()
             } label: {
@@ -142,22 +168,38 @@ struct MenuContentView: View {
             .help("Refresh")
 
             Button {
-                DispatchQueue.main.async {
-                    let appDelegate = NSApp.delegate as? AppDelegate
-                    appDelegate?.prepareForSettingsPresentation()
-                    openWindow(id: WindowMetadata.preferencesID)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                        if appDelegate?.revealSettingsWindowIfPresent() != true {
-                            appDelegate?.showSettingsWindow(monitor: monitor)
-                        }
-                    }
-                }
+                openSettingsWindowFromDropdown()
             } label: {
                 Image(systemName: "gearshape")
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
             .help("Settings")
+        }
+    }
+
+    private var initialLoadingSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionHeader("LOADING")
+            calendarSectionContainer {
+                HStack(alignment: .center, spacing: 10) {
+                    ProgressView()
+                        .controlSize(.small)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Loading upcoming items")
+                            .font(.subheadline.weight(.semibold))
+
+                        Text("Checking calendars, reminders, and feeds. \(monitor.calendarAccessDescription)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .padding(.vertical, 6)
+            }
         }
     }
 
@@ -176,23 +218,59 @@ struct MenuContentView: View {
         )
     }
 
-    private var dropdownWidth: CGFloat {
-        shouldUseSplitDropdownLayout ? 916 : 520
+    private func openSettingsWindowFromDropdown() {
+        let sourceWindow = NSApp.keyWindow
+        let appDelegate = NSApp.delegate as? AppDelegate
+
+        if let appDelegate {
+            appDelegate.prepareForSettingsPresentation()
+        } else {
+            _ = NSApplication.shared.setActivationPolicy(.regular)
+            NSRunningApplication.current.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+        }
+
+        if sourceWindow?.identifier != NSUserInterfaceItemIdentifier(WindowMetadata.preferencesID) {
+            sourceWindow?.orderOut(nil)
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+            openWindow(id: WindowMetadata.preferencesID)
+        }
+    }
+
+    private var dropdownMinimumWidth: CGFloat {
+        if shouldUseSplitDropdownLayout {
+            return dropdownPreferredWidth
+        }
+
+        return max(minimumSingleColumnDropdownWidth, singleColumnContextualMinimumWidth)
+    }
+
+    private var dropdownPreferredWidth: CGFloat {
+        let contentWidth = splitActionsColumnWidth + splitQueueColumnWidth + splitColumnSpacing
+        return contentWidth + (dropdownOuterPadding * 2)
+    }
+
+    private var singleColumnContextualMinimumWidth: CGFloat {
+        displayedContextualActionItems.reduce(minimumSingleColumnDropdownWidth) { partialResult, item in
+            max(partialResult, contextualCardMinimumWidth(for: item))
+        }
+    }
+
+    private var splitDropdownColumnHeightLimit: CGFloat {
+        let screenHeight = NSScreen.main?.visibleFrame.height ?? 960
+        return min(splitDropdownMaxColumnHeight, max(420, screenHeight * 0.72))
     }
 
     private var shouldUseSplitDropdownLayout: Bool {
-        guard !queueItemsForActions.isEmpty else { return false }
-        if contextualActionItems.count > 1 {
-            return true
-        }
-        return contextualActionItems.count == 1 && contextualActionItems.first?.footballMatch != nil
+        !footballContextualActionItems.isEmpty && !queueItemsForSplitLayout.isEmpty
     }
 
     private var sharedContextualFootballMatches: [FootballFixtureMatch]? {
-        guard !contextualActionItems.isEmpty else { return nil }
+        guard !displayedContextualActionItems.isEmpty else { return nil }
 
-        let footballMatches = contextualActionItems.compactMap(\.footballMatch)
-        guard footballMatches.count == contextualActionItems.count else { return nil }
+        let footballMatches = displayedContextualActionItems.compactMap(\.footballMatch)
+        guard footballMatches.count == displayedContextualActionItems.count else { return nil }
 
         return footballMatches
     }
@@ -204,7 +282,7 @@ struct MenuContentView: View {
 
     private var sharedContextualFootballCompetitionLogoPath: String? {
         guard sharedContextualFootballCompetitionTitle != nil else { return nil }
-        return contextualActionItems.first?.footballMenuBarDisplay?.competitionLocalLogoPath
+        return displayedContextualActionItems.first?.footballMenuBarDisplay?.competitionLocalLogoPath
     }
 
     private var sharedContextualFootballCompetitionLogoURL: URL? {
@@ -260,19 +338,56 @@ struct MenuContentView: View {
         }
     }
 
-    private var contextualFootballContentLevel: FootballContextualContentLevel {
-        Self.contextualFootballContentLevel(for: contextualActionItems.count)
+    enum FootballContextualScorePlacement {
+        case headline
+        case stats
+        case goalScorers
     }
 
-    private static func contextualFootballContentLevel(for itemCount: Int) -> FootballContextualContentLevel {
+    private var contextualFootballContentLevel: FootballContextualContentLevel {
+        Self.contextualFootballContentLevel(for: displayedContextualActionItems.count)
+    }
+
+    nonisolated private static func contextualFootballContentLevel(for itemCount: Int) -> FootballContextualContentLevel {
         switch max(1, itemCount) {
         case 1:
             return .statsAndGoals
-        case 2:
+        case 2, 3:
             return .goalsOnly
         default:
             return .compact
         }
+    }
+
+    nonisolated static func shouldShowContextualFootballGoalScorers(for itemCount: Int) -> Bool {
+        contextualFootballContentLevel(for: itemCount).showsGoalScorers
+    }
+
+    nonisolated static func footballContextualScorePlacement(
+        for match: FootballFixtureMatch,
+        itemCount: Int
+    ) -> FootballContextualScorePlacement {
+        guard match.hasVisibleScore else { return .headline }
+
+        let contentLevel = contextualFootballContentLevel(for: itemCount)
+        if contentLevel.showsStats && match.statusState != .scheduled {
+            return .stats
+        }
+        if !contentLevel.showsStats && contentLevel.showsGoalScorers && match.totalGoals > 0 {
+            return .goalScorers
+        }
+        return .headline
+    }
+
+    nonisolated static func shouldUseExpandedContextualFootballHeader(
+        for match: FootballFixtureMatch,
+        itemCount: Int
+    ) -> Bool {
+        itemCount <= 3 && match.hasVisibleScore
+    }
+
+    nonisolated static func shouldShowGoalScorersSectionHeader(for itemCount: Int) -> Bool {
+        itemCount == 2 || itemCount == 3
     }
 
     private var contextualActionSection: some View {
@@ -283,13 +398,13 @@ struct MenuContentView: View {
                         contextualSharedCompetitionHeader
                     }
 
-                    ForEach(Array(contextualActionItems.enumerated()), id: \.element.notificationKey) { index, item in
+                    ForEach(Array(displayedContextualActionItems.enumerated()), id: \.element.notificationKey) { index, item in
                         contextualActionCard(
                             for: item,
                             showsFootballCompetitionLine: !contextualSharedCompetitionIsActive
                         )
 
-                        if index < contextualActionItems.count - 1 {
+                        if index < displayedContextualActionItems.count - 1 {
                             Divider()
                         }
                     }
@@ -376,6 +491,10 @@ struct MenuContentView: View {
     }
 
     private var queueItemsForActions: [UpcomingItem] {
+        shouldUseSplitDropdownLayout ? queueItemsForSplitLayout : queueItemsForSingleColumnLayout
+    }
+
+    private var queueItemsSource: [UpcomingItem] {
         let now = Date()
         let allDayItems = monitor.allDayEventItems
         let timedItems = monitor.upcomingItems.filter {
@@ -385,10 +504,25 @@ struct MenuContentView: View {
                 futureWindowEnd: dropdownFutureWindowEnd(now: now)
             )
         }
-        let combined = deduplicatedItems((allDayItems + timedItems).sorted { $0.date < $1.date })
+        return deduplicatedItems((allDayItems + timedItems).sorted { $0.date < $1.date })
+    }
+
+    private var queueItemsForSingleColumnLayout: [UpcomingItem] {
+        let now = Date()
         return Self.queueItemsForActions(
-            from: combined,
-            contextualItems: contextualActionItems,
+            from: queueItemsSource,
+            contextualItems: contextualPreviewActionItems,
+            now: now,
+            futureWindowEnd: dropdownFutureWindowEnd(now: now),
+            maxItems: max(1, maxListItems)
+        )
+    }
+
+    private var queueItemsForSplitLayout: [UpcomingItem] {
+        let now = Date()
+        return Self.queueItemsForActions(
+            from: queueItemsSource,
+            contextualItems: footballContextualActionItems,
             now: now,
             futureWindowEnd: dropdownFutureWindowEnd(now: now),
             maxItems: max(1, maxListItems)
@@ -399,6 +533,13 @@ struct MenuContentView: View {
         now.addingTimeInterval(Double(max(1, dropdownTimeWindowHours)) * 3600)
     }
 
+    private func contextualPreviewWindowEnd(now: Date) -> Date {
+        let maximumLeadMinutes = max(5, max(1, dropdownTimeWindowHours) * 60)
+        let clampedLeadMinutes = max(5, min(maximumLeadMinutes, contextualPreviewLeadMinutes))
+        let contextualWindowEnd = now.addingTimeInterval(Double(clampedLeadMinutes) * 60)
+        return min(dropdownFutureWindowEnd(now: now), contextualWindowEnd)
+    }
+
     nonisolated static func queueItemsForActions(
         from items: [UpcomingItem],
         contextualItems: [UpcomingItem],
@@ -406,10 +547,12 @@ struct MenuContentView: View {
         futureWindowEnd: Date,
         maxItems: Int
     ) -> [UpcomingItem] {
+        let contextualNotificationKeys = Set(contextualItems.map(\.notificationKey))
         let contextualFootballMatchIDs = Set(contextualItems.compactMap { $0.footballMatch?.id })
         let filtered = items.filter { item in
             shouldIncludeInUpcomingQueue(
                 item,
+                contextualNotificationKeys: contextualNotificationKeys,
                 contextualFootballMatchIDs: contextualFootballMatchIDs,
                 now: now,
                 futureWindowEnd: futureWindowEnd
@@ -443,11 +586,16 @@ struct MenuContentView: View {
 
     nonisolated static func shouldIncludeInUpcomingQueue(
         _ item: UpcomingItem,
+        contextualNotificationKeys: Set<String>,
         contextualFootballMatchIDs: Set<String>,
         now: Date,
         futureWindowEnd: Date
     ) -> Bool {
         guard shouldIncludeInDropdownTimeWindow(item, now: now, futureWindowEnd: futureWindowEnd) else {
+            return false
+        }
+
+        if contextualNotificationKeys.contains(item.notificationKey) {
             return false
         }
 
@@ -606,17 +754,17 @@ struct MenuContentView: View {
     }
 
     private func reminderCompletionActionLabel(color: Color) -> some View {
-        ZStack {
-            Circle()
-                .stroke(color.opacity(0.92), lineWidth: 1.6)
+        return ZStack {
+            RoundedRectangle(cornerRadius: 4.5, style: .continuous)
+                .fill(Color.primary.opacity(0.08))
 
             Circle()
-                .fill(color.opacity(0.10))
-                .padding(3)
+                .stroke(color.opacity(0.96), lineWidth: 1.8)
+                .padding(1.2)
 
-            Image(systemName: "checkmark")
-                .font(.system(size: 8, weight: .bold))
-                .foregroundStyle(color.opacity(0.92))
+            Circle()
+                .fill(color.opacity(0.98))
+                .padding(4.9)
         }
         .frame(width: 18, height: 18)
     }
@@ -635,6 +783,11 @@ struct MenuContentView: View {
         formatter.setLocalizedDateFormatFromTemplate("EEEE d MMM")
         return formatter
     }()
+
+    nonisolated static func measuredTextWidth(_ text: String, font: NSFont) -> CGFloat {
+        let attributes: [NSAttributedString.Key: Any] = [.font: font]
+        return ceil((text as NSString).size(withAttributes: attributes).width)
+    }
 
     private func timeText(_ date: Date) -> String {
         Self.menuTimeFormatter.string(from: date)
@@ -850,7 +1003,15 @@ struct MenuContentView: View {
 
                         if !hideTimeDetails {
                             VStack(alignment: .trailing, spacing: 0) {
-                                Text(timeText(item.date))
+                                Text(
+                                    item.date <= Date()
+                                        ? Self.reminderDueText(
+                                            dueDate: item.date,
+                                            now: Date(),
+                                            simplified: monitor.snapshotSettings().useSimplifiedCountdown
+                                        )
+                                        : timeText(item.date)
+                                )
                                     .font(detailFont)
                                     .foregroundStyle(detailTextColor)
                             }
@@ -974,13 +1135,14 @@ struct MenuContentView: View {
         match: FootballFixtureMatch,
         display: FootballMenuBarDisplay?,
         font: Font,
+        showsScore: Bool = true,
         showsCardBadges: Bool,
         showsStatusAccessories: Bool
     ) -> some View {
         let accessories = FootballStatusAccessoriesView.accessories(for: match)
 
-        HStack(alignment: .center, spacing: 6) {
-            HStack(alignment: .center, spacing: 6) {
+        HStack(alignment: .center, spacing: showsScore ? 6 : 10) {
+            HStack(alignment: .center, spacing: showsScore ? 6 : 10) {
                 footballTeamLabel(
                     abbreviation: display?.homeAbbreviation ?? FootballFixtureFormatter.teamDisplayIdentifier(for: match.homeTeam),
                     localLogoPath: display?.homeLocalLogoPath,
@@ -993,20 +1155,22 @@ struct MenuContentView: View {
                     font: font
                 )
 
-                if match.hasVisibleScore {
-                    HStack(spacing: 0) {
-                        Text(FootballFixtureFormatter.scoreText(match.homeScore))
-                            .frame(minWidth: 10, alignment: .center)
+                if showsScore {
+                    if match.hasVisibleScore {
+                        HStack(spacing: 0) {
+                            Text(FootballFixtureFormatter.scoreText(match.homeScore))
+                                .frame(minWidth: 10, alignment: .center)
 
+                            Text("-")
+                                .foregroundStyle(.secondary)
+
+                            Text(FootballFixtureFormatter.scoreText(match.awayScore))
+                                .frame(minWidth: 10, alignment: .center)
+                        }
+                    } else {
                         Text("-")
                             .foregroundStyle(.secondary)
-
-                        Text(FootballFixtureFormatter.scoreText(match.awayScore))
-                            .frame(minWidth: 10, alignment: .center)
                     }
-                } else {
-                    Text("-")
-                        .foregroundStyle(.secondary)
                 }
 
                 footballTeamLabel(
@@ -1162,19 +1326,14 @@ struct MenuContentView: View {
 
         let rect = NSRect(origin: .zero, size: size)
         if isFilled {
-            let filledCircle = NSBezierPath(ovalIn: rect.insetBy(dx: 0.9, dy: 0.9))
-            color.withAlphaComponent(0.95).setFill()
-            filledCircle.fill()
+            let outerRing = NSBezierPath(ovalIn: rect.insetBy(dx: 0.8, dy: 0.8))
+            outerRing.lineWidth = 1.55
+            color.withAlphaComponent(0.97).setStroke()
+            outerRing.stroke()
 
-            let checkPath = NSBezierPath()
-            checkPath.lineWidth = 1.55
-            checkPath.lineCapStyle = .round
-            checkPath.lineJoinStyle = .round
-            checkPath.move(to: NSPoint(x: 3.2, y: 6.1))
-            checkPath.line(to: NSPoint(x: 5.0, y: 7.9))
-            checkPath.line(to: NSPoint(x: 8.6, y: 4.3))
-            NSColor.white.withAlphaComponent(0.98).setStroke()
-            checkPath.stroke()
+            let centerFill = NSBezierPath(ovalIn: rect.insetBy(dx: 4.0, dy: 4.0))
+            color.withAlphaComponent(0.98).setFill()
+            centerFill.fill()
         } else {
             let outerPath = NSBezierPath(ovalIn: rect.insetBy(dx: 0.9, dy: 0.9))
             outerPath.lineWidth = 1.6
@@ -1183,6 +1342,36 @@ struct MenuContentView: View {
         }
 
         return image
+    }
+
+    nonisolated static func reminderDueText(dueDate: Date, now: Date, simplified: Bool) -> String {
+        let elapsed = max(Int(now.timeIntervalSince(dueDate)), 0)
+        if elapsed < 60 {
+            return "\(elapsed)s ago"
+        }
+
+        let days = elapsed / 86_400
+        let hours = (elapsed % 86_400) / 3_600
+        let minutes = (elapsed % 3_600) / 60
+        let body: String
+
+        if simplified {
+            if days > 0 {
+                body = "\(days)d"
+            } else if hours > 0 {
+                body = "\(hours)h"
+            } else {
+                body = "\(minutes)m"
+            }
+        } else if days > 0 {
+            body = "\(days)d \(hours)h \(minutes)m"
+        } else if hours > 0 {
+            body = "\(hours)h \(minutes)m"
+        } else {
+            body = "\(minutes)m"
+        }
+
+        return "\(body) ago"
     }
 
     private func markerSymbolName(for item: UpcomingItem) -> String? {
@@ -1213,12 +1402,80 @@ struct MenuContentView: View {
         return CGSize(width: 12, height: 12)
     }
 
-    private var contextualActionItems: [UpcomingItem] {
-        let candidates = allEventItemsForContextualActions.filter { item in
-            guard let locationText = locationTextForMenuBarItem(item) else { return false }
-            return shouldShowPhysicalMap(for: item, locationText: locationText)
+    private enum ContextualPreviewKind: Equatable {
+        case location(String)
+        case daylight(AstronomyMoment)
+    }
+
+    private func shouldShowContextualPreview(for item: UpcomingItem, now: Date) -> Bool {
+        guard item.kind == .event, !item.isAllDay else { return false }
+
+        if let endDate = item.endDate,
+           item.date <= now,
+           endDate > now {
+            return true
         }
-        return Self.contextualActionItems(from: candidates, now: Date())
+
+        return item.date >= now && item.date <= contextualPreviewWindowEnd(now: now)
+    }
+
+    private func daylightPreviewMoment(for item: UpcomingItem) -> AstronomyMoment? {
+        guard let moment = AstronomyMoment(eventTitle: item.title),
+              AstronomyMoment.solarMoments.contains(moment) else {
+            return nil
+        }
+
+        return moment
+    }
+
+    private func contextualPreviewKind(for item: UpcomingItem) -> ContextualPreviewKind? {
+        if let daylightMoment = daylightPreviewMoment(for: item) {
+            return .daylight(daylightMoment)
+        }
+
+        guard let locationText = locationTextForMenuBarItem(item),
+              shouldShowPhysicalMap(for: item, locationText: locationText) else {
+            return nil
+        }
+
+        return .location(locationText)
+    }
+
+    private func contextualCardMinimumWidth(for item: UpcomingItem) -> CGFloat {
+        guard case .daylight? = contextualPreviewKind(for: item) else {
+            return minimumSingleColumnDropdownWidth
+        }
+
+        let titleFont = NSFont.systemFont(ofSize: 12, weight: .semibold)
+        let timeFont = NSFont.systemFont(ofSize: 11, weight: .medium)
+        let titleWidth = Self.measuredTextWidth(item.title, font: titleFont)
+        let timeWidth = Self.measuredTextWidth(timeText(item.date), font: timeFont)
+
+        let headerWidth =
+            18 + 10 + titleWidth + 12 + timeWidth + 12 + 106 + 12
+        let popupChromeWidth = (dropdownOuterPadding * 2) + 16
+        return ceil(headerWidth + popupChromeWidth)
+    }
+
+    private var contextualActionCandidates: [UpcomingItem] {
+        let now = Date()
+
+        return allEventItemsForContextualActions.filter { item in
+            shouldShowContextualPreview(for: item, now: now)
+                && contextualPreviewKind(for: item) != nil
+        }
+    }
+
+    private var contextualPreviewActionItems: [UpcomingItem] {
+        Self.contextualActionItems(from: contextualActionCandidates, now: Date())
+    }
+
+    private var footballContextualActionItems: [UpcomingItem] {
+        Self.footballContextualActionItems(from: contextualActionCandidates, now: Date())
+    }
+
+    private var displayedContextualActionItems: [UpcomingItem] {
+        shouldUseSplitDropdownLayout ? footballContextualActionItems : contextualPreviewActionItems
     }
 
     nonisolated static func contextualActionItems(
@@ -1253,6 +1510,26 @@ struct MenuContentView: View {
             calendar.isDate($0.date, equalTo: anchor.date, toGranularity: .minute)
         }
         return concurrent.isEmpty ? [anchor] : concurrent
+    }
+
+    nonisolated static func footballContextualActionItems(
+        from candidates: [UpcomingItem],
+        now: Date,
+        calendar: Calendar = .current
+    ) -> [UpcomingItem] {
+        contextualActionItems(
+            from: candidates.filter { $0.footballMatch != nil },
+            now: now,
+            calendar: calendar
+        )
+    }
+
+    nonisolated static func shouldShowContextualMapPreview(
+        for item: UpcomingItem,
+        concurrentFootballMatchCount: Int
+    ) -> Bool {
+        guard item.footballMatch != nil else { return true }
+        return concurrentFootballMatchCount < 3
     }
 
     private func meetingServiceName(for url: URL) -> String {
@@ -1304,6 +1581,44 @@ struct MenuContentView: View {
         return URL(string: "http://maps.apple.com/?q=\(encoded)")
     }
 
+    private func preciseMapURL(for coordinate: ResolvedLocationCoordinate, label: String) -> URL? {
+        var components = URLComponents(string: "http://maps.apple.com/")
+        components?.queryItems = [
+            URLQueryItem(
+                name: "ll",
+                value: String(format: "%.6f,%.6f", coordinate.latitude, coordinate.longitude)
+            ),
+            URLQueryItem(name: "q", value: label),
+        ]
+        return components?.url
+    }
+
+    private func openMap(for item: UpcomingItem, locationText: String) {
+        let label: String
+        if let footballMatch = item.footballMatch {
+            label = footballContextualVenueName(for: item, match: footballMatch)
+                ?? displayLocationName(from: locationText)
+        } else {
+            label = displayLocationName(from: locationText)
+        }
+
+        Task {
+            if let coordinate = await LocationCoordinateResolver.shared.coordinate(for: locationText),
+               let preciseURL = preciseMapURL(for: coordinate, label: label) {
+                _ = await MainActor.run {
+                    NSWorkspace.shared.open(preciseURL)
+                }
+                return
+            }
+
+            if let fallbackURL = mapURL(for: locationText) {
+                _ = await MainActor.run {
+                    NSWorkspace.shared.open(fallbackURL)
+                }
+            }
+        }
+    }
+
     private func shouldShowPhysicalMap(for item: UpcomingItem, locationText: String?) -> Bool {
         guard item.meetingURL == nil else { return false }
         guard let locationText else { return false }
@@ -1325,27 +1640,52 @@ struct MenuContentView: View {
         for item: UpcomingItem,
         showsFootballCompetitionLine: Bool
     ) -> some View {
-        let locationText = locationTextForMenuBarItem(item)
-        let shouldShowMapForItem = shouldShowPhysicalMap(for: item, locationText: locationText)
-        let locationPreviewHeight: CGFloat = shouldUseSplitDropdownLayout ? 90 : 100
+        let previewKind = contextualPreviewKind(for: item)
+        let previewLocationText: String? = {
+            if case let .location(locationText)? = previewKind {
+                return locationText
+            }
+            return nil
+        }()
+
+        let shouldShowLocationPreview = previewLocationText != nil
+            && Self.shouldShowContextualMapPreview(
+                for: item,
+                concurrentFootballMatchCount: footballContextualActionItems.count
+            )
+        let shouldShowDaylightPreview = {
+            if case .daylight = previewKind {
+                return true
+            }
+            return false
+        }()
+        let previewHeight: CGFloat = shouldUseSplitDropdownLayout ? 96 : 112
         let footballContentLevel = contextualFootballContentLevel
         let now = Date()
 
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                if let footballMatch = item.footballMatch {
+            if let footballMatch = item.footballMatch {
+                HStack(spacing: 8) {
+                    let concurrentFootballMatchCount = displayedContextualActionItems.count
                     let scheduleText = Self.footballContextualScheduleText(for: footballMatch, now: now)
                     let venueName = footballContextualVenueName(for: item, match: footballMatch)
+                    let usesExpandedFootballHeader = Self.shouldUseExpandedContextualFootballHeader(
+                        for: footballMatch,
+                        itemCount: concurrentFootballMatchCount
+                    )
 
                     VStack(alignment: .leading, spacing: 2) {
-                        HStack(alignment: .top, spacing: 10) {
-                            footballFixtureHeadline(
-                                match: footballMatch,
-                                display: item.footballMenuBarDisplay,
-                                font: .subheadline.weight(.semibold),
-                                showsCardBadges: true,
-                                showsStatusAccessories: true
-                            )
+                        if !usesExpandedFootballHeader {
+                            HStack(alignment: .top, spacing: 10) {
+                                footballFixtureHeadline(
+                                    match: footballMatch,
+                                    display: item.footballMenuBarDisplay,
+                                    font: .subheadline.weight(.semibold),
+                                    showsScore: true,
+                                    showsCardBadges: true,
+                                    showsStatusAccessories: true
+                                )
+                            }
                         }
 
                         if let venueName {
@@ -1394,59 +1734,188 @@ struct MenuContentView: View {
                             )
                         }
                     }
-                } else {
-                    Text(item.title)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
+
+                    Spacer(minLength: 8)
+
+                    contextualActionButtons(for: item, locationText: previewLocationText)
                 }
+            } else {
+                if shouldShowDaylightPreview {
+                    contextualDaylightHeader(for: item)
+                } else {
+                    rowPrimaryContent(for: item)
 
-                Spacer(minLength: 8)
-
-                HStack(spacing: 6) {
-                    Button {
-                        monitor.skipItem(item)
-                    } label: {
-                        Label("Skip", systemImage: "forward.fill")
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-
-                    if shouldShowMapForItem,
-                       let locationText,
-                       let mapURL = mapURL(for: locationText) {
-                        Button {
-                            NSWorkspace.shared.open(mapURL)
-                        } label: {
-                            Label("Map", systemImage: "map")
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
+                    HStack {
+                        Spacer(minLength: 0)
+                        contextualActionButtons(for: item, locationText: previewLocationText)
                     }
                 }
             }
 
-            if shouldShowMapForItem,
-               let locationText {
+            if shouldShowLocationPreview,
+               let locationText = previewLocationText {
                 MiniLocationMapView(
                     locationText: locationText,
-                    preferredHeight: locationPreviewHeight
+                    preferredHeight: previewHeight
                 )
                     .id("\(item.notificationKey)|\(locationText)")
+            } else if shouldShowDaylightPreview {
+                contextualDaylightPreview(
+                    for: item,
+                    preferredHeight: previewHeight
+                )
             }
 
             if let footballMatch = item.footballMatch {
+                let concurrentFootballMatchCount = displayedContextualActionItems.count
+                let usesExpandedFootballHeader = Self.shouldUseExpandedContextualFootballHeader(
+                    for: footballMatch,
+                    itemCount: concurrentFootballMatchCount
+                )
+                let scorePlacement = Self.footballContextualScorePlacement(
+                    for: footballMatch,
+                    itemCount: concurrentFootballMatchCount
+                )
+
+                if usesExpandedFootballHeader && scorePlacement == .headline {
+                    FootballMatchSectionHeaderView(
+                        match: footballMatch,
+                        display: item.footballMenuBarDisplay,
+                        showsScore: true,
+                        showsTeamNames: true,
+                        showsTeamLogos: true
+                    )
+                }
+
                 if footballContentLevel.showsStats {
-                    FootballMatchStatsSection(match: footballMatch)
+                    FootballMatchStatsSection(
+                        match: footballMatch,
+                        display: item.footballMenuBarDisplay,
+                        showsScoreHeader: Self.footballContextualScorePlacement(
+                            for: footballMatch,
+                            itemCount: concurrentFootballMatchCount
+                        ) == .stats
+                    )
                 }
 
                 if footballContentLevel.showsGoalScorers,
                    footballMatch.totalGoals > 0 {
-                    FootballGoalScorersSection(match: footballMatch)
+                    FootballGoalScorersSection(
+                        match: footballMatch,
+                        display: item.footballMenuBarDisplay,
+                        showsTeamHeader: Self.shouldShowGoalScorersSectionHeader(for: concurrentFootballMatchCount),
+                        showsScoreHeader: Self.footballContextualScorePlacement(
+                            for: footballMatch,
+                            itemCount: concurrentFootballMatchCount
+                        ) == .goalScorers
+                    )
                 }
             }
 
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func contextualDaylightHeader(for item: UpcomingItem) -> some View {
+        let accentColor = Color(nsColor: item.calendarColor)
+        let titleFont = Font.system(size: 12, weight: .semibold)
+        let timeFont = Font.system(size: 11, weight: .medium)
+
+        HStack(alignment: .center, spacing: 0) {
+            HStack(alignment: .center, spacing: 10) {
+                contextualMarkerView(for: item, accentColor: accentColor)
+
+                Text(item.title)
+                    .font(titleFont)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .layoutPriority(1)
+            }
+
+            Spacer(minLength: 12)
+
+            Text(timeText(item.date))
+                .font(timeFont)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+
+            contextualActionButtons(for: item, locationText: nil)
+                .padding(.leading, 12)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func contextualMarkerView(for item: UpcomingItem, accentColor: Color) -> some View {
+        if let markerSymbol = markerSymbolName(for: item) {
+            Image(systemName: markerSymbol)
+                .font(.system(size: 12, weight: .regular))
+                .frame(width: 12, height: 12)
+                .foregroundStyle(accentColor)
+        } else if let image = markerImage(for: item) {
+            let markerSize = markerImageSize(for: item)
+            Image(nsImage: image)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: markerSize.width, height: markerSize.height)
+        } else {
+            Capsule()
+                .fill(accentColor)
+                .frame(width: 4, height: 14)
+        }
+    }
+
+    @ViewBuilder
+    private func contextualActionButtons(for item: UpcomingItem, locationText: String?) -> some View {
+        HStack(spacing: 6) {
+            Button {
+                monitor.skipItem(item)
+            } label: {
+                Label("Skip", systemImage: "forward.fill")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+
+            if let locationText {
+                Button {
+                    openMap(for: item, locationText: locationText)
+                } label: {
+                    Label("Map", systemImage: "map")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func contextualDaylightPreview(for item: UpcomingItem, preferredHeight: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Daylight Map")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            DaylightPreviewArtwork(
+                latitude: astronomyLatitude,
+                longitude: astronomyLongitude,
+                date: item.date,
+                isEnabled: hasValidAstronomyPreviewCoordinates
+            )
+            .frame(maxWidth: .infinity)
+            .frame(height: preferredHeight)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            )
+        }
+    }
+
+    private var hasValidAstronomyPreviewCoordinates: Bool {
+        abs(astronomyLatitude) <= 90 && abs(astronomyLongitude) <= 180
     }
 }
 
@@ -1530,6 +1999,8 @@ private struct MiniLocationMapView: View {
 private struct FootballMatchStatsSection: View {
     @EnvironmentObject private var monitor: CalendarMonitor
     let match: FootballFixtureMatch
+    let display: FootballMenuBarDisplay?
+    let showsScoreHeader: Bool
 
     @State private var statistics: [FootballMatchStatistic] = []
     @State private var isLoading = false
@@ -1546,9 +2017,18 @@ private struct FootballMatchStatsSection: View {
             if match.statusState == .scheduled {
                 EmptyView()
             } else if statistics.isEmpty && (!hasAttemptedLoad || isLoading) {
-                FootballMatchStatsLoadingView()
+                FootballMatchStatsLoadingView(
+                    match: match,
+                    display: display,
+                    showsScore: showsScoreHeader
+                )
             } else if !statistics.isEmpty {
-                FootballMatchStatsView(stats: statistics)
+                FootballMatchStatsView(
+                    match: match,
+                    display: display,
+                    stats: statistics,
+                    showsScore: showsScoreHeader
+                )
             }
         }
         .onAppear {
@@ -1602,13 +2082,20 @@ private struct FootballMatchStatsSection: View {
 }
 
 private struct FootballMatchStatsView: View {
+    let match: FootballFixtureMatch
+    let display: FootballMenuBarDisplay?
     let stats: [FootballMatchStatistic]
+    let showsScore: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Match Stats")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+            FootballMatchSectionHeaderView(
+                match: match,
+                display: display,
+                showsScore: showsScore,
+                showsTeamNames: true,
+                showsTeamLogos: true
+            )
 
             VStack(spacing: 6) {
                 ForEach(stats) { stat in
@@ -1641,11 +2128,19 @@ private struct FootballMatchStatsView: View {
 }
 
 private struct FootballMatchStatsLoadingView: View {
+    let match: FootballFixtureMatch
+    let display: FootballMenuBarDisplay?
+    let showsScore: Bool
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Match Stats")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+            FootballMatchSectionHeaderView(
+                match: match,
+                display: display,
+                showsScore: showsScore,
+                showsTeamNames: true,
+                showsTeamLogos: true
+            )
 
             VStack(spacing: 6) {
                 ForEach(0..<10, id: \.self) { _ in
@@ -1661,11 +2156,16 @@ private struct FootballMatchStatsLoadingView: View {
 private struct FootballGoalScorersSection: View {
     @EnvironmentObject private var monitor: CalendarMonitor
     let match: FootballFixtureMatch
+    let display: FootballMenuBarDisplay?
+    let showsTeamHeader: Bool
+    let showsScoreHeader: Bool
 
     @State private var scorers: FootballMatchGoalScorers?
     @State private var isLoading = false
     @State private var hasAttemptedLoad = false
     @State private var loadTask: Task<Void, Never>?
+    @State private var retryTask: Task<Void, Never>?
+    private let incompleteRetryDelayNanoseconds: UInt64 = 12_000_000_000
 
     private var requestKey: String {
         let statusDetail = match.statusDetailText ?? ""
@@ -1673,15 +2173,34 @@ private struct FootballGoalScorersSection: View {
         return "\(match.id)|\(match.homeScore)|\(match.awayScore)|\(match.statusText)|\(statusDetail)|\(statusPeriod)"
     }
 
+    private var resolvedScorerCount: Int {
+        Self.scorerCount(for: scorers)
+    }
+
+    private var shouldRetryIncompleteScorers: Bool {
+        match.totalGoals > resolvedScorerCount
+    }
+
     var body: some View {
         Group {
             if match.totalGoals <= 0 {
                 EmptyView()
-            } else if scorers == nil && (!hasAttemptedLoad || isLoading) {
-                FootballGoalScorersLoadingView()
             } else if let scorers,
                       !scorers.home.isEmpty || !scorers.away.isEmpty {
-                FootballGoalScorersView(match: match, scorers: scorers)
+                FootballGoalScorersView(
+                    match: match,
+                    display: display,
+                    scorers: scorers,
+                    showsHeader: showsTeamHeader,
+                    showsScore: showsScoreHeader
+                )
+            } else if scorers == nil && (!hasAttemptedLoad || isLoading || shouldRetryIncompleteScorers) {
+                FootballGoalScorersLoadingView(
+                    match: match,
+                    display: display,
+                    showsHeader: showsTeamHeader,
+                    showsScore: showsScoreHeader
+                )
             }
         }
         .onAppear {
@@ -1693,11 +2212,14 @@ private struct FootballGoalScorersSection: View {
         .onDisappear {
             loadTask?.cancel()
             loadTask = nil
+            retryTask?.cancel()
+            retryTask = nil
         }
     }
 
     private func startLoadingScorers() {
         loadTask?.cancel()
+        retryTask?.cancel()
 
         guard match.totalGoals > 0 else {
             scorers = nil
@@ -1722,21 +2244,47 @@ private struct FootballGoalScorersSection: View {
                     scorers = fetchedScorers
                     isLoading = false
                     hasAttemptedLoad = true
+                    scheduleRetryIfNeeded(for: currentRequestKey)
                 }
             } catch {
                 await MainActor.run {
                     guard currentRequestKey == requestKey else { return }
                     isLoading = false
                     hasAttemptedLoad = true
+                    scheduleRetryIfNeeded(for: currentRequestKey)
                 }
             }
         }
+    }
+
+    private func scheduleRetryIfNeeded(for currentRequestKey: String) {
+        retryTask?.cancel()
+
+        guard shouldRetryIncompleteScorers else { return }
+
+        retryTask = Task {
+            try? await Task.sleep(nanoseconds: incompleteRetryDelayNanoseconds)
+            guard !Task.isCancelled else { return }
+
+            await MainActor.run {
+                guard currentRequestKey == requestKey else { return }
+                startLoadingScorers()
+            }
+        }
+    }
+
+    private static func scorerCount(for scorers: FootballMatchGoalScorers?) -> Int {
+        (scorers?.home.count ?? 0) + (scorers?.away.count ?? 0)
     }
 }
 
 private struct FootballGoalScorersView: View {
     let match: FootballFixtureMatch
+    let display: FootballMenuBarDisplay?
     let scorers: FootballMatchGoalScorers
+    let showsHeader: Bool
+    let showsScore: Bool
+    private let minuteColumnWidth: CGFloat = 56
 
     var body: some View {
         let homeScorers = sortedScorers(scorers.home)
@@ -1744,15 +2292,23 @@ private struct FootballGoalScorersView: View {
         let targetRowCount = max(homeScorers.count, awayScorers.count, 1)
 
         VStack(alignment: .leading, spacing: 6) {
+            if showsHeader {
+                FootballMatchSectionHeaderView(
+                    match: match,
+                    display: display,
+                    showsScore: showsScore,
+                    showsTeamNames: true,
+                    showsTeamLogos: true
+                )
+            }
+
             HStack(alignment: .top, spacing: 8) {
                 scorerColumn(
-                    title: match.homeTeam.abbreviation,
                     scorers: homeScorers,
                     targetRowCount: targetRowCount
                 )
 
                 scorerColumn(
-                    title: match.awayTeam.abbreviation,
                     scorers: awayScorers,
                     targetRowCount: targetRowCount
                 )
@@ -1762,21 +2318,19 @@ private struct FootballGoalScorersView: View {
 
     @ViewBuilder
     private func scorerColumn(
-        title: String,
         scorers: [FootballMatchGoalScorer],
         targetRowCount: Int
     ) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.95))
-
             ForEach(scorers) { scorer in
                 HStack(spacing: 6) {
                     Text(scorer.minute ?? "—")
                         .font(.caption2.weight(.semibold))
+                        .monospacedDigit()
                         .foregroundStyle(.white.opacity(0.95))
-                        .frame(width: 34, alignment: .center)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .frame(width: minuteColumnWidth, alignment: .center)
 
                     Text(scorer.name)
                         .font(.caption2)
@@ -1810,7 +2364,7 @@ private struct FootballGoalScorersView: View {
         HStack(spacing: 6) {
             Text("88'")
                 .font(.caption2.weight(.semibold))
-                .frame(width: 34, alignment: .center)
+                .frame(width: minuteColumnWidth, alignment: .center)
                 .hidden()
 
             Text("Placeholder")
@@ -1830,9 +2384,142 @@ private struct FootballGoalScorersView: View {
     }
 }
 
+private struct FootballMatchSectionHeaderView: View {
+    let match: FootballFixtureMatch
+    let display: FootballMenuBarDisplay?
+    let showsScore: Bool
+    let showsTeamNames: Bool
+    let showsTeamLogos: Bool
+
+    private var accessories: FootballStatusAccessoriesData {
+        FootballStatusAccessoriesData.resolved(for: match)
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 8) {
+            FootballMatchSectionTeamHeaderView(
+                team: match.homeTeam,
+                localLogoPath: display?.homeLocalLogoPath,
+                showsName: showsTeamNames,
+                showsLogo: showsTeamLogos
+            )
+            .frame(maxWidth: .infinity, alignment: .center)
+
+            if showsScore {
+                HStack {
+                    Spacer(minLength: 0)
+
+                    VStack(spacing: 4) {
+                        if let badgeText = accessories.badgeText {
+                            HStack(spacing: 4) {
+                                FootballStatusBadgeView(text: badgeText)
+
+                                if let warningText = accessories.warningText {
+                                    FootballStatusWarningIconView(helpText: warningText)
+                                }
+                            }
+                        } else if let warningText = accessories.warningText {
+                            FootballStatusWarningIconView(helpText: warningText)
+                        }
+
+                        Text(
+                            "\(FootballFixtureFormatter.scoreText(match.homeScore)) - \(FootballFixtureFormatter.scoreText(match.awayScore))"
+                        )
+                        .font(.caption.weight(.semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(.white.opacity(0.95))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(Color.white.opacity(0.07))
+                        )
+                    }
+                    .fixedSize(horizontal: true, vertical: false)
+
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+            }
+
+            FootballMatchSectionTeamHeaderView(
+                team: match.awayTeam,
+                localLogoPath: display?.awayLocalLogoPath,
+                showsName: showsTeamNames,
+                showsLogo: showsTeamLogos
+            )
+            .frame(maxWidth: .infinity, alignment: .center)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.white.opacity(0.045))
+        )
+    }
+}
+
+private struct FootballMatchSectionTeamHeaderView: View {
+    let team: FootballTeamSummary
+    let localLogoPath: String?
+    let showsName: Bool
+    let showsLogo: Bool
+
+    private var teamName: String {
+        let trimmedName = team.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedName.isEmpty && !FootballFixtureFormatter.isUnknownTeam(team) {
+            return trimmedName
+        }
+        return FootballFixtureFormatter.teamDisplayIdentifier(for: team)
+    }
+
+    var body: some View {
+        VStack(spacing: 4) {
+            if showsLogo {
+                logoView
+            }
+
+            if showsName {
+                Text(teamName)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.95))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    private var logoView: some View {
+        FootballTeamLogoView(
+            localPath: localLogoPath,
+            remoteURL: FootballFixtureFormatter.isUnknownTeam(team) ? nil : team.logoURL,
+            isUnknown: FootballFixtureFormatter.isUnknownTeam(team),
+            size: 26,
+            placeholderSymbolSize: 13
+        )
+    }
+}
+
 private struct FootballGoalScorersLoadingView: View {
+    let match: FootballFixtureMatch
+    let display: FootballMenuBarDisplay?
+    let showsHeader: Bool
+    let showsScore: Bool
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
+            if showsHeader {
+                FootballMatchSectionHeaderView(
+                    match: match,
+                    display: display,
+                    showsScore: showsScore,
+                    showsTeamNames: true,
+                    showsTeamLogos: true
+                )
+            }
+
             HStack(alignment: .top, spacing: 8) {
                 ForEach(0..<2, id: \.self) { _ in
                     VStack(alignment: .leading, spacing: 4) {

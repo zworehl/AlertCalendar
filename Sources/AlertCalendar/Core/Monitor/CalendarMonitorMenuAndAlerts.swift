@@ -87,6 +87,11 @@ extension CalendarMonitor {
     }
 
     func updateMenuBarState(now: Date, settings: SettingsSnapshot) {
+        if isInitialLoadInProgress {
+            applyMenuBarLoadingState()
+            return
+        }
+
         let previewItems = displayedItemsForMenuBar(now: now, settings: settings)
         let queueMatchIDs = Set(
             unifiedMenuBarQueue(now: now, settings: settings)
@@ -98,13 +103,17 @@ extension CalendarMonitor {
             selectedMatchID: previewItems.first?.footballMatch?.id
         )
         if previewItems.isEmpty {
-            setIfChanged(\.combinedMenuBarLabel, to: "No upcoming items")
+            let emptyStateText = Self.menuBarEmptyStateText(
+                menuBarRotationWindowMinutes: settings.menuBarRotationWindowMinutes,
+                hasLaterItemsInDropdownWindow: hasUpcomingItemsOutsideMenuBarWindow(now: now, settings: settings)
+            )
+            setIfChanged(\.combinedMenuBarLabel, to: emptyStateText)
             setColorIfChanged(\.combinedMenuBarColor, to: .systemGray)
             setIfChanged(\.combinedMenuBarAlertedSegmentIndex, to: nil)
             setIfChanged(\.combinedMenuBarAlertTextOpacity, to: 0)
             setColorArrayIfChanged(\.combinedMenuBarDotColors, to: [.systemGray])
             setIfChanged(\.combinedMenuBarMarkerStyles, to: [.color(.systemGray)])
-            setIfChanged(\.combinedMenuBarSegments, to: ["No upcoming items"])
+            setIfChanged(\.combinedMenuBarSegments, to: [emptyStateText])
             setColorArrayIfChanged(\.combinedMenuBarSegmentBackgroundColors, to: [.clear])
             setIfChanged(\.combinedMenuBarSegmentBackgroundProgresses, to: [0])
             setIfChanged(\.combinedMenuBarFootballDisplay, to: nil)
@@ -196,6 +205,24 @@ extension CalendarMonitor {
             eventTitleMaxCharacters: settings.eventTitleMaxCharacters,
             fallback: "No reminders"
         ))
+    }
+
+    private func applyMenuBarLoadingState() {
+        setIfChanged(\.combinedMenuBarLabel, to: "Loading...")
+        setColorIfChanged(\.combinedMenuBarColor, to: .systemGray)
+        setIfChanged(\.combinedMenuBarAlertedSegmentIndex, to: nil)
+        setIfChanged(\.combinedMenuBarAlertTextOpacity, to: 0)
+        setColorArrayIfChanged(\.combinedMenuBarDotColors, to: [.systemGray])
+        setIfChanged(\.combinedMenuBarMarkerStyles, to: [.color(.systemGray)])
+        setIfChanged(\.combinedMenuBarSegments, to: ["Loading..."])
+        setColorArrayIfChanged(\.combinedMenuBarSegmentBackgroundColors, to: [.clear])
+        setIfChanged(\.combinedMenuBarSegmentBackgroundProgresses, to: [0])
+        setIfChanged(\.combinedMenuBarFootballDisplay, to: nil)
+        setIfChanged(\.combinedMenuBarFootballTrailingText, to: nil)
+        setIfChanged(\.combinedMenuBarFootballStatusText, to: nil)
+        setColorIfChanged(\.combinedMenuBarFootballStatusColor, to: .systemGreen)
+        setIfChanged(\.combinedMenuBarFootballGoalHighlightSide, to: nil)
+        setIfChanged(\.combinedMenuBarFootballGoalHighlightTextOpacity, to: 0)
     }
 
     func menuLabel(
@@ -635,6 +662,79 @@ extension CalendarMonitor {
         item.isAllDay ? 1 : 0
     }
 
+    private func hasUpcomingItemsOutsideMenuBarWindow(now: Date, settings: SettingsSnapshot) -> Bool {
+        let futureWindowEnd = now.addingTimeInterval(Double(max(1, settings.lookAheadHours)) * 3600)
+        let futureWindowSeconds = TimeInterval(max(5, settings.menuBarRotationWindowMinutes) * 60)
+
+        return upcomingItems.contains { item in
+            isTimedItemDisplayableInMenuBar(item, now: now)
+                && !Self.shouldIncludeTimedItemInMenuBarRotation(
+                    item,
+                    now: now,
+                    futureWindowSeconds: futureWindowSeconds
+                )
+                && Self.shouldIncludeInDropdownPreviewWindow(
+                    item,
+                    now: now,
+                    futureWindowEnd: futureWindowEnd
+                )
+        }
+    }
+
+    nonisolated static func menuBarEmptyStateText(
+        menuBarRotationWindowMinutes: Int,
+        hasLaterItemsInDropdownWindow: Bool
+    ) -> String {
+        guard hasLaterItemsInDropdownWindow else {
+            return "No upcoming items"
+        }
+
+        return "No items in next \(menuBarRotationWindowDescription(minutes: menuBarRotationWindowMinutes))"
+    }
+
+    nonisolated static func menuBarRotationWindowDescription(minutes: Int) -> String {
+        let clampedMinutes = max(1, minutes)
+        let days = clampedMinutes / (24 * 60)
+        let hours = (clampedMinutes % (24 * 60)) / 60
+        let remainingMinutes = clampedMinutes % 60
+
+        var components: [String] = []
+        if days > 0 {
+            components.append("\(days)d")
+        }
+        if hours > 0 {
+            components.append("\(hours)h")
+        }
+        if remainingMinutes > 0 {
+            components.append("\(remainingMinutes)m")
+        }
+
+        return components.prefix(2).joined(separator: " ")
+    }
+
+    nonisolated static func shouldIncludeInDropdownPreviewWindow(
+        _ item: UpcomingItem,
+        now: Date,
+        futureWindowEnd: Date
+    ) -> Bool {
+        if item.isAllDay {
+            return true
+        }
+
+        if item.kind == .reminder, item.date <= now {
+            return true
+        }
+
+        if item.kind == .event,
+           let endDate = item.endDate,
+           item.date <= now,
+           endDate > now {
+            return true
+        }
+
+        return item.date >= now && item.date <= futureWindowEnd
+    }
+
     private func isTimedItemDisplayableInMenuBar(_ item: UpcomingItem, now: Date) -> Bool {
         guard !item.isAllDay else { return false }
 
@@ -655,6 +755,10 @@ extension CalendarMonitor {
             includeAllDayEvents: defaults.bool(forKey: DefaultsKeys.includeAllDayEvents),
             includeReminders: defaults.bool(forKey: DefaultsKeys.includeReminders),
             includeAstronomy: defaults.bool(forKey: DefaultsKeys.includeAstronomy),
+            includeSunriseSunset: defaults.bool(forKey: DefaultsKeys.includeSunriseSunset),
+            includeSolarNoonMidnight: defaults.bool(forKey: DefaultsKeys.includeSolarNoonMidnight),
+            includeMoonPhases: defaults.bool(forKey: DefaultsKeys.includeMoonPhases),
+            includeOrbitalHighlights: defaults.bool(forKey: DefaultsKeys.includeOrbitalHighlights),
             useAutomaticAstronomyLocation: defaults.bool(forKey: DefaultsKeys.useAutomaticAstronomyLocation),
             astronomyColorID: defaults.string(forKey: DefaultsKeys.astronomyColorID) ?? "blue",
             astronomyLatitude: defaults.double(forKey: DefaultsKeys.astronomyLatitude),
@@ -706,19 +810,10 @@ extension CalendarMonitor {
         if item.kind == .event, item.isAllDay {
             return .allDay(item.calendarColor)
         }
-
-        switch item.title.lowercased() {
-        case "sunrise":
-            return .sunrise
-        case "solar noon":
-            return .solarNoon
-        case "sunset":
-            return .sunset
-        case "solar midnight":
-            return .solarMidnight
-        default:
-            return .color(item.calendarColor)
+        if let moment = AstronomyMoment(eventTitle: item.title) {
+            return moment.menuMarkerStyle
         }
+        return .color(item.calendarColor)
     }
 
     func backgroundTintColor(for item: UpcomingItem, now: Date) -> NSColor {

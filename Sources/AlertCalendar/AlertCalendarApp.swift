@@ -9,6 +9,22 @@ struct AlertCalendarApp: App {
         NSWindow.allowsAutomaticWindowTabbing = false
     }
 
+    private func resolvedSettingsWindow() -> NSWindow? {
+        let settingsIdentifier = NSUserInterfaceItemIdentifier(WindowMetadata.preferencesID)
+        let candidateWindows: [NSWindow?] = [NSApp.keyWindow, NSApp.mainWindow]
+
+        for candidate in candidateWindows {
+            guard let window = candidate else { continue }
+            if window.identifier == settingsIdentifier || window.title == WindowMetadata.preferencesTitle {
+                return window
+            }
+        }
+
+        return NSApp.windows.first { window in
+            window.identifier == settingsIdentifier || window.title == WindowMetadata.preferencesTitle
+        }
+    }
+
     var body: some Scene {
         MenuBarExtra(isInserted: .constant(true)) {
             MenuContentView(kindFilter: nil, headerTitle: "Alert Calendar")
@@ -39,5 +55,13 @@ struct AlertCalendarApp: App {
         }
         .defaultSize(width: 1040, height: 820)
         .windowResizability(.automatic)
+        .commands {
+            CommandGroup(after: .windowArrangement) {
+                Button("Toggle Full Screen") {
+                    resolvedSettingsWindow()?.toggleFullScreen(nil)
+                }
+                .keyboardShortcut("f", modifiers: [.control, .command])
+            }
+        }
     }
 }

@@ -1,13 +1,11 @@
 import AppKit
-import SwiftUI
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let settingsWindowIdentifier = NSUserInterfaceItemIdentifier(WindowMetadata.preferencesID)
-    private let settingsDefaultSize = NSSize(width: 1040, height: 820)
-    private var settingsWindowController: NSWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.mainMenu = makeMainMenu()
         ensureAccessoryActivationPolicy()
         NotificationCenter.default.addObserver(
             self,
@@ -37,15 +35,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard isSettingsWindow(window) else { return }
         prepareForSettingsPresentation()
         configureSettingsWindow(window)
+        window.makeMain()
     }
 
     @objc
     private func handleWindowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
         guard isSettingsWindow(window) else { return }
-        if settingsWindowController?.window === window {
-            settingsWindowController = nil
+        DispatchQueue.main.async { [weak self] in
+            self?.restoreAccessoryActivationPolicyIfNeeded()
         }
+    }
+
+    func window(_ window: NSWindow, willUseFullScreenPresentationOptions proposedOptions: NSApplication.PresentationOptions) -> NSApplication.PresentationOptions {
+        proposedOptions.union([.autoHideDock, .autoHideMenuBar])
     }
 
     private func isSettingsWindow(_ window: NSWindow) -> Bool {
@@ -56,117 +59,90 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func prepareForSettingsPresentation() {
-        ensureAccessoryActivationPolicy()
+        ensureRegularActivationPolicy()
         NSRunningApplication.current.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
     }
 
-    @discardableResult
-    func revealSettingsWindowIfPresent() -> Bool {
-        guard let window = settingsWindowController?.window ?? NSApp.windows.first(where: isSettingsWindow) else {
-            return false
+    @objc
+    func toggleSettingsFullScreen(_ sender: Any?) {
+        guard let window = resolvedSettingsWindow(sender: sender) else { return }
+
+        prepareForSettingsPresentation()
+        configureSettingsWindow(window)
+        window.makeKeyAndOrderFront(nil)
+        window.makeMain()
+
+        DispatchQueue.main.async {
+            window.toggleFullScreen(nil)
         }
-
-        presentSettingsWindow(window)
-        return true
     }
 
-    func showSettingsWindow(monitor: CalendarMonitor) {
-        showSettingsWindow(rootView: AnyView(SettingsView(monitor: monitor)))
-    }
-
-    var currentSettingsWindow: NSWindow? {
-        settingsWindowController?.window
-    }
-
-    func showSettingsWindow(rootView: AnyView) {
-        if let window = settingsWindowController?.window {
-            if let hostingController = window.contentViewController as? NSHostingController<AnyView> {
-                hostingController.rootView = rootView
-            } else {
-                window.contentViewController = NSHostingController(rootView: rootView)
-            }
-            presentSettingsWindow(window)
-            return
-        }
-
-        let window = makeSettingsWindow(rootView: rootView)
-
-        let controller = NSWindowController(window: window)
-        settingsWindowController = controller
-        controller.showWindow(nil)
-        presentSettingsWindow(window)
+    func restoreAccessoryActivationPolicyIfNeeded() {
+        guard !hasVisibleSettingsWindow else { return }
+        ensureAccessoryActivationPolicy()
     }
 
     private func ensureAccessoryActivationPolicy() {
         _ = NSApplication.shared.setActivationPolicy(.accessory)
     }
 
-    private func makeSettingsWindow(rootView: AnyView) -> NSWindow {
-        let hostingController = NSHostingController(rootView: rootView)
-        let window = NSWindow(
-            contentRect: NSRect(origin: .zero, size: settingsDefaultSize),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
-            backing: .buffered,
-            defer: false
-        )
-        window.contentViewController = hostingController
-        window.title = WindowMetadata.preferencesTitle
-        window.isReleasedWhenClosed = false
-        configureSettingsWindow(window)
-        applySettingsWindowInitialFrame(window)
-        return window
+    private func ensureRegularActivationPolicy() {
+        _ = NSApplication.shared.setActivationPolicy(.regular)
     }
 
-    private func presentSettingsWindow(_ window: NSWindow) {
-        prepareForSettingsPresentation()
-        configureSettingsWindow(window)
-        normalizeSettingsWindowFrameIfNeeded(window)
-        if window.isMiniaturized {
-            window.deminiaturize(nil)
-        }
-        settingsWindowController?.showWindow(nil)
-        window.makeKeyAndOrderFront(nil)
-        window.orderFrontRegardless()
-        NSRunningApplication.current.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
-    }
-
-    private func applySettingsWindowInitialFrame(_ window: NSWindow) {
-        let restoredFrame = window.setFrameUsingName(WindowMetadata.preferencesID)
-        guard !restoredFrame else {
-            normalizeSettingsWindowFrameIfNeeded(window)
-            return
-        }
-
-        centerSettingsWindow(window)
-    }
-
-    private func normalizeSettingsWindowFrameIfNeeded(_ window: NSWindow) {
-        let minimumFrameSize = window.frameRect(forContentRect: NSRect(origin: .zero, size: window.minSize)).size
-        let frame = window.frame
-        let hasMinimumSize = frame.width >= minimumFrameSize.width && frame.height >= minimumFrameSize.height
-        let isVisibleOnAnyScreen = NSScreen.screens.contains { screen in
-            screen.visibleFrame.intersects(frame.insetBy(dx: -80, dy: -80))
-        }
-
-        guard hasMinimumSize && isVisibleOnAnyScreen else {
-            centerSettingsWindow(window)
-            return
+    private var hasVisibleSettingsWindow: Bool {
+        return NSApp.windows.contains { window in
+            isSettingsWindow(window) && window.isVisible
         }
     }
 
-    private func centerSettingsWindow(_ window: NSWindow) {
-        let defaultFrameSize = window.frameRect(forContentRect: NSRect(origin: .zero, size: settingsDefaultSize)).size
-        let visibleFrame = (window.screen ?? NSScreen.main ?? NSScreen.screens.first)?.visibleFrame
-            ?? NSRect(origin: .zero, size: defaultFrameSize)
-        let origin = NSPoint(
-            x: visibleFrame.midX - defaultFrameSize.width / 2,
-            y: visibleFrame.midY - defaultFrameSize.height / 2
-        )
-        window.setFrame(NSRect(origin: origin, size: defaultFrameSize), display: false)
+    private func resolvedSettingsWindow(sender: Any?) -> NSWindow? {
+        if let control = sender as? NSControl, let senderWindow = control.window, isSettingsWindow(senderWindow) {
+            return senderWindow
+        }
+
+        if let window = sender as? NSWindow, isSettingsWindow(window) {
+            return window
+        }
+
+        return [NSApp.keyWindow, NSApp.mainWindow]
+            .compactMap { $0 }
+            .first(where: isSettingsWindow)
+            ?? NSApp.windows.first(where: isSettingsWindow)
+    }
+
+    private func makeMainMenu() -> NSMenu {
+        let mainMenu = NSMenu()
+
+        let appMenuItem = NSMenuItem()
+        let appMenu = NSMenu()
+        appMenu.addItem(withTitle: "About \(ProcessInfo.processInfo.processName)", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(NSMenuItem.separator())
+        appMenu.addItem(withTitle: "Hide \(ProcessInfo.processInfo.processName)", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        let hideOthersItem = NSMenuItem(title: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
+        hideOthersItem.keyEquivalentModifierMask = [.command, .option]
+        appMenu.addItem(hideOthersItem)
+        appMenu.addItem(withTitle: "Show All", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
+        appMenu.addItem(NSMenuItem.separator())
+        appMenu.addItem(withTitle: "Quit \(ProcessInfo.processInfo.processName)", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenuItem.submenu = appMenu
+        mainMenu.addItem(appMenuItem)
+
+        let viewMenuItem = NSMenuItem()
+        let viewMenu = NSMenu(title: "View")
+        let toggleFullScreenItem = NSMenuItem(title: "Toggle Full Screen", action: #selector(toggleSettingsFullScreen(_:)), keyEquivalent: "f")
+        toggleFullScreenItem.keyEquivalentModifierMask = [.control, .command]
+        toggleFullScreenItem.target = self
+        viewMenu.addItem(toggleFullScreenItem)
+        viewMenuItem.submenu = viewMenu
+        mainMenu.addItem(viewMenuItem)
+
+        return mainMenu
     }
 
     func configureSettingsWindow(_ window: NSWindow) {
         window.identifier = settingsWindowIdentifier
+        window.delegate = self
         window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable])
         window.collectionBehavior.remove(.fullScreenNone)
         window.collectionBehavior.insert([.fullScreenPrimary, .fullScreenAllowsTiling])
@@ -177,8 +153,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let zoomButton = window.standardWindowButton(.zoomButton) {
             zoomButton.isHidden = false
             zoomButton.isEnabled = true
-            zoomButton.target = nil
-            zoomButton.action = nil
+            zoomButton.target = self
+            zoomButton.action = #selector(toggleSettingsFullScreen(_:))
         }
         window.level = .normal
     }

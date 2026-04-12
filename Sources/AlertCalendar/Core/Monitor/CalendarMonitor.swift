@@ -9,13 +9,14 @@ extension EKReminder: @retroactive @unchecked Sendable {}
 
 @MainActor
 final class CalendarMonitor: ObservableObject {
-    @Published var combinedMenuBarLabel = "No upcoming items"
+    @Published var isInitialLoadInProgress = true
+    @Published var combinedMenuBarLabel = "Loading..."
     @Published var combinedMenuBarColor: NSColor = .systemGray
     @Published var combinedMenuBarAlertedSegmentIndex: Int?
     @Published var combinedMenuBarAlertTextOpacity: CGFloat = 0
     @Published var combinedMenuBarDotColors: [NSColor] = [.systemGray]
     @Published var combinedMenuBarMarkerStyles: [MenuMarkerStyle] = [.color(.systemGray)]
-    @Published var combinedMenuBarSegments: [String] = ["No upcoming items"]
+    @Published var combinedMenuBarSegments: [String] = ["Loading..."]
     @Published var combinedMenuBarSegmentBackgroundColors: [NSColor] = [.clear]
     @Published var combinedMenuBarSegmentBackgroundProgresses: [CGFloat] = [0]
     @Published var combinedMenuBarFootballDisplay: FootballMenuBarDisplay?
@@ -159,6 +160,10 @@ final class CalendarMonitor: ObservableObject {
         let includeAllDayEvents: Bool
         let includeReminders: Bool
         let includeAstronomy: Bool
+        let includeSunriseSunset: Bool
+        let includeSolarNoonMidnight: Bool
+        let includeMoonPhases: Bool
+        let includeOrbitalHighlights: Bool
         let useAutomaticAstronomyLocation: Bool
         let astronomyColorID: String
         let astronomyLatitude: Double
@@ -176,6 +181,30 @@ final class CalendarMonitor: ObservableObject {
         let activeEventDisplayMode: ActiveEventDisplayMode
         let useEventTitleEllipsis: Bool
         let eventTitleMaxCharacters: Int
+
+        var includesAnyAstronomy: Bool {
+            includeAstronomy && (
+                includeSunriseSunset ||
+                includeSolarNoonMidnight ||
+                includeMoonPhases ||
+                includeOrbitalHighlights
+            )
+        }
+
+        func includes(moment: AstronomyMoment) -> Bool {
+            guard includeAstronomy else { return false }
+
+            switch moment {
+            case .sunrise, .sunset:
+                return includeSunriseSunset
+            case .solarNoon, .solarMidnight:
+                return includeSolarNoonMidnight
+            case .newMoon, .waxingCrescent, .firstQuarter, .waxingGibbous, .fullMoon, .waningGibbous, .lastQuarter, .waningCrescent:
+                return includeMoonPhases
+            case .perihelion, .aphelion, .marchEquinox, .juneSolstice, .septemberEquinox, .decemberSolstice:
+                return includeOrbitalHighlights
+            }
+        }
     }
 
     struct MenuBarRotationState: Equatable {

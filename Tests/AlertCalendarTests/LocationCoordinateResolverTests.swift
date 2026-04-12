@@ -38,4 +38,13 @@ final class LocationCoordinateResolverTests: XCTestCase {
         XCTAssertTrue(queries.contains("Anfield Stadium, Liverpool, England"))
         XCTAssertTrue(queries.contains("Anfield, Liverpool, England"))
     }
+
+    func testSearchQueriesAddsEstadioVariantForArenaVenues() {
+        let queries = LocationCoordinateResolver.searchQueries(
+            from: "Arena da Baixada, Curitiba, Brazil"
+        )
+
+        XCTAssertTrue(queries.contains("Estadio Arena da Baixada, Curitiba, Brazil"))
+        XCTAssertTrue(queries.contains("Arena da Baixada, Curitiba, Brazil"))
+    }
 }

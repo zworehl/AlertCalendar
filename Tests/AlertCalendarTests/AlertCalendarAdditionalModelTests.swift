@@ -84,6 +84,10 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
             DefaultsKeys.includeAllDayEvents,
             DefaultsKeys.includeReminders,
             DefaultsKeys.includeAstronomy,
+            DefaultsKeys.includeSunriseSunset,
+            DefaultsKeys.includeSolarNoonMidnight,
+            DefaultsKeys.includeMoonPhases,
+            DefaultsKeys.includeOrbitalHighlights,
             DefaultsKeys.useAutomaticAstronomyLocation,
             DefaultsKeys.astronomyColorID,
             DefaultsKeys.astronomyLatitude,
@@ -93,6 +97,7 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
             DefaultsKeys.weekdayOnlyEventCalendarIDs,
             DefaultsKeys.weekdayOnlyReminderCalendarIDs,
             DefaultsKeys.lookAheadHours,
+            DefaultsKeys.contextualPreviewLeadMinutes,
             DefaultsKeys.menuBarRotationWindowMinutes,
             DefaultsKeys.alertLeadMinutes,
             DefaultsKeys.concurrentEventRotationSeconds,
@@ -110,9 +115,10 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
             DefaultsKeys.managedFootballEventRecords,
         ]
 
-        XCTAssertEqual(keys.count, 28)
+        XCTAssertEqual(keys.count, 33)
         XCTAssertEqual(Set(keys).count, keys.count)
         XCTAssertTrue(keys.contains("activeEventDisplayMode"))
+        XCTAssertTrue(keys.contains("contextualPreviewLeadMinutes"))
         XCTAssertTrue(keys.contains("menuBarRotationWindowMinutes"))
         XCTAssertTrue(keys.contains("menuBarFontSize"))
     }
@@ -202,13 +208,33 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
         XCTAssertEqual(MenuMarkerStyle.allDay(.systemBlue), MenuMarkerStyle.allDay(.systemBlue))
         XCTAssertNotEqual(MenuMarkerStyle.color(.systemBlue), MenuMarkerStyle.reminder(.systemBlue))
         XCTAssertNotEqual(MenuMarkerStyle.birthday(.systemPink), MenuMarkerStyle.allDay(.systemPink))
+        XCTAssertNotEqual(MenuMarkerStyle.newMoon, MenuMarkerStyle.fullMoon)
+        XCTAssertNotEqual(MenuMarkerStyle.juneSolstice, MenuMarkerStyle.aphelion)
     }
 
     func testAstronomyMomentsExposeCompleteMetadata() {
-        XCTAssertEqual(AstronomyMoment.allCases.count, 4)
-        XCTAssertEqual(Set(AstronomyMoment.allCases.map(\.title)).count, 4)
+        XCTAssertEqual(AstronomyMoment.allCases.count, 18)
+        XCTAssertEqual(Set(AstronomyMoment.allCases.map(\.title)).count, 18)
         XCTAssertTrue(AstronomyMoment.allCases.allSatisfy { !$0.fallbackSymbolName.isEmpty })
-        XCTAssertEqual(AstronomyMoment.allCases.filter { $0.svgAssetName != nil }.count, 2)
+        XCTAssertEqual(AstronomyMoment.allCases.filter { $0.svgAssetName != nil }.count, 10)
+        XCTAssertEqual(
+            Set(AstronomyMoment.solarMoments + AstronomyMoment.lunarPhases + AstronomyMoment.orbitalHighlights),
+            Set(AstronomyMoment.allCases)
+        )
+    }
+
+    func testReminderDueTextUsesAgoFormattingForOverdueItems() {
+        let dueDate = Date(timeIntervalSince1970: 1_720_000_000)
+        let now = dueDate.addingTimeInterval((2 * 3600) + (15 * 60))
+
+        XCTAssertEqual(
+            MenuContentView.reminderDueText(dueDate: dueDate, now: now, simplified: true),
+            "2h ago"
+        )
+        XCTAssertEqual(
+            MenuContentView.reminderDueText(dueDate: dueDate, now: now, simplified: false),
+            "2h 15m ago"
+        )
     }
 
     func testContextualActionItemsReturnAllActiveMapCandidates() {
@@ -236,6 +262,153 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
         XCTAssertEqual(
             MenuContentView.contextualActionItems(from: [upcoming, activeTwo, activeOne], now: now).map(\.id),
             ["active-2", "active-1"]
+        )
+    }
+
+    func testFootballContextualActionItemsOnlyReturnFootballMatches() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let activeMatchOne = makeFootballUpcomingItem(
+            makeFootballMatch(
+                id: "match-1",
+                startDate: now.addingTimeInterval(-900),
+                actualStartDate: now.addingTimeInterval(-840),
+                statusState: .inProgress,
+                statusText: "14'"
+            )
+        )
+        let activeMeeting = makeUpcomingItem(
+            id: "meeting-1",
+            title: "Office meeting",
+            startDate: now.addingTimeInterval(-1200),
+            endDate: now.addingTimeInterval(1800)
+        )
+        let activeMatchTwo = makeFootballUpcomingItem(
+            makeFootballMatch(
+                id: "match-2",
+                startDate: now.addingTimeInterval(-600),
+                actualStartDate: now.addingTimeInterval(-540),
+                statusState: .inProgress,
+                statusText: "9'"
+            )
+        )
+
+        XCTAssertEqual(
+            MenuContentView.footballContextualActionItems(
+                from: [activeMeeting, activeMatchTwo, activeMatchOne],
+                now: now
+            ).map(\.id),
+            ["match-1", "match-2"]
+        )
+    }
+
+    func testShouldShowContextualMapPreviewHidesFootballPreviewWhenThreeMatchesAreConcurrent() {
+        let footballItem = makeFootballUpcomingItem(
+            makeFootballMatch(
+                id: "match-preview",
+                startDate: Date(timeIntervalSince1970: 1_720_000_000),
+                actualStartDate: nil,
+                statusState: .scheduled,
+                statusText: "7:00 PM"
+            )
+        )
+        let regularItem = makeUpcomingItem(
+            id: "meeting-preview",
+            title: "Review",
+            startDate: Date(timeIntervalSince1970: 1_720_000_000),
+            endDate: Date(timeIntervalSince1970: 1_720_000_000).addingTimeInterval(1800)
+        )
+
+        XCTAssertFalse(
+            MenuContentView.shouldShowContextualMapPreview(
+                for: footballItem,
+                concurrentFootballMatchCount: 3
+            )
+        )
+        XCTAssertTrue(
+            MenuContentView.shouldShowContextualMapPreview(
+                for: footballItem,
+                concurrentFootballMatchCount: 2
+            )
+        )
+        XCTAssertTrue(
+            MenuContentView.shouldShowContextualMapPreview(
+                for: regularItem,
+                concurrentFootballMatchCount: 4
+            )
+        )
+    }
+
+    func testShouldShowContextualFootballGoalScorersIncludesUpToThreeMatchLayouts() {
+        XCTAssertTrue(
+            MenuContentView.shouldShowContextualFootballGoalScorers(for: 1)
+        )
+        XCTAssertTrue(
+            MenuContentView.shouldShowContextualFootballGoalScorers(for: 2)
+        )
+        XCTAssertTrue(
+            MenuContentView.shouldShowContextualFootballGoalScorers(for: 3)
+        )
+        XCTAssertFalse(
+            MenuContentView.shouldShowContextualFootballGoalScorers(for: 4)
+        )
+    }
+
+    func testFootballContextualScorePlacementMovesScoreToExpectedSection() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let liveMatch = makeFootballMatch(
+            id: "live-score-placement",
+            startDate: now.addingTimeInterval(-900),
+            actualStartDate: now.addingTimeInterval(-840),
+            statusState: .inProgress,
+            statusText: "14'",
+            homeScore: "2",
+            awayScore: "1"
+        )
+        let scorelessMatch = makeFootballMatch(
+            id: "scoreless-score-placement",
+            startDate: now.addingTimeInterval(-900),
+            actualStartDate: now.addingTimeInterval(-840),
+            statusState: .inProgress,
+            statusText: "14'",
+            homeScore: "0",
+            awayScore: "0"
+        )
+
+        XCTAssertEqual(
+            MenuContentView.footballContextualScorePlacement(for: liveMatch, itemCount: 1),
+            .stats
+        )
+        XCTAssertEqual(
+            MenuContentView.footballContextualScorePlacement(for: liveMatch, itemCount: 2),
+            .goalScorers
+        )
+        XCTAssertEqual(
+            MenuContentView.footballContextualScorePlacement(for: scorelessMatch, itemCount: 2),
+            .headline
+        )
+        XCTAssertEqual(
+            MenuContentView.footballContextualScorePlacement(for: liveMatch, itemCount: 4),
+            .headline
+        )
+    }
+
+    func testExpandedContextualFootballHeaderStopsAtThreeConcurrentMatches() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let liveMatch = makeFootballMatch(
+            id: "expanded-header-match",
+            startDate: now.addingTimeInterval(-900),
+            actualStartDate: now.addingTimeInterval(-840),
+            statusState: .inProgress,
+            statusText: "22'",
+            homeScore: "1",
+            awayScore: "0"
+        )
+
+        XCTAssertTrue(
+            MenuContentView.shouldUseExpandedContextualFootballHeader(for: liveMatch, itemCount: 3)
+        )
+        XCTAssertFalse(
+            MenuContentView.shouldUseExpandedContextualFootballHeader(for: liveMatch, itemCount: 4)
         )
     }
 
@@ -374,6 +547,32 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
         )
 
         XCTAssertEqual(queued.map(\.id), ["queue-match"])
+    }
+
+    func testQueueItemsForActionsExcludeContextualItemsToAvoidDuplicateRows() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let contextualEvent = makeUpcomingItem(
+            id: "contextual-event",
+            title: "Planning",
+            startDate: now.addingTimeInterval(15 * 60),
+            endDate: now.addingTimeInterval(45 * 60)
+        )
+        let queueEvent = makeUpcomingItem(
+            id: "queue-event",
+            title: "Review",
+            startDate: now.addingTimeInterval(60 * 60),
+            endDate: now.addingTimeInterval(90 * 60)
+        )
+
+        let queued = MenuContentView.queueItemsForActions(
+            from: [contextualEvent, queueEvent],
+            contextualItems: [contextualEvent],
+            now: now,
+            futureWindowEnd: now.addingTimeInterval(24 * 60 * 60),
+            maxItems: 8
+        )
+
+        XCTAssertEqual(queued.map(\.id), ["queue-event"])
     }
 
     func testQueueItemsForActionsRespectsDropdownTimeWindowButKeepsAllDayAndActiveItems() {
@@ -1010,7 +1209,9 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
         startDate: Date,
         actualStartDate: Date?,
         statusState: FootballFixtureStatusState,
-        statusText: String
+        statusText: String,
+        homeScore: String = "0",
+        awayScore: String = "0"
     ) -> FootballFixtureMatch {
         FootballTestData.friendlyMatch(
             id: id,
@@ -1031,8 +1232,8 @@ final class AlertCalendarAdditionalModelTests: XCTestCase {
                 abbreviation: "POR",
                 countryName: "Portugal"
             ),
-            homeScore: "0",
-            awayScore: "0"
+            homeScore: homeScore,
+            awayScore: awayScore
         )
     }
 

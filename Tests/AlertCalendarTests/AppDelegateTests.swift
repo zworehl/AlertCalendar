@@ -1,11 +1,23 @@
 import AppKit
-import SwiftUI
 import XCTest
 @testable import AlertCalendar
 
 @MainActor
 final class AppDelegateTests: XCTestCase {
-    func testPrepareForSettingsPresentationKeepsAppOutOfDock() {
+    func testPrepareForSettingsPresentationMakesAppRegularForSettings() {
+        let appDelegate = AppDelegate()
+        let application = NSApplication.shared
+        let originalPolicy = application.activationPolicy()
+        defer { _ = application.setActivationPolicy(originalPolicy) }
+
+        _ = application.setActivationPolicy(.accessory)
+
+        appDelegate.prepareForSettingsPresentation()
+
+        XCTAssertEqual(application.activationPolicy(), .regular)
+    }
+
+    func testRestoreAccessoryActivationPolicyReturnsAppToMenuBarMode() {
         let appDelegate = AppDelegate()
         let application = NSApplication.shared
         let originalPolicy = application.activationPolicy()
@@ -13,7 +25,7 @@ final class AppDelegateTests: XCTestCase {
 
         _ = application.setActivationPolicy(.regular)
 
-        appDelegate.prepareForSettingsPresentation()
+        appDelegate.restoreAccessoryActivationPolicyIfNeeded()
 
         XCTAssertEqual(application.activationPolicy(), .accessory)
     }
@@ -39,44 +51,7 @@ final class AppDelegateTests: XCTestCase {
         let zoomButton = try XCTUnwrap(window.standardWindowButton(.zoomButton))
         XCTAssertFalse(zoomButton.isHidden)
         XCTAssertTrue(zoomButton.isEnabled)
-        XCTAssertNil(zoomButton.target)
-        XCTAssertNil(zoomButton.action)
-    }
-
-    func testShowSettingsWindowCreatesVisibleReusableWindow() throws {
-        let appDelegate = AppDelegate()
-
-        appDelegate.showSettingsWindow(rootView: AnyView(Text("First Settings")))
-
-        let firstWindow = try XCTUnwrap(appDelegate.currentSettingsWindow)
-        XCTAssertEqual(firstWindow.identifier, NSUserInterfaceItemIdentifier(WindowMetadata.preferencesID))
-        XCTAssertEqual(firstWindow.title, WindowMetadata.preferencesTitle)
-        XCTAssertGreaterThanOrEqual(firstWindow.frame.width, firstWindow.minSize.width)
-        XCTAssertGreaterThanOrEqual(firstWindow.frame.height, firstWindow.minSize.height)
-        XCTAssertTrue(firstWindow.isVisible)
-        XCTAssertTrue(firstWindow.contentViewController is NSHostingController<AnyView>)
-
-        appDelegate.showSettingsWindow(rootView: AnyView(Text("Updated Settings")))
-
-        let secondWindow = try XCTUnwrap(appDelegate.currentSettingsWindow)
-        XCTAssertTrue(firstWindow === secondWindow)
-        XCTAssertTrue(secondWindow.isVisible)
-    }
-
-    func testRevealSettingsWindowIfPresentRestoresHiddenWindow() throws {
-        let appDelegate = AppDelegate()
-
-        appDelegate.showSettingsWindow(rootView: AnyView(Text("Settings")))
-
-        let window = try XCTUnwrap(appDelegate.currentSettingsWindow)
-        window.setFrame(NSRect(x: -5000, y: -5000, width: 240, height: 180), display: false)
-        window.orderOut(nil)
-
-        XCTAssertFalse(window.isVisible)
-
-        XCTAssertTrue(appDelegate.revealSettingsWindowIfPresent())
-        XCTAssertTrue(window.isVisible)
-        XCTAssertGreaterThanOrEqual(window.frame.width, window.minSize.width)
-        XCTAssertGreaterThanOrEqual(window.frame.height, window.minSize.height)
+        XCTAssertEqual(zoomButton.action, #selector(AppDelegate.toggleSettingsFullScreen(_:)))
+        XCTAssertTrue((zoomButton.target as AnyObject?) === appDelegate)
     }
 }

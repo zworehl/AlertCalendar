@@ -121,7 +121,8 @@ actor LocationCoordinateResolver {
             request.naturalLanguageQuery = query
             request.resultTypes = [.address, .pointOfInterest]
             MKLocalSearch(request: request).start { response, _ in
-                guard let coordinate = response?.mapItems.first?.placemark.coordinate else {
+                guard let mapItem = bestLocalSearchMatch(for: query, mapItems: response?.mapItems ?? []),
+                      let coordinate = mapItem.placemark.location?.coordinate else {
                     continuation.resume(returning: nil)
                     return
                 }
@@ -134,6 +135,97 @@ actor LocationCoordinateResolver {
                 )
             }
         }
+    }
+
+    private static func bestLocalSearchMatch(for query: String, mapItems: [MKMapItem]) -> MKMapItem? {
+        guard !mapItems.isEmpty else { return nil }
+
+        let queryComponents = query
+            .split(separator: ",")
+            .map { normalizedSearchText(String($0)) }
+            .filter { !$0.isEmpty }
+
+        guard !queryComponents.isEmpty else { return mapItems.first }
+
+        let ranked = mapItems.enumerated().map { index, item in
+            (
+                index: index,
+                item: item,
+                score: localSearchScore(for: item, queryComponents: queryComponents)
+            )
+        }
+
+        return ranked.max { lhs, rhs in
+            if lhs.score == rhs.score {
+                return lhs.index > rhs.index
+            }
+            return lhs.score < rhs.score
+        }?.item
+    }
+
+    private static func localSearchScore(for mapItem: MKMapItem, queryComponents: [String]) -> Int {
+        let placemark = mapItem.placemark
+        let fields = [
+            mapItem.name,
+            placemark.name,
+            placemark.title,
+            placemark.locality,
+            placemark.subLocality,
+            placemark.administrativeArea,
+            placemark.country,
+        ]
+            .compactMap { $0 }
+            .map(normalizedSearchText)
+            .filter { !$0.isEmpty }
+
+        let fieldTokens = Set(fields.flatMap(searchTokens))
+        let venueQuery = queryComponents.first ?? ""
+        let contextQueries = Array(queryComponents.dropFirst())
+        var score = 0
+
+        if !venueQuery.isEmpty {
+            if fields.contains(where: { $0 == venueQuery }) {
+                score += 22
+            } else if fields.contains(where: { $0.contains(venueQuery) || venueQuery.contains($0) }) {
+                score += 16
+            } else {
+                score += Set(searchTokens(venueQuery)).intersection(fieldTokens).count * 3
+            }
+        }
+
+        for contextQuery in contextQueries {
+            if fields.contains(where: { $0 == contextQuery }) {
+                score += 10
+            } else if fields.contains(where: { $0.contains(contextQuery) || contextQuery.contains($0) }) {
+                score += 6
+            } else {
+                score += Set(searchTokens(contextQuery)).intersection(fieldTokens).count * 2
+            }
+        }
+
+        if let country = placemark.country, !country.isEmpty,
+           let countryQuery = contextQueries.last, !countryQuery.isEmpty {
+            let normalizedCountry = normalizedSearchText(country)
+            if normalizedCountry == countryQuery || normalizedCountry.contains(countryQuery) {
+                score += 8
+            }
+        }
+
+        return score
+    }
+
+    private static func normalizedSearchText(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+            .lowercased()
+    }
+
+    private static func searchTokens(_ value: String) -> [String] {
+        normalizedSearchText(value)
+            .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+            .map(String.init)
+            .filter { !$0.isEmpty }
     }
 
     private static func parseCoordinatePair(from text: String) -> ResolvedLocationCoordinate? {
@@ -227,17 +319,29 @@ actor LocationCoordinateResolver {
     private static func venueQualifiedQueries(for venueName: String, trailingContext: String) -> [String] {
         let trimmedVenueName = venueName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedVenueName.isEmpty else { return [] }
-        guard !looksLikeQualifiedVenueName(trimmedVenueName) else { return [] }
 
         let contextSuffix = trailingContext.isEmpty ? "" : ", \(trailingContext)"
         var variants: [String] = []
+        let normalizedVenueName = normalizedSearchText(trimmedVenueName)
+        let tokens = Set(searchTokens(normalizedVenueName))
+        let startsWithKnownQualifier = venueQualifierPrefixes.contains { prefix in
+            normalizedVenueName.hasPrefix(normalizedSearchText(prefix) + " ")
+        }
+        let hasVenueDescriptor = tokens.contains { venueDescriptorTokens.contains($0) }
 
-        for suffix in venueQualifierSuffixes {
-            variants.append("\(trimmedVenueName) \(suffix)\(contextSuffix)")
+        if !hasVenueDescriptor {
+            for suffix in venueQualifierSuffixes {
+                variants.append("\(trimmedVenueName) \(suffix)\(contextSuffix)")
+            }
         }
 
-        for prefix in venueQualifierPrefixes {
-            variants.append("\(prefix) \(trimmedVenueName)\(contextSuffix)")
+        if !startsWithKnownQualifier {
+            let shouldExpandWithPrefixes = !hasVenueDescriptor || tokens.contains("arena")
+            if shouldExpandWithPrefixes {
+                for prefix in venueQualifierPrefixes {
+                    variants.append("\(prefix) \(trimmedVenueName)\(contextSuffix)")
+                }
+            }
         }
 
         return variants

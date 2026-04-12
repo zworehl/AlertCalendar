@@ -339,6 +339,34 @@ struct MenuBarStatusLabel: View {
             drawAstronomyMarker(moment: .sunset, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
         case .solarMidnight:
             drawAstronomyMarker(moment: .solarMidnight, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
+        case .perihelion:
+            drawAstronomyMarker(moment: .perihelion, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
+        case .aphelion:
+            drawAstronomyMarker(moment: .aphelion, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
+        case .marchEquinox:
+            drawAstronomyMarker(moment: .marchEquinox, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
+        case .juneSolstice:
+            drawAstronomyMarker(moment: .juneSolstice, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
+        case .septemberEquinox:
+            drawAstronomyMarker(moment: .septemberEquinox, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
+        case .decemberSolstice:
+            drawAstronomyMarker(moment: .decemberSolstice, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
+        case .newMoon:
+            drawAstronomyMarker(moment: .newMoon, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
+        case .waxingCrescent:
+            drawAstronomyMarker(moment: .waxingCrescent, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
+        case .firstQuarter:
+            drawAstronomyMarker(moment: .firstQuarter, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
+        case .waxingGibbous:
+            drawAstronomyMarker(moment: .waxingGibbous, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
+        case .fullMoon:
+            drawAstronomyMarker(moment: .fullMoon, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
+        case .waningGibbous:
+            drawAstronomyMarker(moment: .waningGibbous, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
+        case .lastQuarter:
+            drawAstronomyMarker(moment: .lastQuarter, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
+        case .waningCrescent:
+            drawAstronomyMarker(moment: .waningCrescent, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
         }
     }
 
@@ -346,7 +374,27 @@ struct MenuBarStatusLabel: View {
         switch style {
         case .color:
             return defaultWidth
-        case .reminder, .birthday, .allDay, .sunrise, .solarNoon, .sunset, .solarMidnight:
+        case .reminder,
+            .birthday,
+            .allDay,
+            .sunrise,
+            .solarNoon,
+            .sunset,
+            .solarMidnight,
+            .perihelion,
+            .aphelion,
+            .marchEquinox,
+            .juneSolstice,
+            .septemberEquinox,
+            .decemberSolstice,
+            .newMoon,
+            .waxingCrescent,
+            .firstQuarter,
+            .waxingGibbous,
+            .fullMoon,
+            .waningGibbous,
+            .lastQuarter,
+            .waningCrescent:
             return imageWidth
         }
     }

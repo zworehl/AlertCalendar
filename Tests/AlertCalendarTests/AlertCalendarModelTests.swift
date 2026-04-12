@@ -7,6 +7,9 @@ final class AlertCalendarModelTests: XCTestCase {
     func testAstronomyMomentParsesTrimmedCaseInsensitiveTitle() {
         XCTAssertEqual(AstronomyMoment(eventTitle: "  Solar Noon  "), .solarNoon)
         XCTAssertEqual(AstronomyMoment(eventTitle: "SUNSET"), .sunset)
+        XCTAssertEqual(AstronomyMoment(eventTitle: " full moon "), .fullMoon)
+        XCTAssertEqual(AstronomyMoment(eventTitle: "PERIHELION"), .perihelion)
+        XCTAssertEqual(AstronomyMoment(eventTitle: "  march equinox "), .marchEquinox)
         XCTAssertNil(AstronomyMoment(eventTitle: "moonrise"))
     }
 
@@ -14,7 +17,12 @@ final class AlertCalendarModelTests: XCTestCase {
         XCTAssertEqual(AstronomyMoment.sunrise.title, "Sunrise")
         XCTAssertEqual(AstronomyMoment.solarMidnight.fallbackSymbolName, "moon.stars.fill")
         XCTAssertEqual(AstronomyMoment.solarNoon.svgAssetName, "solar-noon")
+        XCTAssertEqual(AstronomyMoment.newMoon.svgAssetName, "moon-new")
+        XCTAssertEqual(AstronomyMoment.fullMoon.svgAssetName, "moon-full")
         XCTAssertNil(AstronomyMoment.sunset.svgAssetName)
+        XCTAssertEqual(AstronomyMoment.fullMoon.title, "Full Moon")
+        XCTAssertEqual(AstronomyMoment.perihelion.title, "Perihelion")
+        XCTAssertEqual(AstronomyMoment.decemberSolstice.title, "December Solstice")
     }
 
     func testUpcomingItemNotificationKeyUsesCoreFields() {
@@ -45,6 +53,9 @@ final class AlertCalendarModelTests: XCTestCase {
         XCTAssertNotEqual(MenuMarkerStyle.color(.systemBlue), MenuMarkerStyle.color(.systemRed))
         XCTAssertEqual(MenuMarkerStyle.sunrise, MenuMarkerStyle.sunrise)
         XCTAssertNotEqual(MenuMarkerStyle.sunrise, MenuMarkerStyle.sunset)
+        XCTAssertEqual(MenuMarkerStyle.fullMoon, MenuMarkerStyle.fullMoon)
+        XCTAssertNotEqual(MenuMarkerStyle.perihelion, MenuMarkerStyle.aphelion)
+        XCTAssertNotEqual(MenuMarkerStyle.marchEquinox, MenuMarkerStyle.decemberSolstice)
     }
 
     func testAvailableCalendarEqualityComparesColorAndMetadata() {

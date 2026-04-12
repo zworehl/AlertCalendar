@@ -632,6 +632,91 @@ final class FootballDataAPIClientTests: XCTestCase {
         XCTAssertEqual(scorers?.home.map(\.minute), ["68'"])
     }
 
+    func testFetchGoalScorersDoesNotCacheIncompleteResults() async throws {
+        let match = makeMatch(
+            id: "goal-cache-match",
+            statusState: .inProgress,
+            homeScore: "2",
+            awayScore: "0"
+        )
+        let requestLock = NSLock()
+        var requestCount = 0
+        let session = makeMockSession { request in
+            requestLock.lock()
+            requestCount += 1
+            let currentRequestCount = requestCount
+            requestLock.unlock()
+
+            let isCompleteResponse = currentRequestCount > 2
+            let root: [String: Any] = [
+                "header": [
+                    "competitions": [[
+                        "competitors": [
+                            [
+                                "homeAway": "home",
+                                "team": [
+                                    "id": "home-id",
+                                    "displayName": "Argentina",
+                                ],
+                            ],
+                            [
+                                "homeAway": "away",
+                                "team": [
+                                    "id": "away-id",
+                                    "displayName": "Guatemala",
+                                ],
+                            ],
+                        ],
+                    ]],
+                ],
+                "keyEvents": isCompleteResponse
+                    ? [
+                        [
+                            "scoringPlay": true,
+                            "team": ["id": "home-id"],
+                            "clock": ["displayValue": "12'"],
+                            "type": ["text": "Goal"],
+                            "text": "Goal. Lionel Messi (Argentina).",
+                        ],
+                        [
+                            "scoringPlay": true,
+                            "team": ["id": "home-id"],
+                            "clock": ["displayValue": "81'"],
+                            "type": ["text": "Goal"],
+                            "text": "Goal. Julian Alvarez (Argentina).",
+                        ],
+                    ]
+                    : [
+                        [
+                            "scoringPlay": true,
+                            "team": ["id": "home-id"],
+                            "clock": ["displayValue": "12'"],
+                            "type": ["text": "Goal"],
+                            "text": "Goal. Lionel Messi (Argentina).",
+                        ],
+                    ],
+            ]
+            let data = try JSONSerialization.data(withJSONObject: root)
+            let response = try XCTUnwrap(
+                HTTPURLResponse(
+                    url: XCTUnwrap(request.url),
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: nil
+                )
+            )
+            return (response, data)
+        }
+        let client = FootballDataAPIClient(session: session)
+
+        let firstFetch = try await client.fetchGoalScorers(for: match)
+        let secondFetch = try await client.fetchGoalScorers(for: match)
+
+        XCTAssertEqual(firstFetch?.home.map(\.name), ["Lionel Messi"])
+        XCTAssertEqual(secondFetch?.home.map(\.name), ["Lionel Messi", "Julian Alvarez"])
+        XCTAssertGreaterThan(requestCount, 2)
+    }
+
     func testMatchStatisticsParsesPreferredStatsAndSubstitutions() {
         let root: [String: Any] = [
             "boxscore": [
@@ -814,6 +899,182 @@ final class FootballDataAPIClientTests: XCTestCase {
         XCTAssertEqual(refreshed.first?.awayScore, "1")
     }
 
+    func testFetchMatchesDoesNotUseNationalTeamVenueFallbackForWorldCup() async throws {
+        let startDate = Date().addingTimeInterval(10 * 24 * 60 * 60)
+        let startDateText = ISO8601DateFormatter().string(from: startDate)
+        let session = makeMockSession { request in
+            let url = try XCTUnwrap(request.url)
+
+            switch url.path {
+            case "/apis/site/v2/sports/soccer/fifa.world/scoreboard":
+                let body: [String: Any] = [
+                    "leagues": [["name": "FIFA World Cup"]],
+                    "events": [[
+                        "id": "760452",
+                        "date": startDateText,
+                        "season": ["slug": "fifa-world-cup-test"],
+                        "competitions": [[
+                            "status": [
+                                "type": [
+                                    "state": "pre",
+                                    "shortDetail": "Scheduled",
+                                    "detail": "Scheduled",
+                                ],
+                            ],
+                            "competitors": [
+                                [
+                                    "homeAway": "home",
+                                    "score": "0",
+                                    "team": [
+                                        "id": "2666",
+                                        "displayName": "New Zealand",
+                                        "abbreviation": "NZL",
+                                    ],
+                                ],
+                                [
+                                    "homeAway": "away",
+                                    "score": "0",
+                                    "team": [
+                                        "id": "2620",
+                                        "displayName": "Egypt",
+                                        "abbreviation": "EGY",
+                                    ],
+                                ],
+                            ],
+                        ]],
+                    ]],
+                ]
+                return try self.jsonResponse(for: request, body: body)
+            case "/v2/sports/soccer/teams/2666":
+                let body: [String: Any] = [
+                    "id": "2666",
+                    "displayName": "New Zealand",
+                    "location": "New Zealand",
+                    "abbreviation": "NZL",
+                    "isNational": true,
+                    "venue": [
+                        "fullName": "Eden Park",
+                        "address": [
+                            "city": "Auckland",
+                            "country": "New Zealand",
+                        ],
+                    ],
+                ]
+                return try self.jsonResponse(for: request, body: body)
+            case "/v2/sports/soccer/teams/2620":
+                let body: [String: Any] = [
+                    "id": "2620",
+                    "displayName": "Egypt",
+                    "location": "Egypt",
+                    "abbreviation": "EGY",
+                    "isNational": true,
+                    "venue": [
+                        "fullName": "King Abdullah Sports City",
+                        "address": [
+                            "city": "Jeddah",
+                            "country": "Saudi Arabia",
+                        ],
+                    ],
+                ]
+                return try self.jsonResponse(for: request, body: body)
+            default:
+                XCTFail("Unexpected URL: \(url.absoluteString)")
+                throw URLError(.badURL)
+            }
+        }
+        let client = FootballDataAPIClient(session: session)
+
+        let matches = try await client.fetchMatches(for: [.worldCup])
+
+        XCTAssertEqual(matches.count, 1)
+        XCTAssertNil(matches.first?.locationText)
+    }
+
+    func testFetchMatchesUsesClubVenueFallbackWhenScoreboardVenueIsMissing() async throws {
+        let startDate = Date().addingTimeInterval(10 * 24 * 60 * 60)
+        let startDateText = ISO8601DateFormatter().string(from: startDate)
+        let session = makeMockSession { request in
+            let url = try XCTUnwrap(request.url)
+
+            switch url.path {
+            case "/apis/site/v2/sports/soccer/usa.1/scoreboard":
+                let body: [String: Any] = [
+                    "leagues": [["name": "MLS"]],
+                    "events": [[
+                        "id": "club-match",
+                        "date": startDateText,
+                        "season": ["slug": "mls-test"],
+                        "competitions": [[
+                            "status": [
+                                "type": [
+                                    "state": "pre",
+                                    "shortDetail": "Scheduled",
+                                    "detail": "Scheduled",
+                                ],
+                            ],
+                            "competitors": [
+                                [
+                                    "homeAway": "home",
+                                    "score": "0",
+                                    "team": [
+                                        "id": "1845",
+                                        "displayName": "Toronto FC",
+                                        "abbreviation": "TOR",
+                                    ],
+                                ],
+                                [
+                                    "homeAway": "away",
+                                    "score": "0",
+                                    "team": [
+                                        "id": "1850",
+                                        "displayName": "Inter Miami CF",
+                                        "abbreviation": "MIA",
+                                    ],
+                                ],
+                            ],
+                        ]],
+                    ]],
+                ]
+                return try self.jsonResponse(for: request, body: body)
+            case "/v2/sports/soccer/teams/1845":
+                let body: [String: Any] = [
+                    "id": "1845",
+                    "displayName": "Toronto FC",
+                    "location": "Toronto FC",
+                    "abbreviation": "TOR",
+                    "isNational": false,
+                    "venue": [
+                        "$ref": "http://sports.core.api.espn.com/v2/sports/soccer/leagues/usa.1/venues/1845?lang=en&region=us",
+                        "fullName": "BMO Field",
+                        "address": [
+                            "city": "Toronto",
+                            "country": "Canada",
+                        ],
+                    ],
+                ]
+                return try self.jsonResponse(for: request, body: body)
+            case "/v2/sports/soccer/teams/1850":
+                let body: [String: Any] = [
+                    "id": "1850",
+                    "displayName": "Inter Miami CF",
+                    "location": "Inter Miami CF",
+                    "abbreviation": "MIA",
+                    "isNational": false,
+                ]
+                return try self.jsonResponse(for: request, body: body)
+            default:
+                XCTFail("Unexpected URL: \(url.absoluteString)")
+                throw URLError(.badURL)
+            }
+        }
+        let client = FootballDataAPIClient(session: session)
+
+        let matches = try await client.fetchMatches(for: [.majorLeagueSoccer])
+
+        XCTAssertEqual(matches.count, 1)
+        XCTAssertEqual(matches.first?.locationText, "BMO Field, Toronto, Canada")
+    }
+
     private func makeMatch(
         id: String,
         statusState: FootballFixtureStatusState,
@@ -837,5 +1098,21 @@ final class FootballDataAPIClientTests: XCTestCase {
         configuration.protocolClasses = [FootballDataAPIClientMockURLProtocol.self]
         FootballDataAPIClientMockURLProtocol.requestHandler = handler
         return URLSession(configuration: configuration)
+    }
+
+    private func jsonResponse(
+        for request: URLRequest,
+        body: [String: Any]
+    ) throws -> (HTTPURLResponse, Data) {
+        let data = try JSONSerialization.data(withJSONObject: body)
+        let response = try XCTUnwrap(
+            HTTPURLResponse(
+                url: XCTUnwrap(request.url),
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )
+        )
+        return (response, data)
     }
 }

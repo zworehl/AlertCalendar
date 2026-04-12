@@ -48,7 +48,7 @@ extension CalendarMonitor {
             timedCollected.append(contentsOf: reminders)
         }
 
-        if settings.includeAstronomy {
+        if settings.includesAnyAstronomy {
             timedCollected.append(contentsOf: loadAstronomyItems(from: now, to: endDate, settings: settings))
         }
 
@@ -64,6 +64,9 @@ extension CalendarMonitor {
 
         upcomingItems = visibleTimedItems
         allDayEventItems = visibleAllDayItems
+        if isInitialLoadInProgress {
+            isInitialLoadInProgress = false
+        }
         lastRefreshDate = now
         pruneAlertCaches(using: visibleTimedItems)
         evaluateAlert(now: now, settings: settings)

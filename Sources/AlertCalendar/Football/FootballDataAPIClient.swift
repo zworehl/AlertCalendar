@@ -202,7 +202,6 @@ actor FootballDataAPIClient {
         }
 
         if let bestScorers {
-            goalScorersCache[cacheKey] = bestScorers
             return bestScorers
         }
 
@@ -399,9 +398,12 @@ actor FootballDataAPIClient {
         return matches.map { match in
             let resolvedHome = teamCache[match.homeTeam.id]
             let resolvedAway = teamCache[match.awayTeam.id]
+            let teamVenueFallback = Self.shouldUseHomeTeamVenueFallback(for: match)
+                ? resolvedHome?.venueLocationText
+                : nil
             let resolvedLocationText = Self.bestAvailableLocationText(
                 reportedLocationText: match.locationText,
-                fallbackLocationText: resolvedHome?.venueLocationText
+                fallbackLocationText: teamVenueFallback
             )
 
             return FootballFixtureMatch(
@@ -438,6 +440,10 @@ actor FootballDataAPIClient {
                 awayRedCards: match.awayRedCards
             )
         }
+    }
+
+    private static func shouldUseHomeTeamVenueFallback(for match: FootballFixtureMatch) -> Bool {
+        match.competitionCategory == .clubCompetitions
     }
 
     private static func fetchMatchesForCompetition(

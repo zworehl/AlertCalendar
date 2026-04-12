@@ -2,14 +2,69 @@ import AppKit
 import Foundation
 
 extension CalendarMonitor {
+    typealias AstronomyPhasePreview = (moment: AstronomyMoment, date: Date)
+
+    private static let lunarSynodicMonthSeconds: TimeInterval = 29.530588853 * 86_400
+    private static let earthAnomalisticYearSeconds: TimeInterval = 365.259636 * 86_400
+    private static let lunarPhaseOffsets: [(moment: AstronomyMoment, cycleOffset: Double)] = [
+        (.newMoon, 0.0 / 8.0),
+        (.waxingCrescent, 1.0 / 8.0),
+        (.firstQuarter, 2.0 / 8.0),
+        (.waxingGibbous, 3.0 / 8.0),
+        (.fullMoon, 4.0 / 8.0),
+        (.waningGibbous, 5.0 / 8.0),
+        (.lastQuarter, 6.0 / 8.0),
+        (.waningCrescent, 7.0 / 8.0),
+    ]
+    private static let orbitalExtremaOffsets: [(moment: AstronomyMoment, cycleOffset: Double)] = [
+        (.perihelion, 0.0),
+        (.aphelion, 0.5),
+    ]
+    private static let tropicalYearSeconds: TimeInterval = 365.242189 * 86_400
+    private static let lunarReferenceNewMoon: Date = {
+        var components = DateComponents()
+        components.calendar = Calendar(identifier: .gregorian)
+        components.timeZone = TimeZone(secondsFromGMT: 0)
+        components.year = 2000
+        components.month = 1
+        components.day = 6
+        components.hour = 18
+        components.minute = 14
+        components.second = 0
+        return components.date ?? Date(timeIntervalSince1970: 947_182_440)
+    }()
+    private static let perihelionReferenceDate: Date = {
+        var components = DateComponents()
+        components.calendar = Calendar(identifier: .gregorian)
+        components.timeZone = TimeZone(secondsFromGMT: 0)
+        components.year = 2026
+        components.month = 1
+        components.day = 3
+        components.hour = 17
+        components.minute = 15
+        components.second = 0
+        return components.date ?? Date(timeIntervalSince1970: 1_767_761_700)
+    }()
+
     func loadAstronomyItems(from start: Date, to end: Date, settings: SettingsSnapshot) -> [UpcomingItem] {
+        guard settings.includesAnyAstronomy else { return [] }
+
+        let color = CalendarColorPalette.color(for: settings.astronomyColorID)
+        var upcomingItems: [UpcomingItem] = []
+
+        if settings.includeMoonPhases {
+            upcomingItems.append(contentsOf: lunarPhaseEvents(from: start, to: end, color: color))
+        }
+        if settings.includeOrbitalHighlights {
+            upcomingItems.append(contentsOf: orbitalHighlightEvents(from: start, to: end, color: color))
+        }
+
         guard (-90 ... 90).contains(settings.astronomyLatitude),
               (-180 ... 180).contains(settings.astronomyLongitude) else {
-            return []
+            return upcomingItems.sorted { $0.date < $1.date }
         }
 
         let coordinate = (lat: settings.astronomyLatitude, lon: settings.astronomyLongitude)
-        let color = CalendarColorPalette.color(for: settings.astronomyColorID)
         var nextMoments: [AstronomyMoment: UpcomingItem] = [:]
         let calendar = Calendar.current
         let startDay = calendar.startOfDay(for: start)
@@ -22,6 +77,7 @@ extension CalendarMonitor {
 
             for event in events where event.date >= start && event.date <= end {
                 guard let moment = AstronomyMoment(eventTitle: event.title) else { continue }
+                guard settings.includes(moment: moment) else { continue }
                 if let existing = nextMoments[moment], existing.date <= event.date {
                     continue
                 }
@@ -29,9 +85,8 @@ extension CalendarMonitor {
             }
         }
 
-        return AstronomyMoment.allCases
-            .compactMap { nextMoments[$0] }
-            .sorted { $0.date < $1.date }
+        upcomingItems.append(contentsOf: AstronomyMoment.solarMoments.compactMap { nextMoments[$0] })
+        return upcomingItems.sorted { $0.date < $1.date }
     }
 
     func astronomyEvents(for date: Date, coordinate: (lat: Double, lon: Double), color: NSColor) -> [UpcomingItem] {
@@ -74,6 +129,120 @@ extension CalendarMonitor {
             footballMatch: nil,
             footballMenuBarDisplay: nil
         )
+    }
+
+    func nextLunarPhaseMoments(from start: Date) -> [AstronomyPhasePreview] {
+        Self.lunarPhaseOffsets.compactMap { definition in
+            nextAstronomyOccurrence(
+                from: start,
+                referenceDate: Self.lunarReferenceNewMoon,
+                cycleSeconds: Self.lunarSynodicMonthSeconds,
+                cycleOffset: definition.cycleOffset
+            ).map { (moment: definition.moment, date: $0) }
+        }
+        .sorted { $0.date < $1.date }
+    }
+
+    func nextOrbitalHighlights(from start: Date) -> [AstronomyPhasePreview] {
+        let orbitalExtrema = Self.orbitalExtremaOffsets.compactMap { definition in
+            nextAstronomyOccurrence(
+                from: start,
+                referenceDate: Self.perihelionReferenceDate,
+                cycleSeconds: Self.earthAnomalisticYearSeconds,
+                cycleOffset: definition.cycleOffset
+            ).map { (moment: definition.moment, date: $0) }
+        }
+        let seasonalHighlights = AstronomyMoment.seasonalMoments.compactMap { moment in
+            nextSeasonalOccurrence(for: moment, from: start).map { (moment: moment, date: $0) }
+        }
+
+        return (orbitalExtrema + seasonalHighlights)
+            .sorted { $0.date < $1.date }
+    }
+
+    private func lunarPhaseEvents(from start: Date, to end: Date, color: NSColor) -> [UpcomingItem] {
+        nextLunarPhaseMoments(from: start)
+            .filter { $0.date >= start && $0.date <= end }
+            .map { makeAstronomyItem(moment: $0.moment, date: $0.date, color: color) }
+    }
+
+    private func orbitalHighlightEvents(from start: Date, to end: Date, color: NSColor) -> [UpcomingItem] {
+        nextOrbitalHighlights(from: start)
+            .filter { $0.date >= start && $0.date <= end }
+            .map { makeAstronomyItem(moment: $0.moment, date: $0.date, color: color) }
+    }
+
+    private func nextSeasonalOccurrence(for moment: AstronomyMoment, from start: Date) -> Date? {
+        guard AstronomyMoment.seasonalMoments.contains(moment) else { return nil }
+        let startYear = Calendar(identifier: .gregorian).component(.year, from: start)
+
+        for year in startYear ... (startYear + 2) {
+            guard let occurrence = seasonalMomentDate(for: moment, year: year) else { continue }
+            if occurrence > start {
+                return occurrence
+            }
+        }
+
+        return nil
+    }
+
+    private func seasonalMomentDate(for moment: AstronomyMoment, year: Int) -> Date? {
+        let yearOffset = (Double(year) - 2000.0) / 1000.0
+        let julianDay: Double
+
+        switch moment {
+        case .marchEquinox:
+            julianDay = 2_451_623.80984
+                + (365_242.37404 * yearOffset)
+                + (0.05169 * pow(yearOffset, 2))
+                - (0.00411 * pow(yearOffset, 3))
+                - (0.00057 * pow(yearOffset, 4))
+        case .juneSolstice:
+            julianDay = 2_451_716.56767
+                + (365_241.62603 * yearOffset)
+                + (0.00325 * pow(yearOffset, 2))
+                + (0.00888 * pow(yearOffset, 3))
+                - (0.00030 * pow(yearOffset, 4))
+        case .septemberEquinox:
+            julianDay = 2_451_810.21715
+                + (365_242.01767 * yearOffset)
+                - (0.11575 * pow(yearOffset, 2))
+                + (0.00337 * pow(yearOffset, 3))
+                + (0.00078 * pow(yearOffset, 4))
+        case .decemberSolstice:
+            julianDay = 2_451_900.05952
+                + (365_242.74049 * yearOffset)
+                - (0.06223 * pow(yearOffset, 2))
+                - (0.00823 * pow(yearOffset, 3))
+                + (0.00032 * pow(yearOffset, 4))
+        case .sunrise, .solarNoon, .sunset, .solarMidnight, .perihelion, .aphelion, .newMoon, .waxingCrescent, .firstQuarter, .waxingGibbous, .fullMoon, .waningGibbous, .lastQuarter, .waningCrescent:
+            return nil
+        }
+
+        return dateFromJulianDay(julianDay)
+    }
+
+    private func nextAstronomyOccurrence(
+        from start: Date,
+        referenceDate: Date,
+        cycleSeconds: TimeInterval,
+        cycleOffset: Double
+    ) -> Date? {
+        guard cycleSeconds > 0 else { return nil }
+
+        let elapsedCycles = start.timeIntervalSince(referenceDate) / cycleSeconds
+        let cycleIndex = ceil(elapsedCycles - cycleOffset)
+        var occurrence = referenceDate.addingTimeInterval((cycleIndex + cycleOffset) * cycleSeconds)
+
+        if occurrence <= start {
+            occurrence = occurrence.addingTimeInterval(cycleSeconds)
+        }
+
+        return occurrence
+    }
+
+    private func dateFromJulianDay(_ julianDay: Double) -> Date {
+        Date(timeIntervalSince1970: (julianDay - 2_440_587.5) * 86_400)
     }
 
     func solarTimes(for date: Date, coordinate: (lat: Double, lon: Double), timeZone: TimeZone) -> (sunrise: Date?, solarNoon: Date?, sunset: Date?, solarMidnight: Date?)? {
