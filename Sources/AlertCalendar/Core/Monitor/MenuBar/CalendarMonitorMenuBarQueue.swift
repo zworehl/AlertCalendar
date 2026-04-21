@@ -1,0 +1,125 @@
+import AppKit
+import EventKit
+import Foundation
+
+extension CalendarMonitor {
+    func menuBarPreviewItems(now: Date, settings: AppSettings) -> [UpcomingItem] {
+        Array(unifiedMenuBarQueue(now: now, settings: settings).prefix(1))
+    }
+
+    func allMenuBarCandidateItems() -> [UpcomingItem] {
+        deduplicatedItemsByNotificationKey(upcomingItems + allDayEventItems)
+    }
+
+    func unifiedMenuBarQueue(now: Date, settings: AppSettings) -> [UpcomingItem] {
+        let futureWindowSeconds = TimeInterval(max(5, settings.menuBarRotationWindowMinutes) * 60)
+        let timedItems = upcomingItems.filter {
+            isTimedItemDisplayableInMenuBar($0, now: now)
+                && Self.shouldIncludeTimedItemInMenuBarRotation(
+                    $0,
+                    now: now,
+                    futureWindowSeconds: futureWindowSeconds
+                )
+        }
+        let allDayItems = settings.includeAllDayEvents ? allDayEventItems : []
+        let merged = deduplicatedItemsByNotificationKey(timedItems + allDayItems)
+
+        return merged.sorted { left, right in
+            let leftPriority = menuBarQueuePriority(for: left)
+            let rightPriority = menuBarQueuePriority(for: right)
+            if leftPriority != rightPriority {
+                return leftPriority < rightPriority
+            }
+            if left.date != right.date {
+                return left.date < right.date
+            }
+            if left.kind != right.kind {
+                return left.kind.rawValue < right.kind.rawValue
+            }
+            let titleOrder = left.title.localizedCaseInsensitiveCompare(right.title)
+            if titleOrder != .orderedSame {
+                return titleOrder == .orderedAscending
+            }
+            return left.notificationKey < right.notificationKey
+        }
+    }
+
+    func menuBarQueuePriority(for item: UpcomingItem) -> Int {
+        item.isAllDay ? 1 : 0
+    }
+
+    func hasUpcomingItemsOutsideMenuBarWindow(now: Date, settings: AppSettings) -> Bool {
+        let futureWindowEnd = now.addingTimeInterval(Double(max(1, settings.lookAheadHours)) * 3600)
+        let futureWindowSeconds = TimeInterval(max(5, settings.menuBarRotationWindowMinutes) * 60)
+
+        return upcomingItems.contains { item in
+            isTimedItemDisplayableInMenuBar(item, now: now)
+                && !Self.shouldIncludeTimedItemInMenuBarRotation(
+                    item,
+                    now: now,
+                    futureWindowSeconds: futureWindowSeconds
+                )
+                && Self.shouldIncludeInDropdownPreviewWindow(
+                    item,
+                    now: now,
+                    futureWindowEnd: futureWindowEnd
+                )
+        }
+    }
+
+    nonisolated static func menuBarEmptyStateText(
+        menuBarRotationWindowMinutes: Int,
+        hasLaterItemsInDropdownWindow: Bool
+    ) -> String {
+        guard hasLaterItemsInDropdownWindow else {
+            return "No upcoming items"
+        }
+
+        return "No items in next \(menuBarRotationWindowDescription(minutes: menuBarRotationWindowMinutes))"
+    }
+
+    nonisolated static func menuBarRotationWindowDescription(minutes: Int) -> String {
+        let clampedMinutes = max(1, minutes)
+        let days = clampedMinutes / (24 * 60)
+        let hours = (clampedMinutes % (24 * 60)) / 60
+        let remainingMinutes = clampedMinutes % 60
+
+        var components: [String] = []
+        if days > 0 {
+            components.append("\(days)d")
+        }
+        if hours > 0 {
+            components.append("\(hours)h")
+        }
+        if remainingMinutes > 0 {
+            components.append("\(remainingMinutes)m")
+        }
+
+        return components.prefix(2).joined(separator: " ")
+    }
+
+    nonisolated static func shouldIncludeInDropdownPreviewWindow(
+        _ item: UpcomingItem,
+        now: Date,
+        futureWindowEnd: Date
+    ) -> Bool {
+        if item.isAllDay {
+            return true
+        }
+
+        if item.kind == .reminder, item.date <= now {
+            return true
+        }
+
+        if item.kind == .event,
+           let endDate = item.endDate,
+           item.date <= now,
+           endDate > now {
+            return true
+        }
+
+        return item.date >= now && item.date <= futureWindowEnd
+    }
+
+
+}

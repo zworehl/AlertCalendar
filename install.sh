@@ -7,6 +7,7 @@ BINARY_NAME="AlertCalendar"
 APP_DIR="${APP_DIR:-/Applications}"
 OPEN_AFTER_INSTALL="${OPEN_AFTER_INSTALL:-1}"
 ICON_SOURCE="$ROOT/Sources/AlertCalendar/Resources/Images/icon.png"
+USER_APP_DIR="$HOME/Applications"
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   echo "This installer supports macOS only."
@@ -24,7 +25,20 @@ fi
 
 APP_BUNDLE="$APP_DIR/${APP_NAME}.app"
 
+remove_duplicate_installs() {
+  local candidate
+
+  while IFS= read -r candidate; do
+    if [[ "$candidate" != "$APP_BUNDLE" ]]; then
+      echo "Removing duplicate install: $candidate"
+      rm -rf "$candidate"
+    fi
+  done < <(find "$USER_APP_DIR" /Applications -maxdepth 2 -iname "${APP_NAME}.app" -print 2>/dev/null)
+}
+
 echo "[2/3] Installing to ${APP_BUNDLE}..."
+remove_duplicate_installs
+rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
 cp "$BINARY_PATH" "$APP_BUNDLE/Contents/MacOS/${BINARY_NAME}"
 chmod +x "$APP_BUNDLE/Contents/MacOS/${BINARY_NAME}"
@@ -82,6 +96,8 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
   <string>AlertCalendar uses your location to calculate local sun events.</string>
   <key>NSLocationUsageDescription</key>
   <string>AlertCalendar uses your location to calculate local sun events.</string>
+  <key>NSContactsUsageDescription</key>
+  <string>AlertCalendar uses your contacts to show organizer photos and invitee names in meeting previews.</string>
   <key>NSHighResolutionCapable</key>
   <true/>
 </dict>

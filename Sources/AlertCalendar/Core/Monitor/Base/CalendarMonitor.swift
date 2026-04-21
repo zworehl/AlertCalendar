@@ -1,0 +1,218 @@
+import AppKit
+import Combine
+import CoreLocation
+import CoreWLAN
+import EventKit
+import Foundation
+
+extension EKReminder: @retroactive @unchecked Sendable {}
+
+@MainActor
+final class CalendarMonitor: ObservableObject {
+    @Published var isInitialLoadInProgress = true
+    @Published var combinedMenuBarLabel = "Loading..."
+    @Published var combinedMenuBarColor: NSColor = .systemGray
+    @Published var combinedMenuBarAlertedSegmentIndex: Int?
+    @Published var combinedMenuBarAlertTextOpacity: CGFloat = 0
+    @Published var combinedMenuBarDotColors: [NSColor] = [.systemGray]
+    @Published var combinedMenuBarMarkerStyles: [MenuMarkerStyle] = [.color(.systemGray)]
+    @Published var combinedMenuBarSegments: [String] = ["Loading..."]
+    @Published var combinedMenuBarSegmentBackgroundColors: [NSColor] = [.clear]
+    @Published var combinedMenuBarSegmentBackgroundProgresses: [CGFloat] = [0]
+    @Published var combinedMenuBarFootballDisplay: FootballMenuBarDisplay?
+    @Published var combinedMenuBarFootballTrailingText: String?
+    @Published var combinedMenuBarFootballStatusText: String?
+    @Published var combinedMenuBarFootballStatusColor: NSColor = .systemGreen
+    @Published var combinedMenuBarFootballGoalHighlightSide: FootballScoreSide?
+    @Published var combinedMenuBarFootballGoalHighlightTextOpacity: CGFloat = 0
+    @Published var hasEventsAccess = false
+    @Published var hasRemindersAccess = false
+    @Published var availableEventCalendars: [AvailableCalendar] = []
+    @Published var availableReminderCalendars: [AvailableCalendar] = []
+    @Published var eventsMenuBarLabel = "No events"
+    @Published var remindersMenuBarLabel = "No reminders"
+    @Published var eventsMenuBarColor: NSColor = .systemGray
+    @Published var remindersMenuBarColor: NSColor = .systemGray
+    @Published var upcomingItems: [UpcomingItem] = []
+    @Published var activeAlertItem: UpcomingItem?
+    @Published var calendarAccessDescription = "Requesting access..."
+    @Published var astronomyLocationStatus = "Manual coordinates"
+    @Published var lastRefreshDate: Date?
+    @Published var footballMenuSections: [FootballMenuCompetitionSection] = []
+    @Published var footballLiveAndNextDaySection = FootballMatchesOverviewSection.placeholder(title: "Now & Next 24 Hours")
+    @Published var managedFootballMatchIDs: Set<String> = []
+    @Published var managedFootballMatches: [FootballFixtureMatch] = []
+
+    let eventStore = EKEventStore()
+    let defaults = UserDefaults.standard
+    let footballClient = FootballDataAPIClient()
+    let footballImageStore = FootballImageStore()
+
+    var settingsStore: AppSettingsStore {
+        AppSettingsStore(defaults: defaults)
+    }
+
+    var heartbeatCancellable: AnyCancellable?
+    var defaultsObserver: AnyCancellable?
+    var eventStoreObserver: AnyCancellable?
+    var appActivationObserver: AnyCancellable?
+    var refreshQueueTask: Task<Void, Never>?
+    var isRefreshRunning = false
+    var hasPendingRefresh = false
+    var tickCount = 0
+    var lastPeriodicRefreshDate: Date?
+    var blinkPhase = false
+    var birthdayCalendarIDs: Set<String> = []
+    var allDayEventItems: [UpcomingItem] = []
+    var alreadyNotified: Set<String> = []
+    var silencedAlertKeys: Set<String> = []
+    var skippedItemKeys: Set<String> = []
+    var oneShotLocationManager: CLLocationManager?
+    var oneShotLocationDelegate: OneShotLocationDelegate?
+    var locationPermissionManager: CLLocationManager?
+    var locationPermissionDelegate: LocationPermissionDelegate?
+    var automaticAstronomyLocationRefreshTask: Task<Void, Never>?
+    var isAutomaticAstronomyLocationRefreshRunning = false
+    var lastAutomaticAstronomyLocationRefreshAttemptDate: Date?
+    var wiFiClient: CWWiFiClient?
+    var wiFiEventDelegate: WiFiNetworkChangeDelegate?
+    var lastObservedWiFiNetworkIdentity: WiFiNetworkIdentity?
+    var footballMatchesByID: [String: FootballFixtureMatch] = [:]
+    var managedFootballEventRecords: [ManagedFootballEventRecord] = []
+    var footballLocalLogoPathsByCompetitionSlug: [String: String] = [:]
+    var footballLocalLogoPathsByTeamID: [String: String] = [:]
+    var lastFootballMenuRefreshDate: Date?
+    var lastFootballManagedSyncDate: Date?
+    var lastFootballManagedCleanupDate: Date?
+    var lastFootballManagedRecoveryDate: Date?
+    var lastFootballLegacyMigrationDate: Date?
+    var activeFootballGoalHighlight: FootballGoalHighlight?
+    var cachedManagedFootballSnapshots: [ManagedFootballEventSnapshot] = []
+    var isManagedFootballSnapshotCacheValid = false
+    var didFootballEventStoreChange = false
+    var menuBarRotationState = MenuBarRotationState()
+
+    init() {
+        registerDefaultSettings()
+        managedFootballEventRecords = Self.decodeManagedFootballEventRecords(
+            from: defaults.data(forKey: DefaultsKeys.managedFootballEventRecords)
+        )
+        skippedItemKeys = Set(defaults.stringArray(forKey: DefaultsKeys.skippedItemKeys) ?? [])
+        startObservers()
+        startHeartbeat()
+
+        Task {
+            await bootstrap()
+        }
+    }
+
+    private static func decodeManagedFootballEventRecords(from data: Data?) -> [ManagedFootballEventRecord] {
+        guard let data else { return [] }
+        return (try? JSONDecoder().decode([ManagedFootballEventRecord].self, from: data)) ?? []
+    }
+
+    func refreshNow() {
+        enqueueRefresh()
+    }
+
+    func silenceCurrentAlert() {
+        guard let activeAlertItem else { return }
+        silencedAlertKeys.insert(activeAlertItem.notificationKey)
+        self.activeAlertItem = nil
+        blinkPhase = false
+        updateMenuBarState(now: Date(), settings: snapshotSettings())
+    }
+
+    func subtitle(for item: UpcomingItem) -> String {
+        let now = Date()
+        let dateText: String
+        if item.kind == .event, let endDate = item.endDate, item.date <= now, endDate > now {
+            dateText = "Started \(Self.dayFormatter.string(from: item.date)) at \(Self.timeFormatter.string(from: item.date))"
+        } else {
+            dateText = "\(Self.dayFormatter.string(from: item.date)) at \(Self.timeFormatter.string(from: item.date))"
+        }
+
+        let settings = snapshotSettings()
+        let tail: String
+        if item.kind == .event, let endDate = item.endDate, item.date <= now, endDate > now {
+            switch settings.activeEventDisplayMode {
+            case .remaining:
+                tail = "\(relativeCountdown(to: endDate, from: now, simplified: settings.useSimplifiedCountdown)) left"
+            case .elapsed:
+                tail = "started \(elapsedCountdown(from: item.date, to: now, simplified: settings.useSimplifiedCountdown)) ago"
+            }
+        } else if item.kind == .reminder, item.date <= now {
+            tail = "\(elapsedCountdown(from: item.date, to: now, simplified: settings.useSimplifiedCountdown)) ago"
+        } else {
+            tail = "in \(relativeCountdown(to: item.date, from: now, simplified: settings.useSimplifiedCountdown))"
+        }
+        return "\(item.kind.rawValue) • \(item.calendarName) • \(dateText) • \(tail)"
+    }
+
+    var activeAlertDescription: String? {
+        guard let activeAlertItem else { return nil }
+        let seconds = max(0, Int(activeAlertItem.date.timeIntervalSince(Date())))
+        if seconds < 60 {
+            return "\(activeAlertItem.title) starts in \(seconds)s."
+        }
+        let minutes = max(1, Int(ceil(Double(seconds) / 60.0)))
+        return "\(activeAlertItem.title) starts in \(minutes) minute\(minutes == 1 ? "" : "s")."
+    }
+
+    struct MenuBarRotationState: Equatable {
+        var slot: Int?
+        var selectedKey: String?
+        var selectedIndex: Int?
+        var startedAt: Date?
+    }
+
+    static let dayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "EEE, MMM d"
+        return formatter
+    }()
+
+    static let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "h:mm a"
+        return formatter
+    }()
+
+    static let dayKeyFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMdd"
+        return formatter
+    }()
+
+    func fixedSecondNow() -> Date {
+        Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970))
+    }
+
+    func enqueueRefresh() {
+        hasPendingRefresh = true
+        guard !isRefreshRunning else { return }
+
+        let task = Task { [weak self] in
+            guard let self else { return }
+            self.isRefreshRunning = true
+            defer {
+                self.isRefreshRunning = false
+                self.refreshQueueTask = nil
+            }
+
+            while self.hasPendingRefresh {
+                self.hasPendingRefresh = false
+                await self.refreshUpcomingItemsImpl()
+            }
+        }
+        refreshQueueTask = task
+    }
+
+    func enqueueRefreshAndWait() async {
+        enqueueRefresh()
+        await refreshQueueTask?.value
+    }
+}
