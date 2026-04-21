@@ -104,7 +104,12 @@ extension CalendarMonitor {
         futureWindowEnd: Date
     ) -> Bool {
         if item.isAllDay {
-            return true
+            return shouldIncludeAllDayItem(
+                startDate: item.date,
+                endDate: item.endDate,
+                now: now,
+                futureWindowEnd: futureWindowEnd
+            )
         }
 
         if item.kind == .reminder, item.date <= now {

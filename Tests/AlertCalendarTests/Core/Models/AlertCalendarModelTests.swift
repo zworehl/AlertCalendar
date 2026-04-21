@@ -58,6 +58,60 @@ final class AlertCalendarModelTests: XCTestCase {
         XCTAssertNotEqual(MenuMarkerStyle.marchEquinox, MenuMarkerStyle.decemberSolstice)
     }
 
+    func testShouldIncludeAllDayItemKeepsCurrentAllDayEventVisible() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        let now = calendar.date(from: DateComponents(year: 2026, month: 4, day: 21, hour: 18))!
+        let startDate = calendar.date(from: DateComponents(year: 2026, month: 4, day: 21))!
+        let endDate = calendar.date(from: DateComponents(year: 2026, month: 4, day: 22))!
+
+        XCTAssertTrue(
+            CalendarMonitor.shouldIncludeAllDayItem(
+                startDate: startDate,
+                endDate: endDate,
+                now: now,
+                futureWindowEnd: now.addingTimeInterval(6 * 60 * 60),
+                calendar: calendar
+            )
+        )
+    }
+
+    func testShouldIncludeAllDayItemIncludesNextDayEventInsideWindow() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        let now = calendar.date(from: DateComponents(year: 2026, month: 4, day: 21, hour: 18))!
+        let startDate = calendar.date(from: DateComponents(year: 2026, month: 4, day: 22))!
+        let endDate = calendar.date(from: DateComponents(year: 2026, month: 4, day: 23))!
+
+        XCTAssertTrue(
+            CalendarMonitor.shouldIncludeAllDayItem(
+                startDate: startDate,
+                endDate: endDate,
+                now: now,
+                futureWindowEnd: now.addingTimeInterval(24 * 60 * 60),
+                calendar: calendar
+            )
+        )
+    }
+
+    func testShouldIncludeAllDayItemExcludesNextDayEventOutsideWindow() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        let now = calendar.date(from: DateComponents(year: 2026, month: 4, day: 21, hour: 18))!
+        let startDate = calendar.date(from: DateComponents(year: 2026, month: 4, day: 23))!
+        let endDate = calendar.date(from: DateComponents(year: 2026, month: 4, day: 24))!
+
+        XCTAssertFalse(
+            CalendarMonitor.shouldIncludeAllDayItem(
+                startDate: startDate,
+                endDate: endDate,
+                now: now,
+                futureWindowEnd: now.addingTimeInterval(24 * 60 * 60),
+                calendar: calendar
+            )
+        )
+    }
+
     func testAvailableCalendarEqualityComparesColorAndMetadata() {
         let lhs = AvailableCalendar(
             id: "1",

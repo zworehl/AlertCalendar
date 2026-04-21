@@ -3,6 +3,29 @@ import EventKit
 import Foundation
 
 extension CalendarMonitor {
+    nonisolated static func shouldIncludeAllDayItem(
+        startDate: Date,
+        endDate: Date?,
+        now: Date,
+        futureWindowEnd: Date,
+        calendar: Calendar = .current
+    ) -> Bool {
+        let todayStart = calendar.startOfDay(for: now)
+        guard let tomorrowStart = calendar.date(byAdding: .day, value: 1, to: todayStart) else {
+            return false
+        }
+
+        let normalizedEndDate = endDate
+            ?? calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: startDate))
+            ?? startDate
+        let overlapsToday = startDate < tomorrowStart && normalizedEndDate > todayStart
+        if overlapsToday {
+            return true
+        }
+
+        return startDate >= now && startDate <= futureWindowEnd
+    }
+
     func loadEvents(
         from start: Date,
         to end: Date,
@@ -42,11 +65,12 @@ extension CalendarMonitor {
             )
 
             if event.isAllDay {
-                let calendar = Calendar.current
-                let todayStart = calendar.startOfDay(for: now)
-                guard let tomorrowStart = calendar.date(byAdding: .day, value: 1, to: todayStart) else { continue }
-                let appliesToToday = startDate < tomorrowStart && eventEnd > todayStart
-                guard appliesToToday else { continue }
+                guard Self.shouldIncludeAllDayItem(
+                    startDate: startDate,
+                    endDate: event.endDate ?? eventEnd,
+                    now: now,
+                    futureWindowEnd: end
+                ) else { continue }
                 allDayItems.append(
                     UpcomingItem(
                         id: identifier,

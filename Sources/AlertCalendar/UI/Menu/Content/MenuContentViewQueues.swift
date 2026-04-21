@@ -214,7 +214,12 @@ extension MenuContentView {
         futureWindowEnd: Date
     ) -> Bool {
         if item.isAllDay {
-            return true
+            return CalendarMonitor.shouldIncludeAllDayItem(
+                startDate: item.date,
+                endDate: item.endDate,
+                now: now,
+                futureWindowEnd: futureWindowEnd
+            )
         }
 
         if item.kind == .reminder, item.date <= now {
