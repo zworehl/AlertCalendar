@@ -68,22 +68,13 @@ extension SettingsView {
     nonisolated static func adjustedMenuBarRotationWindowMinutes(
         currentValue: Int,
         incrementing: Bool,
-        maximumValue: Int
+        dropdownWindowHours: Int
     ) -> Int {
-        let normalizedCurrentValue = max(5, min(maximumValue, currentValue))
-
-        if incrementing {
-            if normalizedCurrentValue < 60 {
-                return min(maximumValue, normalizedCurrentValue + 5)
-            }
-            return min(maximumValue, normalizedCurrentValue + 60)
-        }
-
-        if normalizedCurrentValue <= 60 {
-            return max(5, normalizedCurrentValue - 5)
-        }
-
-        return max(60, normalizedCurrentValue - 60)
+        AppSettingsRules.adjustedMenuBarRotationWindowMinutes(
+            currentValue: currentValue,
+            incrementing: incrementing,
+            dropdownWindowHours: dropdownWindowHours
+        )
     }
 
     static func isGrantedEventKitAuthorizationStatus(_ status: EKAuthorizationStatus) -> Bool {

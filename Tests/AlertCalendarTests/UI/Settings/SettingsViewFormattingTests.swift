@@ -18,7 +18,7 @@ final class SettingsViewFormattingTests: XCTestCase {
             SettingsView.adjustedMenuBarRotationWindowMinutes(
                 currentValue: 55,
                 incrementing: true,
-                maximumValue: 720
+                dropdownWindowHours: 13
             ),
             60
         )
@@ -26,7 +26,7 @@ final class SettingsViewFormattingTests: XCTestCase {
             SettingsView.adjustedMenuBarRotationWindowMinutes(
                 currentValue: 60,
                 incrementing: true,
-                maximumValue: 720
+                dropdownWindowHours: 13
             ),
             120
         )
@@ -34,7 +34,7 @@ final class SettingsViewFormattingTests: XCTestCase {
             SettingsView.adjustedMenuBarRotationWindowMinutes(
                 currentValue: 120,
                 incrementing: false,
-                maximumValue: 720
+                dropdownWindowHours: 13
             ),
             60
         )

@@ -1,6 +1,9 @@
 import Foundation
 
 enum AppSettingsRules {
+    static let minimumFootballWindowDays = 1
+    static let maximumFootballWindowDays = 45
+
     static func roundedCoordinate(_ value: Double) -> Double {
         (value * 1000).rounded() / 1000
     }
@@ -88,6 +91,6 @@ enum AppSettingsRules {
     }
 
     static func normalizedFootballWindowDays(_ value: Int) -> Int {
-        max(1, min(45, value))
+        max(minimumFootballWindowDays, min(maximumFootballWindowDays, value))
     }
 }

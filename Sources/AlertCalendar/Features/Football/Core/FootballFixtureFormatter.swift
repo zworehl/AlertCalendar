@@ -58,7 +58,7 @@ enum FootballFixtureFormatter {
         var values: [String: String] = [:]
         for regionCode in Locale.Region.isoRegions.map(\.identifier) {
             guard let name = locale.localizedString(forRegionCode: regionCode) else { continue }
-            values[normalizedCountryKey(name)] = regionCode
+            values[FootballDataAPIClient.normalizedLookupKey(name)] = regionCode
         }
         return values
     }()
@@ -178,7 +178,7 @@ enum FootballFixtureFormatter {
 
     static func flagEmoji(for countryName: String?) -> String {
         guard let countryName else { return "🏳️" }
-        let normalized = normalizedCountryKey(countryName)
+        let normalized = FootballDataAPIClient.normalizedLookupKey(countryName)
         if let special = specialRegionFlags[normalized] {
             return special
         }
@@ -306,7 +306,7 @@ enum FootballFixtureFormatter {
 
     static func isUnknownTeam(_ team: FootballTeamSummary) -> Bool {
         let abbreviation = team.abbreviation.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        let normalizedName = normalizedCountryKey(team.name)
+        let normalizedName = FootballDataAPIClient.normalizedLookupKey(team.name)
         let compactName = compactIdentifier(team.name)
 
         if abbreviation == "TBD" || abbreviation == "TBC" {
@@ -414,7 +414,7 @@ enum FootballFixtureFormatter {
             guard let raw else { continue }
             let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { continue }
-            let normalized = normalizedCountryKey(trimmed)
+            let normalized = FootballDataAPIClient.normalizedLookupKey(trimmed)
             guard seen.insert(normalized).inserted else { continue }
             candidates.append(trimmed)
         }
@@ -449,16 +449,6 @@ enum FootballFixtureFormatter {
 
         return compact.range(of: #"^G[A-Z]\d+$"#, options: .regularExpression) != nil
             || compact.range(of: #"^RD\d+$"#, options: .regularExpression) != nil
-    }
-
-    private static func normalizedCountryKey(_ raw: String) -> String {
-        raw
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
-            .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
-            .map(String.init)
-            .joined(separator: " ")
-            .lowercased()
     }
 
     private static func normalizedCompetitionComparisonKey(_ raw: String) -> String {

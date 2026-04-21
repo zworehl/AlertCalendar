@@ -63,7 +63,9 @@ actor MeetingContactResolver {
     }
 
     private func resolvedContact(for emailAddress: String) async -> ResolvedMeetingContact? {
-        let normalizedEmailAddress = normalizedEmailAddress(emailAddress) ?? emailAddress.lowercased()
+        guard let normalizedEmailAddress = normalizedEmailAddress(emailAddress) else {
+            return nil
+        }
 
         if let cachedContact = cachedContactsByEmail[normalizedEmailAddress] {
             return cachedContact
@@ -102,9 +104,7 @@ actor MeetingContactResolver {
     }
 
     private func normalizedEmailAddress(_ emailAddress: String?) -> String? {
-        guard let emailAddress else { return nil }
-        let trimmed = emailAddress.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return trimmed.isEmpty ? nil : trimmed
+        MeetingAttendee.normalizedEmailAddress(emailAddress)
     }
 
     private static func contactDisplayText(for contact: CNContact, fallbackEmailAddress: String) -> String? {

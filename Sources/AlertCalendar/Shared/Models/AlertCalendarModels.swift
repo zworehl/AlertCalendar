@@ -136,6 +136,16 @@ struct MeetingAttendee: Identifiable, Equatable {
         )
     }
 
+    static func normalizedEmailAddress(_ emailAddress: String?) -> String? {
+        normalizedIdentity(emailAddress)
+    }
+
+    static func normalizedIdentity(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
     static func normalized(_ attendees: [MeetingAttendee]) -> [MeetingAttendee] {
         var attendeesByID: [String: MeetingAttendee] = [:]
         attendeesByID.reserveCapacity(attendees.count)
@@ -144,12 +154,9 @@ struct MeetingAttendee: Identifiable, Equatable {
             let trimmedDisplayText = attendee.displayText.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmedDisplayText.isEmpty else { continue }
 
-            let normalizedEmailAddress = attendee.emailAddress?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .lowercased()
-            let normalizedID = attendee.id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            let resolvedID = normalizedEmailAddress ?? normalizedID
-            guard !resolvedID.isEmpty else { continue }
+            let normalizedEmailAddress = normalizedEmailAddress(attendee.emailAddress)
+            let normalizedID = normalizedIdentity(attendee.id)
+            guard let resolvedID = normalizedEmailAddress ?? normalizedID else { continue }
 
             let normalizedAttendee = MeetingAttendee(
                 id: resolvedID,

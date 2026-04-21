@@ -22,9 +22,6 @@ extension SettingsView {
 
     @ViewBuilder
     var generalSettingsContent: some View {
-        let maxMenuBarRotationWindowMinutes = maximumMenuBarRotationWindowMinutes(
-            dropdownWindowHours: draft.lookAheadHours
-        )
         let maxContextualPreviewLeadMinutes = maximumContextualPreviewLeadMinutes(
             dropdownWindowHours: draft.lookAheadHours
         )
@@ -76,13 +73,13 @@ extension SettingsView {
                         draft.menuBarRotationWindowMinutes = Self.adjustedMenuBarRotationWindowMinutes(
                             currentValue: draft.menuBarRotationWindowMinutes,
                             incrementing: true,
-                            maximumValue: maxMenuBarRotationWindowMinutes
+                            dropdownWindowHours: draft.lookAheadHours
                         )
                     } onDecrement: {
                         draft.menuBarRotationWindowMinutes = Self.adjustedMenuBarRotationWindowMinutes(
                             currentValue: draft.menuBarRotationWindowMinutes,
                             incrementing: false,
-                            maximumValue: maxMenuBarRotationWindowMinutes
+                            dropdownWindowHours: draft.lookAheadHours
                         )
                     }
                         .labelsHidden()

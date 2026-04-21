@@ -106,10 +106,8 @@ extension CalendarMonitor {
                 return nil
             }
 
-            let identifier = (emailAddress ?? displayText)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .lowercased()
-            guard !identifier.isEmpty else { return nil }
+            let identifier = emailAddress ?? displayText
+            guard !identifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
 
             return MeetingAttendee(
                 id: identifier,
@@ -161,7 +159,7 @@ extension CalendarMonitor {
         }
 
         guard candidate.contains("@") else { return nil }
-        return candidate.lowercased()
+        return MeetingAttendee.normalizedEmailAddress(candidate)
     }
 
     func allURLs(in text: String) -> [URL] {

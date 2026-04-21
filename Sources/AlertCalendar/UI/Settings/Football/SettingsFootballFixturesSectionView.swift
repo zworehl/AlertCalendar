@@ -19,8 +19,8 @@ struct SettingsFootballFixturesSectionView: View {
     static let topShowControlWidth: CGFloat = 500
     static let matchActionButtonSize: CGFloat = 18
     static let matchActionSlotWidth: CGFloat = 112
-    static let minimumFootballWindowDays = 1
-    static let maximumFootballWindowDays = 45
+    static let minimumFootballWindowDays = AppSettingsRules.minimumFootballWindowDays
+    static let maximumFootballWindowDays = AppSettingsRules.maximumFootballWindowDays
 
     let monitor: CalendarMonitor
 

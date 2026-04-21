@@ -175,7 +175,7 @@ extension SettingsFootballFixturesSectionView {
     }
 
     static func normalizedFootballWindowDays(_ value: Int) -> Int {
-        max(minimumFootballWindowDays, min(maximumFootballWindowDays, value))
+        AppSettingsRules.normalizedFootballWindowDays(value)
     }
 
     static func matchWindowValueText(days: Int) -> String {
