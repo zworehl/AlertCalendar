@@ -159,7 +159,7 @@ extension CalendarMonitor {
     }
 
     @discardableResult
-    func removeDuplicateManagedFootballEvents(now: Date = Date()) -> Int {
+    func removeDuplicateManagedFootballEvents() -> Int {
         let deduplicatedRecords = deduplicatedManagedFootballEventRecords(managedFootballEventRecords)
         let removedCount = max(0, managedFootballEventRecords.count - deduplicatedRecords.count)
         persistManagedFootballEventRecords(deduplicatedRecords)
@@ -168,7 +168,7 @@ extension CalendarMonitor {
 
     func cacheFootballMatches(_ matches: [FootballFixtureMatch]) async {
         guard !matches.isEmpty else { return }
-        let now = Date()
+        let now = fixedSecondNow()
         for match in matches {
             if let previousMatch = footballMatchesByID[match.id],
                let goalHighlight = Self.goalHighlight(from: previousMatch, to: match, now: now) {

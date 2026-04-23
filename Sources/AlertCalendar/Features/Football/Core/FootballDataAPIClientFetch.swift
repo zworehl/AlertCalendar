@@ -92,7 +92,7 @@ extension FootballDataAPIClient {
         session: URLSession
     ) async -> [FootballFixtureMatch] {
         let calendar = Calendar(identifier: .gregorian)
-        let now = Date()
+        let now = AlertCalendarClock.nowRoundedToSecond()
         let dayStart = calendar.startOfDay(for: now)
         let start = calendar.date(byAdding: .day, value: -competition.lookbackDays, to: dayStart) ?? dayStart
         let end = calendar.date(byAdding: .day, value: competition.lookaheadDays, to: dayStart) ?? dayStart

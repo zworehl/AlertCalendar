@@ -66,14 +66,15 @@ extension FootballDataAPIClient {
     static func inferredKickoffStatusIfNeeded(
         from state: FootballFixtureStatusState,
         statusText: String,
-        startDate: Date
+        startDate: Date,
+        now: Date = AlertCalendarClock.nowRoundedToSecond()
     ) -> (
         state: FootballFixtureStatusState,
         statusText: String,
         statusReliability: FootballFixtureStatusReliability,
         inferred: Bool
     ) {
-        let secondsFromKickoff = Date().timeIntervalSince(startDate)
+        let secondsFromKickoff = now.timeIntervalSince(startDate)
         guard secondsFromKickoff >= 0 else {
             return (state, statusText, .reported, false)
         }

@@ -249,7 +249,7 @@ extension SettingsFootballFixturesSectionView {
             }
         }
 
-        let now = Self.minuteReferenceDate(for: Date())
+        let now = Self.minuteReferenceDate(for: AlertCalendarClock.nowRoundedToSecond())
         visibleNow = now
         await refreshManagedMatchesPanel(now: now, force: true)
     }

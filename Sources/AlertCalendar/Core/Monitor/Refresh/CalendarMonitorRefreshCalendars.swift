@@ -8,7 +8,7 @@ extension CalendarMonitor {
     }
 
     func setCalendarSelected(_ calendar: AvailableCalendar, isSelected: Bool) {
-        var settings = settingsStore.load()
+        var settings = snapshotSettings()
         var ids = calendar.kind == .event ? settings.selectedEventCalendarIDs : settings.selectedReminderCalendarIDs
         var weekdayOnlyIDs = calendar.kind == .event ? settings.weekdayOnlyEventCalendarIDs : settings.weekdayOnlyReminderCalendarIDs
         if isSelected {
@@ -25,7 +25,7 @@ extension CalendarMonitor {
             settings.selectedReminderCalendarIDs = ids
             settings.weekdayOnlyReminderCalendarIDs = weekdayOnlyIDs
         }
-        settingsStore.save(settings)
+        persistSettings(settings)
         refreshNow()
     }
 
@@ -53,6 +53,9 @@ extension CalendarMonitor {
             }
             syncStoredSelection(
                 for: .event,
+                availableIDs: Set(eventCalendars.map(\.calendarIdentifier))
+            )
+            syncStoredSlackStatusSyncRules(
                 availableIDs: Set(eventCalendars.map(\.calendarIdentifier))
             )
         } else {
@@ -93,13 +96,21 @@ extension CalendarMonitor {
         kind: CalendarItemKind,
         selectedIDs: Set<String>,
         weekdayOnlyIDs: Set<String> = [],
-        now: Date = Date()
+        now: Date = AlertCalendarClock.nowRoundedToSecond()
     ) -> [EKCalendar] {
         let includeWeekdayOnlyToday = isWeekday(now)
-        return eventStore.calendars(for: kind == .event ? .event : .reminder)
+        let entityType: EKEntityType = kind == .event ? .event : .reminder
+        let availableIDs = Set(eventStore.calendars(for: entityType).map(\.calendarIdentifier))
+        let effectiveSelectedIDs = FocusCalendarFilterStateStore.effectiveSelectedCalendarIDs(
+            baseSelectedIDs: selectedIDs,
+            availableIDs: availableIDs,
+            focusOverride: activeFocusCalendarFilterState?.selection(for: kind)
+        )
+
+        return eventStore.calendars(for: entityType)
             .filter { calendar in
                 let calendarID = calendar.calendarIdentifier
-                guard selectedIDs.contains(calendarID) else { return false }
+                guard effectiveSelectedIDs.contains(calendarID) else { return false }
                 if weekdayOnlyIDs.contains(calendarID) {
                     return includeWeekdayOnlyToday
                 }

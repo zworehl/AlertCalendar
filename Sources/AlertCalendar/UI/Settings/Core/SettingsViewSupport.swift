@@ -197,6 +197,9 @@ struct SettingsDraft: Equatable {
     var selectedReminderCalendarIDs: Set<String>
     var weekdayOnlyEventCalendarIDs: Set<String>
     var weekdayOnlyReminderCalendarIDs: Set<String>
+    var slackStatusSyncRules: [SlackStatusSyncRule]
+    var slackMeetingStatusText: String
+    var slackMeetingStatusEmoji: String
 
     init(settings: AppSettings) {
         includeEvents = settings.includeEvents
@@ -227,6 +230,9 @@ struct SettingsDraft: Equatable {
         selectedReminderCalendarIDs = settings.selectedReminderCalendarIDs
         weekdayOnlyEventCalendarIDs = settings.weekdayOnlyEventCalendarIDs
         weekdayOnlyReminderCalendarIDs = settings.weekdayOnlyReminderCalendarIDs
+        slackStatusSyncRules = settings.slackStatusSyncRules
+        slackMeetingStatusText = settings.slackMeetingStatusText
+        slackMeetingStatusEmoji = settings.slackMeetingStatusEmoji
     }
 
     static let empty = SettingsDraft(settings: .defaults)

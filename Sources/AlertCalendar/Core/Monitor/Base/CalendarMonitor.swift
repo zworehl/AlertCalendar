@@ -42,11 +42,18 @@ final class CalendarMonitor: ObservableObject {
     @Published var footballLiveAndNextDaySection = FootballMatchesOverviewSection.placeholder(title: "Now & Next 24 Hours")
     @Published var managedFootballMatchIDs: Set<String> = []
     @Published var managedFootballMatches: [FootballFixtureMatch] = []
+    @Published var activeFocusCalendarFilterState: FocusCalendarFilterState?
+    @Published var slackStatusSyncErrorDescription: String?
+    @Published var lastSlackStatusSyncDate: Date?
+    @Published var slackConnectionStatusMessage: String?
+    @Published var slackRuntimeStatusDescription: String?
+    @Published private(set) var currentSettings = AppSettings.defaults
 
     let eventStore = EKEventStore()
     let defaults = UserDefaults.standard
     let footballClient = FootballDataAPIClient()
     let footballImageStore = FootballImageStore()
+    let slackClient = SlackAPIClient()
 
     var settingsStore: AppSettingsStore {
         AppSettingsStore(defaults: defaults)
@@ -91,13 +98,22 @@ final class CalendarMonitor: ObservableObject {
     var isManagedFootballSnapshotCacheValid = false
     var didFootballEventStoreChange = false
     var menuBarRotationState = MenuBarRotationState()
+    var slackStatusSyncTask: Task<Void, Never>?
+    var slackStatusSyncNeedsAnotherPass = false
+    var slackQueuedTargets: [SlackStatusSyncTarget] = []
+    var slackStatusSyncTransitionTask: Task<Void, Never>?
+    var slackScheduledTransitionDate: Date?
+    var lastSlackStatusSyncEvaluationDate: Date?
+    var slackManagedStateByConnectionID: [String: SlackManagedStatusState] = [:]
 
     init() {
         registerDefaultSettings()
+        currentSettings = settingsStore.load()
         managedFootballEventRecords = Self.decodeManagedFootballEventRecords(
             from: defaults.data(forKey: DefaultsKeys.managedFootballEventRecords)
         )
         skippedItemKeys = Set(defaults.stringArray(forKey: DefaultsKeys.skippedItemKeys) ?? [])
+        activeFocusCalendarFilterState = FocusCalendarFilterStateStore.load(defaults: defaults)
         startObservers()
         startHeartbeat()
 
@@ -120,11 +136,11 @@ final class CalendarMonitor: ObservableObject {
         silencedAlertKeys.insert(activeAlertItem.notificationKey)
         self.activeAlertItem = nil
         blinkPhase = false
-        updateMenuBarState(now: Date(), settings: snapshotSettings())
+        updateMenuBarState(now: fixedSecondNow(), settings: snapshotSettings())
     }
 
     func subtitle(for item: UpcomingItem) -> String {
-        let now = Date()
+        let now = fixedSecondNow()
         let dateText: String
         if item.kind == .event, let endDate = item.endDate, item.date <= now, endDate > now {
             dateText = "Started \(Self.dayFormatter.string(from: item.date)) at \(Self.timeFormatter.string(from: item.date))"
@@ -151,12 +167,11 @@ final class CalendarMonitor: ObservableObject {
 
     var activeAlertDescription: String? {
         guard let activeAlertItem else { return nil }
-        let seconds = max(0, Int(activeAlertItem.date.timeIntervalSince(Date())))
-        if seconds < 60 {
-            return "\(activeAlertItem.title) starts in \(seconds)s."
-        }
-        let minutes = max(1, Int(ceil(Double(seconds) / 60.0)))
-        return "\(activeAlertItem.title) starts in \(minutes) minute\(minutes == 1 ? "" : "s")."
+        return AlertCalendarRelativeTimeFormatter.leadTimeDescription(
+            for: activeAlertItem.title,
+            targetDate: activeAlertItem.date,
+            now: fixedSecondNow()
+        )
     }
 
     struct MenuBarRotationState: Equatable {
@@ -188,7 +203,16 @@ final class CalendarMonitor: ObservableObject {
     }()
 
     func fixedSecondNow() -> Date {
-        Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970))
+        AlertCalendarClock.nowRoundedToSecond()
+    }
+
+    func reloadCurrentSettings() {
+        currentSettings = settingsStore.load()
+    }
+
+    func persistSettings(_ settings: AppSettings) {
+        settingsStore.save(settings)
+        reloadCurrentSettings()
     }
 
     func enqueueRefresh() {

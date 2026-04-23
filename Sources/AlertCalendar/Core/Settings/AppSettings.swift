@@ -34,6 +34,10 @@ struct AppSettings: Equatable {
     var showFinishedFootballMatches: Bool
     var finishedFootballMatchLookbackDays: Int
     var footballMatchLookaheadDays: Int
+    var slackConnections: [SlackConnection]
+    var slackStatusSyncRules: [SlackStatusSyncRule]
+    var slackMeetingStatusText: String
+    var slackMeetingStatusEmoji: String
 
     var includesAnyAstronomy: Bool {
         includeAstronomy && (
@@ -92,6 +96,10 @@ struct AppSettings: Equatable {
         footballCalendarAlertOption: .none,
         showFinishedFootballMatches: true,
         finishedFootballMatchLookbackDays: 7,
-        footballMatchLookaheadDays: 14
+        footballMatchLookaheadDays: 14,
+        slackConnections: [],
+        slackStatusSyncRules: [],
+        slackMeetingStatusText: SlackMeetingStatus.defaultText,
+        slackMeetingStatusEmoji: SlackMeetingStatus.defaultEmoji
     )
 }

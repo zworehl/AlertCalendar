@@ -120,12 +120,12 @@ extension CalendarMonitor {
     }
 
     func approximateEndDate(for match: FootballFixtureMatch) -> Date {
-        Self.approximateFootballMatchEndDate(for: match, now: Date())
+        Self.approximateFootballMatchEndDate(for: match, now: fixedSecondNow())
     }
 
     nonisolated static func approximateFootballMatchEndDate(
         for match: FootballFixtureMatch,
-        now: Date = Date()
+        now: Date = AlertCalendarClock.nowRoundedToSecond()
     ) -> Date {
         let approximatedDuration = approximateFootballMatchDuration(for: match, now: now)
         let effectiveStartDate = footballEffectiveStartDate(for: match)
@@ -152,7 +152,7 @@ extension CalendarMonitor {
 
     nonisolated static func approximateFootballMatchDuration(
         for match: FootballFixtureMatch,
-        now: Date = Date()
+        now: Date = AlertCalendarClock.nowRoundedToSecond()
     ) -> TimeInterval {
         let normalizedStatus = footballNormalizedStatusText(match.statusText)
 

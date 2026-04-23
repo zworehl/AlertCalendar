@@ -262,7 +262,7 @@ extension MenuContentView {
 
     nonisolated static func footballContextualScheduleText(
         for match: FootballFixtureMatch,
-        now: Date = Date(),
+        now: Date = AlertCalendarClock.nowRoundedToSecond(),
         calendar: Calendar = .autoupdatingCurrent,
         locale: Locale = .autoupdatingCurrent,
         timeZone: TimeZone = .autoupdatingCurrent

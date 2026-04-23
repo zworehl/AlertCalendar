@@ -71,6 +71,7 @@ extension CalendarMonitor {
         pruneAlertCaches(using: visibleTimedItems)
         evaluateAlert(now: now, settings: settings)
         updateMenuBarState(now: now, settings: settings)
+        requestSlackStatusSyncEvaluation(now: now, settings: settings)
     }
 
     func pruneSkippedKeys(using items: [UpcomingItem], allDayItems: [UpcomingItem] = []) {
@@ -110,6 +111,7 @@ extension CalendarMonitor {
         let settings = snapshotSettings()
         evaluateAlert(now: now, settings: settings)
         updateMenuBarState(now: now, settings: settings)
+        requestSlackStatusSyncEvaluation(now: now, settings: settings)
     }
 
     func hasSkippedItems() -> Bool {
@@ -140,7 +142,7 @@ extension CalendarMonitor {
         }
 
         reminder.isCompleted = true
-        reminder.completionDate = Date()
+        reminder.completionDate = fixedSecondNow()
 
         do {
             try eventStore.save(reminder, commit: true)

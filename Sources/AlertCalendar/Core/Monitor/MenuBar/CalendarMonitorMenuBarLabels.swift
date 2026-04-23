@@ -60,7 +60,7 @@ extension CalendarMonitor {
             if isBirthdayItem(item) {
                 return compactTitle
             }
-            let allDayDetail = allDayLabel(for: item) ?? "all-day"
+            let allDayDetail = allDayLabel(for: item, now: now, simplified: simplified) ?? "all-day"
             return "\(compactTitle) \(allDayDetail)"
         }
         if item.kind == .reminder, item.date <= now {

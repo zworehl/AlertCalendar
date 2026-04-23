@@ -4,7 +4,7 @@ import SwiftUI
 
 extension SettingsFootballFixturesSectionView {
     func applyFootballCalendarAlertPreference() {
-        let now = Self.minuteReferenceDate(for: Date())
+        let now = Self.minuteReferenceDate(for: AlertCalendarClock.nowRoundedToSecond())
         visibleNow = now
         refreshManagedMatchesDerivedState(now: now)
         monitor.applyManagedFootballAlertConfigurationIfNeeded(now: now)
@@ -58,7 +58,7 @@ extension SettingsFootballFixturesSectionView {
 
     func runVisibleRefreshLoop() async {
         while !Task.isCancelled {
-            let now = Date()
+            let now = AlertCalendarClock.nowRoundedToSecond()
             let nextRefresh = Self.nextMinuteBoundary(after: now)
             let delay = max(0.25, nextRefresh.timeIntervalSince(now))
             let delayNanoseconds = UInt64(delay * 1_000_000_000)
@@ -66,7 +66,7 @@ extension SettingsFootballFixturesSectionView {
             try? await Task.sleep(nanoseconds: delayNanoseconds)
             guard !Task.isCancelled else { return }
 
-            let refreshedNow = Self.minuteReferenceDate(for: Date())
+            let refreshedNow = Self.minuteReferenceDate(for: AlertCalendarClock.nowRoundedToSecond())
             await MainActor.run {
                 visibleNow = refreshedNow
                 refreshManagedMatchesDerivedState(now: refreshedNow)

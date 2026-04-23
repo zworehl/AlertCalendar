@@ -20,10 +20,11 @@ extension CalendarMonitor {
             matchID: match.id,
             competitionSlug: match.competitionSlug
         )
-        if trackedFootballEvents(now: Date()).contains(where: { $0.reference == reference }) {
+        let now = fixedSecondNow()
+        if trackedFootballEvents(now: now).contains(where: { $0.reference == reference }) {
             await cacheFootballMatches([match])
             managedFootballMatchIDs.insert(match.id)
-            updateManagedFootballMatches(using: trackedFootballEvents(now: Date()), now: Date())
+            updateManagedFootballMatches(using: trackedFootballEvents(now: now), now: now)
             refreshNow()
             return
         }
@@ -43,7 +44,7 @@ extension CalendarMonitor {
             ensureFootballTargetCalendarIsSelected(calendar.calendarIdentifier)
             upsertManagedFootballEventRecord(for: persistedEvent, reference: reference)
             managedFootballMatchIDs.insert(match.id)
-            updateManagedFootballMatches(using: trackedFootballEvents(now: Date()), now: Date())
+            updateManagedFootballMatches(using: trackedFootballEvents(now: now), now: now)
             refreshNow()
         } catch {
             calendarAccessDescription = "Could not save the selected fixture."
@@ -53,9 +54,10 @@ extension CalendarMonitor {
     func resolvedFootballMatchForCalendarAdd(_ match: FootballFixtureMatch) async -> FootballFixtureMatch {
         let previousMatch = footballMatchesByID[match.id]
         let baseMatch = Self.footballMatchPreservingKnownTimingContext(match, previousMatch: previousMatch)
+        let now = fixedSecondNow()
         let shouldForceSummary = baseMatch.statusState == .finished
             || baseMatch.statusState == .inProgress
-            || (baseMatch.statusState == .unknown && baseMatch.startDate <= Date())
+            || (baseMatch.statusState == .unknown && baseMatch.startDate <= now)
 
         guard shouldForceSummary else { return baseMatch }
 
@@ -76,7 +78,8 @@ extension CalendarMonitor {
             competitionSlug: match.competitionSlug
         )
 
-        guard let snapshot = trackedFootballEvents(now: Date()).first(where: { $0.reference == reference }) else {
+        let now = fixedSecondNow()
+        guard let snapshot = trackedFootballEvents(now: now).first(where: { $0.reference == reference }) else {
             calendarAccessDescription = "Could not find the selected fixture in Calendar."
             _ = openCalendarApplication()
             return
@@ -114,12 +117,13 @@ extension CalendarMonitor {
             matchID: match.id,
             competitionSlug: match.competitionSlug
         )
-        let trackedSnapshots = trackedFootballEvents(now: Date()).filter { $0.reference == reference }
+        let now = fixedSecondNow()
+        let trackedSnapshots = trackedFootballEvents(now: now).filter { $0.reference == reference }
 
         guard !trackedSnapshots.isEmpty else {
             removeManagedFootballEventRecord(for: reference)
             managedFootballMatchIDs.remove(match.id)
-            updateManagedFootballMatches(using: trackedFootballEvents(now: Date()), now: Date())
+            updateManagedFootballMatches(using: trackedFootballEvents(now: now), now: now)
             refreshNow()
             return
         }
@@ -143,7 +147,7 @@ extension CalendarMonitor {
             try eventStore.commit()
             removeManagedFootballEventRecord(for: reference)
             managedFootballMatchIDs.remove(match.id)
-            updateManagedFootballMatches(using: trackedFootballEvents(now: Date()), now: Date())
+            updateManagedFootballMatches(using: trackedFootballEvents(now: now), now: now)
             refreshNow()
         } catch {
             calendarAccessDescription = "Could not remove the selected fixture."
@@ -185,7 +189,7 @@ extension CalendarMonitor {
     }
 
     func trackedFootballSnapshotsByRefreshingState(now: Date) -> [ManagedFootballEventSnapshot] {
-        _ = removeDuplicateManagedFootballEvents(now: now)
+        _ = removeDuplicateManagedFootballEvents()
         let trackedEvents = trackedFootballEvents(now: now)
         let trackedMatchIDs = Set(trackedEvents.map(\.reference.matchID))
         if trackedMatchIDs != managedFootballMatchIDs {

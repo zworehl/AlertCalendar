@@ -26,7 +26,7 @@ struct MenuContentView: View {
     let splitPanelBottomPadding: CGFloat = 8
 
     var settings: AppSettings {
-        monitor.snapshotSettings()
+        monitor.currentSettings
     }
 
     var body: some View {

@@ -34,7 +34,7 @@ struct SettingsFootballFixturesSectionView: View {
     @State var selectedCompetitionRegionID: String?
     @State var selectedCompetitionID: String?
     @State var isRefreshingManagedMatches = false
-    @State var visibleNow = Date()
+    @State var visibleNow = AlertCalendarClock.nowRoundedToSecond()
     @State var hasEventsAccess = false
     @State var availableEventCalendars: [AvailableCalendar] = []
     @State var writableEventCalendars: [AvailableCalendar] = []
@@ -71,7 +71,7 @@ struct SettingsFootballFixturesSectionView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .onAppear {
-            visibleNow = Self.minuteReferenceDate(for: Date())
+            visibleNow = Self.minuteReferenceDate(for: AlertCalendarClock.nowRoundedToSecond())
             finishedFootballMatchLookbackDays = Self.normalizedFootballWindowDays(finishedFootballMatchLookbackDays)
             footballMatchLookaheadDays = Self.normalizedFootballWindowDays(footballMatchLookaheadDays)
             if footballTargetCalendarID.isEmpty,
@@ -103,7 +103,7 @@ struct SettingsFootballFixturesSectionView: View {
             await runVisibleRefreshLoop()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            let now = Self.minuteReferenceDate(for: Date())
+            let now = Self.minuteReferenceDate(for: AlertCalendarClock.nowRoundedToSecond())
             visibleNow = now
             refreshManagedMatchesDerivedState(now: now)
             Task {

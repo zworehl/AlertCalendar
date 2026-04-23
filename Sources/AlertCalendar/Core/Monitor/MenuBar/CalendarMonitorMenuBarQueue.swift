@@ -13,6 +13,7 @@ extension CalendarMonitor {
 
     func unifiedMenuBarQueue(now: Date, settings: AppSettings) -> [UpcomingItem] {
         let futureWindowSeconds = TimeInterval(max(5, settings.menuBarRotationWindowMinutes) * 60)
+        let futureWindowEnd = now.addingTimeInterval(futureWindowSeconds)
         let timedItems = upcomingItems.filter {
             isTimedItemDisplayableInMenuBar($0, now: now)
                 && Self.shouldIncludeTimedItemInMenuBarRotation(
@@ -21,7 +22,14 @@ extension CalendarMonitor {
                     futureWindowSeconds: futureWindowSeconds
                 )
         }
-        let allDayItems = settings.includeAllDayEvents ? allDayEventItems : []
+        let allDayItems = settings.includeAllDayEvents ? allDayEventItems.filter {
+            Self.shouldIncludeAllDayItemInMenuBarRotation(
+                startDate: $0.date,
+                endDate: $0.endDate,
+                now: now,
+                futureWindowEnd: futureWindowEnd
+            )
+        } : []
         let merged = deduplicatedItemsByNotificationKey(timedItems + allDayItems)
 
         return merged.sorted { left, right in
@@ -49,10 +57,11 @@ extension CalendarMonitor {
     }
 
     func hasUpcomingItemsOutsideMenuBarWindow(now: Date, settings: AppSettings) -> Bool {
-        let futureWindowEnd = now.addingTimeInterval(Double(max(1, settings.lookAheadHours)) * 3600)
+        let dropdownFutureWindowEnd = now.addingTimeInterval(Double(max(1, settings.lookAheadHours)) * 3600)
         let futureWindowSeconds = TimeInterval(max(5, settings.menuBarRotationWindowMinutes) * 60)
+        let menuBarFutureWindowEnd = now.addingTimeInterval(futureWindowSeconds)
 
-        return upcomingItems.contains { item in
+        let hasTimedItemsOutsideMenuBarWindow = upcomingItems.contains { item in
             isTimedItemDisplayableInMenuBar(item, now: now)
                 && !Self.shouldIncludeTimedItemInMenuBarRotation(
                     item,
@@ -62,8 +71,25 @@ extension CalendarMonitor {
                 && Self.shouldIncludeInDropdownPreviewWindow(
                     item,
                     now: now,
-                    futureWindowEnd: futureWindowEnd
+                    futureWindowEnd: dropdownFutureWindowEnd
                 )
+        }
+
+        if hasTimedItemsOutsideMenuBarWindow {
+            return true
+        }
+
+        return settings.includeAllDayEvents && allDayEventItems.contains { item in
+            Self.shouldIncludeInDropdownPreviewWindow(
+                item,
+                now: now,
+                futureWindowEnd: dropdownFutureWindowEnd
+            ) && !Self.shouldIncludeAllDayItemInMenuBarRotation(
+                startDate: item.date,
+                endDate: item.endDate,
+                now: now,
+                futureWindowEnd: menuBarFutureWindowEnd
+            )
         }
     }
 
@@ -124,6 +150,22 @@ extension CalendarMonitor {
         }
 
         return item.date >= now && item.date <= futureWindowEnd
+    }
+
+    nonisolated static func shouldIncludeAllDayItemInMenuBarRotation(
+        startDate: Date,
+        endDate: Date?,
+        now: Date,
+        futureWindowEnd: Date,
+        calendar: Calendar = .current
+    ) -> Bool {
+        shouldIncludeAllDayItem(
+            startDate: startDate,
+            endDate: endDate,
+            now: now,
+            futureWindowEnd: futureWindowEnd,
+            calendar: calendar
+        )
     }
 
 

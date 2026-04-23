@@ -12,6 +12,32 @@ struct AppSettingsStore {
         let lookAheadHours = AppSettingsRules.normalizedDropdownWindowHours(
             defaults.integer(forKey: DefaultsKeys.lookAheadHours)
         )
+        let storedSlackConnections = slackConnections()
+        let storedSlackStatusSyncRules = slackStatusSyncRules(connections: storedSlackConnections)
+        let effectiveSlackStatusSyncRules = storedSlackStatusSyncRules.isEmpty
+            ? migratedLegacySlackStatusSyncRules(connections: storedSlackConnections)
+            : storedSlackStatusSyncRules
+        let legacySlackMeetingStatusText = SlackMeetingStatus.normalizedText(
+            defaults.string(forKey: DefaultsKeys.slackMeetingStatusText)
+        )
+        let legacySlackMeetingStatusEmoji = SlackMeetingStatus.normalizedEmoji(
+            defaults.string(forKey: DefaultsKeys.slackMeetingStatusEmoji)
+        )
+        let migratedSlackStatusSyncRules = effectiveSlackStatusSyncRules.map { rule in
+            guard
+                rule.statusText == SlackMeetingStatus.defaultText,
+                rule.statusEmoji == SlackMeetingStatus.defaultEmoji,
+                legacySlackMeetingStatusText != SlackMeetingStatus.defaultText ||
+                    legacySlackMeetingStatusEmoji != SlackMeetingStatus.defaultEmoji
+            else {
+                return rule
+            }
+
+            var migratedRule = rule
+            migratedRule.statusText = legacySlackMeetingStatusText
+            migratedRule.statusEmoji = legacySlackMeetingStatusEmoji
+            return migratedRule
+        }
 
         return AppSettings(
             includeEvents: defaults.bool(forKey: DefaultsKeys.includeEvents),
@@ -66,7 +92,11 @@ struct AppSettingsStore {
             ),
             footballMatchLookaheadDays: AppSettingsRules.normalizedFootballWindowDays(
                 defaults.integer(forKey: DefaultsKeys.footballMatchLookaheadDays)
-            )
+            ),
+            slackConnections: storedSlackConnections,
+            slackStatusSyncRules: migratedSlackStatusSyncRules,
+            slackMeetingStatusText: legacySlackMeetingStatusText,
+            slackMeetingStatusEmoji: legacySlackMeetingStatusEmoji
         )
     }
 
@@ -128,6 +158,32 @@ struct AppSettingsStore {
             AppSettingsRules.normalizedFootballWindowDays(settings.footballMatchLookaheadDays),
             forKey: DefaultsKeys.footballMatchLookaheadDays
         )
+        defaults.set(
+            SlackMeetingStatus.normalizedText(settings.slackMeetingStatusText),
+            forKey: DefaultsKeys.slackMeetingStatusText
+        )
+        defaults.set(
+            SlackMeetingStatus.normalizedEmoji(settings.slackMeetingStatusEmoji),
+            forKey: DefaultsKeys.slackMeetingStatusEmoji
+        )
+        if let encodedSlackConnections = try? JSONEncoder().encode(
+            SlackConnection.normalized(settings.slackConnections)
+        ) {
+            defaults.set(encodedSlackConnections, forKey: DefaultsKeys.slackConnections)
+        }
+        if let encodedSlackStatusSyncRules = try? JSONEncoder().encode(
+            SlackStatusSyncRule.normalized(
+                settings.slackStatusSyncRules,
+                validConnectionIDs: Set(settings.slackConnections.map(\.id))
+            )
+        ) {
+            defaults.set(encodedSlackStatusSyncRules, forKey: DefaultsKeys.slackStatusSyncRules)
+        }
+
+        // Clear the legacy single-rule keys once the new multi-rule settings are written.
+        defaults.set(false, forKey: DefaultsKeys.enableSlackMeetingStatusSync)
+        defaults.set("", forKey: DefaultsKeys.slackMeetingCalendarID)
+        defaults.set("", forKey: DefaultsKeys.selectedSlackConnectionID)
     }
 
     func selectedCalendarIDs(for kind: CalendarItemKind) -> Set<String> {
@@ -138,6 +194,25 @@ struct AppSettingsStore {
     func weekdayOnlyCalendarIDs(for kind: CalendarItemKind) -> Set<String> {
         let key = kind == .event ? DefaultsKeys.weekdayOnlyEventCalendarIDs : DefaultsKeys.weekdayOnlyReminderCalendarIDs
         return Set(defaults.stringArray(forKey: key) ?? [])
+    }
+
+    func slackConnections() -> [SlackConnection] {
+        guard let data = defaults.data(forKey: DefaultsKeys.slackConnections) else { return [] }
+        let decoded = (try? JSONDecoder().decode([SlackConnection].self, from: data)) ?? []
+        return SlackConnection.normalized(decoded)
+    }
+
+    func slackStatusSyncRules(
+        connections: [SlackConnection],
+        availableCalendarIDs: Set<String>? = nil
+    ) -> [SlackStatusSyncRule] {
+        guard let data = defaults.data(forKey: DefaultsKeys.slackStatusSyncRules) else { return [] }
+        let decoded = (try? JSONDecoder().decode([SlackStatusSyncRule].self, from: data)) ?? []
+        return SlackStatusSyncRule.normalized(
+            decoded,
+            validConnectionIDs: Set(connections.map(\.id)),
+            validCalendarIDs: availableCalendarIDs
+        )
     }
 
     private var registrationDefaults: [String: Any] {
@@ -176,8 +251,31 @@ struct AppSettingsStore {
             DefaultsKeys.showFinishedFootballMatches: defaultSettings.showFinishedFootballMatches,
             DefaultsKeys.finishedFootballMatchLookbackDays: defaultSettings.finishedFootballMatchLookbackDays,
             DefaultsKeys.footballMatchLookaheadDays: defaultSettings.footballMatchLookaheadDays,
+            DefaultsKeys.slackMeetingStatusText: defaultSettings.slackMeetingStatusText,
+            DefaultsKeys.slackMeetingStatusEmoji: defaultSettings.slackMeetingStatusEmoji,
             DefaultsKeys.didAutoRecoverEmptyEventCalendarSelection: false,
             DefaultsKeys.didAutoRecoverEmptyReminderCalendarSelection: false,
         ]
+    }
+
+    private func migratedLegacySlackStatusSyncRules(
+        connections: [SlackConnection]
+    ) -> [SlackStatusSyncRule] {
+        let selectedConnectionID = defaults.string(forKey: DefaultsKeys.selectedSlackConnectionID) ?? ""
+        let selectedCalendarID = defaults.string(forKey: DefaultsKeys.slackMeetingCalendarID) ?? ""
+        let isEnabled = defaults.bool(forKey: DefaultsKeys.enableSlackMeetingStatusSync)
+
+        guard !selectedConnectionID.isEmpty, !selectedCalendarID.isEmpty else { return [] }
+
+        return SlackStatusSyncRule.normalized(
+            [
+                SlackStatusSyncRule(
+                    connectionID: selectedConnectionID,
+                    calendarID: selectedCalendarID,
+                    isEnabled: isEnabled
+                ),
+            ],
+            validConnectionIDs: Set(connections.map(\.id))
+        )
     }
 }

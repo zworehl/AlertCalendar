@@ -265,7 +265,7 @@ actor FootballDataAPIClient {
     ) async -> [FootballFixtureMatch] {
         guard !matches.isEmpty else { return matches }
 
-        let now = Date()
+        let now = AlertCalendarClock.nowRoundedToSecond()
         let candidates = matches.filter { match in
             if forceSummaryForMatchIDs.contains(match.id) {
                 return true

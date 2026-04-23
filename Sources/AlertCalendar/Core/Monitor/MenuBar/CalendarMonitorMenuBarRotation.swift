@@ -45,13 +45,25 @@ extension CalendarMonitor {
     }
 
     func rotatingAllDayEventItem(now: Date, settings: AppSettings) -> UpcomingItem? {
-        guard !allDayEventItems.isEmpty else { return nil }
-        guard allDayEventItems.count > 1 else { return allDayEventItems[0] }
+        let futureWindowEnd = now.addingTimeInterval(
+            TimeInterval(max(5, settings.menuBarRotationWindowMinutes) * 60)
+        )
+        let eligibleAllDayItems = allDayEventItems.filter {
+            Self.shouldIncludeAllDayItemInMenuBarRotation(
+                startDate: $0.date,
+                endDate: $0.endDate,
+                now: now,
+                futureWindowEnd: futureWindowEnd
+            )
+        }
+
+        guard !eligibleAllDayItems.isEmpty else { return nil }
+        guard eligibleAllDayItems.count > 1 else { return eligibleAllDayItems[0] }
 
         let rotationSeconds = max(5, settings.concurrentEventRotationSeconds)
         let slot = rotationSlot(now: now, seconds: rotationSeconds)
-        let rotatingIndex = abs(slot) % allDayEventItems.count
-        return allDayEventItems[rotatingIndex]
+        let rotatingIndex = abs(slot) % eligibleAllDayItems.count
+        return eligibleAllDayItems[rotatingIndex]
     }
 
     func rotatingTimedItem(now: Date, settings: AppSettings) -> UpcomingItem? {

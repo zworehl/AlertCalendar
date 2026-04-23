@@ -222,7 +222,7 @@ extension CalendarMonitor {
             calendarIdentifier: event.calendar.calendarIdentifier,
             eventIdentifier: event.eventIdentifier,
             eventUID: normalizedEventUID(for: event),
-            startDate: event.startDate ?? Date()
+            startDate: event.startDate ?? fixedSecondNow()
         )
     }
 

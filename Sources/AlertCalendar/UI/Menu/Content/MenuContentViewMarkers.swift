@@ -42,33 +42,11 @@ extension MenuContentView {
     }
 
     nonisolated static func reminderDueText(dueDate: Date, now: Date, simplified: Bool) -> String {
-        let elapsed = max(Int(now.timeIntervalSince(dueDate)), 0)
-        if elapsed < 60 {
-            return "\(elapsed)s ago"
-        }
-
-        let days = elapsed / 86_400
-        let hours = (elapsed % 86_400) / 3_600
-        let minutes = (elapsed % 3_600) / 60
-        let body: String
-
-        if simplified {
-            if days > 0 {
-                body = "\(days)d"
-            } else if hours > 0 {
-                body = "\(hours)h"
-            } else {
-                body = "\(minutes)m"
-            }
-        } else if days > 0 {
-            body = "\(days)d \(hours)h \(minutes)m"
-        } else if hours > 0 {
-            body = "\(hours)h \(minutes)m"
-        } else {
-            body = "\(minutes)m"
-        }
-
-        return "\(body) ago"
+        AlertCalendarRelativeTimeFormatter.elapsedAgoText(
+            from: dueDate,
+            to: now,
+            simplified: simplified
+        )
     }
 
     func markerSymbolName(for item: UpcomingItem) -> String? {
@@ -185,7 +163,12 @@ extension MenuContentView {
 
         var rightColumnWidth: CGFloat = 0
         let usesEventStyleLayout = item.kind == .event
-        let allDayRightLabel = monitor.allDayLabel(for: item)
+        let now = displayReferenceDate
+        let allDayRightLabel = monitor.allDayLabel(
+            for: item,
+            now: now,
+            simplified: settings.useSimplifiedCountdown
+        )
         let showRightTimeColumn = usesEventStyleLayout && (!item.isAllDay || allDayRightLabel != nil)
         if showRightTimeColumn {
             let startWidth = Self.measuredTextWidth(timeText(item.date), font: detailFont)
@@ -206,22 +189,62 @@ extension MenuContentView {
     }
 
     func hoverActionRowWidth(for item: UpcomingItem) -> CGFloat {
-        let pillHorizontalPadding: CGFloat = 12
-        let pillHeight: CGFloat = 18
-        let pillSpacing: CGFloat = 4
-        let trailingPadding: CGFloat = 2
         var widths: [CGFloat] = []
 
         if item.meetingURL != nil {
-            let joinTextFont = NSFont.systemFont(ofSize: 11, weight: .semibold)
-            let joinTextWidth = Self.measuredTextWidth("Join", font: joinTextFont)
-            let joinIconWidth: CGFloat = 11
-            let joinInnerSpacing: CGFloat = 4
-            widths.append(joinIconWidth + joinInnerSpacing + joinTextWidth + pillHorizontalPadding)
+            widths.append(joinActionPillWidth())
         }
 
-        // The skip button uses the same action pill chrome around a 12pt icon.
-        widths.append(12 + pillHorizontalPadding)
+        widths.append(skipActionPillWidth())
+
+        return actionButtonOverlayWidth(for: widths, trailingPadding: 2)
+    }
+
+    func contextualActionRowWidth(
+        for item: UpcomingItem,
+        locationText: String?,
+        showsJoinButton: Bool
+    ) -> CGFloat {
+        var widths: [CGFloat] = [skipActionPillWidth()]
+
+        if showsJoinButton, item.meetingURL != nil {
+            widths.insert(joinActionPillWidth(), at: 0)
+        }
+
+        if let locationText,
+           !locationText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            widths.append(mapActionPillWidth())
+        }
+
+        return actionButtonOverlayWidth(for: widths, trailingPadding: 6)
+    }
+
+    func joinActionPillWidth() -> CGFloat {
+        let pillHorizontalPadding: CGFloat = 12
+        let joinTextFont = NSFont.systemFont(ofSize: 11, weight: .semibold)
+        let joinTextWidth = Self.measuredTextWidth("Join", font: joinTextFont)
+        return joinTextWidth + pillHorizontalPadding
+    }
+
+    func mapActionPillWidth() -> CGFloat {
+        let pillHorizontalPadding: CGFloat = 12
+        let mapTextFont = NSFont.systemFont(ofSize: 11, weight: .semibold)
+        let mapTextWidth = Self.measuredTextWidth("Map", font: mapTextFont)
+        let mapIconWidth: CGFloat = 11
+        let mapInnerSpacing: CGFloat = 4
+        return mapIconWidth + mapInnerSpacing + mapTextWidth + pillHorizontalPadding
+    }
+
+    func skipActionPillWidth() -> CGFloat {
+        let pillHorizontalPadding: CGFloat = 12
+        let skipTextFont = NSFont.systemFont(ofSize: 11, weight: .semibold)
+        let skipTextWidth = Self.measuredTextWidth("Skip", font: skipTextFont)
+        return skipTextWidth + pillHorizontalPadding
+    }
+
+    func actionButtonOverlayWidth(for widths: [CGFloat], trailingPadding: CGFloat) -> CGFloat {
+        let pillHeight: CGFloat = 18
+        let pillSpacing: CGFloat = 4
 
         guard !widths.isEmpty else { return 0 }
         let totalSpacing = pillSpacing * CGFloat(max(widths.count - 1, 0))
@@ -229,7 +252,7 @@ extension MenuContentView {
     }
 
     var contextualActionCandidates: [UpcomingItem] {
-        let now = Date()
+        let now = displayReferenceDate
 
         return allEventItemsForContextualActions.filter { item in
             shouldShowContextualPreview(for: item, now: now)
@@ -238,11 +261,11 @@ extension MenuContentView {
     }
 
     var contextualPreviewActionItems: [UpcomingItem] {
-        Self.contextualActionItems(from: contextualActionCandidates, now: Date())
+        Self.contextualActionItems(from: contextualActionCandidates, now: displayReferenceDate)
     }
 
     var footballContextualActionItems: [UpcomingItem] {
-        Self.footballContextualActionItems(from: contextualActionCandidates, now: Date())
+        Self.footballContextualActionItems(from: contextualActionCandidates, now: displayReferenceDate)
     }
 
     var displayedContextualActionItems: [UpcomingItem] {

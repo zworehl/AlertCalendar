@@ -11,7 +11,7 @@ extension SettingsView {
     }
 
     func storedDraft() -> SettingsDraft {
-        SettingsDraft(settings: monitor.settingsStore.load())
+        SettingsDraft(settings: monitor.currentSettings)
     }
 
     func resetDraft() {
@@ -40,11 +40,16 @@ extension SettingsView {
         astronomyLocationStatus = monitor.astronomyLocationStatus
         locationAuthorizationStatus = SettingsPermissionKind.currentLocationAuthorizationStatus()
         lastRefreshDate = monitor.lastRefreshDate
+        activeFocusCalendarFilterState = monitor.activeFocusCalendarFilterState
+        slackConnections = monitor.slackConnections()
+        slackConnectionStatusMessage = monitor.slackConnectionStatusMessage
+        slackRuntimeStatusDescription = monitor.slackRuntimeStatusDescription
+        syncSlackDraftSelectionIfNeeded()
     }
 
     func applyDraft() {
-        let oldAutoLocation = monitor.settingsStore.load().useAutomaticAstronomyLocation
-        var settings = monitor.settingsStore.load()
+        let oldAutoLocation = monitor.currentSettings.useAutomaticAstronomyLocation
+        var settings = monitor.currentSettings
 
         settings.includeEvents = draft.includeEvents
         settings.includeAllDayEvents = draft.includeAllDayEvents
@@ -80,8 +85,15 @@ extension SettingsView {
         settings.selectedReminderCalendarIDs = draft.selectedReminderCalendarIDs
         settings.weekdayOnlyEventCalendarIDs = draft.weekdayOnlyEventCalendarIDs
         settings.weekdayOnlyReminderCalendarIDs = draft.weekdayOnlyReminderCalendarIDs
+        settings.slackMeetingStatusText = SlackMeetingStatus.normalizedText(draft.slackMeetingStatusText)
+        settings.slackMeetingStatusEmoji = SlackMeetingStatus.normalizedEmoji(draft.slackMeetingStatusEmoji)
+        settings.slackStatusSyncRules = SlackStatusSyncRule.normalized(
+            draft.slackStatusSyncRules,
+            validConnectionIDs: Set(settings.slackConnections.map(\.id)),
+            validCalendarIDs: Set(availableEventCalendars.map(\.id))
+        )
 
-        monitor.settingsStore.save(settings)
+        monitor.persistSettings(settings)
 
         if draft.useAutomaticAstronomyLocation, !oldAutoLocation {
             monitor.refreshAstronomyCoordinatesFromSystem()
@@ -94,12 +106,12 @@ extension SettingsView {
     }
 
     func persistCalendarSelectionDraft() {
-        var settings = monitor.settingsStore.load()
+        var settings = monitor.currentSettings
         settings.selectedEventCalendarIDs = draft.selectedEventCalendarIDs
         settings.selectedReminderCalendarIDs = draft.selectedReminderCalendarIDs
         settings.weekdayOnlyEventCalendarIDs = draft.weekdayOnlyEventCalendarIDs
         settings.weekdayOnlyReminderCalendarIDs = draft.weekdayOnlyReminderCalendarIDs
-        monitor.settingsStore.save(settings)
+        monitor.persistSettings(settings)
         monitor.refreshNow()
     }
 
@@ -133,6 +145,254 @@ extension SettingsView {
 
     func normalizedContextualPreviewLeadMinutes(_ value: Int, dropdownWindowHours: Int) -> Int {
         Self.normalizedContextualPreviewLeadMinutes(value, dropdownWindowHours: dropdownWindowHours)
+    }
+
+    func synchronizeActiveFocusFilterNow() {
+        Task { @MainActor in
+            await monitor.refreshFocusCalendarFilterStateFromSystemIfPossible()
+            monitor.refreshNow()
+        }
+    }
+
+    func openSystemSettingsRoot() {
+        guard let url = URL(string: "x-apple.systempreferences:") else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    func connectSlackToken() {
+        let token = slackUserTokenDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !token.isEmpty else {
+            slackConnectErrorMessage = "Paste a Slack user token first."
+            return
+        }
+
+        slackConnectErrorMessage = nil
+
+        Task { @MainActor in
+            do {
+                _ = try await monitor.connectSlackUserToken(token)
+                slackUserTokenDraft = ""
+                slackConnections = monitor.slackConnections()
+                draft.slackStatusSyncRules = monitor.currentSettings.slackStatusSyncRules
+                syncSlackDraftSelectionIfNeeded()
+                slackConnectionStatusMessage = "Slack token connected."
+                didAttemptSlackConnectionMetadataRefresh = false
+                refreshSlackConnectionMetadataIfNeeded(force: true)
+                monitor.refreshNow()
+            } catch {
+                slackConnectErrorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    func extractSlackTokenFromClipboard() {
+        guard let clipboardText = NSPasteboard.general.string(forType: .string),
+              let token = SlackUserTokenExtractor.firstToken(in: clipboardText) else {
+            slackConnectErrorMessage = "No Slack user token was found in the clipboard."
+            return
+        }
+
+        slackUserTokenDraft = token
+        slackConnectErrorMessage = nil
+        slackConnectionStatusMessage = "Slack token extracted from the clipboard."
+    }
+
+    func openSlackAppDashboard() {
+        guard let url = URL(string: "https://api.slack.com/apps") else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    func removeSlackAccount(_ connection: SlackConnection) {
+        Task { @MainActor in
+            await monitor.removeSlackConnection(connection)
+            slackConnections = monitor.slackConnections()
+            draft.slackStatusSyncRules.removeAll { $0.connectionID == connection.id }
+            syncSlackDraftSelectionIfNeeded()
+        }
+    }
+
+    func preferredSlackMeetingCalendarID() -> String {
+        if let selectedCalendar = availableEventCalendars.first(where: { draft.selectedEventCalendarIDs.contains($0.id) }) {
+            return selectedCalendar.id
+        }
+        return availableEventCalendars.first?.id ?? ""
+    }
+
+    func addSlackStatusSyncRule() {
+        guard
+            let availablePair = firstAvailableSlackStatusSyncPair(
+                preferredConnectionID: slackConnections.first?.id,
+                preferredCalendarID: preferredSlackMeetingCalendarID()
+            )
+        else {
+            return
+        }
+
+        draft.slackStatusSyncRules.append(
+            SlackStatusSyncRule(
+                connectionID: availablePair.connectionID,
+                calendarID: availablePair.calendarID,
+                isEnabled: false
+            )
+        )
+        syncSlackDraftSelectionIfNeeded()
+    }
+
+    func removeSlackStatusSyncRule(_ ruleID: String) {
+        draft.slackStatusSyncRules.removeAll { $0.id == ruleID }
+    }
+
+    func syncSlackDraftSelectionIfNeeded() {
+        let orderedConnectionIDs = slackConnections.map(\.id)
+        let orderedCalendarIDs = availableEventCalendars.map(\.id)
+        let validConnectionIDs = Set(orderedConnectionIDs)
+        let validCalendarIDs = Set(orderedCalendarIDs)
+        let fallbackConnectionID = slackConnections.first?.id ?? ""
+        let fallbackCalendarID = preferredSlackMeetingCalendarID()
+
+        draft.slackStatusSyncRules = SlackStatusSyncRule.uniquelyResolved(
+            draft.slackStatusSyncRules.map { rule in
+                var updatedRule = rule
+
+                if !validConnectionIDs.contains(updatedRule.connectionID) {
+                    updatedRule.connectionID = fallbackConnectionID
+                    updatedRule.isEnabled = false
+                }
+
+                if !validCalendarIDs.contains(updatedRule.calendarID) {
+                    updatedRule.calendarID = fallbackCalendarID
+                    updatedRule.isEnabled = false
+                }
+
+                return updatedRule
+            },
+            orderedConnectionIDs: orderedConnectionIDs,
+            orderedCalendarIDs: orderedCalendarIDs
+        )
+    }
+
+    func hasAvailableSlackStatusSyncPair(excludingRuleID: String? = nil) -> Bool {
+        firstAvailableSlackStatusSyncPair(excludingRuleID: excludingRuleID) != nil
+    }
+
+    func firstAvailableSlackStatusSyncPair(
+        preferredConnectionID: String? = nil,
+        preferredCalendarID: String? = nil,
+        excludingRuleID: String? = nil
+    ) -> (connectionID: String, calendarID: String)? {
+        let usedPairKeys: Set<String> = Set(
+            draft.slackStatusSyncRules.compactMap { rule in
+                guard rule.id != excludingRuleID else { return nil }
+                guard
+                    let connectionID = SlackConnection.normalizedValue(rule.connectionID),
+                    let calendarID = SlackConnection.normalizedValue(rule.calendarID)
+                else {
+                    return nil
+                }
+
+                return SlackStatusSyncRule.pairKey(connectionID: connectionID, calendarID: calendarID)
+            }
+        )
+
+        return SlackStatusSyncRule.firstAvailablePair(
+            orderedConnectionIDs: slackConnections.map(\.id),
+            orderedCalendarIDs: availableEventCalendars.map(\.id),
+            usedPairKeys: usedPairKeys,
+            preferredConnectionID: preferredConnectionID,
+            preferredCalendarID: preferredCalendarID
+        )
+    }
+
+    func isSlackStatusSyncPairAvailable(
+        connectionID: String,
+        calendarID: String,
+        excludingRuleID: String
+    ) -> Bool {
+        guard
+            let normalizedConnectionID = SlackConnection.normalizedValue(connectionID),
+            let normalizedCalendarID = SlackConnection.normalizedValue(calendarID)
+        else {
+            return false
+        }
+
+        let pairKey = SlackStatusSyncRule.pairKey(
+            connectionID: normalizedConnectionID,
+            calendarID: normalizedCalendarID
+        )
+
+        return !draft.slackStatusSyncRules.contains { rule in
+            guard rule.id != excludingRuleID else { return false }
+            guard
+                let existingConnectionID = SlackConnection.normalizedValue(rule.connectionID),
+                let existingCalendarID = SlackConnection.normalizedValue(rule.calendarID)
+            else {
+                return false
+            }
+
+            return SlackStatusSyncRule.pairKey(
+                connectionID: existingConnectionID,
+                calendarID: existingCalendarID
+            ) == pairKey
+        }
+    }
+
+    func updateSlackStatusSyncRuleConnection(_ connectionID: String, at index: Int) {
+        guard draft.slackStatusSyncRules.indices.contains(index) else { return }
+
+        let rule = draft.slackStatusSyncRules[index]
+        guard let replacement = firstAvailableSlackStatusSyncPair(
+            preferredConnectionID: connectionID,
+            preferredCalendarID: rule.calendarID,
+            excludingRuleID: rule.id
+        ) else {
+            return
+        }
+
+        draft.slackStatusSyncRules[index].connectionID = replacement.connectionID
+        draft.slackStatusSyncRules[index].calendarID = replacement.calendarID
+    }
+
+    func updateSlackStatusSyncRuleCalendar(_ calendarID: String, at index: Int) {
+        guard draft.slackStatusSyncRules.indices.contains(index) else { return }
+
+        let rule = draft.slackStatusSyncRules[index]
+        guard let replacement = firstAvailableSlackStatusSyncPair(
+            preferredConnectionID: rule.connectionID,
+            preferredCalendarID: calendarID,
+            excludingRuleID: rule.id
+        ) else {
+            return
+        }
+
+        draft.slackStatusSyncRules[index].connectionID = replacement.connectionID
+        draft.slackStatusSyncRules[index].calendarID = replacement.calendarID
+    }
+
+    func refreshSlackConnectionMetadataIfNeeded(force: Bool = false) {
+        guard !isRefreshingSlackConnectionMetadata else { return }
+        guard force || !didAttemptSlackConnectionMetadataRefresh else { return }
+
+        let connectionsToRefresh = force
+            ? slackConnections
+            : slackConnections.filter {
+                $0.profileImageURLString == nil || $0.workspaceImageURLString == nil
+            }
+        guard !connectionsToRefresh.isEmpty else {
+            didAttemptSlackConnectionMetadataRefresh = true
+            return
+        }
+
+        isRefreshingSlackConnectionMetadata = true
+        didAttemptSlackConnectionMetadataRefresh = true
+
+        Task { @MainActor in
+            await monitor.refreshSlackConnectionMetadataIfNeeded(force: force)
+            slackConnections = monitor.slackConnections()
+            draft.slackStatusSyncRules = monitor.currentSettings.slackStatusSyncRules
+            syncSlackDraftSelectionIfNeeded()
+            slackConnectionStatusMessage = monitor.slackConnectionStatusMessage
+            isRefreshingSlackConnectionMetadata = false
+        }
     }
 
 }

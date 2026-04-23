@@ -3,19 +3,50 @@ import EventKit
 import Foundation
 
 extension CalendarMonitor {
-    static let allDayDateFormatter: DateFormatter = {
+    nonisolated static func makeAllDayDateFormatter(locale: Locale) -> DateFormatter {
         let formatter = DateFormatter()
-        formatter.locale = .autoupdatingCurrent
-        formatter.setLocalizedDateFormatFromTemplate("MMM d")
+        formatter.locale = locale
+        formatter.dateFormat = "MMM d"
         return formatter
+    }
+
+    nonisolated static func makeAllDayMonthFormatter(locale: Locale) -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.dateFormat = "MMM"
+        return formatter
+    }
+
+    nonisolated static let allDayDateFormatter: DateFormatter = {
+        makeAllDayDateFormatter(locale: .autoupdatingCurrent)
     }()
 
-    static let allDayMonthFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = .autoupdatingCurrent
-        formatter.setLocalizedDateFormatFromTemplate("MMM")
-        return formatter
+    nonisolated static let allDayMonthFormatter: DateFormatter = {
+        makeAllDayMonthFormatter(locale: .autoupdatingCurrent)
     }()
+
+    nonisolated static func formattedAllDayRange(
+        startDay: Date,
+        lastInclusiveDay: Date,
+        calendar: Calendar = .current,
+        locale: Locale? = nil
+    ) -> String {
+        let dateFormatter = locale.map(makeAllDayDateFormatter(locale:)) ?? allDayDateFormatter
+        let monthFormatter = locale.map(makeAllDayMonthFormatter(locale:)) ?? allDayMonthFormatter
+
+        let sameMonth = calendar.isDate(startDay, equalTo: lastInclusiveDay, toGranularity: .month)
+            && calendar.isDate(startDay, equalTo: lastInclusiveDay, toGranularity: .year)
+        if sameMonth {
+            let monthText = monthFormatter.string(from: startDay)
+            let startDayNumber = calendar.component(.day, from: startDay)
+            let endDayNumber = calendar.component(.day, from: lastInclusiveDay)
+            return "\(monthText) \(startDayNumber)-\(endDayNumber)"
+        }
+
+        let startText = dateFormatter.string(from: startDay)
+        let endText = dateFormatter.string(from: lastInclusiveDay)
+        return "\(startText)-\(endText)"
+    }
 
     func setIfChanged<T: Equatable>(_ keyPath: ReferenceWritableKeyPath<CalendarMonitor, T>, to newValue: T) {
         if self[keyPath: keyPath] != newValue {

@@ -6,130 +6,59 @@ import EventKit
 import SwiftUI
 
 extension SettingsView {
-    @ViewBuilder
-    func permissionActionCard(for permission: SettingsPermissionKind) -> some View {
-        let grantState = permissionGrantState(for: permission)
-        let isRequesting = activePermissionRequests.contains(permission)
-
-        VStack(alignment: .leading, spacing: 14) {
-            permissionActionCardHeader(for: permission, grantState: grantState)
-
-            Text(permission.summary)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Text(permissionGrantDescription(for: permission, state: grantState))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Spacer(minLength: 0)
-
-            permissionActionButtons(
-                for: permission,
-                grantState: grantState,
-                isRequesting: isRequesting,
-                shouldStack: permissionButtonsShouldStack
-            )
+    func integrationDescription(for integration: SettingsIntegrationKind) -> String {
+        switch integration {
+        case .focusFilters:
+            return focusFiltersIntegrationDescription()
+        case .slackStatusSync:
+            return slackIntegrationDescription()
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(permissionBorderColor(for: grantState), lineWidth: 1)
-                )
+    }
+
+    func focusFiltersIntegrationDescription() -> String {
+        guard let activeFocusCalendarFilterState, activeFocusCalendarFilterState.hasActiveOverrides else {
+            return "No active Focus override is changing calendars right now. AlertCalendar is using the default selection."
+        }
+
+        let eventSummary = focusSelectionSummary(
+            for: activeFocusCalendarFilterState.selection(for: .event),
+            calendars: availableEventCalendars,
+            emptyFallback: "Events use the default selection"
         )
+        let reminderSummary = focusSelectionSummary(
+            for: activeFocusCalendarFilterState.selection(for: .reminder),
+            calendars: availableReminderCalendars,
+            emptyFallback: "Reminders use the default selection"
+        )
+        return "\(eventSummary). \(reminderSummary)."
     }
 
-    @ViewBuilder
-    func permissionActionCardHeader(for permission: SettingsPermissionKind, grantState: PermissionGrantState) -> some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 12) {
-                SettingsPermissionIconView(
-                    fallbackSymbolName: permission.fallbackSymbolName,
-                    gradient: permission.accentGradient,
-                    appIconPath: permission.appIconPath
-                )
+    func focusSelectionSummary(
+        for selection: FocusCalendarSelectionOverride?,
+        calendars: [AvailableCalendar],
+        emptyFallback: String
+    ) -> String {
+        guard let selection, selection.isActive else { return emptyFallback }
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(permission.title)
-                        .font(.headline)
-                        .fixedSize(horizontal: true, vertical: false)
-                        .layoutPriority(1)
+        let names = calendars
+            .filter { selection.calendarIDs.contains($0.id) }
+            .map(\.title)
+            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
 
-                    permissionStatusBadge(for: grantState)
-                }
-            }
-            .fixedSize(horizontal: true, vertical: false)
+        guard !names.isEmpty else { return emptyFallback }
 
-            HStack(alignment: .top, spacing: 12) {
-                SettingsPermissionIconView(
-                    fallbackSymbolName: permission.fallbackSymbolName,
-                    gradient: permission.accentGradient,
-                    appIconPath: permission.appIconPath
-                )
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(permission.title)
-                        .font(.headline)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    permissionStatusBadge(for: grantState)
-                }
-            }
+        let visibleNames: String
+        if names.count > 2 {
+            visibleNames = names.prefix(2).joined(separator: ", ") + " +\(names.count - 2) more"
+        } else {
+            visibleNames = names.joined(separator: ", ")
         }
-    }
 
-    @ViewBuilder
-    func permissionActionButtons(
-        for permission: SettingsPermissionKind,
-        grantState: PermissionGrantState,
-        isRequesting: Bool,
-        shouldStack: Bool
-    ) -> some View {
-        Group {
-            if shouldStack {
-                VStack(alignment: .trailing, spacing: 8) {
-                    permissionPrimaryButton(
-                        for: permission,
-                        grantState: grantState,
-                        isRequesting: isRequesting
-                    )
-                    .frame(maxWidth: .infinity)
-
-                    permissionSettingsButton(for: permission)
-                        .frame(maxWidth: .infinity)
-                }
-                .frame(maxWidth: .infinity, alignment: .trailing)
-            } else {
-                HStack(spacing: 10) {
-                    permissionPrimaryButton(
-                        for: permission,
-                        grantState: grantState,
-                        isRequesting: isRequesting
-                    )
-
-                    permissionSettingsButton(for: permission)
-                }
-                .frame(maxWidth: .infinity, alignment: .trailing)
-            }
-        }
-    }
-
-    func updatePermissionButtonsLayout(windowWidth: CGFloat) {
-        let cardCount = CGFloat(SettingsPermissionKind.allCases.count)
-        let spacing: CGFloat = 12
-        let horizontalPadding: CGFloat = 40
-        let totalSpacing = spacing * max(cardCount - 1, 0)
-        let available = max(windowWidth - horizontalPadding - totalSpacing, 0)
-        let cardWidth = available / max(cardCount, 1)
-        let shouldStack = cardWidth < 400
-        if shouldStack != permissionButtonsShouldStack {
-            permissionButtonsShouldStack = shouldStack
+        switch selection.action {
+        case .hideSelected:
+            return "Hide \(visibleNames)"
+        case .showOnlySelected:
+            return "Show only \(visibleNames)"
         }
     }
 
@@ -167,7 +96,14 @@ extension SettingsView {
 
     @ViewBuilder
     func permissionStatusBadge(for state: PermissionGrantState) -> some View {
-        Text(state.badgeTitle)
+        cardStatusBadge(
+            SettingsCardBadgeState(title: state.badgeTitle, tint: state.tint)
+        )
+    }
+
+    @ViewBuilder
+    func cardStatusBadge(_ state: SettingsCardBadgeState) -> some View {
+        Text(state.title)
             .font(.caption.weight(.semibold))
             .foregroundStyle(state.tint)
             .padding(.horizontal, 10)
@@ -181,13 +117,13 @@ extension SettingsView {
     func permissionPrimaryActionTitle(for permission: SettingsPermissionKind, state: PermissionGrantState) -> String {
         switch state {
         case .allowed:
-            return permission == .location ? "Check access" : "Check access again"
+            return "Check access"
         case .notRequested:
             return "Request access"
         case .limited:
             return permission == .location ? "Check access" : "Upgrade access"
         case .denied, .restricted:
-            return permission == .location ? "Check access" : "Check access again"
+            return "Check access"
         }
     }
 
@@ -296,7 +232,7 @@ extension SettingsView {
             case .location:
                 let status = await monitor.requestLocationAuthorizationIfNeeded()
                 locationAuthorizationStatus = status
-                if monitor.settingsStore.load().useAutomaticAstronomyLocation,
+                if monitor.currentSettings.useAutomaticAstronomyLocation,
                    Self.permissionGrantState(for: status) == .allowed {
                     monitor.refreshAstronomyCoordinatesFromSystem()
                 }
@@ -370,5 +306,4 @@ extension SettingsView {
             .frame(width: 170, alignment: .trailing)
         }
     }
-
 }

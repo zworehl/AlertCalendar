@@ -17,6 +17,10 @@ struct SettingsAstronomySectionView: View {
     let nextLunarPhasesProvider: (Date) -> [AstronomyPreviewMoment]
     let nextOrbitalHighlightsProvider: (Date) -> [AstronomyPreviewMoment]
 
+    private var previewReferenceDate: Date {
+        AlertCalendarClock.nowRoundedToSecond()
+    }
+
     var body: some View {
         GroupBox(title) {
             if showsCalculatedTimes {
@@ -61,7 +65,7 @@ struct SettingsAstronomySectionView: View {
                     DaylightPreviewArtwork(
                         latitude: astronomyLatitude,
                         longitude: astronomyLongitude,
-                        date: Date(),
+                        date: previewReferenceDate,
                         isEnabled: hasValidCoordinates && !enabledSolarMoments.isEmpty
                     )
                     .aspectRatio(2.02, contentMode: ContentMode.fit)
@@ -114,7 +118,7 @@ struct SettingsAstronomySectionView: View {
                 ) {
                     OrbitalHighlightsArtwork(
                         preview: preview,
-                        date: Date(),
+                        date: previewReferenceDate,
                         isEnabled: showsOrbitalHighlights
                     )
                     .aspectRatio(2.02, contentMode: ContentMode.fit)
@@ -216,7 +220,7 @@ struct SettingsAstronomySectionView: View {
             return nil
         }
 
-        let now = Date()
+        let now = previewReferenceDate
         let coordinate = (lat: astronomyLatitude, lon: astronomyLongitude)
         let calendar = Calendar.current
         var nextSunrise: Date?
@@ -252,11 +256,11 @@ struct SettingsAstronomySectionView: View {
     }
 
     private func nextLunarPhases() -> [AstronomyPreviewMoment] {
-        nextLunarPhasesProvider(Date())
+        nextLunarPhasesProvider(previewReferenceDate)
     }
 
     private func nextOrbitalHighlights() -> [AstronomyPreviewMoment] {
-        nextOrbitalHighlightsProvider(Date())
+        nextOrbitalHighlightsProvider(previewReferenceDate)
     }
 
     private func astronomyInfoGrid(

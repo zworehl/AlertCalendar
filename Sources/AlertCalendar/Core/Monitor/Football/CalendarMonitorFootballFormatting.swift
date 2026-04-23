@@ -36,7 +36,7 @@ extension CalendarMonitor {
 
     nonisolated static func footballKickoffStatusText(
         for startDate: Date,
-        now: Date = Date(),
+        now: Date = AlertCalendarClock.nowRoundedToSecond(),
         calendar: Calendar = .autoupdatingCurrent,
         locale: Locale = .autoupdatingCurrent,
         timeZone: TimeZone = .autoupdatingCurrent
@@ -74,7 +74,7 @@ extension CalendarMonitor {
 
     nonisolated static func footballStartedStatusText(
         for startDate: Date,
-        now: Date = Date(),
+        now: Date = AlertCalendarClock.nowRoundedToSecond(),
         calendar: Calendar = .autoupdatingCurrent,
         locale: Locale = .autoupdatingCurrent,
         timeZone: TimeZone = .autoupdatingCurrent
@@ -106,7 +106,7 @@ extension CalendarMonitor {
 
     nonisolated static func footballScheduleText(
         for match: FootballFixtureMatch,
-        now: Date = Date(),
+        now: Date = AlertCalendarClock.nowRoundedToSecond(),
         calendar: Calendar = .autoupdatingCurrent,
         locale: Locale = .autoupdatingCurrent,
         timeZone: TimeZone = .autoupdatingCurrent
@@ -142,7 +142,7 @@ extension CalendarMonitor {
 
     nonisolated static func footballStatusBadgeText(
         for match: FootballFixtureMatch,
-        now: Date = Date()
+        now: Date = AlertCalendarClock.nowRoundedToSecond()
     ) -> String? {
         if match.statusReliability == .awaitingLiveData || match.statusReliability == .delayedLiveData {
             return "Soon"

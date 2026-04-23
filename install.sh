@@ -8,20 +8,34 @@ APP_DIR="${APP_DIR:-/Applications}"
 OPEN_AFTER_INSTALL="${OPEN_AFTER_INSTALL:-1}"
 ICON_SOURCE="$ROOT/Sources/AlertCalendar/Resources/Images/icon.png"
 USER_APP_DIR="$HOME/Applications"
+BUILD_CONFIGURATION="${BUILD_CONFIGURATION:-Release}"
+BUILD_ARCH="${BUILD_ARCH:-$(uname -m)}"
+DEPLOYMENT_TARGET="13.0"
+DERIVED_DATA="${DERIVED_DATA:-$ROOT/.build/install-derived-data}"
+PRODUCTS_DIR="$DERIVED_DATA/Build/Products/$BUILD_CONFIGURATION"
+INTERMEDIATES_DIR="$DERIVED_DATA/Build/Intermediates.noindex/AlertCalendar.build/$BUILD_CONFIGURATION/AlertCalendar.build"
+RESOURCE_BUNDLE_NAME="${APP_NAME}_${BINARY_NAME}.bundle"
+RESOURCE_BUNDLE_SOURCE="$PRODUCTS_DIR/$RESOURCE_BUNDLE_NAME"
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   echo "This installer supports macOS only."
   exit 1
 fi
 
-echo "[1/3] Building ${APP_NAME} (release)..."
-swift build -c release --package-path "$ROOT"
+case "$BUILD_ARCH" in
+  arm64|x86_64)
+    ;;
+  *)
+    echo "Unsupported macOS architecture: $BUILD_ARCH"
+    exit 1
+    ;;
+esac
 
-BINARY_PATH="$(find "$ROOT/.build" -type f -path "*/release/${BINARY_NAME}" | head -n 1)"
-if [[ -z "$BINARY_PATH" ]]; then
-  echo "Unable to locate built binary: ${BINARY_NAME}"
-  exit 1
-fi
+BINARY_PATH="$PRODUCTS_DIR/$BINARY_NAME"
+OBJECTS_DIR="$INTERMEDIATES_DIR/Objects-normal/$BUILD_ARCH"
+SOURCE_FILE_LIST="$OBJECTS_DIR/${BINARY_NAME}.SwiftFileList"
+SWIFT_CONST_VALS_LIST="$DERIVED_DATA/${BINARY_NAME}.swiftconstvalues.list"
+TARGET_TRIPLE="${BUILD_ARCH}-apple-macos${DEPLOYMENT_TARGET}"
 
 APP_BUNDLE="$APP_DIR/${APP_NAME}.app"
 
@@ -36,12 +50,76 @@ remove_duplicate_installs() {
   done < <(find "$USER_APP_DIR" /Applications -maxdepth 2 -iname "${APP_NAME}.app" -print 2>/dev/null)
 }
 
-echo "[2/3] Installing to ${APP_BUNDLE}..."
+generate_app_intents_metadata() {
+  local metadata_tool
+  local developer_dir
+  local sdk_root
+  local xcode_build_version
+  local output_path
+
+  metadata_tool="$(xcrun --find appintentsmetadataprocessor)"
+  developer_dir="$(xcode-select -p)"
+  sdk_root="$(xcrun --sdk macosx --show-sdk-path)"
+  xcode_build_version="$(xcodebuild -version | awk '/Build version/ { print $3 }')"
+  output_path="$APP_BUNDLE/Contents/Resources"
+
+  if [[ ! -f "$SOURCE_FILE_LIST" ]]; then
+    echo "Unable to locate Swift source list for App Intents metadata."
+    exit 1
+  fi
+
+  find "$OBJECTS_DIR" -name '*.swiftconstvalues' -print > "$SWIFT_CONST_VALS_LIST"
+  if [[ ! -s "$SWIFT_CONST_VALS_LIST" ]]; then
+    echo "Unable to locate Swift constant values for App Intents metadata."
+    exit 1
+  fi
+
+  "$metadata_tool" \
+    --output "$output_path" \
+    --toolchain-dir "$developer_dir/Toolchains/XcodeDefault.xctoolchain" \
+    --module-name "$BINARY_NAME" \
+    --sdk-root "$sdk_root" \
+    --xcode-version "$xcode_build_version" \
+    --platform-family macOS \
+    --deployment-target "$DEPLOYMENT_TARGET" \
+    --target-triple "$TARGET_TRIPLE" \
+    --source-file-list "$SOURCE_FILE_LIST" \
+    --swift-const-vals-list "$SWIFT_CONST_VALS_LIST" \
+    --quiet-warnings \
+    --force
+
+  if [[ ! -f "$APP_BUNDLE/Contents/Resources/Metadata.appintents/extract.actionsdata" ]]; then
+    echo "App Intents metadata was not generated correctly."
+    exit 1
+  fi
+}
+
+echo "[1/4] Building ${APP_NAME} (${BUILD_CONFIGURATION})..."
+rm -rf "$DERIVED_DATA"
+xcodebuild \
+  -scheme "$APP_NAME" \
+  -configuration "$BUILD_CONFIGURATION" \
+  -destination "platform=macOS,arch=$BUILD_ARCH" \
+  -derivedDataPath "$DERIVED_DATA" \
+  build
+
+if [[ ! -f "$BINARY_PATH" ]]; then
+  echo "Unable to locate built binary: ${BINARY_NAME}"
+  exit 1
+fi
+
+if [[ ! -d "$RESOURCE_BUNDLE_SOURCE" ]]; then
+  echo "Unable to locate SwiftPM resource bundle: ${RESOURCE_BUNDLE_NAME}"
+  exit 1
+fi
+
+echo "[2/4] Installing to ${APP_BUNDLE}..."
 remove_duplicate_installs
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
 cp "$BINARY_PATH" "$APP_BUNDLE/Contents/MacOS/${BINARY_NAME}"
 chmod +x "$APP_BUNDLE/Contents/MacOS/${BINARY_NAME}"
+ditto "$RESOURCE_BUNDLE_SOURCE" "$APP_BUNDLE/Contents/Resources/$RESOURCE_BUNDLE_NAME"
 if [[ -f "$ICON_SOURCE" ]]; then
   ICONSET_DIR="$(mktemp -d)/AppIcon.iconset"
   mkdir -p "$ICONSET_DIR"
@@ -104,10 +182,13 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
+echo "[3/4] Generating Focus filter metadata..."
+generate_app_intents_metadata
+
 xattr -cr "$APP_BUNDLE" || true
 codesign --force --deep --sign - "$APP_BUNDLE" >/dev/null 2>&1 || true
 
-echo "[3/3] Done."
+echo "[4/4] Done."
 echo "Installed: $APP_BUNDLE"
 
 if [[ "$OPEN_AFTER_INSTALL" == "1" ]]; then

@@ -9,7 +9,7 @@ struct FootballStatusAccessoriesData {
         badgeText != nil || warningText != nil
     }
 
-    static func resolved(for match: FootballFixtureMatch, now: Date = Date()) -> FootballStatusAccessoriesData {
+    static func resolved(for match: FootballFixtureMatch, now: Date = AlertCalendarClock.nowRoundedToSecond()) -> FootballStatusAccessoriesData {
         FootballStatusAccessoriesData(
             badgeText: CalendarMonitor.footballStatusBadgeText(for: match, now: now),
             warningText: CalendarMonitor.footballStatusWarningText(for: match)
@@ -84,7 +84,7 @@ struct FootballStatusWarningIconView: View {
 struct FootballStatusAccessoriesView: View {
     let data: FootballStatusAccessoriesData
 
-    init(match: FootballFixtureMatch, now: Date = Date()) {
+    init(match: FootballFixtureMatch, now: Date = AlertCalendarClock.nowRoundedToSecond()) {
         data = FootballStatusAccessoriesData.resolved(for: match, now: now)
     }
 
@@ -104,11 +104,11 @@ struct FootballStatusAccessoriesView: View {
         }
     }
 
-    static func accessories(for match: FootballFixtureMatch, now: Date = Date()) -> FootballStatusAccessoriesData {
+    static func accessories(for match: FootballFixtureMatch, now: Date = AlertCalendarClock.nowRoundedToSecond()) -> FootballStatusAccessoriesData {
         .resolved(for: match, now: now)
     }
 
-    static func hasAccessories(for match: FootballFixtureMatch, now: Date = Date()) -> Bool {
+    static func hasAccessories(for match: FootballFixtureMatch, now: Date = AlertCalendarClock.nowRoundedToSecond()) -> Bool {
         accessories(for: match, now: now).hasAccessories
     }
 }

@@ -57,7 +57,7 @@ extension CalendarMonitor {
     }
 
     func refreshAutomaticAstronomyLocationIfNeeded(trigger: AutomaticAstronomyLocationRefreshTrigger) async {
-        await refreshAutomaticAstronomyLocationIfNeeded(trigger: trigger, referenceDate: Date())
+        await refreshAutomaticAstronomyLocationIfNeeded(trigger: trigger, referenceDate: fixedSecondNow())
     }
 
     func scheduleHourlyAutomaticAstronomyLocationRefreshIfNeeded(now: Date) {
@@ -66,7 +66,7 @@ extension CalendarMonitor {
 
     func scheduleAutomaticAstronomyLocationRefresh(
         trigger: AutomaticAstronomyLocationRefreshTrigger,
-        referenceDate: Date = Date()
+        referenceDate: Date = AlertCalendarClock.nowRoundedToSecond()
     ) {
         guard automaticAstronomyLocationRefreshTask == nil else { return }
 

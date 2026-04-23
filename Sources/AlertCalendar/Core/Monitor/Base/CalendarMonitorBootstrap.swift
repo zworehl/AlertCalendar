@@ -5,7 +5,8 @@ import Foundation
 extension CalendarMonitor {
     func bootstrap() async {
         await requestCalendarAccess()
-        if settingsStore.load().useAutomaticAstronomyLocation {
+        await refreshFocusCalendarFilterStateFromSystemIfPossible()
+        if snapshotSettings().useAutomaticAstronomyLocation {
             await refreshAutomaticAstronomyLocationIfNeeded(trigger: .launch)
         } else {
             astronomyLocationStatus = "Manual coordinates"
@@ -24,6 +25,8 @@ extension CalendarMonitor {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 guard let self else { return }
+                self.reloadCurrentSettings()
+                self.refreshFocusCalendarFilterStateFromDefaults()
                 self.enqueueRefresh()
             }
 
@@ -40,13 +43,20 @@ extension CalendarMonitor {
             .sink { [weak self] _ in
                 guard let self else { return }
                 self.scheduleAutomaticAstronomyLocationRefresh(trigger: .appActivation)
+                Task {
+                    await self.refreshFocusCalendarFilterStateFromSystemIfPossible()
+                }
             }
 
         startWiFiNetworkMonitoring()
     }
 
     func startHeartbeat() {
-        heartbeatCancellable = Timer.publish(every: 1.0, on: .main, in: .common)
+        heartbeatCancellable = Timer.publish(
+            every: CalendarMonitorCadence.heartbeatInterval,
+            on: .main,
+            in: .common
+        )
             .autoconnect()
             .sink { [weak self] _ in
                 guard let self else { return }
@@ -57,9 +67,10 @@ extension CalendarMonitor {
 
                 evaluateAlert(now: now, settings: settings)
                 updateMenuBarState(now: now, settings: settings)
+                evaluateSlackStatusSyncOnHeartbeatIfNeeded(now: now, settings: settings)
                 scheduleHourlyAutomaticAstronomyLocationRefreshIfNeeded(now: now)
 
-                let periodicRefreshInterval: TimeInterval = 5 * 60
+                let periodicRefreshInterval = CalendarMonitorCadence.periodicRefreshInterval
                 if lastPeriodicRefreshDate == nil || now.timeIntervalSince(lastPeriodicRefreshDate!) >= periodicRefreshInterval {
                     lastPeriodicRefreshDate = now
                     enqueueRefresh()

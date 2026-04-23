@@ -97,7 +97,7 @@ extension MenuContentView {
     }
 
     var filteredAlertDescriptions: [String] {
-        let now = Date()
+        let now = displayReferenceDate
         let leadSeconds = TimeInterval(settings.alertLeadMinutes * 60)
         let items = monitor.upcomingItems.filter { item in
             guard AstronomyMoment(eventTitle: item.title) == nil else { return false }
@@ -108,13 +108,12 @@ extension MenuContentView {
             return remaining > 0 && remaining <= leadSeconds
         }
 
-        return items.map { item in
-            let seconds = max(0, Int(item.date.timeIntervalSince(now)))
-            if seconds < 60 {
-                return "\(item.title) starts in \(seconds)s."
-            }
-            let minutes = max(1, Int(ceil(Double(seconds) / 60.0)))
-            return "\(item.title) starts in \(minutes) minute\(minutes == 1 ? "" : "s")."
+        return items.map {
+            AlertCalendarRelativeTimeFormatter.leadTimeDescription(
+                for: $0.title,
+                targetDate: $0.date,
+                now: now
+            )
         }
     }
 
@@ -125,7 +124,7 @@ extension MenuContentView {
     }
 
     var allEventItemsForContextualActions: [UpcomingItem] {
-        let now = Date()
+        let now = displayReferenceDate
         let allDayItems = monitor.allDayEventItems
         let timedItems = monitor.upcomingItems.filter {
             $0.kind == .event && Self.shouldIncludeInDropdownTimeWindow(
@@ -142,7 +141,7 @@ extension MenuContentView {
     }
 
     var queueItemsSource: [UpcomingItem] {
-        let now = Date()
+        let now = displayReferenceDate
         let allDayItems = monitor.allDayEventItems
         let timedItems = monitor.upcomingItems.filter {
             ($0.kind == .event || $0.kind == .reminder) && Self.shouldIncludeInDropdownTimeWindow(
@@ -155,7 +154,7 @@ extension MenuContentView {
     }
 
     var queueItemsForSingleColumnLayout: [UpcomingItem] {
-        let now = Date()
+        let now = displayReferenceDate
         return Self.queueItemsForActions(
             from: queueItemsSource,
             contextualItems: contextualPreviewActionItems,
@@ -166,7 +165,7 @@ extension MenuContentView {
     }
 
     var queueItemsForSplitLayout: [UpcomingItem] {
-        let now = Date()
+        let now = displayReferenceDate
         return Self.queueItemsForActions(
             from: queueItemsSource,
             contextualItems: footballContextualActionItems,
