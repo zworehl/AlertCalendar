@@ -12,35 +12,43 @@ struct AstronomyCoordinatesCard: View {
     @FocusState private var focusedCoordinate: CoordinateAxis?
 
     var body: some View {
-        GroupBox("Coordinates") {
-            VStack(alignment: .leading, spacing: 10) {
-                ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .center, spacing: 10) {
-                        HStack(spacing: 6) {
-                            Toggle("Use automatic location", isOn: $useAutomaticAstronomyLocation)
-                            InfoTipButton(text: "Uses your current location to fill latitude/longitude for sunrise, solar noon, sunset, and solar midnight calculation.")
-                        }
-                        Spacer(minLength: 8)
-                        Button("Detect now") {
-                            onDetectNow()
-                        }
-                    }
+        VStack(alignment: .leading, spacing: 10) {
+            Divider()
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 6) {
-                            Toggle("Use automatic location", isOn: $useAutomaticAstronomyLocation)
-                            InfoTipButton(text: "Uses your current location to fill latitude/longitude for sunrise, solar noon, sunset, and solar midnight calculation.")
-                        }
-                        Button("Detect now") {
-                            onDetectNow()
-                        }
+            Text("Astronomy Coordinates")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .center, spacing: 10) {
+                    HStack(spacing: 6) {
+                        Toggle("Use automatic location", isOn: $useAutomaticAstronomyLocation)
+                        InfoTipButton(text: "Uses your current location to fill latitude/longitude for sunrise, solar noon, sunset, and solar midnight calculation.")
+                    }
+                    Spacer(minLength: 8)
+                    Button("Detect now") {
+                        onDetectNow()
                     }
                 }
 
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 6) {
+                        Toggle("Use automatic location", isOn: $useAutomaticAstronomyLocation)
+                        InfoTipButton(text: "Uses your current location to fill latitude/longitude for sunrise, solar noon, sunset, and solar midnight calculation.")
+                    }
+                    Button("Detect now") {
+                        onDetectNow()
+                    }
+                }
+            }
+
+            if shouldShowLocationStatus {
                 Text(astronomyLocationStatus)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
 
+            if !useAutomaticAstronomyLocation {
                 ViewThatFits(in: .horizontal) {
                     HStack(alignment: .top, spacing: 12) {
                         coordinateField(
@@ -71,10 +79,9 @@ struct AstronomyCoordinatesCard: View {
                         )
                     }
                 }
-                .disabled(useAutomaticAstronomyLocation)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .onAppear {
             latitudeInput = formattedCoordinate(astronomyLatitude)
             longitudeInput = formattedCoordinate(astronomyLongitude)
@@ -124,9 +131,9 @@ struct AstronomyCoordinatesCard: View {
                     commitCoordinateText(axis: axis)
                 }
                 .textFieldStyle(.roundedBorder)
-                .frame(minWidth: 110, maxWidth: 150)
+                .frame(width: 66)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: true, vertical: false)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(title)
@@ -145,7 +152,9 @@ struct AstronomyCoordinatesCard: View {
                     commitCoordinateText(axis: axis)
                 }
                 .textFieldStyle(.roundedBorder)
+                .frame(width: 66, alignment: .leading)
             }
+            .fixedSize(horizontal: true, vertical: false)
         }
     }
 
@@ -169,13 +178,27 @@ struct AstronomyCoordinatesCard: View {
         case longitude
     }
 
+    private var shouldShowLocationStatus: Bool {
+        guard astronomyLocationStatus != "Manual coordinates" else { return false }
+        guard useAutomaticAstronomyLocation else { return true }
+        return !isAutomaticLocationResultStatus
+    }
+
+    private var isAutomaticLocationResultStatus: Bool {
+        astronomyLocationStatus.hasPrefix("Auto location:")
+            || astronomyLocationStatus.hasPrefix("Approximate auto location:")
+            || astronomyLocationStatus.hasPrefix("Detected location:")
+            || astronomyLocationStatus.hasPrefix("Detected approximate location:")
+            || astronomyLocationStatus.contains("Using saved coordinates:")
+    }
+
     private func parsedCoordinateValue(_ raw: String, axis: CoordinateAxis) -> Double? {
         guard let normalized = normalizeCoordinateString(raw),
               let parsed = Double(normalized) else {
             return nil
         }
 
-        let rounded = roundedTo3Decimals(parsed)
+        let rounded = roundedCoordinate(parsed)
         switch axis {
         case .latitude:
             return max(-90, min(90, rounded))
@@ -213,12 +236,11 @@ struct AstronomyCoordinatesCard: View {
         return trimmed
     }
 
-    private func roundedTo3Decimals(_ value: Double) -> Double {
-        (value * 1000).rounded() / 1000
+    private func roundedCoordinate(_ value: Double) -> Double {
+        (value * 100).rounded() / 100
     }
 
     private func formattedCoordinate(_ value: Double) -> String {
-        String(format: "%.3f", roundedTo3Decimals(value))
+        String(format: "%.2f", roundedCoordinate(value))
     }
 }
-

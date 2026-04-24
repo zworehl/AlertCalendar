@@ -3,9 +3,11 @@ import AppKit
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let settingsWindowIdentifier = NSUserInterfaceItemIdentifier(WindowMetadata.preferencesID)
+    private var emojiShortcutMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = makeMainMenu()
+        installEmojiShortcutMonitor()
         ensureAccessoryActivationPolicy()
         NotificationCenter.default.addObserver(
             self,
@@ -25,8 +27,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         false
     }
 
+    func applicationWillTerminate(_ notification: Notification) {
+        if let emojiShortcutMonitor {
+            NSEvent.removeMonitor(emojiShortcutMonitor)
+            self.emojiShortcutMonitor = nil
+        }
+    }
+
     deinit {
         NotificationCenter.default.removeObserver(self)
+    }
+
+    private func installEmojiShortcutMonitor() {
+        emojiShortcutMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self else { return event }
+            guard self.shouldOpenEmojiPalette(for: event) else { return event }
+            NSApp.orderFrontCharacterPalette(nil)
+            return nil
+        }
+    }
+
+    private func shouldOpenEmojiPalette(for event: NSEvent) -> Bool {
+        guard event.modifierFlags.contains(.function) else { return false }
+        guard event.charactersIgnoringModifiers?.lowercased() == "e" else { return false }
+        return NSApp.keyWindow?.firstResponder is NSTextView
     }
 
     @objc
@@ -127,6 +151,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         appMenu.addItem(withTitle: "Quit \(ProcessInfo.processInfo.processName)", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appMenuItem.submenu = appMenu
         mainMenu.addItem(appMenuItem)
+
+        let editMenuItem = NSMenuItem()
+        let editMenu = NSMenu(title: "Edit")
+        editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(NSMenuItem.separator())
+        editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editMenu.addItem(NSMenuItem.separator())
+
+        let emojiItem = NSMenuItem(
+            title: "Emoji & Symbols",
+            action: #selector(NSApplication.orderFrontCharacterPalette(_:)),
+            keyEquivalent: "e"
+        )
+        emojiItem.keyEquivalentModifierMask = [.function]
+        emojiItem.target = NSApp
+        editMenu.addItem(emojiItem)
+        editMenuItem.submenu = editMenu
+        mainMenu.addItem(editMenuItem)
 
         let viewMenuItem = NSMenuItem()
         let viewMenu = NSMenu(title: "View")

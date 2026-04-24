@@ -25,7 +25,8 @@ extension CalendarMonitor {
 
     private enum LocationRequestTimeout {
         static let authorizationSeconds: TimeInterval = 12
-        static let oneShotCoordinateSeconds: TimeInterval = 15
+        static let oneShotCoordinateSeconds: TimeInterval = 25
+        static let approximateNetworkSeconds: TimeInterval = 6
     }
 
     func refreshAstronomyCoordinatesFromSystem() {
@@ -224,17 +225,22 @@ extension CalendarMonitor {
             return
         }
 
-        guard let coordinate = await requestOneShotCoordinate() else {
-            astronomyLocationStatus = "Could not determine current location."
+        guard let detectedLocation = await requestBestAvailableAstronomyLocation() else {
+            astronomyLocationStatus = fallbackAstronomyLocationStatus(
+                prefix: "Could not refresh current location"
+            )
             return
         }
 
-        defaults.set(coordinate.latitude, forKey: DefaultsKeys.astronomyLatitude)
-        defaults.set(coordinate.longitude, forKey: DefaultsKeys.astronomyLongitude)
+        let coordinate = detectedLocation.coordinate
+        let roundedLatitude = AppSettingsRules.roundedCoordinate(coordinate.latitude)
+        let roundedLongitude = AppSettingsRules.roundedCoordinate(coordinate.longitude)
+        defaults.set(roundedLatitude, forKey: DefaultsKeys.astronomyLatitude)
+        defaults.set(roundedLongitude, forKey: DefaultsKeys.astronomyLongitude)
         astronomyLocationStatus = String(
-            format: "Auto location: %.4f, %.4f",
-            coordinate.latitude,
-            coordinate.longitude
+            format: "\(detectedLocation.statusPrefix): %.2f, %.2f",
+            roundedLatitude,
+            roundedLongitude
         )
         await refreshUpcomingItems()
     }
@@ -252,17 +258,34 @@ extension CalendarMonitor {
             return nil
         }
 
-        guard let coordinate = await requestOneShotCoordinate() else {
-            astronomyLocationStatus = "Could not determine current location."
+        guard let detectedLocation = await requestBestAvailableAstronomyLocation() else {
+            astronomyLocationStatus = fallbackAstronomyLocationStatus(
+                prefix: "Could not detect current location"
+            )
             return nil
         }
 
+        let coordinate = detectedLocation.coordinate
         astronomyLocationStatus = String(
-            format: "Detected location: %.3f, %.3f",
-            coordinate.latitude,
-            coordinate.longitude
+            format: "\(detectedLocation.detectedStatusPrefix): %.2f, %.2f",
+            AppSettingsRules.roundedCoordinate(coordinate.latitude),
+            AppSettingsRules.roundedCoordinate(coordinate.longitude)
         )
         return coordinate
+    }
+
+    func requestBestAvailableAstronomyLocation() async -> AstronomyDetectedLocation? {
+        if let coordinate = await requestOneShotCoordinate() {
+            return AstronomyDetectedLocation(coordinate: coordinate, source: .system)
+        }
+
+        astronomyLocationStatus = "Core Location did not return coordinates. Trying approximate network location..."
+
+        if let coordinate = await requestApproximateNetworkCoordinate() {
+            return AstronomyDetectedLocation(coordinate: coordinate, source: .networkApproximate)
+        }
+
+        return nil
     }
 
     func requestOneShotCoordinate() async -> CLLocationCoordinate2D? {
@@ -281,15 +304,40 @@ extension CalendarMonitor {
             oneShotLocationDelegate = delegate
             manager.delegate = delegate
             manager.desiredAccuracy = kCLLocationAccuracyKilometer
+            manager.distanceFilter = kCLDistanceFilterNone
+            astronomyLocationStatus = "Detecting location..."
             manager.requestLocation()
+            manager.startUpdatingLocation()
 
             DispatchQueue.main.asyncAfter(deadline: .now() + LocationRequestTimeout.oneShotCoordinateSeconds) { [weak self] in
                 guard !didResume else { return }
                 didResume = true
-                continuation.resume(returning: nil)
+                manager.stopUpdatingLocation()
+                continuation.resume(returning: manager.location?.coordinate)
                 self?.oneShotLocationManager = nil
                 self?.oneShotLocationDelegate = nil
             }
+        }
+    }
+
+    func requestApproximateNetworkCoordinate() async -> CLLocationCoordinate2D? {
+        guard let url = URL(string: "https://ipapi.co/json/") else { return nil }
+        var request = URLRequest(url: url)
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        request.timeoutInterval = LocationRequestTimeout.approximateNetworkSeconds
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            if let httpResponse = response as? HTTPURLResponse,
+               !(200 ... 299).contains(httpResponse.statusCode) {
+                return nil
+            }
+
+            let decoded = try JSONDecoder().decode(ApproximateNetworkLocationResponse.self, from: data)
+            guard let coordinate = decoded.coordinate else { return nil }
+            return coordinate
+        } catch {
+            return nil
         }
     }
 
@@ -300,6 +348,68 @@ extension CalendarMonitor {
         default:
             return false
         }
+    }
+
+    func fallbackAstronomyLocationStatus(prefix: String) -> String {
+        guard let latitude = defaults.object(forKey: DefaultsKeys.astronomyLatitude) as? Double,
+              let longitude = defaults.object(forKey: DefaultsKeys.astronomyLongitude) as? Double else {
+            return "\(prefix). Check Location Services and Wi-Fi, or enter coordinates manually."
+        }
+
+        guard (-90 ... 90).contains(latitude),
+              (-180 ... 180).contains(longitude) else {
+            return "\(prefix). Check Location Services and Wi-Fi, or enter coordinates manually."
+        }
+
+        return String(
+            format: "\(prefix). Using saved coordinates: %.2f, %.2f",
+            AppSettingsRules.roundedCoordinate(latitude),
+            AppSettingsRules.roundedCoordinate(longitude)
+        )
+    }
+}
+
+struct AstronomyDetectedLocation {
+    let coordinate: CLLocationCoordinate2D
+    let source: AstronomyLocationSource
+
+    var statusPrefix: String {
+        switch source {
+        case .system:
+            return "Auto location"
+        case .networkApproximate:
+            return "Approximate auto location"
+        }
+    }
+
+    var detectedStatusPrefix: String {
+        switch source {
+        case .system:
+            return "Detected location"
+        case .networkApproximate:
+            return "Detected approximate location"
+        }
+    }
+}
+
+enum AstronomyLocationSource {
+    case system
+    case networkApproximate
+}
+
+private struct ApproximateNetworkLocationResponse: Decodable {
+    let latitude: Double?
+    let longitude: Double?
+
+    var coordinate: CLLocationCoordinate2D? {
+        guard let latitude,
+              let longitude,
+              (-90 ... 90).contains(latitude),
+              (-180 ... 180).contains(longitude) else {
+            return nil
+        }
+
+        return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
     }
 }
 
@@ -318,10 +428,25 @@ final class OneShotLocationDelegate: NSObject, CLLocationManagerDelegate {
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        resolve(with: locations.last?.coordinate)
+        let location = locations
+            .filter { $0.horizontalAccuracy >= 0 }
+            .min { $0.horizontalAccuracy < $1.horizontalAccuracy }
+            ?? locations.last
+        manager.stopUpdatingLocation()
+        resolve(with: location?.coordinate)
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        if let coordinate = manager.location?.coordinate {
+            resolve(with: coordinate)
+            return
+        }
+
+        if let locationError = error as? CLError,
+           locationError.code == .locationUnknown {
+            return
+        }
+
         resolve(with: nil)
     }
 

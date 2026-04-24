@@ -5,7 +5,7 @@ enum AppSettingsRules {
     static let maximumFootballWindowDays = 45
 
     static func roundedCoordinate(_ value: Double) -> Double {
-        (value * 1000).rounded() / 1000
+        (value * 100).rounded() / 100
     }
 
     static func normalizedDropdownWindowHours(_ value: Int) -> Int {

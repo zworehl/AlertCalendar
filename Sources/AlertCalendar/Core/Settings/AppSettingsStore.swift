@@ -4,6 +4,7 @@ struct AppSettingsStore {
     let defaults: UserDefaults
 
     func registerDefaults() {
+        removeLegacyFocusFilterDefaults()
         defaults.register(defaults: registrationDefaults)
     }
 
@@ -256,6 +257,10 @@ struct AppSettingsStore {
             DefaultsKeys.didAutoRecoverEmptyEventCalendarSelection: false,
             DefaultsKeys.didAutoRecoverEmptyReminderCalendarSelection: false,
         ]
+    }
+
+    private func removeLegacyFocusFilterDefaults() {
+        defaults.removeObject(forKey: "activeFocusCalendarFilterState")
     }
 
     private func migratedLegacySlackStatusSyncRules(

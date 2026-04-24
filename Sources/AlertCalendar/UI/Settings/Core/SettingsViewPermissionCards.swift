@@ -29,6 +29,16 @@ extension SettingsView {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
+            if permission == .location {
+                AstronomyCoordinatesCard(
+                    useAutomaticAstronomyLocation: $draft.useAutomaticAstronomyLocation,
+                    astronomyLatitude: $draft.astronomyLatitude,
+                    astronomyLongitude: $draft.astronomyLongitude,
+                    astronomyLocationStatus: astronomyLocationStatus,
+                    onDetectNow: detectLocation
+                )
+            }
+
             Spacer(minLength: 0)
 
             permissionActionButtons(
@@ -190,25 +200,6 @@ extension SettingsView {
     @ViewBuilder
     func integrationActionButtons(for integration: SettingsIntegrationKind) -> some View {
         switch integration {
-        case .focusFilters:
-            HStack(spacing: 10) {
-                Spacer(minLength: 0)
-
-                Button {
-                    synchronizeActiveFocusFilterNow()
-                } label: {
-                    Label("Sync Now", systemImage: "arrow.clockwise")
-                }
-                .buttonStyle(.borderedProminent)
-
-                Button {
-                    openSystemSettingsRoot()
-                } label: {
-                    Label("Open Settings", systemImage: "gearshape")
-                }
-                .buttonStyle(.bordered)
-            }
-            .frame(maxWidth: .infinity, alignment: .trailing)
         case .slackStatusSync:
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 10) {
@@ -257,16 +248,16 @@ extension SettingsView {
         let spacing: CGFloat = 12
         let horizontalPadding: CGFloat = 40
         let availableWidth = max(windowWidth - horizontalPadding, 0)
-        let fiveAcrossMinimumWidth: CGFloat = 270
-        let threeAcrossMinimumWidth: CGFloat = 320
+        let fourAcrossMinimumWidth: CGFloat = 270
+        let itemCount = compactActionCards.count
         let nextRowCounts: [Int]
 
-        if availableWidth >= (fiveAcrossMinimumWidth * 5) + (spacing * 4) {
-            nextRowCounts = [5]
-        } else if availableWidth >= (threeAcrossMinimumWidth * 3) + (spacing * 2) {
-            nextRowCounts = [3, 2]
+        if availableWidth >= (fourAcrossMinimumWidth * 4) + (spacing * 3) {
+            nextRowCounts = [itemCount]
         } else {
-            nextRowCounts = [2, 2, 1]
+            nextRowCounts = stride(from: 0, to: itemCount, by: 2).map { startIndex in
+                min(2, itemCount - startIndex)
+            }
         }
 
         if nextRowCounts != compactActionRowCounts {
@@ -275,7 +266,7 @@ extension SettingsView {
     }
 
     var compactActionCards: [SettingsActionCardKind] {
-        SettingsPermissionKind.allCases.map(SettingsActionCardKind.permission) + [.integration(.focusFilters)]
+        SettingsPermissionKind.allCases.map(SettingsActionCardKind.permission)
     }
 
     var compactActionCardRows: [[SettingsActionCardKind]] {
@@ -301,8 +292,6 @@ extension SettingsView {
         switch card {
         case let .permission(permission):
             permissionActionCard(for: permission)
-        case let .integration(integration):
-            integrationActionCard(for: integration)
         }
     }
 }

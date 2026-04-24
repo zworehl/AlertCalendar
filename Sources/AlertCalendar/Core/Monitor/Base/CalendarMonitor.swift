@@ -42,7 +42,6 @@ final class CalendarMonitor: ObservableObject {
     @Published var footballLiveAndNextDaySection = FootballMatchesOverviewSection.placeholder(title: "Now & Next 24 Hours")
     @Published var managedFootballMatchIDs: Set<String> = []
     @Published var managedFootballMatches: [FootballFixtureMatch] = []
-    @Published var activeFocusCalendarFilterState: FocusCalendarFilterState?
     @Published var slackStatusSyncErrorDescription: String?
     @Published var lastSlackStatusSyncDate: Date?
     @Published var slackConnectionStatusMessage: String?
@@ -113,7 +112,6 @@ final class CalendarMonitor: ObservableObject {
             from: defaults.data(forKey: DefaultsKeys.managedFootballEventRecords)
         )
         skippedItemKeys = Set(defaults.stringArray(forKey: DefaultsKeys.skippedItemKeys) ?? [])
-        activeFocusCalendarFilterState = FocusCalendarFilterStateStore.load(defaults: defaults)
         startObservers()
         startHeartbeat()
 
@@ -204,6 +202,11 @@ final class CalendarMonitor: ObservableObject {
 
     func fixedSecondNow() -> Date {
         AlertCalendarClock.nowRoundedToSecond()
+    }
+
+    func hasElapsed(since date: Date?, now: Date, interval: TimeInterval) -> Bool {
+        guard let date else { return true }
+        return now.timeIntervalSince(date) >= interval
     }
 
     func reloadCurrentSettings() {

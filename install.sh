@@ -13,7 +13,6 @@ BUILD_ARCH="${BUILD_ARCH:-$(uname -m)}"
 DEPLOYMENT_TARGET="13.0"
 DERIVED_DATA="${DERIVED_DATA:-$ROOT/.build/install-derived-data}"
 PRODUCTS_DIR="$DERIVED_DATA/Build/Products/$BUILD_CONFIGURATION"
-INTERMEDIATES_DIR="$DERIVED_DATA/Build/Intermediates.noindex/AlertCalendar.build/$BUILD_CONFIGURATION/AlertCalendar.build"
 RESOURCE_BUNDLE_NAME="${APP_NAME}_${BINARY_NAME}.bundle"
 RESOURCE_BUNDLE_SOURCE="$PRODUCTS_DIR/$RESOURCE_BUNDLE_NAME"
 
@@ -32,10 +31,6 @@ case "$BUILD_ARCH" in
 esac
 
 BINARY_PATH="$PRODUCTS_DIR/$BINARY_NAME"
-OBJECTS_DIR="$INTERMEDIATES_DIR/Objects-normal/$BUILD_ARCH"
-SOURCE_FILE_LIST="$OBJECTS_DIR/${BINARY_NAME}.SwiftFileList"
-SWIFT_CONST_VALS_LIST="$DERIVED_DATA/${BINARY_NAME}.swiftconstvalues.list"
-TARGET_TRIPLE="${BUILD_ARCH}-apple-macos${DEPLOYMENT_TARGET}"
 
 APP_BUNDLE="$APP_DIR/${APP_NAME}.app"
 
@@ -48,50 +43,6 @@ remove_duplicate_installs() {
       rm -rf "$candidate"
     fi
   done < <(find "$USER_APP_DIR" /Applications -maxdepth 2 -iname "${APP_NAME}.app" -print 2>/dev/null)
-}
-
-generate_app_intents_metadata() {
-  local metadata_tool
-  local developer_dir
-  local sdk_root
-  local xcode_build_version
-  local output_path
-
-  metadata_tool="$(xcrun --find appintentsmetadataprocessor)"
-  developer_dir="$(xcode-select -p)"
-  sdk_root="$(xcrun --sdk macosx --show-sdk-path)"
-  xcode_build_version="$(xcodebuild -version | awk '/Build version/ { print $3 }')"
-  output_path="$APP_BUNDLE/Contents/Resources"
-
-  if [[ ! -f "$SOURCE_FILE_LIST" ]]; then
-    echo "Unable to locate Swift source list for App Intents metadata."
-    exit 1
-  fi
-
-  find "$OBJECTS_DIR" -name '*.swiftconstvalues' -print > "$SWIFT_CONST_VALS_LIST"
-  if [[ ! -s "$SWIFT_CONST_VALS_LIST" ]]; then
-    echo "Unable to locate Swift constant values for App Intents metadata."
-    exit 1
-  fi
-
-  "$metadata_tool" \
-    --output "$output_path" \
-    --toolchain-dir "$developer_dir/Toolchains/XcodeDefault.xctoolchain" \
-    --module-name "$BINARY_NAME" \
-    --sdk-root "$sdk_root" \
-    --xcode-version "$xcode_build_version" \
-    --platform-family macOS \
-    --deployment-target "$DEPLOYMENT_TARGET" \
-    --target-triple "$TARGET_TRIPLE" \
-    --source-file-list "$SOURCE_FILE_LIST" \
-    --swift-const-vals-list "$SWIFT_CONST_VALS_LIST" \
-    --quiet-warnings \
-    --force
-
-  if [[ ! -f "$APP_BUNDLE/Contents/Resources/Metadata.appintents/extract.actionsdata" ]]; then
-    echo "App Intents metadata was not generated correctly."
-    exit 1
-  fi
 }
 
 echo "[1/4] Building ${APP_NAME} (${BUILD_CONFIGURATION})..."
@@ -182,9 +133,7 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-echo "[3/4] Generating Focus filter metadata..."
-generate_app_intents_metadata
-
+echo "[3/4] Finalizing bundle..."
 xattr -cr "$APP_BUNDLE" || true
 codesign --force --deep --sign - "$APP_BUNDLE" >/dev/null 2>&1 || true
 

@@ -32,7 +32,7 @@ extension SettingsView {
             }
         }
         .padding(14)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(Color(nsColor: .controlBackgroundColor))
@@ -71,7 +71,7 @@ extension SettingsView {
             slackStatusRulesHeader
             slackStatusRulesListContent
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     var slackShouldUseTwoColumnLayout: Bool {
@@ -84,7 +84,15 @@ extension SettingsView {
 
     var slackIntegrationLeftColumnWidth: CGFloat {
         let availableWidth = max(settingsWindowWidth - 40, 0)
-        return min(max(availableWidth * 0.33, 500), 640)
+        return min(max(availableWidth * 0.28, 420), 560)
+    }
+
+    var slackShouldUseRuleGrid: Bool {
+        slackShouldUseTwoColumnLayout && settingsWindowWidth >= 1700
+    }
+
+    var slackStatusRulesListMaxHeight: CGFloat {
+        slackShouldUseRuleGrid ? 340 : 520
     }
 
     @ViewBuilder
@@ -129,7 +137,7 @@ extension SettingsView {
             }
 
             if slackConnections.isEmpty {
-                Text("Paste a Slack user token or copy a Slack page payload and use Extract Token. Then choose which account and calendar should drive the status.")
+                Text("Paste a Slack user token or copy a Slack page payload and use Extract Token. Then choose which workspace and calendar should drive the status.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -182,18 +190,6 @@ extension SettingsView {
 
     func integrationBadgeState(for integration: SettingsIntegrationKind) -> SettingsCardBadgeState {
         switch integration {
-        case .focusFilters:
-            if activeFocusCalendarFilterState?.hasActiveOverrides == true {
-                return SettingsCardBadgeState(
-                    title: "Active",
-                    tint: Color(red: 0.24, green: 0.72, blue: 0.33)
-                )
-            }
-
-            return SettingsCardBadgeState(
-                title: "Using Defaults",
-                tint: Color(red: 0.24, green: 0.59, blue: 0.97)
-            )
         case .slackStatusSync:
             if let slackConnectErrorMessage, !slackConnectErrorMessage.isEmpty {
                 return SettingsCardBadgeState(
@@ -251,7 +247,7 @@ extension SettingsView {
 
                 Spacer(minLength: 12)
 
-                slackConnectedAccountsMenu
+                slackConnectedWorkspacesMenu
                 slackAddRuleButton
             }
 
@@ -262,7 +258,7 @@ extension SettingsView {
                     .fixedSize(horizontal: false, vertical: true)
 
                 HStack(spacing: 10) {
-                    slackConnectedAccountsMenu
+                    slackConnectedWorkspacesMenu
                     slackAddRuleButton
                 }
             }
@@ -272,15 +268,33 @@ extension SettingsView {
     @ViewBuilder
     var slackStatusRulesListContent: some View {
         if draft.slackStatusSyncRules.isEmpty {
-            Text("No rules yet. Add one to map a connected Slack account, calendar, and status message.")
+            Text("No rules yet. Add one to map a connected Slack workspace, calendar, and status message.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         } else {
-            ForEach(Array(draft.slackStatusSyncRules.enumerated()), id: \.element.id) { index, rule in
-                slackStatusSyncRuleCard(index: index, rule: rule)
+            ScrollView(.vertical) {
+                LazyVGrid(columns: slackStatusRulesGridColumns, alignment: .leading, spacing: 12) {
+                    ForEach(Array(draft.slackStatusSyncRules.enumerated()), id: \.element.id) { index, rule in
+                        slackStatusSyncRuleCard(index: index, rule: rule)
+                    }
+                }
+                .padding(.trailing, 4)
+                .padding(.bottom, 2)
             }
+            .scrollIndicators(.automatic)
+            .frame(maxWidth: .infinity, maxHeight: slackStatusRulesListMaxHeight, alignment: .topLeading)
         }
+    }
+
+    var slackStatusRulesGridColumns: [GridItem] {
+        if slackShouldUseRuleGrid {
+            return [
+                GridItem(.flexible(minimum: 440), spacing: 12),
+                GridItem(.flexible(minimum: 440), spacing: 12)
+            ]
+        }
+        return [GridItem(.flexible(minimum: 0), spacing: 12)]
     }
 
     @ViewBuilder
@@ -300,10 +314,10 @@ extension SettingsView {
     }
 
     @ViewBuilder
-    var slackConnectedAccountsMenu: some View {
+    var slackConnectedWorkspacesMenu: some View {
         Menu {
             if slackConnections.isEmpty {
-                Text("No connected accounts")
+                Text("No connected workspaces")
             } else {
                 ForEach(slackConnections) { connection in
                     Button(role: .destructive) {
@@ -311,15 +325,15 @@ extension SettingsView {
                     } label: {
                         let ruleCount = slackStatusRuleCount(for: connection)
                         if ruleCount > 0 {
-                            Text("Disconnect \(connection.displayLabel) (\(ruleCount) rule\(ruleCount == 1 ? "" : "s"))")
+                            Text("Disconnect \(connection.workspaceLabel) (\(ruleCount) rule\(ruleCount == 1 ? "" : "s"))")
                         } else {
-                            Text("Disconnect \(connection.displayLabel)")
+                            Text("Disconnect \(connection.workspaceLabel)")
                         }
                     }
                 }
             }
         } label: {
-            Label("Accounts", systemImage: "person.2")
+            Label("Workspaces", systemImage: "building.2")
         }
         .buttonStyle(.bordered)
         .controlSize(.small)
@@ -338,7 +352,7 @@ extension SettingsView {
         let totalRuleCount = draft.slackStatusSyncRules.filter(\.isComplete).count
 
         if totalRuleCount == 0 {
-            return "Slack is connected. Add a rule to map each calendar to the Slack account that should receive the meeting status."
+            return "Slack is connected. Add a rule to map each calendar to the Slack workspace that should receive the meeting status."
         }
 
         if enabledRuleCount == 0 {
@@ -347,28 +361,28 @@ extension SettingsView {
                 : "\(totalRuleCount) Slack sync rules are configured, but they are currently off."
         }
 
-        let connectedAccountCount = Set(
+        let connectedWorkspaceCount = Set(
             draft.slackStatusSyncRules
                 .filter { $0.isEnabled && $0.isComplete }
                 .map(\.connectionID)
         ).count
-        return "\(enabledRuleCount) active Slack sync rules across \(connectedAccountCount) account\(connectedAccountCount == 1 ? "" : "s")."
+        return "\(enabledRuleCount) active Slack sync rules across \(connectedWorkspaceCount) workspace\(connectedWorkspaceCount == 1 ? "" : "s")."
     }
 
     var slackStatusRulesSummary: String {
         let ruleCount = draft.slackStatusSyncRules.count
-        let accountCount = Set(draft.slackStatusSyncRules.map(\.connectionID)).subtracting([""]).count
+        let workspaceCount = Set(draft.slackStatusSyncRules.map(\.connectionID)).subtracting([""]).count
 
         guard ruleCount > 0 else {
-            return "Each rule maps one calendar to the Slack account and status message that should be published during a meeting."
+            return "Each rule maps one calendar to the Slack workspace and status message that should be published during a meeting."
         }
 
-        if accountCount == 0 {
+        if workspaceCount == 0 {
             return ruleCount == 1 ? "1 rule ready to finish." : "\(ruleCount) rules ready to finish."
         }
 
         let ruleText = ruleCount == 1 ? "1 rule" : "\(ruleCount) rules"
-        let accountText = accountCount == 1 ? "1 account" : "\(accountCount) accounts"
-        return "\(ruleText) across \(accountText)."
+        let workspaceText = workspaceCount == 1 ? "1 workspace" : "\(workspaceCount) workspaces"
+        return "\(ruleText) across \(workspaceText)."
     }
 }

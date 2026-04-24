@@ -14,9 +14,9 @@ extension SettingsView {
         VStack(alignment: .leading, spacing: 10) {
             slackStatusSyncRuleHeader(index: index, rule: rule, isComplete: isComplete)
 
-            ViewThatFits(in: .horizontal) {
+            if slackShouldUseWideRuleEditors {
                 slackStatusSyncRuleWideEditors(index: index)
-
+            } else {
                 VStack(alignment: .leading, spacing: 8) {
                     slackStatusSyncRuleEditors(index: index)
                 }
@@ -43,26 +43,13 @@ extension SettingsView {
 
     @ViewBuilder
     func slackStatusSyncRuleHeader(index: Int, rule: SlackStatusSyncRule, isComplete: Bool) -> some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 14) {
-                slackStatusSyncRuleIdentity(for: rule)
+        HStack(alignment: .top, spacing: 14) {
+            slackStatusSyncRuleIdentity(for: rule)
 
-                Spacer(minLength: 0)
+            Spacer(minLength: 0)
 
-                slackStatusSyncRuleActionBar(index: index, rule: rule, isComplete: isComplete)
-                    .fixedSize(horizontal: true, vertical: false)
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .top, spacing: 14) {
-                    slackStatusSyncRuleIdentity(for: rule)
-
-                    Spacer(minLength: 0)
-
-                    slackStatusSyncRuleActionBar(index: index, rule: rule, isComplete: isComplete)
-                        .fixedSize(horizontal: true, vertical: false)
-                }
-            }
+            slackStatusSyncRuleActionBar(index: index, rule: rule, isComplete: isComplete)
+                .fixedSize(horizontal: true, vertical: false)
         }
     }
 
@@ -78,10 +65,11 @@ extension SettingsView {
             Button(role: .destructive) {
                 removeSlackStatusSyncRule(rule.id)
             } label: {
-                Label("Remove", systemImage: "trash")
+                Image(systemName: "trash")
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+            .help("Remove")
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
     }
@@ -89,7 +77,7 @@ extension SettingsView {
     @ViewBuilder
     func slackStatusSyncRuleEditors(index: Int) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            ViewThatFits(in: .horizontal) {
+            if slackShouldUseInlineRuleEditorRows {
                 HStack(alignment: .top, spacing: 10) {
                     slackStatusSyncRuleConnectionPicker(index: index)
                         .frame(minWidth: 220, maxWidth: .infinity, alignment: .leading)
@@ -97,18 +85,18 @@ extension SettingsView {
                     slackStatusSyncRuleCalendarPicker(index: index)
                         .frame(minWidth: 220, maxWidth: .infinity, alignment: .leading)
                 }
-
+            } else {
                 VStack(alignment: .leading, spacing: 8) {
                     slackStatusSyncRuleConnectionPicker(index: index)
                     slackStatusSyncRuleCalendarPicker(index: index)
                 }
             }
-            ViewThatFits(in: .horizontal) {
+            if slackShouldUseInlineRuleEditorRows {
                 HStack(alignment: .top, spacing: 10) {
                     slackStatusSyncRuleTextField(index: index)
                     slackStatusSyncRuleEmojiField(index: index)
                 }
-
+            } else {
                 VStack(alignment: .leading, spacing: 8) {
                     slackStatusSyncRuleTextField(index: index)
                     slackStatusSyncRuleEmojiField(index: index)
@@ -117,28 +105,43 @@ extension SettingsView {
         }
     }
 
+    var slackShouldUseWideRuleEditors: Bool {
+        settingsWindowWidth >= slackTwoColumnMinimumWindowWidth && !slackShouldUseRuleGrid
+    }
+
+    var slackShouldUseInlineRuleEditorRows: Bool {
+        settingsWindowWidth >= 980
+    }
+
     @ViewBuilder
     func slackStatusSyncRuleWideEditors(index: Int) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            slackStatusSyncRuleConnectionPicker(index: index)
-                .frame(width: 300, alignment: .leading)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 10) {
+                slackStatusSyncRuleConnectionPicker(index: index)
+                    .frame(width: 260, alignment: .leading)
 
-            slackStatusSyncRuleCalendarPicker(index: index)
-                .frame(width: 300, alignment: .leading)
+                slackStatusSyncRuleCalendarPicker(index: index)
+                    .frame(minWidth: 260, maxWidth: 420, alignment: .leading)
 
-            slackStatusSyncRuleTextField(index: index)
-                .frame(minWidth: 260, maxWidth: .infinity, alignment: .leading)
-                .layoutPriority(1)
+                Spacer(minLength: 0)
+            }
 
-            slackStatusSyncRuleEmojiField(index: index)
-                .frame(width: 120, alignment: .leading)
+            HStack(alignment: .top, spacing: 10) {
+                slackStatusSyncRuleTextField(index: index)
+                    .frame(minWidth: 260, maxWidth: 520, alignment: .leading)
+
+                slackStatusSyncRuleEmojiField(index: index)
+                    .frame(width: 88, alignment: .leading)
+
+                Spacer(minLength: 0)
+            }
         }
     }
 
     @ViewBuilder
     func slackStatusSyncRuleIdentity(for rule: SlackStatusSyncRule) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            slackStatusSyncRuleAvatarStack(for: rule)
+            slackWorkspaceBadge(for: rule)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(slackStatusRuleTitle(for: rule))
@@ -159,29 +162,30 @@ extension SettingsView {
     @ViewBuilder
     func slackStatusSyncRuleConnectionPicker(index: Int) -> some View {
         let rule = draft.slackStatusSyncRules[index]
+        let usedPairKeys = slackStatusSyncUsedPairKeys(excludingRuleID: rule.id)
 
         VStack(alignment: .leading, spacing: 4) {
-            Text("Account")
+            Text("Workspace")
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.secondary)
 
             Picker(
-                "Slack account",
+                "Slack workspace",
                 selection: Binding(
                     get: { draft.slackStatusSyncRules[index].connectionID },
                     set: { updateSlackStatusSyncRuleConnection($0, at: index) }
                 )
             ) {
-                Text("Choose an account").tag("")
+                Text("Choose a workspace").tag("")
                 ForEach(slackConnections) { connection in
-                    Text(connection.displayLabel)
+                    Text(connection.workspaceLabel)
                         .tag(connection.id)
                         .disabled(
                             connection.id != rule.connectionID &&
                                 !isSlackStatusSyncPairAvailable(
                                     connectionID: connection.id,
                                     calendarID: rule.calendarID,
-                                    excludingRuleID: rule.id
+                                    usedPairKeys: usedPairKeys
                                 )
                         )
                 }
@@ -196,6 +200,7 @@ extension SettingsView {
     @ViewBuilder
     func slackStatusSyncRuleCalendarPicker(index: Int) -> some View {
         let rule = draft.slackStatusSyncRules[index]
+        let usedPairKeys = slackStatusSyncUsedPairKeys(excludingRuleID: rule.id)
 
         VStack(alignment: .leading, spacing: 4) {
             Text("Calendar")
@@ -218,7 +223,7 @@ extension SettingsView {
                                 !isSlackStatusSyncPairAvailable(
                                     connectionID: rule.connectionID,
                                     calendarID: calendar.id,
-                                    excludingRuleID: rule.id
+                                    usedPairKeys: usedPairKeys
                                 )
                         )
                 }
@@ -263,11 +268,12 @@ extension SettingsView {
     }
 
     func slackStatusRuleTitle(for rule: SlackStatusSyncRule) -> String {
-        slackConnection(for: rule)?.resolvedDisplayName ?? "Choose Slack account"
+        slackConnection(for: rule)?.workspaceLabel ?? "Choose Slack workspace"
     }
 
     func slackStatusRuleSubtitle(for rule: SlackStatusSyncRule) -> String {
-        slackConnection(for: rule)?.teamName ?? "Connect a Slack workspace"
+        guard let connection = slackConnection(for: rule) else { return "Connect a Slack workspace" }
+        return connection.resolvedDisplayName
     }
 
     func slackStatusRuleCount(for connection: SlackConnection) -> Int {
@@ -307,31 +313,16 @@ extension SettingsView {
     }
 
     @ViewBuilder
-    func slackStatusSyncRuleAvatarStack(for rule: SlackStatusSyncRule) -> some View {
+    func slackWorkspaceBadge(for rule: SlackStatusSyncRule) -> some View {
         let connection = slackConnection(for: rule)
 
-        ZStack(alignment: .bottomTrailing) {
-            slackCircularRemoteImage(
-                url: connection?.profileImageURL,
-                fallbackText: initials(for: connection?.resolvedDisplayName),
-                fallbackSymbol: "person.crop.circle.fill",
-                size: 40,
-                cornerRadius: 20
-            )
-
-            slackCircularRemoteImage(
-                url: connection?.workspaceImageURL,
-                fallbackText: initials(for: connection?.teamName),
-                fallbackSymbol: "building.2.crop.circle.fill",
-                size: 20,
-                cornerRadius: 10
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(Color(nsColor: .windowBackgroundColor), lineWidth: 1.5)
-            )
-        }
-        .frame(width: 44, height: 44)
+        SlackWorkspaceAvatarPair(
+            primaryImageURL: connection?.profileImageURL,
+            secondaryImageURL: connection?.workspaceImageURL,
+            primaryInitials: initials(for: connection?.resolvedDisplayName),
+            secondaryInitials: initials(for: connection?.workspaceLabel)
+        )
+        .equatable()
     }
 
     @ViewBuilder
@@ -396,5 +387,86 @@ extension SettingsView {
         }.joined()
 
         return initials
+    }
+}
+
+private struct SlackWorkspaceAvatarPair: View, Equatable {
+    let primaryImageURL: URL?
+    let secondaryImageURL: URL?
+    let primaryInitials: String
+    let secondaryInitials: String
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            remoteImage(
+                url: primaryImageURL,
+                fallbackText: primaryInitials,
+                fallbackSymbol: "person.crop.circle.fill",
+                size: 40,
+                cornerRadius: 20
+            )
+
+            remoteImage(
+                url: secondaryImageURL,
+                fallbackText: secondaryInitials,
+                fallbackSymbol: "building.2.crop.circle.fill",
+                size: 20,
+                cornerRadius: 10
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color(nsColor: .windowBackgroundColor), lineWidth: 1.5)
+            )
+        }
+        .frame(width: 44, height: 44)
+    }
+
+    @ViewBuilder
+    private func remoteImage(
+        url: URL?,
+        fallbackText: String,
+        fallbackSymbol: String,
+        size: CGFloat,
+        cornerRadius: CGFloat
+    ) -> some View {
+        if let url {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case let .success(image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                default:
+                    fallbackImage(text: fallbackText, symbol: fallbackSymbol)
+                }
+            }
+            .transaction { transaction in
+                transaction.animation = nil
+            }
+            .frame(width: size, height: size)
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        } else {
+            fallbackImage(text: fallbackText, symbol: fallbackSymbol)
+                .frame(width: size, height: size)
+                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        }
+    }
+
+    @ViewBuilder
+    private func fallbackImage(text: String, symbol: String) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white.opacity(0.08))
+
+            if !text.isEmpty {
+                Text(text)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white)
+            } else {
+                Image(systemName: symbol)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white)
+            }
+        }
     }
 }

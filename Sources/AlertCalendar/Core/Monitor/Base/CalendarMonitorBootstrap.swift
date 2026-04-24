@@ -5,7 +5,6 @@ import Foundation
 extension CalendarMonitor {
     func bootstrap() async {
         await requestCalendarAccess()
-        await refreshFocusCalendarFilterStateFromSystemIfPossible()
         if snapshotSettings().useAutomaticAstronomyLocation {
             await refreshAutomaticAstronomyLocationIfNeeded(trigger: .launch)
         } else {
@@ -26,7 +25,6 @@ extension CalendarMonitor {
             .sink { [weak self] _ in
                 guard let self else { return }
                 self.reloadCurrentSettings()
-                self.refreshFocusCalendarFilterStateFromDefaults()
                 self.enqueueRefresh()
             }
 
@@ -43,9 +41,6 @@ extension CalendarMonitor {
             .sink { [weak self] _ in
                 guard let self else { return }
                 self.scheduleAutomaticAstronomyLocationRefresh(trigger: .appActivation)
-                Task {
-                    await self.refreshFocusCalendarFilterStateFromSystemIfPossible()
-                }
             }
 
         startWiFiNetworkMonitoring()
@@ -71,7 +66,7 @@ extension CalendarMonitor {
                 scheduleHourlyAutomaticAstronomyLocationRefreshIfNeeded(now: now)
 
                 let periodicRefreshInterval = CalendarMonitorCadence.periodicRefreshInterval
-                if lastPeriodicRefreshDate == nil || now.timeIntervalSince(lastPeriodicRefreshDate!) >= periodicRefreshInterval {
+                if hasElapsed(since: lastPeriodicRefreshDate, now: now, interval: periodicRefreshInterval) {
                     lastPeriodicRefreshDate = now
                     enqueueRefresh()
                 } else if shouldRefreshFootballOnHeartbeat(now: now) {

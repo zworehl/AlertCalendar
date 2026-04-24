@@ -42,16 +42,14 @@ extension CalendarMonitor {
     func shouldRunFootballLegacyMigration(now: Date, force: Bool) -> Bool {
         force
             || didFootballEventStoreChange
-            || lastFootballLegacyMigrationDate == nil
-            || now.timeIntervalSince(lastFootballLegacyMigrationDate!) >= Self.footballLegacyMigrationInterval
+            || hasElapsed(since: lastFootballLegacyMigrationDate, now: now, interval: Self.footballLegacyMigrationInterval)
     }
 
     func shouldRunFootballManagedRecovery(now: Date, force: Bool) -> Bool {
         force
             || didFootballEventStoreChange
             || managedFootballEventRecords.isEmpty
-            || lastFootballManagedRecoveryDate == nil
-            || now.timeIntervalSince(lastFootballManagedRecoveryDate!) >= Self.footballManagedRecoveryInterval
+            || hasElapsed(since: lastFootballManagedRecoveryDate, now: now, interval: Self.footballManagedRecoveryInterval)
     }
 
     func ensureFootballCompetitionSections() {
@@ -125,8 +123,7 @@ extension CalendarMonitor {
         let now = fixedSecondNow()
         let needsRefresh = force
             || !footballLiveAndNextDaySection.hasLoaded
-            || lastFootballMenuRefreshDate == nil
-            || now.timeIntervalSince(lastFootballMenuRefreshDate!) >= Self.footballMenuRefreshInterval
+            || hasElapsed(since: lastFootballMenuRefreshDate, now: now, interval: Self.footballMenuRefreshInterval)
         guard needsRefresh else { return }
         lastFootballMenuRefreshDate = now
 
@@ -217,8 +214,7 @@ extension CalendarMonitor {
         didFootballEventStoreChange = false
 
         let needsCleanup = force
-            || lastFootballManagedCleanupDate == nil
-            || now.timeIntervalSince(lastFootballManagedCleanupDate!) >= Self.footballManagedCleanupInterval
+            || hasElapsed(since: lastFootballManagedCleanupDate, now: now, interval: Self.footballManagedCleanupInterval)
         if needsCleanup {
             _ = removeManagedFootballEventsOutsideSuggestionWindow(now: now)
             lastFootballManagedCleanupDate = now
@@ -235,8 +231,7 @@ extension CalendarMonitor {
         }
 
         let needsNetworkRefresh = force
-            || lastFootballManagedSyncDate == nil
-            || now.timeIntervalSince(lastFootballManagedSyncDate!) >= Self.footballManagedSyncInterval
+            || hasElapsed(since: lastFootballManagedSyncDate, now: now, interval: Self.footballManagedSyncInterval)
             || trackedEvents.contains { footballMatchesByID[$0.reference.matchID] == nil }
 
         guard needsNetworkRefresh else { return }

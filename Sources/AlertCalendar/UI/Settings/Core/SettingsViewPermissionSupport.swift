@@ -8,57 +8,8 @@ import SwiftUI
 extension SettingsView {
     func integrationDescription(for integration: SettingsIntegrationKind) -> String {
         switch integration {
-        case .focusFilters:
-            return focusFiltersIntegrationDescription()
         case .slackStatusSync:
             return slackIntegrationDescription()
-        }
-    }
-
-    func focusFiltersIntegrationDescription() -> String {
-        guard let activeFocusCalendarFilterState, activeFocusCalendarFilterState.hasActiveOverrides else {
-            return "No active Focus override is changing calendars right now. AlertCalendar is using the default selection."
-        }
-
-        let eventSummary = focusSelectionSummary(
-            for: activeFocusCalendarFilterState.selection(for: .event),
-            calendars: availableEventCalendars,
-            emptyFallback: "Events use the default selection"
-        )
-        let reminderSummary = focusSelectionSummary(
-            for: activeFocusCalendarFilterState.selection(for: .reminder),
-            calendars: availableReminderCalendars,
-            emptyFallback: "Reminders use the default selection"
-        )
-        return "\(eventSummary). \(reminderSummary)."
-    }
-
-    func focusSelectionSummary(
-        for selection: FocusCalendarSelectionOverride?,
-        calendars: [AvailableCalendar],
-        emptyFallback: String
-    ) -> String {
-        guard let selection, selection.isActive else { return emptyFallback }
-
-        let names = calendars
-            .filter { selection.calendarIDs.contains($0.id) }
-            .map(\.title)
-            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
-
-        guard !names.isEmpty else { return emptyFallback }
-
-        let visibleNames: String
-        if names.count > 2 {
-            visibleNames = names.prefix(2).joined(separator: ", ") + " +\(names.count - 2) more"
-        } else {
-            visibleNames = names.joined(separator: ", ")
-        }
-
-        switch selection.action {
-        case .hideSelected:
-            return "Hide \(visibleNames)"
-        case .showOnlySelected:
-            return "Show only \(visibleNames)"
         }
     }
 
@@ -158,11 +109,11 @@ extension SettingsView {
         case .location:
             switch state {
             case .allowed:
-                return astronomyLocationStatus
+                return "Location access is available for automatic astronomy coordinates."
             case .notRequested:
                 return "Location has not been requested yet. Grant it to support automatic astronomy coordinates and daylight maps, or enter coordinates manually below."
             case .limited:
-                return astronomyLocationStatus
+                return "Location access is available for automatic astronomy coordinates."
             case .denied:
                 return "Location access is denied. Use Open Settings to allow location for Alert Calendar, or switch to manual coordinates below."
             case .restricted:

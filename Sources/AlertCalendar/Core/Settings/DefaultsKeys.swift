@@ -45,5 +45,4 @@ enum DefaultsKeys {
     static let managedFootballEventRecords = "managedFootballEventRecords"
     static let didAutoRecoverEmptyEventCalendarSelection = "didAutoRecoverEmptyEventCalendarSelection"
     static let didAutoRecoverEmptyReminderCalendarSelection = "didAutoRecoverEmptyReminderCalendarSelection"
-    static let activeFocusCalendarFilterState = "activeFocusCalendarFilterState"
 }

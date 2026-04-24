@@ -40,7 +40,6 @@ extension SettingsView {
         astronomyLocationStatus = monitor.astronomyLocationStatus
         locationAuthorizationStatus = SettingsPermissionKind.currentLocationAuthorizationStatus()
         lastRefreshDate = monitor.lastRefreshDate
-        activeFocusCalendarFilterState = monitor.activeFocusCalendarFilterState
         slackConnections = monitor.slackConnections()
         slackConnectionStatusMessage = monitor.slackConnectionStatusMessage
         slackRuntimeStatusDescription = monitor.slackRuntimeStatusDescription
@@ -79,8 +78,8 @@ extension SettingsView {
         settings.includeOrbitalHighlights = draft.includeOrbitalHighlights
         settings.useAutomaticAstronomyLocation = draft.useAutomaticAstronomyLocation
         settings.astronomyColorID = draft.astronomyColorID
-        settings.astronomyLatitude = roundTo3Decimals(draft.astronomyLatitude)
-        settings.astronomyLongitude = roundTo3Decimals(draft.astronomyLongitude)
+        settings.astronomyLatitude = roundedCoordinate(draft.astronomyLatitude)
+        settings.astronomyLongitude = roundedCoordinate(draft.astronomyLongitude)
         settings.selectedEventCalendarIDs = draft.selectedEventCalendarIDs
         settings.selectedReminderCalendarIDs = draft.selectedReminderCalendarIDs
         settings.weekdayOnlyEventCalendarIDs = draft.weekdayOnlyEventCalendarIDs
@@ -118,12 +117,12 @@ extension SettingsView {
     func detectLocation() {
         Task { @MainActor in
             guard let coordinate = await monitor.detectAstronomyCoordinate() else { return }
-            draft.astronomyLatitude = roundTo3Decimals(coordinate.latitude)
-            draft.astronomyLongitude = roundTo3Decimals(coordinate.longitude)
+            draft.astronomyLatitude = roundedCoordinate(coordinate.latitude)
+            draft.astronomyLongitude = roundedCoordinate(coordinate.longitude)
         }
     }
 
-    func roundTo3Decimals(_ value: Double) -> Double {
+    func roundedCoordinate(_ value: Double) -> Double {
         AppSettingsRules.roundedCoordinate(value)
     }
 
@@ -145,18 +144,6 @@ extension SettingsView {
 
     func normalizedContextualPreviewLeadMinutes(_ value: Int, dropdownWindowHours: Int) -> Int {
         Self.normalizedContextualPreviewLeadMinutes(value, dropdownWindowHours: dropdownWindowHours)
-    }
-
-    func synchronizeActiveFocusFilterNow() {
-        Task { @MainActor in
-            await monitor.refreshFocusCalendarFilterStateFromSystemIfPossible()
-            monitor.refreshNow()
-        }
-    }
-
-    func openSystemSettingsRoot() {
-        guard let url = URL(string: "x-apple.systempreferences:") else { return }
-        NSWorkspace.shared.open(url)
     }
 
     func connectSlackToken() {
@@ -275,12 +262,8 @@ extension SettingsView {
         firstAvailableSlackStatusSyncPair(excludingRuleID: excludingRuleID) != nil
     }
 
-    func firstAvailableSlackStatusSyncPair(
-        preferredConnectionID: String? = nil,
-        preferredCalendarID: String? = nil,
-        excludingRuleID: String? = nil
-    ) -> (connectionID: String, calendarID: String)? {
-        let usedPairKeys: Set<String> = Set(
+    func slackStatusSyncUsedPairKeys(excludingRuleID: String? = nil) -> Set<String> {
+        Set(
             draft.slackStatusSyncRules.compactMap { rule in
                 guard rule.id != excludingRuleID else { return nil }
                 guard
@@ -293,11 +276,17 @@ extension SettingsView {
                 return SlackStatusSyncRule.pairKey(connectionID: connectionID, calendarID: calendarID)
             }
         )
+    }
 
+    func firstAvailableSlackStatusSyncPair(
+        preferredConnectionID: String? = nil,
+        preferredCalendarID: String? = nil,
+        excludingRuleID: String? = nil
+    ) -> (connectionID: String, calendarID: String)? {
         return SlackStatusSyncRule.firstAvailablePair(
             orderedConnectionIDs: slackConnections.map(\.id),
             orderedCalendarIDs: availableEventCalendars.map(\.id),
-            usedPairKeys: usedPairKeys,
+            usedPairKeys: slackStatusSyncUsedPairKeys(excludingRuleID: excludingRuleID),
             preferredConnectionID: preferredConnectionID,
             preferredCalendarID: preferredCalendarID
         )
@@ -334,6 +323,26 @@ extension SettingsView {
                 calendarID: existingCalendarID
             ) == pairKey
         }
+    }
+
+    func isSlackStatusSyncPairAvailable(
+        connectionID: String,
+        calendarID: String,
+        usedPairKeys: Set<String>
+    ) -> Bool {
+        guard
+            let normalizedConnectionID = SlackConnection.normalizedValue(connectionID),
+            let normalizedCalendarID = SlackConnection.normalizedValue(calendarID)
+        else {
+            return false
+        }
+
+        return !usedPairKeys.contains(
+            SlackStatusSyncRule.pairKey(
+                connectionID: normalizedConnectionID,
+                calendarID: normalizedCalendarID
+            )
+        )
     }
 
     func updateSlackStatusSyncRuleConnection(_ connectionID: String, at index: Int) {

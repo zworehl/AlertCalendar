@@ -157,15 +157,12 @@ struct SettingsView: View {
     }
 
     enum SettingsIntegrationKind: String, CaseIterable, Identifiable {
-        case focusFilters
         case slackStatusSync
 
         var id: String { rawValue }
 
         var title: String {
             switch self {
-            case .focusFilters:
-                return "Focus Filters"
             case .slackStatusSync:
                 return "Slack Status Sync"
             }
@@ -173,8 +170,6 @@ struct SettingsView: View {
 
         var summary: String {
             switch self {
-            case .focusFilters:
-                return "Apply the active macOS Focus override on top of your default calendar selection."
             case .slackStatusSync:
                 return "Update Slack with a customizable status while a selected calendar event is in progress."
             }
@@ -182,8 +177,6 @@ struct SettingsView: View {
 
         var fallbackSymbolName: String {
             switch self {
-            case .focusFilters:
-                return "moon.circle.fill"
             case .slackStatusSync:
                 return "message.badge.waveform"
             }
@@ -191,8 +184,6 @@ struct SettingsView: View {
 
         var appIconPath: String {
             switch self {
-            case .focusFilters:
-                return "/System/Applications/System Settings.app"
             case .slackStatusSync:
                 return "/Applications/Slack.app"
             }
@@ -200,12 +191,6 @@ struct SettingsView: View {
 
         var accentGradient: LinearGradient {
             switch self {
-            case .focusFilters:
-                return LinearGradient(
-                    colors: [Color(red: 0.22, green: 0.53, blue: 0.93), Color(red: 0.30, green: 0.78, blue: 0.68)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
             case .slackStatusSync:
                 return LinearGradient(
                     colors: [Color(red: 0.26, green: 0.76, blue: 0.52), Color(red: 0.91, green: 0.23, blue: 0.47)],
@@ -218,14 +203,11 @@ struct SettingsView: View {
 
     enum SettingsActionCardKind: Identifiable, Hashable {
         case permission(SettingsPermissionKind)
-        case integration(SettingsIntegrationKind)
 
         var id: String {
             switch self {
             case let .permission(permission):
                 return "permission:\(permission.id)"
-            case let .integration(integration):
-                return "integration:\(integration.id)"
             }
         }
     }
@@ -246,8 +228,7 @@ struct SettingsView: View {
     @State var locationAuthorizationStatus = SettingsPermissionKind.currentLocationAuthorizationStatus()
     @State var contactsAuthorizationStatus = SettingsPermissionKind.currentContactsAuthorizationStatus()
     @State var lastRefreshDate: Date?
-    @State var activeFocusCalendarFilterState: FocusCalendarFilterState?
-    @State var compactActionRowCounts: [Int] = [3, 2]
+    @State var compactActionRowCounts: [Int] = [4]
     @State var slackUserTokenDraft = ""
     @State var slackConnections: [SlackConnection] = []
     @State var slackConnectErrorMessage: String?
@@ -378,9 +359,6 @@ struct SettingsView: View {
         }
         .onReceive(monitor.$lastRefreshDate.removeDuplicates()) { date in
             lastRefreshDate = date
-        }
-        .onReceive(monitor.$activeFocusCalendarFilterState.removeDuplicates()) { state in
-            activeFocusCalendarFilterState = state
         }
         .onReceive(monitor.$slackConnectionStatusMessage.removeDuplicates()) { message in
             slackConnectionStatusMessage = message

@@ -247,6 +247,10 @@ struct SlackConnection: Codable, Equatable, Identifiable, Sendable {
         return "\(resolvedDisplayName) on \(teamName)"
     }
 
+    var workspaceLabel: String {
+        teamName
+    }
+
     var secondaryLabel: String {
         "\(emailAddress ?? userName) • \(teamID)"
     }

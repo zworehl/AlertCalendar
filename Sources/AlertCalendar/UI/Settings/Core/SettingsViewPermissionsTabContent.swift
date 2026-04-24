@@ -54,47 +54,7 @@ extension SettingsView {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
 
-        if permissionsShouldUseWideUtilityCardsLayout {
-            HStack(alignment: .top, spacing: 12) {
-                astronomyLocationSettingsCard
-                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
-
-                globalShortcutsSettingsCard
-                    .frame(width: 360, alignment: .leading)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        } else {
-            VStack(alignment: .leading, spacing: 12) {
-                astronomyLocationSettingsCard
-                globalShortcutsSettingsCard
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    var permissionsShouldUseWideUtilityCardsLayout: Bool {
-        settingsWindowWidth >= 1180
-    }
-
-    @ViewBuilder
-    var astronomyLocationSettingsCard: some View {
-        GroupBox("Astronomy Location") {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Choose whether astronomy previews should use automatic system location or manual coordinates. If you do not want to grant Location access, switch automatic location off and enter your own latitude/longitude below.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                AstronomyCoordinatesCard(
-                    useAutomaticAstronomyLocation: $draft.useAutomaticAstronomyLocation,
-                    astronomyLatitude: $draft.astronomyLatitude,
-                    astronomyLongitude: $draft.astronomyLongitude,
-                    astronomyLocationStatus: astronomyLocationStatus,
-                    onDetectNow: detectLocation
-                )
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
+        globalShortcutsSettingsCard
     }
 
     @ViewBuilder

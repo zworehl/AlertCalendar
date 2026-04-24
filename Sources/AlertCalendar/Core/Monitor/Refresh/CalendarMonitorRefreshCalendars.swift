@@ -100,17 +100,11 @@ extension CalendarMonitor {
     ) -> [EKCalendar] {
         let includeWeekdayOnlyToday = isWeekday(now)
         let entityType: EKEntityType = kind == .event ? .event : .reminder
-        let availableIDs = Set(eventStore.calendars(for: entityType).map(\.calendarIdentifier))
-        let effectiveSelectedIDs = FocusCalendarFilterStateStore.effectiveSelectedCalendarIDs(
-            baseSelectedIDs: selectedIDs,
-            availableIDs: availableIDs,
-            focusOverride: activeFocusCalendarFilterState?.selection(for: kind)
-        )
 
         return eventStore.calendars(for: entityType)
             .filter { calendar in
                 let calendarID = calendar.calendarIdentifier
-                guard effectiveSelectedIDs.contains(calendarID) else { return false }
+                guard selectedIDs.contains(calendarID) else { return false }
                 if weekdayOnlyIDs.contains(calendarID) {
                     return includeWeekdayOnlyToday
                 }
