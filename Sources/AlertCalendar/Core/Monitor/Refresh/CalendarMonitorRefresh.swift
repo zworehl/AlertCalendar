@@ -3,15 +3,15 @@ import EventKit
 import Foundation
 
 extension CalendarMonitor {
-    func refreshUpcomingItems() async {
-        await enqueueRefreshAndWait()
+    func refreshUpcomingItems(reason: CalendarMonitorRefreshReason = .manual) async {
+        await enqueueRefreshAndWait(reason: reason)
     }
 
-    func refreshUpcomingItemsImpl() async {
+    func refreshUpcomingItemsImpl(reason: CalendarMonitorRefreshReason) async {
         refreshAvailableCalendars()
         let settings = snapshotSettings()
         let now = fixedSecondNow()
-        await refreshFootballDataIfNeeded(now: now)
+        await refreshFootballDataIfNeeded(now: now, reason: reason)
         let fetchedLookAheadHours = max(
             settings.lookAheadHours,
             Int(ceil(Double(settings.menuBarRotationWindowMinutes) / 60.0))
@@ -122,7 +122,7 @@ extension CalendarMonitor {
         guard !skippedItemKeys.isEmpty else { return }
         skippedItemKeys.removeAll()
         persistSkippedItemKeys()
-        refreshNow()
+        refreshNow(reason: .itemAction)
     }
 
     func persistSkippedItemKeys() {
@@ -147,7 +147,7 @@ extension CalendarMonitor {
         do {
             try eventStore.save(reminder, commit: true)
             skipItem(item)
-            refreshNow()
+            refreshNow(reason: .itemAction)
         } catch {
             calendarAccessDescription = "Could not mark reminder as completed."
         }

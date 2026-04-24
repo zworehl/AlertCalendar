@@ -201,7 +201,7 @@ extension SettingsView {
         contactsAuthorizationStatus = SettingsPermissionKind.currentContactsAuthorizationStatus()
         monitor.refreshAvailableCalendars()
         synchronizeSettingsStateFromMonitor()
-        monitor.refreshNow()
+        monitor.refreshNow(reason: .manual)
     }
 
     func openPrivacySettings() {

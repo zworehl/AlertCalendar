@@ -38,6 +38,7 @@ final class CalendarMonitor: ObservableObject {
     @Published var calendarAccessDescription = "Requesting access..."
     @Published var astronomyLocationStatus = "Manual coordinates"
     @Published var lastRefreshDate: Date?
+    @Published var refreshDiagnostics = CalendarMonitorRefreshDiagnostics()
     @Published var footballMenuSections: [FootballMenuCompetitionSection] = []
     @Published var footballLiveAndNextDaySection = FootballMatchesOverviewSection.placeholder(title: "Now & Next 24 Hours")
     @Published var managedFootballMatchIDs: Set<String> = []
@@ -62,9 +63,7 @@ final class CalendarMonitor: ObservableObject {
     var defaultsObserver: AnyCancellable?
     var eventStoreObserver: AnyCancellable?
     var appActivationObserver: AnyCancellable?
-    var refreshQueueTask: Task<Void, Never>?
-    var isRefreshRunning = false
-    var hasPendingRefresh = false
+    let refreshCoordinator = CalendarMonitorRefreshCoordinator()
     var tickCount = 0
     var lastPeriodicRefreshDate: Date?
     var blinkPhase = false
@@ -125,8 +124,8 @@ final class CalendarMonitor: ObservableObject {
         return (try? JSONDecoder().decode([ManagedFootballEventRecord].self, from: data)) ?? []
     }
 
-    func refreshNow() {
-        enqueueRefresh()
+    func refreshNow(reason: CalendarMonitorRefreshReason = .manual) {
+        enqueueRefresh(reason: reason)
     }
 
     func silenceCurrentAlert() {
@@ -204,11 +203,6 @@ final class CalendarMonitor: ObservableObject {
         AlertCalendarClock.nowRoundedToSecond()
     }
 
-    func hasElapsed(since date: Date?, now: Date, interval: TimeInterval) -> Bool {
-        guard let date else { return true }
-        return now.timeIntervalSince(date) >= interval
-    }
-
     func reloadCurrentSettings() {
         currentSettings = settingsStore.load()
     }
@@ -218,28 +212,21 @@ final class CalendarMonitor: ObservableObject {
         reloadCurrentSettings()
     }
 
-    func enqueueRefresh() {
-        hasPendingRefresh = true
-        guard !isRefreshRunning else { return }
-
-        let task = Task { [weak self] in
-            guard let self else { return }
-            self.isRefreshRunning = true
-            defer {
-                self.isRefreshRunning = false
-                self.refreshQueueTask = nil
+    func enqueueRefresh(reason: CalendarMonitorRefreshReason = .manual) {
+        refreshCoordinator.enqueue(
+            reason: reason,
+            now: { [weak self] in self?.fixedSecondNow() ?? AlertCalendarClock.nowRoundedToSecond() },
+            publishDiagnostics: { [weak self] diagnostics in
+                self?.refreshDiagnostics = diagnostics
+            },
+            refresh: { [weak self] reason in
+                await self?.refreshUpcomingItemsImpl(reason: reason)
             }
-
-            while self.hasPendingRefresh {
-                self.hasPendingRefresh = false
-                await self.refreshUpcomingItemsImpl()
-            }
-        }
-        refreshQueueTask = task
+        )
     }
 
-    func enqueueRefreshAndWait() async {
-        enqueueRefresh()
-        await refreshQueueTask?.value
+    func enqueueRefreshAndWait(reason: CalendarMonitorRefreshReason = .manual) async {
+        enqueueRefresh(reason: reason)
+        await refreshCoordinator.waitForCurrentTask()
     }
 }

@@ -43,7 +43,7 @@ extension MenuContentView {
             }
 
             Button {
-                monitor.refreshNow()
+                monitor.refreshNow(reason: .manual)
             } label: {
                 Image(systemName: "arrow.clockwise")
             }

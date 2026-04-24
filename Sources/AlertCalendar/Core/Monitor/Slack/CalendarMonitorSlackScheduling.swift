@@ -271,8 +271,11 @@ extension CalendarMonitor {
         let hasRelevantSlackWork = !enabledRules.isEmpty || !slackManagedStateByConnectionID.isEmpty
         guard hasRelevantSlackWork else { return false }
 
-        guard let lastSlackStatusSyncEvaluationDate else { return true }
-        return now.timeIntervalSince(lastSlackStatusSyncEvaluationDate) >= Self.slackStatusSyncHeartbeatEvaluationInterval
+        return CalendarMonitorTime.hasElapsed(
+            since: lastSlackStatusSyncEvaluationDate,
+            now: now,
+            interval: Self.slackStatusSyncHeartbeatEvaluationInterval
+        )
     }
 
     func scheduleNextSlackStatusSyncTransition(at transitionDate: Date?, now: Date) {
@@ -286,8 +289,7 @@ extension CalendarMonitor {
 
         guard let transitionDate else { return }
 
-        let delay = max(0, transitionDate.timeIntervalSince(now))
-        let nanoseconds = UInt64((delay * 1_000_000_000).rounded(.up))
+        let nanoseconds = CalendarMonitorTime.nanoseconds(until: transitionDate, now: now)
 
         slackStatusSyncTransitionTask = Task { [weak self] in
             guard let self else { return }

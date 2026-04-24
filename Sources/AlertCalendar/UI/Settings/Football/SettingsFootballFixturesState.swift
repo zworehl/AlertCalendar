@@ -60,8 +60,11 @@ extension SettingsFootballFixturesSectionView {
         while !Task.isCancelled {
             let now = AlertCalendarClock.nowRoundedToSecond()
             let nextRefresh = Self.nextMinuteBoundary(after: now)
-            let delay = max(0.25, nextRefresh.timeIntervalSince(now))
-            let delayNanoseconds = UInt64(delay * 1_000_000_000)
+            let delayNanoseconds = CalendarMonitorTime.nanoseconds(
+                until: nextRefresh,
+                now: now,
+                minimumDelay: 0.25
+            )
 
             try? await Task.sleep(nanoseconds: delayNanoseconds)
             guard !Task.isCancelled else { return }

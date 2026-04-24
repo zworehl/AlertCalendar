@@ -11,7 +11,7 @@ extension CalendarMonitor {
             astronomyLocationStatus = "Manual coordinates"
         }
         refreshAvailableCalendars()
-        await refreshUpcomingItems()
+        await refreshUpcomingItems(reason: .launch)
     }
 
     func registerDefaultSettings() {
@@ -25,7 +25,7 @@ extension CalendarMonitor {
             .sink { [weak self] _ in
                 guard let self else { return }
                 self.reloadCurrentSettings()
-                self.enqueueRefresh()
+                self.enqueueRefresh(reason: .settingsChanged)
             }
 
         eventStoreObserver = NotificationCenter.default.publisher(for: .EKEventStoreChanged)
@@ -33,7 +33,7 @@ extension CalendarMonitor {
             .sink { [weak self] _ in
                 guard let self else { return }
                 self.invalidateManagedFootballSnapshotCache(markEventStoreChanged: true)
-                self.enqueueRefresh()
+                self.enqueueRefresh(reason: .eventStoreChanged)
             }
 
         appActivationObserver = NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
@@ -66,11 +66,11 @@ extension CalendarMonitor {
                 scheduleHourlyAutomaticAstronomyLocationRefreshIfNeeded(now: now)
 
                 let periodicRefreshInterval = CalendarMonitorCadence.periodicRefreshInterval
-                if hasElapsed(since: lastPeriodicRefreshDate, now: now, interval: periodicRefreshInterval) {
+                if CalendarMonitorTime.hasElapsed(since: lastPeriodicRefreshDate, now: now, interval: periodicRefreshInterval) {
                     lastPeriodicRefreshDate = now
-                    enqueueRefresh()
+                    enqueueRefresh(reason: .periodic)
                 } else if shouldRefreshFootballOnHeartbeat(now: now) {
-                    enqueueRefresh()
+                    enqueueRefresh(reason: .footballHeartbeat)
                 }
             }
     }

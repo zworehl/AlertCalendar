@@ -25,7 +25,7 @@ extension CalendarMonitor {
             await cacheFootballMatches([match])
             managedFootballMatchIDs.insert(match.id)
             updateManagedFootballMatches(using: trackedFootballEvents(now: now), now: now)
-            refreshNow()
+            refreshNow(reason: .footballCalendarAction)
             return
         }
 
@@ -45,7 +45,7 @@ extension CalendarMonitor {
             upsertManagedFootballEventRecord(for: persistedEvent, reference: reference)
             managedFootballMatchIDs.insert(match.id)
             updateManagedFootballMatches(using: trackedFootballEvents(now: now), now: now)
-            refreshNow()
+            refreshNow(reason: .footballCalendarAction)
         } catch {
             calendarAccessDescription = "Could not save the selected fixture."
         }
@@ -124,7 +124,7 @@ extension CalendarMonitor {
             removeManagedFootballEventRecord(for: reference)
             managedFootballMatchIDs.remove(match.id)
             updateManagedFootballMatches(using: trackedFootballEvents(now: now), now: now)
-            refreshNow()
+            refreshNow(reason: .footballCalendarAction)
             return
         }
 
@@ -148,7 +148,7 @@ extension CalendarMonitor {
             removeManagedFootballEventRecord(for: reference)
             managedFootballMatchIDs.remove(match.id)
             updateManagedFootballMatches(using: trackedFootballEvents(now: now), now: now)
-            refreshNow()
+            refreshNow(reason: .footballCalendarAction)
         } catch {
             calendarAccessDescription = "Could not remove the selected fixture."
         }

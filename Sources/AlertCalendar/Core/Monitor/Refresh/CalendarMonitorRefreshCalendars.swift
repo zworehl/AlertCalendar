@@ -26,7 +26,7 @@ extension CalendarMonitor {
             settings.weekdayOnlyReminderCalendarIDs = weekdayOnlyIDs
         }
         persistSettings(settings)
-        refreshNow()
+        refreshNow(reason: .calendarSelectionChanged)
     }
 
     func refreshAvailableCalendars() {

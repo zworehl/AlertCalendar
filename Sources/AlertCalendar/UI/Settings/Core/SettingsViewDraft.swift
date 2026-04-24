@@ -40,6 +40,7 @@ extension SettingsView {
         astronomyLocationStatus = monitor.astronomyLocationStatus
         locationAuthorizationStatus = SettingsPermissionKind.currentLocationAuthorizationStatus()
         lastRefreshDate = monitor.lastRefreshDate
+        refreshDiagnostics = monitor.refreshDiagnostics
         slackConnections = monitor.slackConnections()
         slackConnectionStatusMessage = monitor.slackConnectionStatusMessage
         slackRuntimeStatusDescription = monitor.slackRuntimeStatusDescription
@@ -98,9 +99,9 @@ extension SettingsView {
             monitor.refreshAstronomyCoordinatesFromSystem()
         } else if !draft.useAutomaticAstronomyLocation {
             monitor.astronomyLocationStatus = "Manual coordinates"
-            monitor.refreshNow()
+            monitor.refreshNow(reason: .settingsChanged)
         } else {
-            monitor.refreshNow()
+            monitor.refreshNow(reason: .settingsChanged)
         }
     }
 
@@ -111,7 +112,7 @@ extension SettingsView {
         settings.weekdayOnlyEventCalendarIDs = draft.weekdayOnlyEventCalendarIDs
         settings.weekdayOnlyReminderCalendarIDs = draft.weekdayOnlyReminderCalendarIDs
         monitor.persistSettings(settings)
-        monitor.refreshNow()
+        monitor.refreshNow(reason: .calendarSelectionChanged)
     }
 
     func detectLocation() {
@@ -165,7 +166,7 @@ extension SettingsView {
                 slackConnectionStatusMessage = "Slack token connected."
                 didAttemptSlackConnectionMetadataRefresh = false
                 refreshSlackConnectionMetadataIfNeeded(force: true)
-                monitor.refreshNow()
+                monitor.refreshNow(reason: .slackConnectionChanged)
             } catch {
                 slackConnectErrorMessage = error.localizedDescription
             }

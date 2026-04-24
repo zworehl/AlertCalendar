@@ -4,17 +4,6 @@ import EventKit
 import Foundation
 
 extension CalendarMonitor {
-    func upcomingManagedFootballEventCount(now: Date) -> Int {
-        trackedFootballEvents(now: now).reduce(into: Set<String>()) { matchIDs, snapshot in
-            let startDate = snapshot.event.startDate ?? snapshot.record.startDate
-            let endDate = snapshot.event.endDate ?? startDate
-            if startDate > now || endDate > now {
-                matchIDs.insert(snapshot.reference.matchID)
-            }
-        }
-        .count
-    }
-
     func footballMatchStatusText(_ match: FootballFixtureMatch) -> String {
         if match.statusReliability == .awaitingLiveData || match.statusReliability == .delayedLiveData {
             return "Starting soon"
@@ -35,12 +24,11 @@ extension CalendarMonitor {
             return false
         }
 
-        let lastManagedRefresh = lastFootballManagedSyncDate?.timeIntervalSince1970 ?? 0
-        if lastManagedRefresh <= 0 {
-            return true
-        }
-
-        return now.timeIntervalSince1970 - lastManagedRefresh >= Self.footballManagedSyncInterval
+        return CalendarMonitorTime.hasElapsed(
+            since: lastFootballManagedSyncDate,
+            now: now,
+            interval: Self.footballManagedSyncInterval
+        )
     }
 
     func trackedFootballEvents(now: Date) -> [ManagedFootballEventSnapshot] {

@@ -35,6 +35,23 @@ extension SettingsView {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
 
+        GroupBox("Diagnostics") {
+            DisclosureGroup("Refresh diagnostics", isExpanded: $isShowingPermissionDiagnostics) {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 18) {
+                        statusPill(title: "Reason", value: refreshDiagnostics.summary)
+                        statusPill(title: "Pending", value: refreshDiagnostics.pendingSummary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        statusPill(title: "Reason", value: refreshDiagnostics.summary)
+                        statusPill(title: "Pending", value: refreshDiagnostics.pendingSummary)
+                    }
+                }
+                .padding(.top, 8)
+            }
+        }
+
         GroupBox("Actions") {
             VStack(alignment: .leading, spacing: 12) {
                 ForEach(Array(compactActionCardRows.enumerated()), id: \.offset) { _, row in

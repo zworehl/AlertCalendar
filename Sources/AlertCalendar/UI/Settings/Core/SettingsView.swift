@@ -228,6 +228,8 @@ struct SettingsView: View {
     @State var locationAuthorizationStatus = SettingsPermissionKind.currentLocationAuthorizationStatus()
     @State var contactsAuthorizationStatus = SettingsPermissionKind.currentContactsAuthorizationStatus()
     @State var lastRefreshDate: Date?
+    @State var refreshDiagnostics = CalendarMonitorRefreshDiagnostics()
+    @State var isShowingPermissionDiagnostics = false
     @State var compactActionRowCounts: [Int] = [4]
     @State var slackUserTokenDraft = ""
     @State var slackConnections: [SlackConnection] = []
@@ -297,7 +299,7 @@ struct SettingsView: View {
                 Spacer()
 
                 Button("Refresh now") {
-                    monitor.refreshNow()
+                    monitor.refreshNow(reason: .manual)
                 }
             }
         }
@@ -359,6 +361,9 @@ struct SettingsView: View {
         }
         .onReceive(monitor.$lastRefreshDate.removeDuplicates()) { date in
             lastRefreshDate = date
+        }
+        .onReceive(monitor.$refreshDiagnostics.removeDuplicates()) { diagnostics in
+            refreshDiagnostics = diagnostics
         }
         .onReceive(monitor.$slackConnectionStatusMessage.removeDuplicates()) { message in
             slackConnectionStatusMessage = message

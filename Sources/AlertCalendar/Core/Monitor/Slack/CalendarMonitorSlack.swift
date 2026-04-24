@@ -67,7 +67,7 @@ extension CalendarMonitor {
         if settings.slackConnections.isEmpty {
             slackConnectionStatusMessage = nil
         }
-        refreshNow()
+        refreshNow(reason: .slackConnectionChanged)
     }
 
     func validateSlackConnection(_ connection: SlackConnection) async throws -> SlackConnection {
