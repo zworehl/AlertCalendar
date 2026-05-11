@@ -108,19 +108,17 @@ actor MeetingContactResolver {
     }
 
     private static func contactDisplayText(for contact: CNContact, fallbackEmailAddress: String) -> String? {
-        if let fullName = CNContactFormatter.string(from: contact, style: .fullName)?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-           !fullName.isEmpty {
+        if let fullName = AlertCalendarString.trimmedNonEmpty(
+            CNContactFormatter.string(from: contact, style: .fullName)
+        ) {
             return fullName
         }
 
-        let nickname = contact.nickname.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !nickname.isEmpty {
+        if let nickname = AlertCalendarString.trimmedNonEmpty(contact.nickname) {
             return nickname
         }
 
-        let organizationName = contact.organizationName.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !organizationName.isEmpty {
+        if let organizationName = AlertCalendarString.trimmedNonEmpty(contact.organizationName) {
             return organizationName
         }
 

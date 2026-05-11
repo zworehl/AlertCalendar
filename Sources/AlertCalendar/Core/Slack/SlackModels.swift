@@ -323,9 +323,7 @@ struct SlackConnection: Codable, Equatable, Identifiable, Sendable {
     }
 
     static func normalizedValue(_ rawValue: String?) -> String? {
-        guard let rawValue else { return nil }
-        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        AlertCalendarString.trimmedNonEmpty(rawValue)
     }
 }
 
@@ -336,6 +334,20 @@ struct SlackProfileStatusSnapshot: Codable, Equatable, Sendable {
 
     var isEmpty: Bool {
         statusText.isEmpty && statusEmoji.isEmpty
+    }
+
+    var identity: SlackProfileStatusIdentity {
+        SlackProfileStatusIdentity(text: statusText, emoji: statusEmoji)
+    }
+}
+
+struct SlackProfileStatusIdentity: Equatable, Hashable, Sendable {
+    let statusText: String
+    let statusEmoji: String
+
+    init(text: String?, emoji: String?) {
+        statusText = SlackConnection.normalizedValue(text) ?? ""
+        statusEmoji = SlackConnection.normalizedValue(emoji).map(SlackMeetingStatus.normalizedEmoji) ?? ""
     }
 }
 
@@ -391,13 +403,40 @@ enum SlackMeetingStatus {
         return "\(normalizedEmoji) \(normalizedText)"
     }
 
+    static func statusIdentity(text: String?, emoji: String?) -> SlackProfileStatusIdentity {
+        SlackProfileStatusIdentity(
+            text: normalizedText(text),
+            emoji: normalizedEmoji(emoji)
+        )
+    }
+
+    static func hasSameStatusIdentity(
+        _ snapshot: SlackProfileStatusSnapshot,
+        _ candidate: SlackProfileStatusSnapshot
+    ) -> Bool {
+        snapshot.identity == candidate.identity
+    }
+
+    static func hasStatusIdentity(
+        _ snapshot: SlackProfileStatusSnapshot,
+        matching candidate: SlackProfileStatusIdentity
+    ) -> Bool {
+        snapshot.identity == candidate
+    }
+
+    static func isLikelyManaged(
+        _ snapshot: SlackProfileStatusSnapshot,
+        matching candidate: SlackProfileStatusIdentity
+    ) -> Bool {
+        hasStatusIdentity(snapshot, matching: candidate) && snapshot.statusExpiration > 0
+    }
+
     static func isManaged(
         _ snapshot: SlackProfileStatusSnapshot,
         managedSnapshot: SlackProfileStatusSnapshot?
     ) -> Bool {
         guard let managedSnapshot else { return false }
-        return snapshot.statusText == managedSnapshot.statusText &&
-            snapshot.statusEmoji == managedSnapshot.statusEmoji
+        return hasSameStatusIdentity(snapshot, managedSnapshot)
     }
 }
 

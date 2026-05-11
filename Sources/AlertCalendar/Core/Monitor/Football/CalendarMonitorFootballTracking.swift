@@ -24,11 +24,48 @@ extension CalendarMonitor {
             return false
         }
 
+        if managedFootballMatchIDs.contains(where: { footballMatchesByID[$0] == nil }) {
+            return true
+        }
+
+        let trackedMatches = managedFootballMatchIDs.compactMap { footballMatchesByID[$0] }
         return CalendarMonitorTime.hasElapsed(
             since: lastFootballManagedSyncDate,
             now: now,
-            interval: Self.footballManagedSyncInterval
+            interval: Self.footballRefreshInterval(for: trackedMatches, now: now)
         )
+    }
+
+    nonisolated static func footballRefreshInterval(
+        for matches: [FootballFixtureMatch],
+        now: Date
+    ) -> TimeInterval {
+        guard !matches.isEmpty else { return footballUpcomingRefreshInterval }
+
+        if matches.contains(where: { match in
+            match.statusState == .inProgress
+                || match.statusReliability == .awaitingLiveData
+                || match.statusReliability == .delayedLiveData
+        }) {
+            return footballActiveRefreshInterval
+        }
+
+        if matches.contains(where: { match in
+            let secondsFromKickoff = now.timeIntervalSince(match.startDate)
+            return secondsFromKickoff >= -FootballDataAPIClient.summaryPreBufferBeforeKickoff
+                && secondsFromKickoff <= FootballDataAPIClient.summaryPreBufferAfterKickoff
+        }) {
+            return footballManagedSyncInterval
+        }
+
+        if matches.contains(where: { match in
+            match.statusState != .finished
+                && match.startDate <= now.addingTimeInterval(24 * 60 * 60)
+        }) {
+            return footballUpcomingRefreshInterval
+        }
+
+        return footballIdleRefreshInterval
     }
 
     func trackedFootballEvents(now: Date) -> [ManagedFootballEventSnapshot] {
@@ -171,16 +208,51 @@ extension CalendarMonitor {
                 partialResult[team.id] = team
             }
 
-        for team in teams.values {
-            guard footballLocalLogoPathsByTeamID[team.id] == nil else { continue }
-            guard let localLogo = await footballImageStore.localFileURL(for: team.logoURL) else { continue }
-            footballLocalLogoPathsByTeamID[team.id] = localLogo.path
+        let missingTeamLogos = teams.values.compactMap { team -> (String, URL)? in
+            guard footballLocalLogoPathsByTeamID[team.id] == nil,
+                  let logoURL = team.logoURL else {
+                return nil
+            }
+            return (team.id, logoURL)
+        }
+        let teamLogoPaths = await resolvedFootballLogoPaths(for: missingTeamLogos)
+        for (teamID, path) in teamLogoPaths where footballLocalLogoPathsByTeamID[teamID] == nil {
+            footballLocalLogoPathsByTeamID[teamID] = path
         }
 
-        for match in matches {
-            guard footballLocalLogoPathsByCompetitionSlug[match.competitionSlug] == nil else { continue }
-            guard let localLogo = await footballImageStore.localFileURL(for: match.competitionLogoURL) else { continue }
-            footballLocalLogoPathsByCompetitionSlug[match.competitionSlug] = localLogo.path
+        let missingCompetitionLogos = matches.compactMap { match -> (String, URL)? in
+            guard footballLocalLogoPathsByCompetitionSlug[match.competitionSlug] == nil,
+                  let logoURL = match.competitionLogoURL else {
+                return nil
+            }
+            return (match.competitionSlug, logoURL)
+        }
+        let competitionLogoPaths = await resolvedFootballLogoPaths(for: missingCompetitionLogos)
+        for (competitionSlug, path) in competitionLogoPaths where footballLocalLogoPathsByCompetitionSlug[competitionSlug] == nil {
+            footballLocalLogoPathsByCompetitionSlug[competitionSlug] = path
+        }
+    }
+
+    func resolvedFootballLogoPaths(for requests: [(String, URL)]) async -> [String: String] {
+        var seenIDs = Set<String>()
+        let uniqueRequests = requests.filter { seenIDs.insert($0.0).inserted }
+        guard !uniqueRequests.isEmpty else { return [:] }
+
+        return await withTaskGroup(of: (String, String?).self) { group in
+            for (id, url) in uniqueRequests {
+                group.addTask { [footballImageStore] in
+                    let localURL = await footballImageStore.localFileURL(for: url)
+                    return (id, localURL?.path)
+                }
+            }
+
+            var paths: [String: String] = [:]
+            for await (id, path) in group {
+                if let path {
+                    paths[id] = path
+                }
+            }
+            return paths
         }
     }
 
@@ -200,15 +272,32 @@ extension CalendarMonitor {
         guard let previousMatch, previousMatch.id == match.id else { return match }
 
         let actualStartDate = match.actualStartDate ?? previousMatch.actualStartDate
+        let locationText = FootballDataAPIClient.bestAvailableLocationText(
+            reportedLocationText: match.locationText,
+            fallbackLocationText: previousMatch.locationText
+        )
         let statusDetailText = footballPreferredStatusDetailText(
             current: match.statusDetailText,
             fallback: previousMatch.statusDetailText
         )
         let statusPeriod = footballPreferredStatusPeriod(for: match, previousMatch: previousMatch)
+        let homeTeam = match.homeTeam.withResolvedDetails(
+            countryName: previousMatch.homeTeam.countryName,
+            isNational: previousMatch.homeTeam.isNational,
+            logoURL: previousMatch.homeTeam.logoURL
+        )
+        let awayTeam = match.awayTeam.withResolvedDetails(
+            countryName: previousMatch.awayTeam.countryName,
+            isNational: previousMatch.awayTeam.isNational,
+            logoURL: previousMatch.awayTeam.logoURL
+        )
 
         guard actualStartDate != match.actualStartDate
+            || locationText != match.locationText
             || statusDetailText != match.statusDetailText
-            || statusPeriod != match.statusPeriod else {
+            || statusPeriod != match.statusPeriod
+            || homeTeam != match.homeTeam
+            || awayTeam != match.awayTeam else {
             return match
         }
 
@@ -221,7 +310,7 @@ extension CalendarMonitor {
             competitionNote: match.competitionNote,
             seriesSummary: match.seriesSummary,
             competitionLogoURL: match.competitionLogoURL,
-            locationText: match.locationText,
+            locationText: locationText,
             startDate: match.startDate,
             actualStartDate: actualStartDate,
             statusState: match.statusState,
@@ -229,8 +318,8 @@ extension CalendarMonitor {
             statusDetailText: statusDetailText,
             statusPeriod: statusPeriod,
             statusReliability: match.statusReliability,
-            homeTeam: match.homeTeam,
-            awayTeam: match.awayTeam,
+            homeTeam: homeTeam,
+            awayTeam: awayTeam,
             homeScore: match.homeScore,
             awayScore: match.awayScore,
             homeYellowCards: match.homeYellowCards,
@@ -246,9 +335,11 @@ extension CalendarMonitor {
             .filter { match in
                 Self.isManagedFootballEventWithinSuggestionWindow(startDate: match.startDate, now: now)
             }
-            .sorted { lhs, rhs in
-                Self.footballFixtureSortPriority(for: lhs, now: now) < Self.footballFixtureSortPriority(for: rhs, now: now)
+            .map { match in
+                (match: match, priority: Self.footballFixtureSortPriority(for: match, now: now))
             }
+            .sorted { $0.priority < $1.priority }
+            .map(\.match)
     }
 
     nonisolated static func defaultFootballCompetitionSection(for preset: FootballCompetitionPreset) -> FootballMenuCompetitionSection {

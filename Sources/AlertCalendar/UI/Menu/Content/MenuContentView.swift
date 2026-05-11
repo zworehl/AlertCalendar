@@ -9,8 +9,6 @@ struct MenuContentView: View {
     let kindFilter: CalendarItemKind?
     let headerTitle: String
 
-    @State var hoveredReminderItemID: String?
-    @State var hoveredActionRowKey: String?
     @State var splitContextualPanelHeight: CGFloat = 0
     @State var splitUpcomingPanelHeight: CGFloat = 0
     let dropdownOuterPadding: CGFloat = 12

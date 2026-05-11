@@ -6,9 +6,16 @@ import SwiftUI
 extension MenuContentView {
     @ViewBuilder
     func actionRow(item: UpcomingItem, actions: [MenuAction]) -> some View {
-        let isHovered = hoveredActionRowKey == item.notificationKey
+        MenuContentHoverContainer { isHovered in
+            actionRowContent(item: item, actions: actions, isHovered: isHovered)
+        }
+    }
+
+    @ViewBuilder
+    func actionRowContent(item: UpcomingItem, actions: [MenuAction], isHovered: Bool) -> some View {
         let reservedTrailingWidth = isHovered ? hoverActionRowWidth(for: item) : 0
         let now = displayReferenceDate
+
         ZStack(alignment: .trailing) {
             if item.kind == .reminder {
                 Button {
@@ -17,6 +24,7 @@ extension MenuContentView {
                     rowPrimaryContent(
                         for: item,
                         now: now,
+                        isHovered: isHovered,
                         hideTimeDetails: isHovered,
                         reservedTrailingWidth: reservedTrailingWidth
                     )
@@ -26,6 +34,7 @@ extension MenuContentView {
                 rowPrimaryContent(
                     for: item,
                     now: now,
+                    isHovered: isHovered,
                     hideTimeDetails: isHovered,
                     reservedTrailingWidth: reservedTrailingWidth
                 )
@@ -61,17 +70,13 @@ extension MenuContentView {
         .padding(.vertical, 0)
         .fixedSize(horizontal: false, vertical: true)
         .contentShape(Rectangle())
-        .onHover { isHovering in
-            hoveredActionRowKey = isHovering ? item.notificationKey : nil
-            if item.kind == .reminder {
-                hoveredReminderItemID = isHovering ? item.id : nil
-            }
-        }
     }
+
     @ViewBuilder
     func rowPrimaryContent(
         for item: UpcomingItem,
         now: Date,
+        isHovered: Bool = false,
         hideTimeDetails: Bool = false,
         reservedTrailingWidth: CGFloat = 0
     ) -> some View {
@@ -102,7 +107,7 @@ extension MenuContentView {
                     .frame(width: 12, height: 12)
                     .foregroundStyle(accentColor)
                     .padding(.top, markerTopPadding(for: item))
-            } else if let image = markerImage(for: item) {
+            } else if let image = markerImage(for: item, isReminderFilled: isHovered) {
                 let markerSize = markerImageSize(for: item)
                 Image(nsImage: image)
                     .resizable()
@@ -294,7 +299,7 @@ extension MenuContentView {
         .background(alignment: .leading) {
             let visual = monitor.segmentBackgroundVisual(for: item, now: now, settings: settings)
 
-            if hoveredActionRowKey == item.notificationKey {
+            if isHovered {
                 RoundedRectangle(cornerRadius: 7)
                     .fill(Color.accentColor.opacity(0.10))
             }
@@ -318,4 +323,21 @@ extension MenuContentView {
         textBlock
     }
 
+}
+
+struct MenuContentHoverContainer<Content: View>: View {
+    let content: (Bool) -> Content
+    @State private var isHovered = false
+
+    init(@ViewBuilder content: @escaping (Bool) -> Content) {
+        self.content = content
+    }
+
+    var body: some View {
+        content(isHovered)
+            .onHover { hovering in
+                guard isHovered != hovering else { return }
+                isHovered = hovering
+            }
+    }
 }

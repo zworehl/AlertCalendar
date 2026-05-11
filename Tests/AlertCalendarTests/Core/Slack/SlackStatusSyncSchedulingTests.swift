@@ -62,6 +62,29 @@ final class SlackStatusSyncSchedulingTests: SlackStatusSyncTestCase {
         )
     }
 
+    func testSlackMeetingStatusExpirationIgnoresMutedParticipationEvents() {
+        let now = Date(timeIntervalSince1970: 1_777_000_000)
+        let selectedCalendarID = "work-calendar"
+        let items = [
+            makeEvent(
+                id: "tentative",
+                title: "Tentative hold",
+                calendarID: selectedCalendarID,
+                startDate: now.addingTimeInterval(-10 * 60),
+                endDate: now.addingTimeInterval(20 * 60),
+                showsMutedBackground: true
+            ),
+        ]
+
+        XCTAssertNil(
+            CalendarMonitor.slackMeetingStatusExpirationTimestamp(
+                for: items,
+                calendarID: selectedCalendarID,
+                now: now
+            )
+        )
+    }
+
     func testActiveSlackRuleStateKeepsStatusAliveAcrossOverlappingMeetings() {
         let now = Date(timeIntervalSince1970: 1_777_000_000)
         let connectionID = "T1|U1"
@@ -181,6 +204,80 @@ final class SlackStatusSyncSchedulingTests: SlackStatusSyncTestCase {
             ),
             meetingEnd
         )
+    }
+
+    func testNextSlackStatusSyncTransitionDateIgnoresMutedParticipationEvents() {
+        let now = Date(timeIntervalSince1970: 1_777_000_000)
+        let rules = [
+            SlackStatusSyncRule(
+                connectionID: "T1|U1",
+                calendarID: "calendar-1",
+                isEnabled: true
+            ),
+        ]
+        let items = [
+            makeEvent(
+                id: "tentative",
+                title: "Tentative hold",
+                calendarID: "calendar-1",
+                startDate: now.addingTimeInterval(10 * 60),
+                endDate: now.addingTimeInterval(40 * 60),
+                showsMutedBackground: true
+            ),
+        ]
+
+        XCTAssertNil(
+            CalendarMonitor.nextSlackStatusSyncTransitionDate(
+                for: items,
+                rules: rules,
+                now: now
+            )
+        )
+    }
+
+    func testSlackRestoredStatusClearsPreviousCalendarManagedStatus() {
+        let managedStatus = SlackProfileStatusSnapshot(
+            statusText: "In a meeting",
+            statusEmoji: ":spiral_calendar_pad:",
+            statusExpiration: 1_777_000_600
+        )
+        let state = CalendarMonitor.SlackManagedStatusState(
+            previousStatus: SlackProfileStatusSnapshot(
+                statusText: "In a meeting",
+                statusEmoji: "🗓️",
+                statusExpiration: 1_777_000_300
+            ),
+            requestedStatus: managedStatus,
+            managedStatus: managedStatus
+        )
+
+        XCTAssertEqual(
+            CalendarMonitor.slackRestoredStatus(from: state),
+            SlackProfileStatusSnapshot(statusText: "", statusEmoji: "", statusExpiration: 0)
+        )
+    }
+
+    func testSlackRestoredStatusPreservesDistinctPreviousStatus() {
+        let previousStatus = SlackProfileStatusSnapshot(
+            statusText: "Heads down",
+            statusEmoji: "🎯",
+            statusExpiration: 0
+        )
+        let state = CalendarMonitor.SlackManagedStatusState(
+            previousStatus: previousStatus,
+            requestedStatus: SlackProfileStatusSnapshot(
+                statusText: "In a meeting",
+                statusEmoji: "🗓️",
+                statusExpiration: 1_777_000_600
+            ),
+            managedStatus: SlackProfileStatusSnapshot(
+                statusText: "In a meeting",
+                statusEmoji: ":spiral_calendar_pad:",
+                statusExpiration: 1_777_000_600
+            )
+        )
+
+        XCTAssertEqual(CalendarMonitor.slackRestoredStatus(from: state), previousStatus)
     }
 
     func testNextSlackStatusSyncTransitionDateUsesOverlapStartBeforeCurrentMeetingEnds() {

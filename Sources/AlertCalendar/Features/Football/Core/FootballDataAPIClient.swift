@@ -1,11 +1,32 @@
 import Foundation
 
 actor FootballDataAPIClient {
-    struct TeamResponse {
+    struct TeamResponse: Codable, Equatable, Sendable {
         let countryName: String?
         let isNational: Bool
         let logoURL: URL?
         let venueLocationText: String?
+    }
+
+    struct TeamCacheEntry: Codable, Sendable {
+        let response: TeamResponse
+        let fetchedAt: Date
+    }
+
+    struct ScoreboardPageCacheEntry {
+        let matches: [FootballFixtureMatch]
+        let fetchedAt: Date
+    }
+
+    struct SummaryRootCacheEntry {
+        let root: [String: Any]
+        let fetchedAt: Date
+    }
+
+    enum SummaryRootCacheRequirement {
+        case any
+        case minimumScorerCount(Int)
+        case hasStatistics
     }
 
     struct SummarySnapshot {
@@ -27,93 +48,30 @@ actor FootballDataAPIClient {
     }
 
     let session: URLSession
+    let teamCacheStore: FootballTeamCacheStore?
     var teamCache: [String: TeamResponse] = [:]
+    var teamCacheFetchedAt: [String: Date] = [:]
+    var scoreboardPageCache: [String: ScoreboardPageCacheEntry] = [:]
+    var scoreboardPageTasks: [String: Task<[FootballFixtureMatch], Never>] = [:]
     var goalScorersCache: [String: FootballMatchGoalScorers] = [:]
     var statisticsCache: [String: [FootballMatchStatistic]] = [:]
-    static let requestTimeout: TimeInterval = 8
-    static let resourceTimeout: TimeInterval = 20
-    static let summaryPreBufferBeforeKickoff: TimeInterval = 15 * 60
-    static let summaryPreBufferAfterKickoff: TimeInterval = 3 * 60 * 60
-    static let delayedLiveDataWarningAfterKickoff: TimeInterval = 15 * 60
-    static let clubCountryByLeaguePrefix: [String: String] = [
-        "arg": "Argentina",
-        "aut": "Austria",
-        "bel": "Belgium",
-        "bra": "Brazil",
-        "col": "Colombia",
-        "cze": "Czech Republic",
-        "den": "Denmark",
-        "eng": "England",
-        "esp": "Spain",
-        "fra": "France",
-        "ger": "Germany",
-        "gre": "Greece",
-        "irl": "Republic of Ireland",
-        "ita": "Italy",
-        "jpn": "Japan",
-        "mex": "Mexico",
-        "ned": "Netherlands",
-        "nir": "Northern Ireland",
-        "nor": "Norway",
-        "pol": "Poland",
-        "por": "Portugal",
-        "rou": "Romania",
-        "sco": "Scotland",
-        "srb": "Serbia",
-        "sui": "Switzerland",
-        "swe": "Sweden",
-        "tur": "Turkey",
-        "ukr": "Ukraine",
-        "usa": "United States",
-        "wal": "Wales",
-    ]
-    static let britishFootballCountries: Set<String> = [
-        "england",
-        "scotland",
-        "wales",
-        "northern ireland",
-        "united kingdom",
-        "great britain",
-    ]
-    static let countryIdentityAliases: [String: String] = [
-        "usa": "united states",
-        "us": "united states",
-        "u s a": "united states",
-        "turkiye": "turkey",
-        "great britain": "united kingdom",
-    ]
-    static let recognizedCountryLookupKeys: Set<String> = {
-        let locale = Locale(identifier: "en_US_POSIX")
-        var values = Set<String>()
-        for regionCode in Locale.Region.isoRegions.map(\.identifier) {
-            guard let name = locale.localizedString(forRegionCode: regionCode) else { continue }
-            values.insert(normalizedLookupKey(name))
-        }
-        return values
-    }()
-    static let genericClubIdentityTokens: Set<String> = [
-        "ac",
-        "afc",
-        "as",
-        "athletic",
-        "atletico",
-        "cf",
-        "city",
-        "club",
-        "de",
-        "del",
-        "fc",
-        "if",
-        "inter",
-        "real",
-        "sc",
-        "sporting",
-        "sv",
-        "the",
-        "united",
-    ]
+    var summaryRootCache: [String: SummaryRootCacheEntry] = [:]
+    var summaryRootTasks: [String: Task<Data?, Error>] = [:]
 
-    init(session: URLSession? = nil) {
+    init(
+        session: URLSession? = nil,
+        teamCacheStore: FootballTeamCacheStore? = nil
+    ) {
+        let resolvedTeamCacheStore = teamCacheStore ?? (session == nil ? FootballTeamCacheStore.defaultStore() : nil)
+        self.teamCacheStore = resolvedTeamCacheStore
+        if let persistedTeamCache = resolvedTeamCacheStore?.load(
+            now: AlertCalendarClock.nowRoundedToSecond(),
+            ttl: Self.teamCacheTTL
+        ) {
+            self.teamCache = persistedTeamCache.mapValues(\.response)
+            self.teamCacheFetchedAt = persistedTeamCache.mapValues(\.fetchedAt)
+        }
+
         if let session {
             self.session = session
             return
@@ -128,12 +86,13 @@ actor FootballDataAPIClient {
     }
 
     func fetchMatches(
-        for competitions: [FootballCompetitionPreset]
+        for competitions: [FootballCompetitionPreset],
+        enrichTeams shouldEnrichTeams: Bool = true
     ) async throws -> [FootballFixtureMatch] {
         let chunks = await withTaskGroup(of: [FootballFixtureMatch].self) { group in
             for competition in competitions {
-                group.addTask { [session] in
-                    await Self.fetchMatchesForCompetition(competition, session: session)
+                group.addTask {
+                    await self.fetchMatchesForCompetition(competition)
                 }
             }
 
@@ -154,14 +113,119 @@ actor FootballDataAPIClient {
                 return lhs.id < rhs.id
             }
 
+        guard shouldEnrichTeams else { return deduplicated }
         return await enrichTeams(in: deduplicated)
     }
 
     func fetchMatchesByCompetition(
-        for competitions: [FootballCompetitionPreset]
+        for competitions: [FootballCompetitionPreset],
+        enrichTeams shouldEnrichTeams: Bool = true
     ) async throws -> [String: [FootballFixtureMatch]] {
-        let matches = try await fetchMatches(for: competitions)
+        let matches = try await fetchMatches(
+            for: competitions,
+            enrichTeams: shouldEnrichTeams
+        )
         return Dictionary(grouping: matches, by: \.competitionSlug)
+    }
+
+    func scoreboardMatchesPage(
+        url: URL,
+        slug: String,
+        competitionName: String
+    ) async -> [FootballFixtureMatch] {
+        let cacheKey = url.absoluteString
+        let now = AlertCalendarClock.nowRoundedToSecond()
+
+        if let cached = scoreboardPageCache[cacheKey],
+           now.timeIntervalSince(cached.fetchedAt) <= Self.scoreboardPageCacheTTL {
+            return cached.matches
+        }
+
+        let matches: [FootballFixtureMatch]
+        if let task = scoreboardPageTasks[cacheKey] {
+            matches = await task.value
+        } else {
+            let task = Task { [session] in
+                await Self.fetchMatchesPage(
+                    url: url,
+                    slug: slug,
+                    competitionName: competitionName,
+                    session: session
+                )
+            }
+            scoreboardPageTasks[cacheKey] = task
+            defer { scoreboardPageTasks[cacheKey] = nil }
+            matches = await task.value
+        }
+
+        cacheScoreboardMatchesPage(matches, for: cacheKey, fetchedAt: now)
+        return matches
+    }
+
+    func cacheScoreboardMatchesPage(
+        _ matches: [FootballFixtureMatch],
+        for cacheKey: String,
+        fetchedAt: Date
+    ) {
+        if scoreboardPageCache[cacheKey] == nil,
+           scoreboardPageCache.count >= Self.scoreboardPageCacheLimit,
+           let oldestKey = scoreboardPageCache.min(by: { $0.value.fetchedAt < $1.value.fetchedAt })?.key {
+            scoreboardPageCache.removeValue(forKey: oldestKey)
+        }
+
+        scoreboardPageCache[cacheKey] = ScoreboardPageCacheEntry(
+            matches: matches,
+            fetchedAt: fetchedAt
+        )
+    }
+
+    func summaryRoot(
+        url: URL,
+        match: FootballFixtureMatch,
+        requirement: SummaryRootCacheRequirement = .any
+    ) async throws -> [String: Any]? {
+        let cacheKey = Self.summaryRootCacheKey(url: url, match: match)
+        let now = AlertCalendarClock.nowRoundedToSecond()
+
+        if let cached = summaryRootCache[cacheKey],
+           now.timeIntervalSince(cached.fetchedAt) <= Self.summaryRootCacheTTL,
+           Self.summaryRoot(cached.root, satisfies: requirement, match: match) {
+            return cached.root
+        }
+
+        let data: Data?
+        if let task = summaryRootTasks[cacheKey] {
+            data = try await task.value
+        } else {
+            let task = Task { [session] in
+                try await Self.fetchSummaryData(url: url, session: session)
+            }
+            summaryRootTasks[cacheKey] = task
+            defer { summaryRootTasks[cacheKey] = nil }
+            data = try await task.value
+        }
+
+        guard let data else { return nil }
+        let root = try Self.jsonDictionary(from: data)
+        cacheSummaryRoot(root, for: cacheKey, fetchedAt: now)
+        return root
+    }
+
+    func cacheSummaryRoot(
+        _ root: [String: Any],
+        for cacheKey: String,
+        fetchedAt: Date
+    ) {
+        if summaryRootCache[cacheKey] == nil,
+           summaryRootCache.count >= Self.summaryRootCacheLimit,
+           let oldestKey = summaryRootCache.min(by: { $0.value.fetchedAt < $1.value.fetchedAt })?.key {
+            summaryRootCache.removeValue(forKey: oldestKey)
+        }
+
+        summaryRootCache[cacheKey] = SummaryRootCacheEntry(
+            root: root,
+            fetchedAt: fetchedAt
+        )
     }
 
     func fetchGoalScorers(for match: FootballFixtureMatch) async throws -> FootballMatchGoalScorers? {
@@ -179,7 +243,11 @@ actor FootballDataAPIClient {
 
         for url in urls {
             do {
-                guard let root = try await Self.fetchSummaryRoot(url: url, session: session) else {
+                guard let root = try await summaryRoot(
+                    url: url,
+                    match: match,
+                    requirement: .minimumScorerCount(match.totalGoals)
+                ) else {
                     continue
                 }
 
@@ -228,7 +296,11 @@ actor FootballDataAPIClient {
 
         for url in urls {
             do {
-                guard let root = try await Self.fetchSummaryRoot(url: url, session: session) else {
+                guard let root = try await summaryRoot(
+                    url: url,
+                    match: match,
+                    requirement: .hasStatistics
+                ) else {
                     continue
                 }
 
@@ -288,13 +360,8 @@ actor FootballDataAPIClient {
 
         let snapshots = await withTaskGroup(of: (String, SummarySnapshot?).self) { group in
             for match in candidates {
-                group.addTask { [session] in
-                    let snapshot = await Self.fetchSummarySnapshot(
-                        competitionSlug: match.competitionSlug,
-                        eventID: match.id,
-                        fallbackStartDate: match.startDate,
-                        session: session
-                    )
+                group.addTask {
+                    let snapshot = await self.summarySnapshot(for: match)
                     return (match.id, snapshot)
                 }
             }

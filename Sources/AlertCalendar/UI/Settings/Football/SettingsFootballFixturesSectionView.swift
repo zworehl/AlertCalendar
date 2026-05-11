@@ -30,7 +30,6 @@ struct SettingsFootballFixturesSectionView: View {
     @AppStorage(DefaultsKeys.finishedFootballMatchLookbackDays) var finishedFootballMatchLookbackDays = 7
     @AppStorage(DefaultsKeys.footballMatchLookaheadDays) var footballMatchLookaheadDays = 14
     @State var browseMode: FootballBrowseMode = .competitions
-    @State var hoveredMatchID: String?
     @State var selectedCompetitionRegionID: String?
     @State var selectedCompetitionID: String?
     @State var isRefreshingManagedMatches = false

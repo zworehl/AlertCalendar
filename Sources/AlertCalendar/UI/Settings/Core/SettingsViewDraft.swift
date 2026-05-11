@@ -49,48 +49,9 @@ extension SettingsView {
 
     func applyDraft() {
         let oldAutoLocation = monitor.currentSettings.useAutomaticAstronomyLocation
-        var settings = monitor.currentSettings
-
-        settings.includeEvents = draft.includeEvents
-        settings.includeAllDayEvents = draft.includeAllDayEvents
-        settings.includeReminders = draft.includeReminders
-        settings.lookAheadHours = normalizedDropdownWindowHours(draft.lookAheadHours)
-        settings.contextualPreviewLeadMinutes = normalizedContextualPreviewLeadMinutes(
-            draft.contextualPreviewLeadMinutes,
-            dropdownWindowHours: settings.lookAheadHours
-        )
-        settings.menuBarRotationWindowMinutes = normalizedMenuBarRotationWindowMinutes(
-            draft.menuBarRotationWindowMinutes,
-            dropdownWindowHours: settings.lookAheadHours
-        )
-        settings.alertLeadMinutes = draft.alertLeadMinutes
-        settings.concurrentEventRotationSeconds = draft.concurrentEventRotationSeconds
-        settings.maxListItems = draft.maxListItems
-        settings.enableBlinkAlert = draft.enableBlinkAlert
-        settings.menuBarFontSize = draft.menuBarFontSize
-        settings.useSimplifiedCountdown = draft.useSimplifiedCountdown
-        settings.activeEventDisplayMode = draft.activeEventDisplayMode
-        settings.useEventTitleEllipsis = draft.useEventTitleEllipsis
-        settings.eventTitleMaxCharacters = draft.eventTitleMaxCharacters
-        settings.includeAstronomy = draft.includeAstronomy
-        settings.includeSunriseSunset = draft.includeSunriseSunset
-        settings.includeSolarNoonMidnight = draft.includeSolarNoonMidnight
-        settings.includeMoonPhases = draft.includeMoonPhases
-        settings.includeOrbitalHighlights = draft.includeOrbitalHighlights
-        settings.useAutomaticAstronomyLocation = draft.useAutomaticAstronomyLocation
-        settings.astronomyColorID = draft.astronomyColorID
-        settings.astronomyLatitude = roundedCoordinate(draft.astronomyLatitude)
-        settings.astronomyLongitude = roundedCoordinate(draft.astronomyLongitude)
-        settings.selectedEventCalendarIDs = draft.selectedEventCalendarIDs
-        settings.selectedReminderCalendarIDs = draft.selectedReminderCalendarIDs
-        settings.weekdayOnlyEventCalendarIDs = draft.weekdayOnlyEventCalendarIDs
-        settings.weekdayOnlyReminderCalendarIDs = draft.weekdayOnlyReminderCalendarIDs
-        settings.slackMeetingStatusText = SlackMeetingStatus.normalizedText(draft.slackMeetingStatusText)
-        settings.slackMeetingStatusEmoji = SlackMeetingStatus.normalizedEmoji(draft.slackMeetingStatusEmoji)
-        settings.slackStatusSyncRules = SlackStatusSyncRule.normalized(
-            draft.slackStatusSyncRules,
-            validConnectionIDs: Set(settings.slackConnections.map(\.id)),
-            validCalendarIDs: Set(availableEventCalendars.map(\.id))
+        let settings = draft.applied(
+            to: monitor.currentSettings,
+            availableEventCalendarIDs: Set(availableEventCalendars.map(\.id))
         )
 
         monitor.persistSettings(settings)
@@ -118,33 +79,9 @@ extension SettingsView {
     func detectLocation() {
         Task { @MainActor in
             guard let coordinate = await monitor.detectAstronomyCoordinate() else { return }
-            draft.astronomyLatitude = roundedCoordinate(coordinate.latitude)
-            draft.astronomyLongitude = roundedCoordinate(coordinate.longitude)
+            draft.astronomyLatitude = AppSettingsRules.roundedCoordinate(coordinate.latitude)
+            draft.astronomyLongitude = AppSettingsRules.roundedCoordinate(coordinate.longitude)
         }
-    }
-
-    func roundedCoordinate(_ value: Double) -> Double {
-        AppSettingsRules.roundedCoordinate(value)
-    }
-
-    func normalizedDropdownWindowHours(_ value: Int) -> Int {
-        AppSettingsRules.normalizedDropdownWindowHours(value)
-    }
-
-    func maximumMenuBarRotationWindowMinutes(dropdownWindowHours: Int) -> Int {
-        Self.maximumMenuBarRotationWindowMinutes(dropdownWindowHours: dropdownWindowHours)
-    }
-
-    func maximumContextualPreviewLeadMinutes(dropdownWindowHours: Int) -> Int {
-        Self.maximumContextualPreviewLeadMinutes(dropdownWindowHours: dropdownWindowHours)
-    }
-
-    func normalizedMenuBarRotationWindowMinutes(_ value: Int, dropdownWindowHours: Int) -> Int {
-        Self.normalizedMenuBarRotationWindowMinutes(value, dropdownWindowHours: dropdownWindowHours)
-    }
-
-    func normalizedContextualPreviewLeadMinutes(_ value: Int, dropdownWindowHours: Int) -> Int {
-        Self.normalizedContextualPreviewLeadMinutes(value, dropdownWindowHours: dropdownWindowHours)
     }
 
     func connectSlackToken() {

@@ -268,4 +268,111 @@ final class FootballFixtureDurationAndContextTests: FootballFixtureFormatterTest
         )
 
         XCTAssertEqual(CalendarMonitor.approximateFootballMatchDuration(for: match), 150 * 60)
-    }}
+    }
+    func testFootballRefreshIntervalTracksMatchUrgency() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let live = makeMatch(
+            id: "live-refresh",
+            startDate: now.addingTimeInterval(-20 * 60),
+            statusState: .inProgress
+        )
+        let nearKickoff = makeMatch(
+            id: "near-refresh",
+            startDate: now.addingTimeInterval(10 * 60),
+            statusState: .scheduled
+        )
+        let upcoming = makeMatch(
+            id: "upcoming-refresh",
+            startDate: now.addingTimeInterval(3 * 60 * 60),
+            statusState: .scheduled
+        )
+        let distant = makeMatch(
+            id: "distant-refresh",
+            startDate: now.addingTimeInterval(3 * 24 * 60 * 60),
+            statusState: .scheduled
+        )
+
+        XCTAssertEqual(
+            CalendarMonitor.footballRefreshInterval(for: [live], now: now),
+            CalendarMonitor.footballActiveRefreshInterval
+        )
+        XCTAssertEqual(
+            CalendarMonitor.footballRefreshInterval(for: [nearKickoff], now: now),
+            CalendarMonitor.footballManagedSyncInterval
+        )
+        XCTAssertEqual(
+            CalendarMonitor.footballRefreshInterval(for: [upcoming], now: now),
+            CalendarMonitor.footballUpcomingRefreshInterval
+        )
+        XCTAssertEqual(
+            CalendarMonitor.footballRefreshInterval(for: [distant], now: now),
+            CalendarMonitor.footballIdleRefreshInterval
+        )
+    }
+    func testFootballMatchPreservingKnownTimingContextKeepsResolvedTeamDetails() {
+        let startDate = Date(timeIntervalSince1970: 1_720_000_000)
+        let previousMatch = FootballTestData.match(
+            id: "preserve-team-details",
+            competitionSlug: "usa.1",
+            competitionName: "MLS",
+            locationText: "BMO Field, Toronto, Canada",
+            startDate: startDate,
+            statusState: .scheduled,
+            homeTeam: FootballTestData.clubTeam(
+                id: "1845",
+                name: "Toronto FC",
+                abbreviation: "TOR",
+                countryName: "Canada"
+            ).withResolvedDetails(
+                countryName: "Canada",
+                isNational: false,
+                logoURL: URL(string: "https://example.com/toronto.png")
+            ),
+            awayTeam: FootballTestData.clubTeam(
+                id: "1850",
+                name: "Inter Miami CF",
+                abbreviation: "MIA",
+                countryName: "United States"
+            ).withResolvedDetails(
+                countryName: "United States",
+                isNational: false,
+                logoURL: URL(string: "https://example.com/miami.png")
+            )
+        )
+        let lightweightMatch = FootballTestData.match(
+            id: "preserve-team-details",
+            competitionSlug: "usa.1",
+            competitionName: "MLS",
+            locationText: nil,
+            startDate: startDate,
+            statusState: .scheduled,
+            homeTeam: FootballTeamSummary(
+                id: "1845",
+                name: "Toronto FC",
+                abbreviation: "TOR",
+                logoURL: nil,
+                countryName: nil,
+                isNational: false
+            ),
+            awayTeam: FootballTeamSummary(
+                id: "1850",
+                name: "Inter Miami CF",
+                abbreviation: "MIA",
+                logoURL: nil,
+                countryName: nil,
+                isNational: false
+            )
+        )
+
+        let resolvedMatch = CalendarMonitor.footballMatchPreservingKnownTimingContext(
+            lightweightMatch,
+            previousMatch: previousMatch
+        )
+
+        XCTAssertEqual(resolvedMatch.locationText, "BMO Field, Toronto, Canada")
+        XCTAssertEqual(resolvedMatch.homeTeam.countryName, "Canada")
+        XCTAssertEqual(resolvedMatch.awayTeam.countryName, "United States")
+        XCTAssertEqual(resolvedMatch.homeTeam.logoURL, URL(string: "https://example.com/toronto.png"))
+        XCTAssertEqual(resolvedMatch.awayTeam.logoURL, URL(string: "https://example.com/miami.png"))
+    }
+}

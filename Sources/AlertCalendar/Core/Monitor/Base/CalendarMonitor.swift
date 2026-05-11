@@ -49,11 +49,12 @@ final class CalendarMonitor: ObservableObject {
     @Published var slackRuntimeStatusDescription: String?
     @Published private(set) var currentSettings = AppSettings.defaults
 
-    let eventStore = EKEventStore()
-    let defaults = UserDefaults.standard
-    let footballClient = FootballDataAPIClient()
-    let footballImageStore = FootballImageStore()
-    let slackClient = SlackAPIClient()
+    let eventStore: EKEventStore
+    let defaults: UserDefaults
+    let footballClient: FootballDataAPIClient
+    let footballImageStore: FootballImageStore
+    let slackClient: SlackAPIClient
+    let clock: AlertCalendarClockProviding
 
     var settingsStore: AppSettingsStore {
         AppSettingsStore(defaults: defaults)
@@ -66,7 +67,6 @@ final class CalendarMonitor: ObservableObject {
     let refreshCoordinator = CalendarMonitorRefreshCoordinator()
     var tickCount = 0
     var lastPeriodicRefreshDate: Date?
-    var blinkPhase = false
     var birthdayCalendarIDs: Set<String> = []
     var allDayEventItems: [UpcomingItem] = []
     var alreadyNotified: Set<String> = []
@@ -104,7 +104,21 @@ final class CalendarMonitor: ObservableObject {
     var lastSlackStatusSyncEvaluationDate: Date?
     var slackManagedStateByConnectionID: [String: SlackManagedStatusState] = [:]
 
-    init() {
+    init(
+        eventStore: EKEventStore = EKEventStore(),
+        defaults: UserDefaults = .standard,
+        footballClient: FootballDataAPIClient = FootballDataAPIClient(),
+        footballImageStore: FootballImageStore = FootballImageStore(),
+        slackClient: SlackAPIClient = SlackAPIClient(),
+        clock: AlertCalendarClockProviding = SystemAlertCalendarClock()
+    ) {
+        self.eventStore = eventStore
+        self.defaults = defaults
+        self.footballClient = footballClient
+        self.footballImageStore = footballImageStore
+        self.slackClient = slackClient
+        self.clock = clock
+
         registerDefaultSettings()
         currentSettings = settingsStore.load()
         managedFootballEventRecords = Self.decodeManagedFootballEventRecords(
@@ -132,7 +146,6 @@ final class CalendarMonitor: ObservableObject {
         guard let activeAlertItem else { return }
         silencedAlertKeys.insert(activeAlertItem.notificationKey)
         self.activeAlertItem = nil
-        blinkPhase = false
         updateMenuBarState(now: fixedSecondNow(), settings: snapshotSettings())
     }
 
@@ -200,7 +213,7 @@ final class CalendarMonitor: ObservableObject {
     }()
 
     func fixedSecondNow() -> Date {
-        AlertCalendarClock.nowRoundedToSecond()
+        clock.nowRoundedToSecond()
     }
 
     func reloadCurrentSettings() {

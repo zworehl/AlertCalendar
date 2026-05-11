@@ -207,9 +207,11 @@ extension CalendarMonitor {
         matches
             .map { cachedMatchesByID[$0.id] ?? $0 }
             .filter { !FootballFixtureFormatter.hasUnknownParticipants(in: $0) }
-            .sorted { lhs, rhs in
-                footballFixtureSortPriority(for: lhs, now: now) < footballFixtureSortPriority(for: rhs, now: now)
+            .map { match in
+                (match: match, priority: footballFixtureSortPriority(for: match, now: now))
             }
+            .sorted { $0.priority < $1.priority }
+            .map(\.match)
     }
 
     func updateFootballCompetitionSection(
@@ -232,9 +234,11 @@ extension CalendarMonitor {
             .compactMap { snapshot in
                 footballMatchesByID[snapshot.reference.matchID]
             }
-            .sorted { lhs, rhs in
-                Self.footballFixtureSortPriority(for: lhs, now: now) < Self.footballFixtureSortPriority(for: rhs, now: now)
+            .map { match in
+                (match: match, priority: Self.footballFixtureSortPriority(for: match, now: now))
             }
+            .sorted { $0.priority < $1.priority }
+            .map(\.match)
         guard managedFootballMatches != nextMatches else { return }
         managedFootballMatches = nextMatches
     }

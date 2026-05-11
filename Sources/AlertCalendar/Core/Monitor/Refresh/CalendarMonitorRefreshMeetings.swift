@@ -41,9 +41,7 @@ extension CalendarMonitor {
     }
 
     func isVirtualLocationText(_ rawText: String?) -> Bool {
-        guard let rawText else { return false }
-        let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return false }
+        guard let text = AlertCalendarString.trimmedNonEmpty(rawText) else { return false }
         let normalized = text.lowercased()
 
         let virtualKeywords = [
@@ -107,7 +105,7 @@ extension CalendarMonitor {
             }
 
             let identifier = emailAddress ?? displayText
-            guard !identifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+            guard AlertCalendarString.trimmedNonEmpty(identifier) != nil else { return nil }
 
             return MeetingAttendee(
                 id: identifier,
@@ -136,23 +134,17 @@ extension CalendarMonitor {
     }
 
     private func participantDisplayText(name: String?, emailAddress: String?) -> String? {
-        if let name {
-            let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty {
-                return trimmed
-            }
+        if let name = AlertCalendarString.trimmedNonEmpty(name) {
+            return name
         }
 
-        guard let emailAddress else { return nil }
-        let trimmed = emailAddress.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        return AlertCalendarString.trimmedNonEmpty(emailAddress)
     }
 
     private func attendeeEmailAddress(for participant: EKParticipant) -> String? {
         let participantURL = participant.url
         var candidate = participantURL.absoluteString
-        candidate = (candidate.removingPercentEncoding ?? candidate)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        candidate = AlertCalendarString.trimmedNonEmpty(candidate.removingPercentEncoding ?? candidate) ?? ""
 
         if candidate.lowercased().hasPrefix("mailto:") {
             candidate.removeFirst("mailto:".count)

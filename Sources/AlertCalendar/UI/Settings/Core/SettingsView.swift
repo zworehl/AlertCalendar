@@ -379,13 +379,13 @@ struct SettingsView: View {
             synchronizeDraftWithStoredSettings()
         }
         .onChange(of: draft.lookAheadHours) { newValue in
-            let normalizedDropdownHours = normalizedDropdownWindowHours(newValue)
+            let normalizedDropdownHours = AppSettingsRules.normalizedDropdownWindowHours(newValue)
             if normalizedDropdownHours != draft.lookAheadHours {
                 draft.lookAheadHours = normalizedDropdownHours
                 return
             }
 
-            let normalizedContextualPreviewLead = normalizedContextualPreviewLeadMinutes(
+            let normalizedContextualPreviewLead = AppSettingsRules.normalizedContextualPreviewLeadMinutes(
                 draft.contextualPreviewLeadMinutes,
                 dropdownWindowHours: normalizedDropdownHours
             )
@@ -393,7 +393,7 @@ struct SettingsView: View {
                 draft.contextualPreviewLeadMinutes = normalizedContextualPreviewLead
             }
 
-            let normalizedMenuBarMinutes = normalizedMenuBarRotationWindowMinutes(
+            let normalizedMenuBarMinutes = AppSettingsRules.normalizedMenuBarRotationWindowMinutes(
                 draft.menuBarRotationWindowMinutes,
                 dropdownWindowHours: normalizedDropdownHours
             )

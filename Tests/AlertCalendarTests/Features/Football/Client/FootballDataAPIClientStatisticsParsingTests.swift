@@ -179,4 +179,115 @@ final class FootballDataAPIClientStatisticsParsingTests: FootballDataAPIClientTe
         XCTAssertEqual(resolvedKickoff.timeIntervalSince1970, actualKickoff.timeIntervalSince1970, accuracy: 0.001)
         XCTAssertEqual(refreshed.first?.homeScore, "2")
         XCTAssertEqual(refreshed.first?.awayScore, "1")
-    }}
+    }
+
+    func testSummaryRootIsCoalescedAndReusedAcrossFootballDetails() async throws {
+        let match = makeMatch(
+            id: "shared-summary-match",
+            statusState: .inProgress,
+            homeScore: "1",
+            awayScore: "0"
+        )
+        let requestLock = NSLock()
+        var requestCount = 0
+        let session = makeMockSession { request in
+            requestLock.lock()
+            requestCount += 1
+            requestLock.unlock()
+
+            Thread.sleep(forTimeInterval: 0.05)
+            return try self.jsonResponse(
+                for: request,
+                body: self.summaryRootWithStatsGoalAndFinishedStatus()
+            )
+        }
+        let client = FootballDataAPIClient(session: session)
+
+        async let statisticsTask = client.fetchMatchStatistics(for: match)
+        async let scorersTask = client.fetchGoalScorers(for: match)
+        let (statistics, scorers) = try await (statisticsTask, scorersTask)
+        let refreshed = await client.refreshStatusesIfNeeded(
+            for: [match],
+            forceSummaryForMatchIDs: [match.id]
+        )
+
+        XCTAssertEqual(statistics.count, 10)
+        XCTAssertEqual(scorers?.home.map(\.name), ["Lionel Messi"])
+        XCTAssertEqual(refreshed.first?.statusState, .finished)
+        XCTAssertEqual(refreshed.first?.statusText, "FT")
+        XCTAssertEqual(refreshed.first?.homeScore, "1")
+        XCTAssertEqual(refreshed.first?.awayScore, "0")
+
+        XCTAssertEqual(requestCount, 1)
+    }
+
+    private func summaryRootWithStatsGoalAndFinishedStatus() -> [String: Any] {
+        let statistics: [[String: Any]] = [
+            ["name": "possessionPct", "displayValue": "61"],
+            ["name": "totalShots", "displayValue": "14"],
+            ["name": "shotsOnTarget", "displayValue": "6"],
+            ["name": "wonCorners", "displayValue": "8"],
+            ["name": "offsides", "displayValue": "2"],
+            ["name": "foulsCommitted", "displayValue": "11"],
+            ["name": "yellowCards", "displayValue": "1"],
+            ["name": "redCards", "displayValue": "0"],
+            ["name": "saves", "displayValue": "3"],
+        ]
+
+        return [
+            "header": [
+                "competitions": [[
+                    "status": [
+                        "type": [
+                            "state": "post",
+                            "shortDetail": "FT",
+                            "detail": "Full Time",
+                            "period": 2,
+                        ],
+                    ],
+                    "competitors": [
+                        [
+                            "homeAway": "home",
+                            "score": "1",
+                            "team": [
+                                "id": "home-id",
+                                "displayName": "Argentina",
+                            ],
+                        ],
+                        [
+                            "homeAway": "away",
+                            "score": "0",
+                            "team": [
+                                "id": "away-id",
+                                "displayName": "Guatemala",
+                            ],
+                        ],
+                    ],
+                ]],
+            ],
+            "boxscore": [
+                "teams": [
+                    [
+                        "homeAway": "home",
+                        "team": ["id": "home-id"],
+                        "statistics": statistics,
+                    ],
+                    [
+                        "homeAway": "away",
+                        "team": ["id": "away-id"],
+                        "statistics": statistics,
+                    ],
+                ],
+            ],
+            "keyEvents": [
+                [
+                    "scoringPlay": true,
+                    "team": ["id": "home-id"],
+                    "clock": ["displayValue": "12'"],
+                    "type": ["text": "Goal"],
+                    "text": "Goal. Lionel Messi (Argentina).",
+                ],
+            ],
+        ]
+    }
+}

@@ -6,8 +6,14 @@ import SwiftUI
 extension MenuContentView {
     @ViewBuilder
     func contextualDaylightHeader(for item: UpcomingItem) -> some View {
+        MenuContentHoverContainer { isHovered in
+            contextualDaylightHeaderContent(for: item, isHovered: isHovered)
+        }
+    }
+
+    @ViewBuilder
+    func contextualDaylightHeaderContent(for item: UpcomingItem, isHovered: Bool) -> some View {
         let accentColor = Color(nsColor: item.calendarColor)
-        let isHovered = hoveredActionRowKey == item.notificationKey
         let titleFont = Font.system(size: 12, weight: .semibold)
         let timeFont = Font.system(size: 11, weight: .medium)
 
@@ -37,9 +43,6 @@ extension MenuContentView {
         .padding(.vertical, 4)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
-        .onHover { isHovering in
-            hoveredActionRowKey = isHovering ? item.notificationKey : nil
-        }
     }
 
     @ViewBuilder

@@ -144,4 +144,22 @@ final class MenuBarStateTests: XCTestCase {
             "1h 30m"
         )
     }
+
+    func testAlertBlinkTextOpacityUsesWholeSecondParity() {
+        XCTAssertEqual(
+            CalendarMonitor.alertBlinkTextOpacity(now: Date(timeIntervalSince1970: 2)),
+            1
+        )
+        XCTAssertEqual(
+            CalendarMonitor.alertBlinkTextOpacity(now: Date(timeIntervalSince1970: 3)),
+            0
+        )
+    }
+
+    func testAlertBlinkTextOpacityDoesNotChangeWithinSameSecond() {
+        let early = CalendarMonitor.alertBlinkTextOpacity(now: Date(timeIntervalSince1970: 10.1))
+        let late = CalendarMonitor.alertBlinkTextOpacity(now: Date(timeIntervalSince1970: 10.9))
+
+        XCTAssertEqual(early, late)
+    }
 }

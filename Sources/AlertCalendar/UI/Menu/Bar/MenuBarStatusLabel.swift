@@ -20,6 +20,7 @@ struct MenuBarStatusLabel: View {
     let footballGoalHighlightSide: FootballScoreSide?
     let footballGoalHighlightTextOpacity: CGFloat
     @AppStorage(DefaultsKeys.menuBarFontSize) private var menuBarFontSize = 13.0
+    @State private var footballLogoRevision = 0
 
     var body: some View {
         Image(
@@ -39,13 +40,45 @@ struct MenuBarStatusLabel: View {
                 footballStatusColor: footballStatusColor,
                 footballGoalHighlightSide: footballGoalHighlightSide,
                 footballGoalHighlightTextOpacity: footballGoalHighlightTextOpacity,
-                fontSize: CGFloat(menuBarFontSize)
+                fontSize: CGFloat(menuBarFontSize),
+                footballLogoRevision: footballLogoRevision
             )
         )
         .renderingMode(.original)
         .accessibilityLabel(text)
+        .task(id: footballLogoTaskID) {
+            await preloadFootballLogos()
+        }
     }
 
+    private var footballLogoPaths: [String] {
+        [
+            footballDisplay?.homeLocalLogoPath,
+            footballDisplay?.awayLocalLogoPath,
+        ]
+        .compactMap { $0 }
+    }
+
+    private var footballLogoTaskID: String {
+        footballLogoPaths.joined(separator: "|")
+    }
+
+    @MainActor
+    private func preloadFootballLogos() async {
+        var loadedImage = false
+
+        for path in footballLogoPaths where FootballLocalImageCache.cachedImage(for: path) == nil {
+            if await FootballLocalImageCache.loadImage(for: path) != nil {
+                loadedImage = true
+            }
+        }
+
+        if loadedImage {
+            footballLogoRevision += 1
+        }
+    }
+
+    @MainActor
     private static func makeBadgeImage(
         text: String,
         color: NSColor,
@@ -62,16 +95,29 @@ struct MenuBarStatusLabel: View {
         footballStatusColor: NSColor,
         footballGoalHighlightSide: FootballScoreSide?,
         footballGoalHighlightTextOpacity: CGFloat,
-        fontSize: CGFloat
+        fontSize: CGFloat,
+        footballLogoRevision: Int
     ) -> NSImage {
+        _ = footballLogoRevision
         let clampedFontSize = min(max(fontSize, 10), 18)
         let font = NSFont.systemFont(ofSize: clampedFontSize, weight: .semibold)
+        let defaultTextColor = NSColor.white.withAlphaComponent(0.97)
         let baseTextAttributes: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: NSColor.white.withAlphaComponent(0.97),
+            .foregroundColor: defaultTextColor,
         ]
         let textSegments = segments.isEmpty ? [text] : segments
         let attributedSegments = textSegments.enumerated().map { index, segment in
+            let isAlertedSegment = alertedSegmentIndex == index
+            let alertedTextOpacity = isAlertedSegment ? alertTextOpacity : nil
+            var segmentTextAttributes = baseTextAttributes
+            if let alertedTextOpacity {
+                segmentTextAttributes[.foregroundColor] = alertTextColor(
+                    opacity: alertedTextOpacity,
+                    baseColor: defaultTextColor
+                )
+            }
+
             if index == 0,
                let footballDisplay {
                 return footballAttributedSegment(
@@ -82,7 +128,8 @@ struct MenuBarStatusLabel: View {
                     font: font,
                     highlightSide: footballGoalHighlightSide,
                     highlightOpacity: footballGoalHighlightTextOpacity,
-                    baseColor: NSColor.white.withAlphaComponent(0.97)
+                    alertTextOpacity: alertedTextOpacity,
+                    baseColor: defaultTextColor
                 )
             }
 
@@ -94,17 +141,11 @@ struct MenuBarStatusLabel: View {
                     text: segment,
                     side: footballGoalHighlightSide,
                     opacity: footballGoalHighlightTextOpacity,
-                    baseAttributes: baseTextAttributes
+                    baseAttributes: segmentTextAttributes
                 )
             }
 
-            var attributes = baseTextAttributes
-            if let alertedSegmentIndex,
-               index == alertedSegmentIndex {
-                let useRed = alertTextOpacity >= 0.5
-                attributes[.foregroundColor] = useRed ? NSColor.systemRed : NSColor.white.withAlphaComponent(0.97)
-            }
-            return NSAttributedString(string: segment, attributes: attributes)
+            return NSAttributedString(string: segment, attributes: segmentTextAttributes)
         }
         let segmentSizes = attributedSegments.map { $0.size() }
 

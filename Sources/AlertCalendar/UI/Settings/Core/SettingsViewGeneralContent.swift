@@ -8,7 +8,7 @@ import SwiftUI
 extension SettingsView {
     @ViewBuilder
     var generalSettingsContent: some View {
-        let maxContextualPreviewLeadMinutes = maximumContextualPreviewLeadMinutes(
+        let maxContextualPreviewLeadMinutes = AppSettingsRules.maximumContextualPreviewLeadMinutes(
             dropdownWindowHours: draft.lookAheadHours
         )
 
@@ -108,13 +108,13 @@ extension SettingsView {
                             Stepper {
                                 EmptyView()
                             } onIncrement: {
-                                draft.menuBarRotationWindowMinutes = Self.adjustedMenuBarRotationWindowMinutes(
+                                draft.menuBarRotationWindowMinutes = AppSettingsRules.adjustedMenuBarRotationWindowMinutes(
                                     currentValue: draft.menuBarRotationWindowMinutes,
                                     incrementing: true,
                                     dropdownWindowHours: draft.lookAheadHours
                                 )
                             } onDecrement: {
-                                draft.menuBarRotationWindowMinutes = Self.adjustedMenuBarRotationWindowMinutes(
+                                draft.menuBarRotationWindowMinutes = AppSettingsRules.adjustedMenuBarRotationWindowMinutes(
                                     currentValue: draft.menuBarRotationWindowMinutes,
                                     incrementing: false,
                                     dropdownWindowHours: draft.lookAheadHours

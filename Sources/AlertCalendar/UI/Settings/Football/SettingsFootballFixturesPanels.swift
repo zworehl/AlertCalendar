@@ -229,6 +229,23 @@ extension SettingsFootballFixturesSectionView {
         showsCompetitionName: Bool,
         showsSeparateMetadataRows: Bool = false
     ) -> some View {
+        FootballMatchCardHoverContainer { isHovered in
+            matchCardContent(
+                match,
+                showsCompetitionName: showsCompetitionName,
+                showsSeparateMetadataRows: showsSeparateMetadataRows,
+                isHovered: isHovered
+            )
+        }
+    }
+
+    @ViewBuilder
+    func matchCardContent(
+        _ match: FootballFixtureMatch,
+        showsCompetitionName: Bool,
+        showsSeparateMetadataRows: Bool,
+        isHovered: Bool
+    ) -> some View {
         let trailingStatusAccessories = FootballStatusAccessoriesView.accessories(for: match, now: visibleNow)
         let inlineAccessories = FootballStatusAccessoriesData(
             badgeText: nil,
@@ -236,7 +253,6 @@ extension SettingsFootballFixturesSectionView {
         )
         let warningText = CalendarMonitor.footballStatusWarningText(for: match)
         let warningSummary = warningText.flatMap { _ in CalendarMonitor.footballStatusWarningSummary(for: match) }
-        let isHovered = hoveredMatchID == match.id
         let isManaged = managedFootballMatchIDs.contains(match.id)
         let baseBorderColor = isManaged ? Color.green.opacity(0.28) : Color.primary.opacity(0.06)
 
@@ -286,13 +302,6 @@ extension SettingsFootballFixturesSectionView {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(isHovered ? Color.accentColor.opacity(0.22) : baseBorderColor, lineWidth: 1)
         )
-        .onHover { hovering in
-            if hovering {
-                hoveredMatchID = match.id
-            } else if hoveredMatchID == match.id {
-                hoveredMatchID = nil
-            }
-        }
         .animation(.easeInOut(duration: 0.14), value: isHovered)
     }
 
@@ -362,5 +371,21 @@ extension SettingsFootballFixturesSectionView {
         }
     }
 
+}
 
+private struct FootballMatchCardHoverContainer<Content: View>: View {
+    let content: (Bool) -> Content
+    @State private var isHovered = false
+
+    init(@ViewBuilder content: @escaping (Bool) -> Content) {
+        self.content = content
+    }
+
+    var body: some View {
+        content(isHovered)
+            .onHover { hovering in
+                guard isHovered != hovering else { return }
+                isHovered = hovering
+            }
+    }
 }

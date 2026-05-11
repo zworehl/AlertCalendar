@@ -49,98 +49,13 @@ extension MenuContentView {
 
         VStack(alignment: .leading, spacing: 6) {
             if let footballMatch = item.footballMatch {
-                let isHovered = hoveredActionRowKey == item.notificationKey
-                HStack(spacing: 8) {
-                    let concurrentFootballMatchCount = displayedContextualActionItems.count
-                    let scheduleText = Self.footballContextualScheduleText(for: footballMatch, now: now)
-                    let venueName = footballContextualVenueName(for: item, match: footballMatch)
-                    let usesExpandedFootballHeader = Self.shouldUseExpandedContextualFootballHeader(
-                        for: footballMatch,
-                        itemCount: concurrentFootballMatchCount
-                    )
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        if !usesExpandedFootballHeader {
-                            HStack(alignment: .top, spacing: 10) {
-                                footballFixtureHeadline(
-                                    match: footballMatch,
-                                    display: item.footballMenuBarDisplay,
-                                    font: .subheadline.weight(.semibold),
-                                    showsScore: true,
-                                    showsInlineAggregate: true,
-                                    showsCardBadges: true,
-                                    showsStatusAccessories: true
-                                )
-                            }
-                        }
-
-                        if footballInlineAggregateText(for: footballMatch) == nil,
-                           footballFixtureContextBadgeText(for: footballMatch) != nil {
-                            HStack {
-                                footballFixtureContextBadge(for: footballMatch)
-                                Spacer(minLength: 0)
-                            }
-                        }
-
-                        if let venueName {
-                            HStack(alignment: .center, spacing: 4) {
-                                Image(systemName: locationSymbolName(for: item))
-                                    .font(.system(size: 12, weight: .regular))
-                                    .frame(width: 12, height: 12, alignment: .center)
-                                    .foregroundStyle(.secondary)
-
-                                Text(venueName)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                                    .truncationMode(.tail)
-
-                                Spacer(minLength: 8)
-
-                                if !isHovered,
-                                   let scheduleText,
-                                   !scheduleText.isEmpty {
-                                    Text(scheduleText)
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(.secondary)
-                                        .multilineTextAlignment(.trailing)
-                                        .lineLimit(1)
-                                        .fixedSize(horizontal: true, vertical: false)
-                                }
-                            }
-                        } else if !isHovered,
-                                  let scheduleText,
-                                  !scheduleText.isEmpty {
-                            HStack {
-                                Spacer(minLength: 0)
-                                Text(scheduleText)
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-                                    .multilineTextAlignment(.trailing)
-                                    .lineLimit(1)
-                                    .fixedSize(horizontal: true, vertical: false)
-                            }
-                        }
-
-                        if showsFootballCompetitionLine {
-                            footballCompetitionLine(
-                                match: footballMatch,
-                                display: item.footballMenuBarDisplay,
-                                font: .caption
-                            )
-                        }
-                    }
-
-                    Spacer(minLength: 8)
-
-                    if isHovered {
-                        contextualActionButtons(for: item, locationText: previewLocationText)
-                    }
-                }
-                .contentShape(Rectangle())
-                .onHover { isHovering in
-                    hoveredActionRowKey = isHovering ? item.notificationKey : nil
-                }
+                contextualFootballHeader(
+                    for: item,
+                    match: footballMatch,
+                    showsFootballCompetitionLine: showsFootballCompetitionLine,
+                    previewLocationText: previewLocationText,
+                    now: now
+                )
             } else {
                 if shouldShowDaylightPreview {
                     contextualDaylightHeader(for: item)
@@ -225,13 +140,146 @@ extension MenuContentView {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    func contextualFootballHeader(
+        for item: UpcomingItem,
+        match footballMatch: FootballFixtureMatch,
+        showsFootballCompetitionLine: Bool,
+        previewLocationText: String?,
+        now: Date
+    ) -> some View {
+        MenuContentHoverContainer { isHovered in
+            contextualFootballHeaderContent(
+                for: item,
+                match: footballMatch,
+                showsFootballCompetitionLine: showsFootballCompetitionLine,
+                previewLocationText: previewLocationText,
+                now: now,
+                isHovered: isHovered
+            )
+        }
+    }
+
+    func contextualFootballHeaderContent(
+        for item: UpcomingItem,
+        match footballMatch: FootballFixtureMatch,
+        showsFootballCompetitionLine: Bool,
+        previewLocationText: String?,
+        now: Date,
+        isHovered: Bool
+    ) -> some View {
+        HStack(spacing: 8) {
+            let concurrentFootballMatchCount = displayedContextualActionItems.count
+            let scheduleText = Self.footballContextualScheduleText(for: footballMatch, now: now)
+            let venueName = footballContextualVenueName(for: item, match: footballMatch)
+            let usesExpandedFootballHeader = Self.shouldUseExpandedContextualFootballHeader(
+                for: footballMatch,
+                itemCount: concurrentFootballMatchCount
+            )
+
+            VStack(alignment: .leading, spacing: 2) {
+                if !usesExpandedFootballHeader {
+                    HStack(alignment: .top, spacing: 10) {
+                        footballFixtureHeadline(
+                            match: footballMatch,
+                            display: item.footballMenuBarDisplay,
+                            font: .subheadline.weight(.semibold),
+                            showsScore: true,
+                            showsInlineAggregate: true,
+                            showsCardBadges: true,
+                            showsStatusAccessories: true
+                        )
+                    }
+                }
+
+                if footballInlineAggregateText(for: footballMatch) == nil,
+                   footballFixtureContextBadgeText(for: footballMatch) != nil {
+                    HStack {
+                        footballFixtureContextBadge(for: footballMatch)
+                        Spacer(minLength: 0)
+                    }
+                }
+
+                if let venueName {
+                    HStack(alignment: .center, spacing: 4) {
+                        Image(systemName: locationSymbolName(for: item))
+                            .font(.system(size: 12, weight: .regular))
+                            .frame(width: 12, height: 12, alignment: .center)
+                            .foregroundStyle(.secondary)
+
+                        Text(venueName)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+
+                        Spacer(minLength: 8)
+
+                        if !isHovered,
+                           let scheduleText,
+                           !scheduleText.isEmpty {
+                            Text(scheduleText)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.trailing)
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                        }
+                    }
+                } else if !isHovered,
+                          let scheduleText,
+                          !scheduleText.isEmpty {
+                    HStack {
+                        Spacer(minLength: 0)
+                        Text(scheduleText)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.trailing)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                    }
+                }
+
+                if showsFootballCompetitionLine {
+                    footballCompetitionLine(
+                        match: footballMatch,
+                        display: item.footballMenuBarDisplay,
+                        font: .caption
+                    )
+                }
+            }
+
+            Spacer(minLength: 8)
+
+            if isHovered {
+                contextualActionButtons(for: item, locationText: previewLocationText)
+            }
+        }
+        .contentShape(Rectangle())
+    }
+
     @ViewBuilder
     func contextualProgressHeader(
         for item: UpcomingItem,
         locationText: String?,
         showsJoinButton: Bool
     ) -> some View {
-        let isHovered = hoveredActionRowKey == item.notificationKey
+        MenuContentHoverContainer { isHovered in
+            contextualProgressHeaderContent(
+                for: item,
+                locationText: locationText,
+                showsJoinButton: showsJoinButton,
+                isHovered: isHovered
+            )
+        }
+    }
+
+    @ViewBuilder
+    func contextualProgressHeaderContent(
+        for item: UpcomingItem,
+        locationText: String?,
+        showsJoinButton: Bool,
+        isHovered: Bool
+    ) -> some View {
         let now = displayReferenceDate
         let reservedTrailingWidth = isHovered ? contextualActionRowWidth(
             for: item,
@@ -243,6 +291,7 @@ extension MenuContentView {
             rowPrimaryContent(
                 for: item,
                 now: now,
+                isHovered: isHovered,
                 hideTimeDetails: isHovered,
                 reservedTrailingWidth: reservedTrailingWidth
             )
@@ -257,9 +306,6 @@ extension MenuContentView {
             }
         }
         .contentShape(Rectangle())
-        .onHover { isHovering in
-            hoveredActionRowKey = isHovering ? item.notificationKey : nil
-        }
     }
 
 }

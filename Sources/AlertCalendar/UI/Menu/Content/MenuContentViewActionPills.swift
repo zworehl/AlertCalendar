@@ -108,7 +108,7 @@ extension MenuContentView {
 
             Circle()
                 .fill(color.opacity(0.98))
-                .padding(4.9)
+                .padding(4.5)
         }
         .frame(width: 18, height: 18)
     }

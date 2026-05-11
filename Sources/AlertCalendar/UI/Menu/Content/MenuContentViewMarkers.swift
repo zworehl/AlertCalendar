@@ -4,11 +4,11 @@ import MapKit
 import SwiftUI
 
 extension MenuContentView {
-    func markerImage(for item: UpcomingItem) -> NSImage? {
+    func markerImage(for item: UpcomingItem, isReminderFilled: Bool = false) -> NSImage? {
         if item.kind == .reminder {
             return reminderMarkerImage(
                 color: item.calendarColor,
-                isFilled: hoveredReminderItemID == item.id
+                isFilled: isReminderFilled
             )
         }
         guard let moment = AstronomyMoment(eventTitle: item.title) else { return nil }
@@ -28,7 +28,7 @@ extension MenuContentView {
             color.withAlphaComponent(0.97).setStroke()
             outerRing.stroke()
 
-            let centerFill = NSBezierPath(ovalIn: rect.insetBy(dx: 4.0, dy: 4.0))
+            let centerFill = NSBezierPath(ovalIn: rect.insetBy(dx: 3.6, dy: 3.6))
             color.withAlphaComponent(0.98).setFill()
             centerFill.fill()
         } else {

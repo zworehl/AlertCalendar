@@ -136,9 +136,7 @@ extension CalendarMonitor {
     }
 
     private nonisolated static func normalizedLocationText(_ rawLocation: String?) -> String? {
-        guard let rawLocation else { return nil }
-        let trimmed = rawLocation.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        AlertCalendarString.trimmedNonEmpty(rawLocation)
     }
 
     func loadReminders(from start: Date?, to end: Date, calendars: [EKCalendar]) async -> [UpcomingItem] {
@@ -208,8 +206,6 @@ extension CalendarMonitor {
     }
 
     func normalizedLocation(for rawLocation: String?) -> String? {
-        guard let rawLocation else { return nil }
-        let trimmed = rawLocation.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        AlertCalendarString.trimmedNonEmpty(rawLocation)
     }
 }

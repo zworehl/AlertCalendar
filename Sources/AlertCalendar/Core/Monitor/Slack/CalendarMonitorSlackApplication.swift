@@ -59,7 +59,12 @@ extension CalendarMonitor {
 
         if state.previousStatus == nil {
             let currentStatus = try await slackClient.currentProfileStatus(for: connection)
-            if !SlackMeetingStatus.isManaged(currentStatus, managedSnapshot: state.managedStatus) {
+            let currentStatusLooksCalendarManaged = SlackMeetingStatus.isLikelyManaged(
+                currentStatus,
+                matching: snapshot.identity
+            )
+            if !SlackMeetingStatus.isManaged(currentStatus, managedSnapshot: state.managedStatus),
+               !currentStatusLooksCalendarManaged {
                 state.previousStatus = currentStatus
             }
         }
@@ -75,11 +80,7 @@ extension CalendarMonitor {
         let currentStatus = try await slackClient.currentProfileStatus(for: connection)
 
         if SlackMeetingStatus.isManaged(currentStatus, managedSnapshot: state.managedStatus) {
-            let restoredStatus = state.previousStatus ?? SlackProfileStatusSnapshot(
-                statusText: "",
-                statusEmoji: "",
-                statusExpiration: 0
-            )
+            let restoredStatus = Self.slackRestoredStatus(from: state)
             _ = try await slackClient.setStatus(restoredStatus, for: connection)
         }
 
@@ -91,5 +92,22 @@ extension CalendarMonitor {
         } else {
             slackManagedStateByConnectionID[connection.id] = state
         }
+    }
+
+    nonisolated static func slackRestoredStatus(from state: SlackManagedStatusState) -> SlackProfileStatusSnapshot {
+        let emptyStatus = SlackProfileStatusSnapshot(
+            statusText: "",
+            statusEmoji: "",
+            statusExpiration: 0
+        )
+
+        guard let previousStatus = state.previousStatus else { return emptyStatus }
+        guard let managedStatus = state.managedStatus else { return previousStatus }
+
+        if SlackMeetingStatus.isLikelyManaged(previousStatus, matching: managedStatus.identity) {
+            return emptyStatus
+        }
+
+        return previousStatus
     }
 }

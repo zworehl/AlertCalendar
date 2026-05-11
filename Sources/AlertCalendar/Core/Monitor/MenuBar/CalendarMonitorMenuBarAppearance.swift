@@ -22,9 +22,7 @@ extension CalendarMonitor {
     }
 
     func normalizedTitle(_ rawTitle: String?) -> String {
-        guard let rawTitle else { return "(Untitled)" }
-        let cleaned = rawTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        return cleaned.isEmpty ? "(Untitled)" : cleaned
+        AlertCalendarString.trimmedNonEmpty(rawTitle) ?? "(Untitled)"
     }
 
     func markerStyle(for item: UpcomingItem) -> MenuMarkerStyle {

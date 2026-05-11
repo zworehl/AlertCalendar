@@ -43,40 +43,6 @@ extension SettingsView {
         return "\(durationValueText(value: hours, singular: "hour", plural: "hours")) \(durationValueText(value: remainingMinutes, singular: "minute", plural: "minutes"))"
     }
 
-    nonisolated static func maximumMenuBarRotationWindowMinutes(dropdownWindowHours: Int) -> Int {
-        AppSettingsRules.maximumMenuBarRotationWindowMinutes(dropdownWindowHours: dropdownWindowHours)
-    }
-
-    nonisolated static func maximumContextualPreviewLeadMinutes(dropdownWindowHours: Int) -> Int {
-        AppSettingsRules.maximumContextualPreviewLeadMinutes(dropdownWindowHours: dropdownWindowHours)
-    }
-
-    nonisolated static func normalizedMenuBarRotationWindowMinutes(_ value: Int, dropdownWindowHours: Int) -> Int {
-        AppSettingsRules.normalizedMenuBarRotationWindowMinutes(
-            value,
-            dropdownWindowHours: dropdownWindowHours
-        )
-    }
-
-    nonisolated static func normalizedContextualPreviewLeadMinutes(_ value: Int, dropdownWindowHours: Int) -> Int {
-        AppSettingsRules.normalizedContextualPreviewLeadMinutes(
-            value,
-            dropdownWindowHours: dropdownWindowHours
-        )
-    }
-
-    nonisolated static func adjustedMenuBarRotationWindowMinutes(
-        currentValue: Int,
-        incrementing: Bool,
-        dropdownWindowHours: Int
-    ) -> Int {
-        AppSettingsRules.adjustedMenuBarRotationWindowMinutes(
-            currentValue: currentValue,
-            incrementing: incrementing,
-            dropdownWindowHours: dropdownWindowHours
-        )
-    }
-
     static func isGrantedEventKitAuthorizationStatus(_ status: EKAuthorizationStatus) -> Bool {
         if status == .authorized {
             return true

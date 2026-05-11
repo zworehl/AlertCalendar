@@ -426,4 +426,23 @@ final class MenuContextualActionTests: AlertCalendarModelTestCase {
         )
 
         XCTAssertEqual(queued.map(\.id), ["all-day", "active-event", "near-future"])
-    }}
+    }
+
+    func testAttendeePreviewListHeightShrinksToFitShortContent() {
+        XCTAssertEqual(
+            MeetingAttendeesPreview.resolvedListHeight(attendeeCount: 2, maximumHeight: 188),
+            34
+        )
+        XCTAssertEqual(
+            MeetingAttendeesPreview.resolvedListHeight(attendeeCount: 10, maximumHeight: 188),
+            138
+        )
+    }
+
+    func testAttendeePreviewListHeightCapsAtMaximumForLongContent() {
+        XCTAssertEqual(
+            MeetingAttendeesPreview.resolvedListHeight(attendeeCount: 14, maximumHeight: 188),
+            188
+        )
+    }
+}

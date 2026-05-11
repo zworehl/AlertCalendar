@@ -76,6 +76,29 @@ extension CalendarMonitor {
         }
     }
 
+    func applyMenuBarPresentationState(_ state: MenuBarPresentationState) {
+        setIfChanged(\.combinedMenuBarLabel, to: state.label)
+        setColorIfChanged(\.combinedMenuBarColor, to: state.color)
+        setIfChanged(\.combinedMenuBarAlertedSegmentIndex, to: state.alertedSegmentIndex)
+        setIfChanged(\.combinedMenuBarAlertTextOpacity, to: state.alertTextOpacity)
+        setColorArrayIfChanged(\.combinedMenuBarDotColors, to: state.dotColors)
+        setIfChanged(\.combinedMenuBarMarkerStyles, to: state.markerStyles)
+        setIfChanged(\.combinedMenuBarSegments, to: state.segments)
+        setColorArrayIfChanged(\.combinedMenuBarSegmentBackgroundColors, to: state.segmentBackgroundColors)
+        setIfChanged(\.combinedMenuBarSegmentBackgroundProgresses, to: state.segmentBackgroundProgresses)
+        setIfChanged(\.combinedMenuBarFootballDisplay, to: state.footballDisplay)
+        setIfChanged(\.combinedMenuBarFootballTrailingText, to: state.footballTrailingText)
+        setIfChanged(\.combinedMenuBarFootballStatusText, to: state.footballStatusText)
+        setColorIfChanged(\.combinedMenuBarFootballStatusColor, to: state.footballStatusColor)
+        setIfChanged(\.combinedMenuBarFootballGoalHighlightSide, to: state.footballGoalHighlightSide)
+        setIfChanged(\.combinedMenuBarFootballGoalHighlightTextOpacity, to: state.footballGoalHighlightTextOpacity)
+    }
+
+    nonisolated static func alertBlinkTextOpacity(now: Date) -> CGFloat {
+        let wholeSecond = Int(now.timeIntervalSince1970.rounded(.down))
+        return wholeSecond.isMultiple(of: 2) ? 1.0 : 0.0
+    }
+
     func evaluateAlert(now: Date, settings: AppSettings) {
         let leadSeconds = TimeInterval(max(1, settings.alertLeadMinutes) * 60)
         guard let candidate = upcomingItems.first(where: {
@@ -84,22 +107,15 @@ extension CalendarMonitor {
             return remaining > 0 && remaining <= leadSeconds
         }) else {
             setIfChanged(\.activeAlertItem, to: nil)
-            blinkPhase = false
             return
         }
 
         if silencedAlertKeys.contains(candidate.notificationKey) {
             setIfChanged(\.activeAlertItem, to: nil)
-            blinkPhase = false
             return
         }
 
         setIfChanged(\.activeAlertItem, to: candidate)
-        if settings.enableBlinkAlert {
-            blinkPhase.toggle()
-        } else {
-            blinkPhase = false
-        }
 
         if !alreadyNotified.contains(candidate.notificationKey) {
             alreadyNotified.insert(candidate.notificationKey)
@@ -138,28 +154,9 @@ extension CalendarMonitor {
                 menuBarRotationWindowMinutes: settings.menuBarRotationWindowMinutes,
                 hasLaterItemsInDropdownWindow: hasUpcomingItemsOutsideMenuBarWindow(now: now, settings: settings)
             )
-            setIfChanged(\.combinedMenuBarLabel, to: emptyStateText)
-            setColorIfChanged(\.combinedMenuBarColor, to: .systemGray)
-            setIfChanged(\.combinedMenuBarAlertedSegmentIndex, to: nil)
-            setIfChanged(\.combinedMenuBarAlertTextOpacity, to: 0)
-            setColorArrayIfChanged(\.combinedMenuBarDotColors, to: [.systemGray])
-            setIfChanged(\.combinedMenuBarMarkerStyles, to: [.color(.systemGray)])
-            setIfChanged(\.combinedMenuBarSegments, to: [emptyStateText])
-            setColorArrayIfChanged(\.combinedMenuBarSegmentBackgroundColors, to: [.clear])
-            setIfChanged(\.combinedMenuBarSegmentBackgroundProgresses, to: [0])
-            setIfChanged(\.combinedMenuBarFootballDisplay, to: nil)
-            setIfChanged(\.combinedMenuBarFootballTrailingText, to: nil)
-            setIfChanged(\.combinedMenuBarFootballStatusText, to: nil)
-            setColorIfChanged(\.combinedMenuBarFootballStatusColor, to: .systemGreen)
-            setIfChanged(\.combinedMenuBarFootballGoalHighlightSide, to: nil)
-            setIfChanged(\.combinedMenuBarFootballGoalHighlightTextOpacity, to: 0)
+            applyMenuBarPresentationState(.empty(text: emptyStateText))
         } else {
-            setColorIfChanged(\.combinedMenuBarColor, to: previewItems[0].calendarColor)
-            setColorArrayIfChanged(\.combinedMenuBarDotColors, to: previewItems.map(\.calendarColor))
-            setIfChanged(\.combinedMenuBarMarkerStyles, to: previewItems.map { markerStyle(for: $0) })
             let segmentBackgrounds = previewItems.map { segmentBackgroundVisual(for: $0, now: now, settings: settings) }
-            setColorArrayIfChanged(\.combinedMenuBarSegmentBackgroundColors, to: segmentBackgrounds.map(\.color))
-            setIfChanged(\.combinedMenuBarSegmentBackgroundProgresses, to: segmentBackgrounds.map(\.progress))
             let segments = previewItems.map {
                 menuSegment(
                     for: $0,
@@ -170,45 +167,56 @@ extension CalendarMonitor {
                     eventTitleMaxCharacters: settings.eventTitleMaxCharacters
                 )
             }
-
+            let alertedSegmentIndex: Int?
+            let alertTextOpacity: CGFloat
             if settings.enableBlinkAlert,
                let activeAlertItem,
                let alertIndex = previewItems.firstIndex(where: { $0.notificationKey == activeAlertItem.notificationKey }) {
-                setIfChanged(\.combinedMenuBarAlertedSegmentIndex, to: alertIndex)
-                setIfChanged(\.combinedMenuBarAlertTextOpacity, to: blinkPhase ? 1.0 : 0.0)
+                alertedSegmentIndex = alertIndex
+                alertTextOpacity = Self.alertBlinkTextOpacity(now: now)
             } else {
-                setIfChanged(\.combinedMenuBarAlertedSegmentIndex, to: nil)
-                setIfChanged(\.combinedMenuBarAlertTextOpacity, to: 0)
+                alertedSegmentIndex = nil
+                alertTextOpacity = 0
             }
-
-            setIfChanged(\.combinedMenuBarSegments, to: segments)
-            setIfChanged(\.combinedMenuBarLabel, to: segments.joined(separator: "  "))
-            setIfChanged(\.combinedMenuBarFootballDisplay, to: previewItems.first?.footballMenuBarDisplay)
-            setIfChanged(
-                \.combinedMenuBarFootballTrailingText,
-                to: previewItems.first.flatMap {
-                    footballMenuBarTrailingText(
-                        for: $0,
-                        now: now,
-                        simplified: settings.useSimplifiedCountdown
-                    )
-                }
-            )
             let footballStatusText = previewItems.first.flatMap { footballMenuBarStatusText(for: $0, now: now) }
-            setIfChanged(\.combinedMenuBarFootballStatusText, to: footballStatusText)
-            setColorIfChanged(
-                \.combinedMenuBarFootballStatusColor,
-                to: footballStatusText.map(Self.footballStatusTintColor(for:)) ?? .systemGreen
-            )
+            let footballStatusColor = footballStatusText.map(Self.footballStatusTintColor(for:)) ?? .systemGreen
 
+            let footballGoalHighlightSide: FootballScoreSide?
+            let footballGoalHighlightTextOpacity: CGFloat
             if let highlight = activeFootballGoalHighlight,
                previewItems.first?.footballMatch?.id == highlight.matchID {
-                setIfChanged(\.combinedMenuBarFootballGoalHighlightSide, to: highlight.scoringSide)
-                setIfChanged(\.combinedMenuBarFootballGoalHighlightTextOpacity, to: tickCount.isMultiple(of: 2) ? 1.0 : 0.0)
+                footballGoalHighlightSide = highlight.scoringSide
+                footballGoalHighlightTextOpacity = tickCount.isMultiple(of: 2) ? 1.0 : 0.0
             } else {
-                setIfChanged(\.combinedMenuBarFootballGoalHighlightSide, to: nil)
-                setIfChanged(\.combinedMenuBarFootballGoalHighlightTextOpacity, to: 0)
+                footballGoalHighlightSide = nil
+                footballGoalHighlightTextOpacity = 0
             }
+
+            applyMenuBarPresentationState(
+                MenuBarPresentationState(
+                    label: segments.joined(separator: "  "),
+                    color: previewItems[0].calendarColor,
+                    alertedSegmentIndex: alertedSegmentIndex,
+                    alertTextOpacity: alertTextOpacity,
+                    dotColors: previewItems.map(\.calendarColor),
+                    markerStyles: previewItems.map { markerStyle(for: $0) },
+                    segments: segments,
+                    segmentBackgroundColors: segmentBackgrounds.map(\.color),
+                    segmentBackgroundProgresses: segmentBackgrounds.map(\.progress),
+                    footballDisplay: previewItems.first?.footballMenuBarDisplay,
+                    footballTrailingText: previewItems.first.flatMap {
+                        footballMenuBarTrailingText(
+                            for: $0,
+                            now: now,
+                            simplified: settings.useSimplifiedCountdown
+                        )
+                    },
+                    footballStatusText: footballStatusText,
+                    footballStatusColor: footballStatusColor,
+                    footballGoalHighlightSide: footballGoalHighlightSide,
+                    footballGoalHighlightTextOpacity: footballGoalHighlightTextOpacity
+                )
+            )
         }
 
         let nextEvent = rotatingTimedItem(now: now, settings: settings)
@@ -239,21 +247,7 @@ extension CalendarMonitor {
     }
 
     func applyMenuBarLoadingState() {
-        setIfChanged(\.combinedMenuBarLabel, to: "Loading...")
-        setColorIfChanged(\.combinedMenuBarColor, to: .systemGray)
-        setIfChanged(\.combinedMenuBarAlertedSegmentIndex, to: nil)
-        setIfChanged(\.combinedMenuBarAlertTextOpacity, to: 0)
-        setColorArrayIfChanged(\.combinedMenuBarDotColors, to: [.systemGray])
-        setIfChanged(\.combinedMenuBarMarkerStyles, to: [.color(.systemGray)])
-        setIfChanged(\.combinedMenuBarSegments, to: ["Loading..."])
-        setColorArrayIfChanged(\.combinedMenuBarSegmentBackgroundColors, to: [.clear])
-        setIfChanged(\.combinedMenuBarSegmentBackgroundProgresses, to: [0])
-        setIfChanged(\.combinedMenuBarFootballDisplay, to: nil)
-        setIfChanged(\.combinedMenuBarFootballTrailingText, to: nil)
-        setIfChanged(\.combinedMenuBarFootballStatusText, to: nil)
-        setColorIfChanged(\.combinedMenuBarFootballStatusColor, to: .systemGreen)
-        setIfChanged(\.combinedMenuBarFootballGoalHighlightSide, to: nil)
-        setIfChanged(\.combinedMenuBarFootballGoalHighlightTextOpacity, to: 0)
+        applyMenuBarPresentationState(.loading)
     }
 
 

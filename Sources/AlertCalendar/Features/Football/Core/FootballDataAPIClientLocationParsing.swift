@@ -71,9 +71,8 @@ extension FootballDataAPIClient {
     }
 
     static func normalizedLocationTextValue(_ rawValue: String?) -> String? {
-        guard let rawValue else { return nil }
-        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !isPlaceholderLocationText(trimmed) else { return nil }
+        guard let trimmed = AlertCalendarString.trimmedNonEmpty(rawValue) else { return nil }
+        guard !isPlaceholderLocationText(trimmed) else { return nil }
         return trimmed
     }
 

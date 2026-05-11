@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 extension MenuBarStatusLabel {
+    @MainActor
     static func footballHighlightedSegment(
         text: String,
         side: FootballScoreSide?,
@@ -15,11 +16,18 @@ extension MenuBarStatusLabel {
             return attributed
         }
 
-        let highlightColor = opacity >= 0.5 ? NSColor.systemGreen : NSColor.white.withAlphaComponent(0.97)
+        let baseColor = baseAttributes[.foregroundColor] as? NSColor ?? NSColor.white.withAlphaComponent(0.97)
+        let highlightColor = opacity >= 0.5 ? NSColor.systemGreen : baseColor
         attributed.addAttribute(.foregroundColor, value: highlightColor, range: range)
         return attributed
     }
 
+    @MainActor
+    static func alertTextColor(opacity: CGFloat, baseColor: NSColor) -> NSColor {
+        opacity >= 0.5 ? NSColor.systemRed : baseColor
+    }
+
+    @MainActor
     static func footballAttributedSegment(
         display: FootballMenuBarDisplay,
         trailingText: String?,
@@ -28,18 +36,25 @@ extension MenuBarStatusLabel {
         font: NSFont,
         highlightSide: FootballScoreSide?,
         highlightOpacity: CGFloat,
+        alertTextOpacity: CGFloat?,
         baseColor: NSColor
     ) -> NSAttributedString {
         let segment = NSMutableAttributedString()
+        let resolvedBaseColor = alertTextOpacity.map {
+            alertTextColor(opacity: $0, baseColor: baseColor)
+        } ?? baseColor
+        let resolvedStatusColor = alertTextOpacity.map {
+            alertTextColor(opacity: $0, baseColor: baseColor)
+        } ?? statusColor
         let baseAttributes: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: baseColor,
+            .foregroundColor: resolvedBaseColor,
         ]
         let secondaryAttributes: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: baseColor.withAlphaComponent(0.9),
+            .foregroundColor: resolvedBaseColor.withAlphaComponent(0.9),
         ]
-        let highlightColor = highlightOpacity >= 0.5 ? NSColor.systemGreen : baseColor
+        let highlightColor = highlightOpacity >= 0.5 ? NSColor.systemGreen : resolvedBaseColor
 
         func appendText(_ text: String, attributes: [NSAttributedString.Key: Any] = baseAttributes) {
             segment.append(NSAttributedString(string: text, attributes: attributes))
@@ -83,7 +98,7 @@ extension MenuBarStatusLabel {
                 statusText,
                 attributes: [
                     .font: font,
-                    .foregroundColor: statusColor,
+                    .foregroundColor: resolvedStatusColor,
                 ]
             )
         }
@@ -91,12 +106,13 @@ extension MenuBarStatusLabel {
         return segment
     }
 
+    @MainActor
     static func footballLogoAttachment(path: String?, font: NSFont) -> NSAttributedString? {
         let logoSize: CGFloat = 18
         let image: NSImage?
         if let path,
-           let localImage = NSImage(contentsOfFile: path) {
-            image = localImage
+           let localImage = FootballLocalImageCache.cachedImage(for: path) {
+            image = localImage.copy() as? NSImage ?? localImage
         } else {
             image = NSImage(
                 systemSymbolName: "shield.fill",

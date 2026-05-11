@@ -3,7 +3,7 @@ import Foundation
 extension CalendarMonitor {
     func activeSlackItemTitles(from items: [UpcomingItem], now: Date) -> String {
         let titles = items.compactMap { item -> String? in
-            guard item.kind == .event, item.isAllDay == false else { return nil }
+            guard Self.isSlackStatusMeetingItem(item) else { return nil }
             let endDate = item.endDate ?? item.date.addingTimeInterval(60 * 60)
             guard item.date <= now && endDate > now else { return nil }
             return "\(item.calendarName): \(item.title)"

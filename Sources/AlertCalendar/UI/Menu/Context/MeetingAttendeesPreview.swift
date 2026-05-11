@@ -3,6 +3,13 @@ import CoreLocation
 import MapKit
 import SwiftUI
 
+private enum MeetingAttendeesPreviewLayout {
+    static let attendeeColumnCount = 2
+    static let attendeeRowHeight: CGFloat = 18
+    static let attendeeRowSpacing: CGFloat = 8
+    static let attendeeListVerticalPadding: CGFloat = 8
+}
+
 struct MeetingAttendeesPreview: View {
     let organizer: MeetingOrganizer?
     let attendees: [MeetingAttendee]
@@ -38,8 +45,7 @@ struct MeetingAttendeesPreview: View {
 
     var organizerSecondaryText: String? {
         guard let displayedOrganizer,
-              let emailAddress = displayedOrganizer.emailAddress?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !emailAddress.isEmpty,
+              let emailAddress = AlertCalendarString.trimmedNonEmpty(displayedOrganizer.emailAddress),
               displayedOrganizer.displayText.localizedCaseInsensitiveCompare(emailAddress) != .orderedSame else {
             return nil
         }
@@ -48,6 +54,13 @@ struct MeetingAttendeesPreview: View {
     }
 
     var body: some View {
+        let resolvedListHeight = Self.resolvedListHeight(
+            attendeeCount: displayedAttendees.count,
+            maximumHeight: listHeight
+        )
+        let shouldScrollAttendees =
+            Self.attendeeListContentHeight(for: displayedAttendees.count) > listHeight + 0.5
+
         VStack(alignment: .leading, spacing: 10) {
             if let displayedOrganizer {
                 HStack(alignment: .center, spacing: 10) {
@@ -93,7 +106,7 @@ struct MeetingAttendeesPreview: View {
                     .monospacedDigit()
             }
 
-            ScrollView(.vertical, showsIndicators: displayedAttendees.count > 6) {
+            ScrollView(.vertical, showsIndicators: shouldScrollAttendees) {
                 LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
                     ForEach(displayedAttendees) { attendee in
                         MeetingAttendeeRow(attendee: attendee)
@@ -102,7 +115,7 @@ struct MeetingAttendeesPreview: View {
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
             }
-            .frame(height: listHeight)
+            .frame(height: resolvedListHeight)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(Color(nsColor: .windowBackgroundColor))
@@ -142,6 +155,22 @@ struct MeetingAttendeesPreview: View {
             }
         }
     }
+
+    nonisolated static func resolvedListHeight(attendeeCount: Int, maximumHeight: CGFloat) -> CGFloat {
+        min(maximumHeight, attendeeListContentHeight(for: attendeeCount))
+    }
+
+    nonisolated static func attendeeListContentHeight(for attendeeCount: Int) -> CGFloat {
+        guard attendeeCount > 0 else { return 0 }
+
+        let rowCount = CGFloat(
+            (attendeeCount + MeetingAttendeesPreviewLayout.attendeeColumnCount - 1)
+                / MeetingAttendeesPreviewLayout.attendeeColumnCount
+        )
+        return (rowCount * MeetingAttendeesPreviewLayout.attendeeRowHeight)
+            + (max(0, rowCount - 1) * MeetingAttendeesPreviewLayout.attendeeRowSpacing)
+            + (MeetingAttendeesPreviewLayout.attendeeListVerticalPadding * 2)
+    }
 }
 
 struct MeetingAttendeeRow: View {
@@ -161,6 +190,7 @@ struct MeetingAttendeeRow: View {
                 .truncationMode(.tail)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: MeetingAttendeesPreviewLayout.attendeeRowHeight, alignment: .center)
     }
 }
 

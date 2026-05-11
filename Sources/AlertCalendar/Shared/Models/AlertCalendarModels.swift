@@ -141,9 +141,7 @@ struct MeetingAttendee: Identifiable, Equatable {
     }
 
     static func normalizedIdentity(_ value: String?) -> String? {
-        guard let value else { return nil }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return trimmed.isEmpty ? nil : trimmed
+        AlertCalendarString.trimmedNonEmpty(value)?.lowercased()
     }
 
     static func normalized(_ attendees: [MeetingAttendee]) -> [MeetingAttendee] {
@@ -151,8 +149,9 @@ struct MeetingAttendee: Identifiable, Equatable {
         attendeesByID.reserveCapacity(attendees.count)
 
         for attendee in attendees {
-            let trimmedDisplayText = attendee.displayText.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmedDisplayText.isEmpty else { continue }
+            guard let trimmedDisplayText = AlertCalendarString.trimmedNonEmpty(attendee.displayText) else {
+                continue
+            }
 
             let normalizedEmailAddress = normalizedEmailAddress(attendee.emailAddress)
             let normalizedID = normalizedIdentity(attendee.id)
@@ -407,13 +406,11 @@ private func meetingParticipantAvatarFallbackText(
     displayText: String,
     emailAddress: String?
 ) -> String {
-    let trimmedDisplayText = displayText.trimmingCharacters(in: .whitespacesAndNewlines)
-    if let firstCharacter = trimmedDisplayText.first {
+    if let firstCharacter = AlertCalendarString.trimmedNonEmpty(displayText)?.first {
         return String(firstCharacter).uppercased()
     }
 
-    let trimmedEmailAddress = emailAddress?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    if let firstCharacter = trimmedEmailAddress.first {
+    if let firstCharacter = AlertCalendarString.trimmedNonEmpty(emailAddress)?.first {
         return String(firstCharacter).uppercased()
     }
 

@@ -45,6 +45,16 @@ extension CalendarMonitor {
         items.filter { !skippedItemKeys.contains($0.notificationKey) }
     }
 
+    nonisolated static func isSlackStatusMeetingItem(_ item: UpcomingItem, calendarID: String? = nil) -> Bool {
+        guard item.kind == .event else { return false }
+        guard item.isAllDay == false else { return false }
+        guard item.showsMutedBackground == false else { return false }
+        if let calendarID {
+            return item.calendarID == calendarID
+        }
+        return true
+    }
+
     func slackStatusSyncTargets(
         now: Date,
         settings: AppSettings,
@@ -97,8 +107,7 @@ extension CalendarMonitor {
         guard !relevantCalendarIDs.isEmpty else { return nil }
 
         return items.compactMap { item in
-            guard item.kind == .event else { return nil }
-            guard item.isAllDay == false else { return nil }
+            guard isSlackStatusMeetingItem(item) else { return nil }
             guard let calendarID = item.calendarID else { return nil }
             guard relevantCalendarIDs.contains(calendarID) else { return nil }
 
@@ -162,9 +171,7 @@ extension CalendarMonitor {
         defaultEventDuration: TimeInterval = 60 * 60
     ) -> Int? {
         let activeItems = items.filter { item in
-            guard item.kind == .event else { return false }
-            guard item.isAllDay == false else { return false }
-            guard item.calendarID == calendarID else { return false }
+            guard isSlackStatusMeetingItem(item, calendarID: calendarID) else { return false }
 
             let endDate = item.endDate ?? item.date.addingTimeInterval(defaultEventDuration)
             return item.date <= now && endDate > now
@@ -191,7 +198,7 @@ extension CalendarMonitor {
 
         let uniqueCalendarCount = Set(rules.map(\.calendarID)).count
         let activeItems = items.filter { item in
-            guard item.kind == .event, item.isAllDay == false else { return false }
+            guard Self.isSlackStatusMeetingItem(item) else { return false }
             let endDate = item.endDate ?? item.date.addingTimeInterval(60 * 60)
             return item.date <= now && endDate > now
         }

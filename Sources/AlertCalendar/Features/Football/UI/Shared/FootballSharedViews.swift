@@ -118,6 +118,9 @@ private struct FootballRemoteLogoView<Placeholder: View>: View {
     let remoteURL: URL?
     let size: CGFloat
     let placeholder: Placeholder
+    @State private var localImage: NSImage?
+    @State private var localImagePath: String?
+    @State private var failedLocalImagePath: String?
 
     init(
         localPath: String?,
@@ -132,47 +135,108 @@ private struct FootballRemoteLogoView<Placeholder: View>: View {
     }
 
     var body: some View {
-        if let localPath,
-           let image = FootballLocalImageCache.image(for: localPath) {
-            Image(nsImage: image)
-                .resizable()
-                .interpolation(.high)
-                .scaledToFit()
-                .frame(width: size, height: size)
-        } else {
-            AsyncImage(url: remoteURL, transaction: Transaction(animation: nil)) { phase in
-                if let image = phase.image {
-                    image
-                        .resizable()
-                        .scaledToFit()
-                } else {
-                    placeholder
+        let stateImage = localImagePath == localPath ? localImage : nil
+        let cachedImage = localPath.flatMap { FootballLocalImageCache.cachedImage(for: $0) }
+        let shouldLoadLocalImage = localPath != nil && failedLocalImagePath != localPath
+
+        Group {
+            if let image = stateImage ?? cachedImage {
+                Image(nsImage: image)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+            } else if shouldLoadLocalImage {
+                placeholder
+            } else {
+                AsyncImage(url: remoteURL, transaction: Transaction(animation: nil)) { phase in
+                    if let image = phase.image {
+                        image
+                            .resizable()
+                            .scaledToFit()
+                    } else {
+                        placeholder
+                    }
                 }
             }
-            .frame(width: size, height: size)
         }
+        .frame(width: size, height: size)
+        .task(id: localPath) {
+            await loadLocalImageIfNeeded()
+        }
+    }
+
+    @MainActor
+    private func loadLocalImageIfNeeded() async {
+        guard let localPath else {
+            localImage = nil
+            localImagePath = nil
+            failedLocalImagePath = nil
+            return
+        }
+
+        if localImagePath == localPath, localImage != nil {
+            return
+        }
+
+        if let cachedImage = FootballLocalImageCache.cachedImage(for: localPath) {
+            localImage = cachedImage
+            localImagePath = localPath
+            failedLocalImagePath = nil
+            return
+        }
+
+        localImage = nil
+        localImagePath = localPath
+        failedLocalImagePath = nil
+
+        guard let image = await FootballLocalImageCache.loadImage(for: localPath),
+              !Task.isCancelled,
+              localImagePath == localPath else {
+            if !Task.isCancelled, localImagePath == localPath {
+                failedLocalImagePath = localPath
+            }
+            return
+        }
+
+        localImage = image
+        failedLocalImagePath = nil
     }
 }
 
 @MainActor
-private enum FootballLocalImageCache {
+enum FootballLocalImageCache {
     private static let cache: NSCache<NSString, NSImage> = {
         let cache = NSCache<NSString, NSImage>()
-        cache.countLimit = 64
+        cache.countLimit = 160
         return cache
     }()
 
-    static func image(for path: String) -> NSImage? {
-        let key = path as NSString
-        if let cachedImage = cache.object(forKey: key) {
+    static func cachedImage(for path: String) -> NSImage? {
+        cache.object(forKey: path as NSString)
+    }
+
+    static func store(_ image: NSImage, for path: String) {
+        cache.setObject(image, forKey: path as NSString)
+    }
+
+    static func loadImage(for path: String) async -> NSImage? {
+        if let cachedImage = cachedImage(for: path) {
             return cachedImage
         }
 
-        guard let image = NSImage(contentsOfFile: path) else {
+        guard let imageData = await imageData(for: path),
+              !Task.isCancelled,
+              let image = NSImage(data: imageData) else {
             return nil
         }
 
-        cache.setObject(image, forKey: key)
+        store(image, for: path)
         return image
+    }
+
+    nonisolated static func imageData(for path: String) async -> Data? {
+        await Task.detached(priority: .utility) {
+            try? Data(contentsOf: URL(fileURLWithPath: path))
+        }.value
     }
 }

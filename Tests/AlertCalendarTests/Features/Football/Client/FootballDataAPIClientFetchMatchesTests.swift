@@ -289,4 +289,204 @@ final class FootballDataAPIClientFetchMatchesTests: FootballDataAPIClientTestCas
         XCTAssertEqual(seriesSummary.totalLegs, 2)
         XCTAssertEqual(seriesSummary.homeAggregateScore, 2)
         XCTAssertEqual(seriesSummary.awayAggregateScore, 0)
-    }}
+    }
+    func testFetchMatchesCoalescesAndReusesScoreboardPages() async throws {
+        let startDate = Date().addingTimeInterval(24 * 60 * 60)
+        let startDateText = ISO8601DateFormatter().string(from: startDate)
+        let requestLock = NSLock()
+        var scoreboardRequestCount = 0
+        let session = makeMockSession { request in
+            let url = try XCTUnwrap(request.url)
+            guard url.path == "/apis/site/v2/sports/soccer/usa.1/scoreboard" else {
+                XCTFail("Unexpected URL: \(url.absoluteString)")
+                throw URLError(.badURL)
+            }
+
+            requestLock.lock()
+            scoreboardRequestCount += 1
+            requestLock.unlock()
+
+            Thread.sleep(forTimeInterval: 0.05)
+            return try self.jsonResponse(
+                for: request,
+                body: self.scoreboardBody(
+                    leagueName: "MLS",
+                    matchID: "shared-scoreboard-match",
+                    startDateText: startDateText
+                )
+            )
+        }
+        let client = FootballDataAPIClient(session: session)
+
+        async let firstFetch = client.fetchMatches(
+            for: [.majorLeagueSoccer],
+            enrichTeams: false
+        )
+        async let secondFetch = client.fetchMatches(
+            for: [.majorLeagueSoccer],
+            enrichTeams: false
+        )
+        let (firstMatches, secondMatches) = try await (firstFetch, secondFetch)
+        let thirdMatches = try await client.fetchMatches(
+            for: [.majorLeagueSoccer],
+            enrichTeams: false
+        )
+
+        XCTAssertEqual(firstMatches.map(\.id), ["shared-scoreboard-match"])
+        XCTAssertEqual(secondMatches.map(\.id), ["shared-scoreboard-match"])
+        XCTAssertEqual(thirdMatches.map(\.id), ["shared-scoreboard-match"])
+        XCTAssertEqual(scoreboardRequestCount, 2)
+    }
+    func testFetchMatchesCanSkipTeamEnrichmentForLightweightLists() async throws {
+        let startDate = Date().addingTimeInterval(24 * 60 * 60)
+        let startDateText = ISO8601DateFormatter().string(from: startDate)
+        let session = makeMockSession { request in
+            let url = try XCTUnwrap(request.url)
+            guard url.path == "/apis/site/v2/sports/soccer/usa.1/scoreboard" else {
+                XCTFail("Unexpected team enrichment request: \(url.absoluteString)")
+                throw URLError(.badURL)
+            }
+
+            return try self.jsonResponse(
+                for: request,
+                body: self.scoreboardBody(
+                    leagueName: "MLS",
+                    matchID: "lightweight-match",
+                    startDateText: startDateText
+                )
+            )
+        }
+        let client = FootballDataAPIClient(session: session)
+
+        let matches = try await client.fetchMatches(
+            for: [.majorLeagueSoccer],
+            enrichTeams: false
+        )
+
+        XCTAssertEqual(matches.count, 1)
+        XCTAssertNil(matches.first?.locationText)
+    }
+    func testFetchMatchesPersistsTeamDetailsAcrossClientInstances() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let store = FootballTeamCacheStore(
+            fileURL: tempDirectory.appendingPathComponent("football-team-cache.json")
+        )
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let startDate = Date().addingTimeInterval(24 * 60 * 60)
+        let startDateText = ISO8601DateFormatter().string(from: startDate)
+        let requestLock = NSLock()
+        var teamRequestCount = 0
+        let session = makeMockSession { request in
+            let url = try XCTUnwrap(request.url)
+
+            switch url.path {
+            case "/apis/site/v2/sports/soccer/usa.1/scoreboard":
+                return try self.jsonResponse(
+                    for: request,
+                    body: self.scoreboardBody(
+                        leagueName: "MLS",
+                        matchID: "persisted-team-cache-match",
+                        startDateText: startDateText
+                    )
+                )
+            case "/v2/sports/soccer/teams/1845":
+                requestLock.lock()
+                teamRequestCount += 1
+                requestLock.unlock()
+                let body: [String: Any] = [
+                    "id": "1845",
+                    "displayName": "Toronto FC",
+                    "location": "Toronto FC",
+                    "abbreviation": "TOR",
+                    "isNational": false,
+                    "venue": [
+                        "$ref": "http://sports.core.api.espn.com/v2/sports/soccer/leagues/usa.1/venues/1845?lang=en&region=us",
+                        "fullName": "BMO Field",
+                        "address": [
+                            "city": "Toronto",
+                            "country": "Canada",
+                        ],
+                    ],
+                ]
+                return try self.jsonResponse(for: request, body: body)
+            case "/v2/sports/soccer/teams/1850":
+                requestLock.lock()
+                teamRequestCount += 1
+                requestLock.unlock()
+                let body: [String: Any] = [
+                    "id": "1850",
+                    "displayName": "Inter Miami CF",
+                    "location": "Inter Miami CF",
+                    "abbreviation": "MIA",
+                    "isNational": false,
+                ]
+                return try self.jsonResponse(for: request, body: body)
+            default:
+                XCTFail("Unexpected URL: \(url.absoluteString)")
+                throw URLError(.badURL)
+            }
+        }
+
+        let firstClient = FootballDataAPIClient(
+            session: session,
+            teamCacheStore: store
+        )
+        let firstMatches = try await firstClient.fetchMatches(for: [.majorLeagueSoccer])
+        XCTAssertEqual(firstMatches.first?.locationText, "BMO Field, Toronto, Canada")
+
+        let secondClient = FootballDataAPIClient(
+            session: session,
+            teamCacheStore: store
+        )
+        let secondMatches = try await secondClient.fetchMatches(for: [.majorLeagueSoccer])
+
+        XCTAssertEqual(secondMatches.first?.locationText, "BMO Field, Toronto, Canada")
+        XCTAssertEqual(teamRequestCount, 2)
+    }
+
+    private func scoreboardBody(
+        leagueName: String,
+        matchID: String,
+        startDateText: String
+    ) -> [String: Any] {
+        [
+            "leagues": [["name": leagueName]],
+            "events": [[
+                "id": matchID,
+                "date": startDateText,
+                "season": ["slug": "mls-test"],
+                "competitions": [[
+                    "status": [
+                        "type": [
+                            "state": "pre",
+                            "shortDetail": "Scheduled",
+                            "detail": "Scheduled",
+                        ],
+                    ],
+                    "competitors": [
+                        [
+                            "homeAway": "home",
+                            "score": "0",
+                            "team": [
+                                "id": "1845",
+                                "displayName": "Toronto FC",
+                                "abbreviation": "TOR",
+                            ],
+                        ],
+                        [
+                            "homeAway": "away",
+                            "score": "0",
+                            "team": [
+                                "id": "1850",
+                                "displayName": "Inter Miami CF",
+                                "abbreviation": "MIA",
+                            ],
+                        ],
+                    ],
+                ]],
+            ]],
+        ]
+    }
+}

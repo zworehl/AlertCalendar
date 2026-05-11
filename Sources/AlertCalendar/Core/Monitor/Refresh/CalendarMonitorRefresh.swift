@@ -104,7 +104,6 @@ extension CalendarMonitor {
         allDayEventItems.removeAll { $0.notificationKey == item.notificationKey }
         if activeAlertItem?.notificationKey == item.notificationKey {
             activeAlertItem = nil
-            blinkPhase = false
         }
 
         let now = fixedSecondNow()

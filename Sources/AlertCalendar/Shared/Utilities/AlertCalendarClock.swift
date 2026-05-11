@@ -1,5 +1,15 @@
 import Foundation
 
+protocol AlertCalendarClockProviding {
+    func nowRoundedToSecond() -> Date
+}
+
+struct SystemAlertCalendarClock: AlertCalendarClockProviding {
+    func nowRoundedToSecond() -> Date {
+        AlertCalendarClock.nowRoundedToSecond()
+    }
+}
+
 enum AlertCalendarClock {
     static func nowRoundedToSecond() -> Date {
         roundedDownToSecond(Date())

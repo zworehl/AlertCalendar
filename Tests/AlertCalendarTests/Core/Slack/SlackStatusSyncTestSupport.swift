@@ -44,7 +44,8 @@ class SlackStatusSyncTestCase: XCTestCase {
         calendarID: String,
         startDate: Date,
         endDate: Date,
-        isAllDay: Bool = false
+        isAllDay: Bool = false,
+        showsMutedBackground: Bool = false
     ) -> UpcomingItem {
         UpcomingItem(
             id: id,
@@ -52,7 +53,7 @@ class SlackStatusSyncTestCase: XCTestCase {
             date: startDate,
             endDate: endDate,
             isAllDay: isAllDay,
-            showsMutedBackground: false,
+            showsMutedBackground: showsMutedBackground,
             travelTimeMinutes: nil,
             locationText: nil,
             meetingURL: nil,
