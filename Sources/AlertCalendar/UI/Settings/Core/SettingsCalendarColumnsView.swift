@@ -196,10 +196,10 @@ private struct SettingsCalendarRowView: View {
                 setCalendarSelection(isSelected: !isSelected)
             } label: {
                 HStack(spacing: 11) {
-                    checkSquare(color: Color(nsColor: calendar.color), isSelected: isSelected)
+                    checkSquare(color: Color(nsColor: calendar.color.nsColor), isSelected: isSelected)
                     Text(calendar.title)
                         .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(isHovered && isSelected ? Color(nsColor: calendar.color) : .primary)
+                        .foregroundStyle(isHovered && isSelected ? Color(nsColor: calendar.color.nsColor) : .primary)
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

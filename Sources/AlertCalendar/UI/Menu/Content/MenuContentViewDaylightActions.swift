@@ -13,7 +13,7 @@ extension MenuContentView {
 
     @ViewBuilder
     func contextualDaylightHeaderContent(for item: UpcomingItem, isHovered: Bool) -> some View {
-        let accentColor = Color(nsColor: item.calendarColor)
+        let accentColor = Color(nsColor: item.calendarColor.nsColor)
         let titleFont = Font.system(size: 12, weight: .semibold)
         let timeFont = Font.system(size: 11, weight: .medium)
 

@@ -67,11 +67,11 @@ final class AlertCalendarModelMetadataTests: AlertCalendarModelTestCase {
 
         let mint = CalendarColorPalette.color(for: "mint")
         let expectedMint = options.first(where: { $0.id == "mint" })!.color
-        XCTAssertTrue(mint.isEqual(expectedMint))
+        XCTAssertEqual(mint, expectedMint)
 
         let fallback = CalendarColorPalette.color(for: "does-not-exist")
         let expectedFallback = options.first(where: { $0.id == "blue" })!.color
-        XCTAssertTrue(fallback.isEqual(expectedFallback))
+        XCTAssertEqual(fallback, expectedFallback)
     }
     func testDefaultsKeysAreUniqueAndComplete() {
         let keys = [
@@ -135,7 +135,7 @@ final class AlertCalendarModelMetadataTests: AlertCalendarModelTestCase {
             meetingURL: meetingURL,
             calendarID: "cal-1",
             calendarName: "Work",
-            calendarColor: NSColor(calibratedRed: 0.20, green: 0.50, blue: 0.90, alpha: 1),
+            calendarColor: AlertCalendarColor(red: 0.20, green: 0.50, blue: 0.90),
             kind: .event,
             footballMatch: nil,
             footballMenuBarDisplay: nil
@@ -153,7 +153,7 @@ final class AlertCalendarModelMetadataTests: AlertCalendarModelTestCase {
             meetingURL: meetingURL,
             calendarID: "cal-1",
             calendarName: "Work",
-            calendarColor: NSColor(calibratedRed: 0.20, green: 0.50, blue: 0.90, alpha: 1),
+            calendarColor: AlertCalendarColor(red: 0.20, green: 0.50, blue: 0.90),
             kind: .event,
             footballMatch: nil,
             footballMenuBarDisplay: nil
@@ -171,7 +171,7 @@ final class AlertCalendarModelMetadataTests: AlertCalendarModelTestCase {
             meetingURL: meetingURL,
             calendarID: "cal-1",
             calendarName: "Work",
-            calendarColor: NSColor(calibratedRed: 0.20, green: 0.50, blue: 0.90, alpha: 1),
+            calendarColor: AlertCalendarColor(red: 0.20, green: 0.50, blue: 0.90),
             kind: .reminder,
             footballMatch: nil,
             footballMenuBarDisplay: nil
@@ -189,7 +189,7 @@ final class AlertCalendarModelMetadataTests: AlertCalendarModelTestCase {
             meetingURL: nil,
             calendarID: "cal-1",
             calendarName: "Work",
-            calendarColor: NSColor(calibratedRed: 0.20, green: 0.50, blue: 0.90, alpha: 1),
+            calendarColor: AlertCalendarColor(red: 0.20, green: 0.50, blue: 0.90),
             kind: .event,
             footballMatch: nil,
             footballMenuBarDisplay: nil

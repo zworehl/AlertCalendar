@@ -29,6 +29,25 @@ final class AppSettingsRulesTests: XCTestCase {
         )
     }
 
+    func testMenuBarRotationWindowStepAdvancesAndRetreatsByFiveMinutesBelowFirstHour() {
+        XCTAssertEqual(
+            AppSettingsRules.adjustedMenuBarRotationWindowMinutes(
+                currentValue: 10,
+                incrementing: true,
+                dropdownWindowHours: 13
+            ),
+            15
+        )
+        XCTAssertEqual(
+            AppSettingsRules.adjustedMenuBarRotationWindowMinutes(
+                currentValue: 60,
+                incrementing: false,
+                dropdownWindowHours: 13
+            ),
+            55
+        )
+    }
+
     func testMenuBarRotationWindowMaximumTracksWholeHoursBelowDropdownWindow() {
         XCTAssertEqual(
             AppSettingsRules.maximumMenuBarRotationWindowMinutes(dropdownWindowHours: 1),

@@ -72,9 +72,6 @@ enum AppSettingsRules {
         }
 
         let nextValue = normalizedCurrentValue - 60
-        if nextValue < 60 {
-            return 55
-        }
         return max(60, nextValue)
     }
 

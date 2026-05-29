@@ -43,17 +43,17 @@ extension CalendarMonitor {
 
     func backgroundTintColor(for item: UpcomingItem, now: Date) -> NSColor {
         if item.showsMutedBackground {
-            return item.calendarColor.withAlphaComponent(0.26)
+            return item.calendarColor.nsColor.withAlphaComponent(0.26)
         }
         if item.kind == .reminder, item.date <= now {
-            return item.calendarColor.withAlphaComponent(0.26)
+            return item.calendarColor.nsColor.withAlphaComponent(0.26)
         }
         return .clear
     }
 
     func segmentBackgroundVisual(for item: UpcomingItem, now: Date, settings: AppSettings) -> (color: NSColor, progress: CGFloat) {
         if let progress = activeEventProgress(for: item, now: now, settings: settings) {
-            return (item.calendarColor.withAlphaComponent(0.30), progress)
+            return (item.calendarColor.nsColor.withAlphaComponent(0.30), progress)
         }
 
         let fullTint = backgroundTintColor(for: item, now: now)
@@ -147,9 +147,9 @@ extension CalendarMonitor {
         )
     }
 
-    func color(from calendar: EKCalendar) -> NSColor {
+    func color(from calendar: EKCalendar) -> AlertCalendarColor {
         if let converted = NSColor(cgColor: calendar.cgColor) {
-            return converted
+            return AlertCalendarColor(nsColor: converted)
         }
         return .systemBlue
     }

@@ -7,7 +7,7 @@ extension MenuContentView {
     func markerImage(for item: UpcomingItem, isReminderFilled: Bool = false) -> NSImage? {
         if item.kind == .reminder {
             return reminderMarkerImage(
-                color: item.calendarColor,
+                color: item.calendarColor.nsColor,
                 isFilled: isReminderFilled
             )
         }

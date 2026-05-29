@@ -195,10 +195,10 @@ extension CalendarMonitor {
             applyMenuBarPresentationState(
                 MenuBarPresentationState(
                     label: segments.joined(separator: "  "),
-                    color: previewItems[0].calendarColor,
+                    color: previewItems[0].calendarColor.nsColor,
                     alertedSegmentIndex: alertedSegmentIndex,
                     alertTextOpacity: alertTextOpacity,
-                    dotColors: previewItems.map(\.calendarColor),
+                    dotColors: previewItems.map { $0.calendarColor.nsColor },
                     markerStyles: previewItems.map { markerStyle(for: $0) },
                     segments: segments,
                     segmentBackgroundColors: segmentBackgrounds.map(\.color),
@@ -222,8 +222,8 @@ extension CalendarMonitor {
         let nextEvent = rotatingTimedItem(now: now, settings: settings)
         let nextReminder = rotatingReminderItem(now: now, settings: settings)
 
-        setColorIfChanged(\.eventsMenuBarColor, to: nextEvent?.calendarColor ?? .systemGray)
-        setColorIfChanged(\.remindersMenuBarColor, to: nextReminder?.calendarColor ?? .systemGray)
+        setColorIfChanged(\.eventsMenuBarColor, to: nextEvent?.calendarColor.nsColor ?? .systemGray)
+        setColorIfChanged(\.remindersMenuBarColor, to: nextReminder?.calendarColor.nsColor ?? .systemGray)
 
         setIfChanged(\.eventsMenuBarLabel, to: menuLabel(
             for: nextEvent,

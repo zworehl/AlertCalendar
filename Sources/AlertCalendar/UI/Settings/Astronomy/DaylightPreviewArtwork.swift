@@ -18,14 +18,7 @@ struct DaylightPreviewArtwork: View {
             let mapRect = worldMapRect(in: rect)
 
             ZStack {
-                LinearGradient(
-                    colors: [
-                        Color(red: 0.03, green: 0.07, blue: 0.13),
-                        Color(red: 0.02, green: 0.05, blue: 0.10),
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
+                Self.clockMapBackground
 
                 worldMapBackdrop(mapRect: mapRect)
 
@@ -46,12 +39,13 @@ struct DaylightPreviewArtwork: View {
                 }
 
                 if !isEnabled {
-                    Color.black.opacity(0.20)
+                    Color.black.opacity(0.34)
                     Text("Enable sun moments to show this map in Feeds.")
                         .font(.caption)
+                        .foregroundStyle(.white.opacity(0.86))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .background(.regularMaterial, in: Capsule())
+                        .background(Color.black.opacity(0.62), in: Capsule())
                 }
             }
         }
@@ -63,45 +57,44 @@ struct DaylightPreviewArtwork: View {
 
         ZStack {
             mapShape
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(red: 0.05, green: 0.12, blue: 0.21),
-                            Color(red: 0.04, green: 0.09, blue: 0.17),
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+                .fill(Self.clockMapOcean)
 
-            if let worldMapImage = Self.worldMapImage {
-                Image(nsImage: worldMapImage)
-                    .resizable()
-                    .interpolation(.high)
-                    .scaledToFill()
-                    .frame(width: mapRect.width, height: mapRect.height)
-                    .saturation(0.84)
-                    .contrast(1.02)
-                    .brightness(-0.04)
-                    .opacity(0.76)
+            if let landMaskImage = Self.clockMapLandMaskImage {
+                Self.clockMapLand
+                    .mask {
+                        clockMapImage(landMaskImage, mapRect: mapRect)
+                    }
+                    .clipShape(mapShape)
+
+                Self.clockMapLand
+                    .opacity(0.34)
+                    .mask {
+                        clockMapImage(landMaskImage, mapRect: mapRect)
+                            .blur(radius: 0.55)
+                    }
+                    .clipShape(mapShape)
+            } else if let worldMapImage = Self.worldMapImage {
+                Self.clockMapLand
+                    .mask {
+                        clockMapImage(worldMapImage, mapRect: mapRect)
+                            .saturation(0)
+                            .contrast(2.4)
+                            .brightness(-0.34)
+                            .luminanceToAlpha()
+                    }
                     .clipShape(mapShape)
             }
-
-            mapShape
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.04),
-                            Color.clear,
-                            Color.black.opacity(0.08),
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
         }
         .frame(width: mapRect.width, height: mapRect.height)
         .position(x: mapRect.midX, y: mapRect.midY)
+    }
+
+    private func clockMapImage(_ image: NSImage, mapRect: CGRect) -> some View {
+        Image(nsImage: image)
+            .resizable()
+            .interpolation(.high)
+            .scaledToFill()
+            .frame(width: mapRect.width, height: mapRect.height)
     }
 
     private func worldMapRect(in rect: CGRect) -> CGRect {
@@ -113,7 +106,8 @@ struct DaylightPreviewArtwork: View {
     }
 
     private func drawMapGrid(into context: inout GraphicsContext, mapRect: CGRect) {
-        let gridColor = Color.white.opacity(0.08)
+        let verticalGridColor = Color.white.opacity(0.115)
+        let horizontalGridColor = Color.white.opacity(0.022)
 
         for lineIndex in 1..<4 {
             let ratio = CGFloat(lineIndex) / 4.0
@@ -121,16 +115,16 @@ struct DaylightPreviewArtwork: View {
             var path = Path()
             path.move(to: CGPoint(x: mapRect.minX, y: y))
             path.addLine(to: CGPoint(x: mapRect.maxX, y: y))
-            context.stroke(path, with: .color(gridColor), lineWidth: 0.6)
+            context.stroke(path, with: .color(horizontalGridColor), lineWidth: 0.45)
         }
 
-        for lineIndex in 1..<6 {
-            let ratio = CGFloat(lineIndex) / 6.0
+        for lineIndex in 1..<12 {
+            let ratio = CGFloat(lineIndex) / 12.0
             let x = mapRect.minX + (mapRect.width * ratio)
             var path = Path()
             path.move(to: CGPoint(x: x, y: mapRect.minY))
             path.addLine(to: CGPoint(x: x, y: mapRect.maxY))
-            context.stroke(path, with: .color(gridColor), lineWidth: 0.6)
+            context.stroke(path, with: .color(verticalGridColor), lineWidth: 0.55)
         }
     }
 
@@ -146,7 +140,6 @@ struct DaylightPreviewArtwork: View {
 
         var deepNightPath = Path()
         var twilightPath = Path()
-        var daylightGlowPath = Path()
 
         for row in 0..<rowCount {
             let cellY = mapRect.minY + CGFloat(row) * cellHeight
@@ -171,21 +164,18 @@ struct DaylightPreviewArtwork: View {
                 )
 
                 switch altitude {
-                case ..<(-12):
+                case ..<(-6):
                     deepNightPath.addRect(rect)
                 case ..<0:
                     twilightPath.addRect(rect)
-                case ..<6:
-                    daylightGlowPath.addRect(rect)
                 default:
                     continue
                 }
             }
         }
 
-        context.fill(deepNightPath, with: .color(Color.black.opacity(0.38)))
-        context.fill(twilightPath, with: .color(Color(red: 0.05, green: 0.08, blue: 0.14).opacity(0.24)))
-        context.fill(daylightGlowPath, with: .color(Color(red: 1.0, green: 0.90, blue: 0.68).opacity(0.08)))
+        context.fill(deepNightPath, with: .color(Color.black.opacity(0.72)))
+        context.fill(twilightPath, with: .color(Color.black.opacity(0.44)))
     }
 
     private func drawTerminatorCurves(
@@ -194,8 +184,8 @@ struct DaylightPreviewArtwork: View {
         solarState: DaylightSolarState
     ) {
         let curves = buildTerminatorCurves(mapRect: mapRect, solarState: solarState)
-        drawBoundary(into: &context, points: curves.westernPoints, color: .white.opacity(0.34))
-        drawBoundary(into: &context, points: curves.easternPoints, color: Color(red: 1.0, green: 0.90, blue: 0.68).opacity(0.28))
+        drawBoundary(into: &context, points: curves.westernPoints, color: .white.opacity(0.42))
+        drawBoundary(into: &context, points: curves.easternPoints, color: .white.opacity(0.42))
     }
 
     private func buildTerminatorCurves(mapRect: CGRect, solarState: DaylightSolarState) -> TerminatorCurves {
@@ -274,7 +264,7 @@ struct DaylightPreviewArtwork: View {
                 var path = Path()
                 path.move(to: previousPoint)
                 path.addLine(to: point)
-                context.stroke(path, with: .color(color), lineWidth: 1.15)
+                context.stroke(path, with: .color(color), lineWidth: 1.05)
             }
 
             previousPoint = point
@@ -285,21 +275,18 @@ struct DaylightPreviewArtwork: View {
         guard (-90...90).contains(latitude), (-180...180).contains(longitude) else { return }
 
         let point = Self.point(latitude: latitude, longitude: longitude, in: mapRect)
-        let haloCircle = Path(ellipseIn: CGRect(x: point.x - 10, y: point.y - 10, width: 20, height: 20))
-        context.fill(haloCircle, with: .color(Color.white.opacity(0.12)))
+        let shadowCircle = Path(ellipseIn: CGRect(x: point.x - 5.25, y: point.y - 4.75, width: 10.5, height: 10.5))
+        context.fill(shadowCircle, with: .color(Color.black.opacity(0.50)))
 
-        let outerCircle = Path(ellipseIn: CGRect(x: point.x - 5.5, y: point.y - 5.5, width: 11, height: 11))
-        context.fill(outerCircle, with: .color(Color(red: 0.98, green: 0.95, blue: 0.84).opacity(0.95)))
-
-        let innerCircle = Path(ellipseIn: CGRect(x: point.x - 2.5, y: point.y - 2.5, width: 5, height: 5))
-        context.fill(innerCircle, with: .color(Color(red: 0.09, green: 0.18, blue: 0.33)))
+        let markerCircle = Path(ellipseIn: CGRect(x: point.x - 3.35, y: point.y - 3.35, width: 6.7, height: 6.7))
+        context.fill(markerCircle, with: .color(Self.clockMapOrange))
     }
 
     private func drawMapBorder(into context: inout GraphicsContext, mapRect: CGRect) {
         let borderRect = mapRect.insetBy(dx: 0.5, dy: 0.5)
         context.stroke(
             Path(roundedRect: borderRect, cornerRadius: Self.mapCornerRadius),
-            with: .color(.white.opacity(0.18)),
+            with: .color(.white.opacity(0.08)),
             lineWidth: 1
         )
     }
@@ -365,8 +352,17 @@ struct DaylightPreviewArtwork: View {
         return value
     }
 
-    private static let mapCornerRadius: CGFloat = 16
-    private static let worldMapAspectRatio: CGFloat = 2.0
+    private static let mapCornerRadius: CGFloat = 0
+    nonisolated static let preferredAspectRatio: CGFloat = 2104.0 / 964.0
+    private static let worldMapAspectRatio: CGFloat = preferredAspectRatio
+    private static let clockMapBackground = Color.black
+    private static let clockMapOcean = Color.black
+    private static let clockMapLand = Color(red: 0.31, green: 0.31, blue: 0.30)
+    private static let clockMapOrange = Color(red: 1.0, green: 0.553, blue: 0.157)
+    private static let clockMapLandMaskImage: NSImage? = {
+        guard let worldMapImage else { return nil }
+        return makeClockStyleLandMask(from: worldMapImage)
+    }()
     private static let worldMapImage: NSImage? = {
         let bundle = Bundle.module
         let candidateURLs = [
@@ -382,4 +378,82 @@ struct DaylightPreviewArtwork: View {
 
         return nil
     }()
+
+    private static func makeClockStyleLandMask(from image: NSImage) -> NSImage? {
+        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            return nil
+        }
+
+        let width = cgImage.width
+        let height = cgImage.height
+        let bytesPerPixel = 4
+        let bytesPerRow = width * bytesPerPixel
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
+        var sourcePixels = [UInt8](repeating: 0, count: height * bytesPerRow)
+        var maskPixels = [UInt8](repeating: 0, count: height * bytesPerRow)
+
+        guard let sourceContext = CGContext(
+            data: &sourcePixels,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: colorSpace,
+            bitmapInfo: bitmapInfo
+        ) else {
+            return nil
+        }
+
+        sourceContext.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+        for index in stride(from: 0, to: sourcePixels.count, by: bytesPerPixel) {
+            let red = Double(sourcePixels[index]) / 255.0
+            let green = Double(sourcePixels[index + 1]) / 255.0
+            let blue = Double(sourcePixels[index + 2]) / 255.0
+            let maximum = max(red, green, blue)
+            let minimum = min(red, green, blue)
+            let brightness = (red + green + blue) / 3.0
+            let warmLand = (red * 0.54 + green * 0.46) - blue
+            let greenLand = green - (blue * 0.76) - (red * 0.05)
+            let ice = brightness > 0.76 && maximum - minimum < 0.18
+                ? (brightness - 0.76) * 2.4
+                : -1.0
+            let alpha = smoothstep(-0.01, 0.13, max(warmLand, greenLand, ice))
+            let alphaByte = UInt8((alpha * 255.0).rounded())
+
+            maskPixels[index] = alphaByte
+            maskPixels[index + 1] = alphaByte
+            maskPixels[index + 2] = alphaByte
+            maskPixels[index + 3] = alphaByte
+        }
+
+        guard let provider = CGDataProvider(data: Data(maskPixels) as CFData),
+              let maskImage = CGImage(
+                width: width,
+                height: height,
+                bitsPerComponent: 8,
+                bitsPerPixel: 32,
+                bytesPerRow: bytesPerRow,
+                space: colorSpace,
+                bitmapInfo: CGBitmapInfo(rawValue: bitmapInfo),
+                provider: provider,
+                decode: nil,
+                shouldInterpolate: true,
+                intent: .defaultIntent
+              ) else {
+            return nil
+        }
+
+        return NSImage(cgImage: maskImage, size: NSSize(width: width, height: height))
+    }
+
+    private static func smoothstep(_ lowerBound: Double, _ upperBound: Double, _ value: Double) -> Double {
+        guard upperBound > lowerBound else {
+            return value >= upperBound ? 1.0 : 0.0
+        }
+
+        let progress = max(0.0, min(1.0, (value - lowerBound) / (upperBound - lowerBound)))
+        return progress * progress * (3.0 - 2.0 * progress)
+    }
 }

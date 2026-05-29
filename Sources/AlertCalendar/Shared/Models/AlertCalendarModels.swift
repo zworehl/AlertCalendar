@@ -1,4 +1,3 @@
-import AppKit
 import Foundation
 
 enum CalendarItemKind: String {
@@ -23,7 +22,7 @@ enum MeetingAttendeeResponse: String, Equatable {
         }
     }
 
-    var statusColor: NSColor {
+    var statusColor: AlertCalendarColor {
         switch self {
         case .accepted:
             return .systemGreen
@@ -32,7 +31,7 @@ enum MeetingAttendeeResponse: String, Equatable {
         case .declined:
             return .systemRed
         case .pending:
-            return .tertiaryLabelColor
+            return .tertiaryLabel
         }
     }
 
@@ -233,7 +232,7 @@ struct UpcomingItem: Identifiable, Equatable {
     let attendees: [MeetingAttendee]
     let calendarID: String?
     let calendarName: String
-    let calendarColor: NSColor
+    let calendarColor: AlertCalendarColor
     let kind: CalendarItemKind
     let footballMatch: FootballFixtureMatch?
     let footballMenuBarDisplay: FootballMenuBarDisplay?
@@ -252,7 +251,7 @@ struct UpcomingItem: Identifiable, Equatable {
         attendees: [MeetingAttendee] = [],
         calendarID: String?,
         calendarName: String,
-        calendarColor: NSColor,
+        calendarColor: AlertCalendarColor,
         kind: CalendarItemKind,
         footballMatch: FootballFixtureMatch?,
         footballMenuBarDisplay: FootballMenuBarDisplay?
@@ -300,17 +299,17 @@ enum ActiveEventDisplayMode: String, CaseIterable, Identifiable {
 struct AvailableCalendar: Identifiable, Equatable {
     let id: String
     let title: String
-    let color: NSColor
+    let color: AlertCalendarColor
     let kind: CalendarItemKind
     let accountTitle: String
     let isSubscribed: Bool
 }
 
 enum MenuMarkerStyle: Equatable {
-    case color(NSColor)
-    case reminder(NSColor)
-    case birthday(NSColor)
-    case allDay(NSColor)
+    case color(AlertCalendarColor)
+    case reminder(AlertCalendarColor)
+    case birthday(AlertCalendarColor)
+    case allDay(AlertCalendarColor)
     case sunrise
     case solarNoon
     case sunset
@@ -333,13 +332,13 @@ enum MenuMarkerStyle: Equatable {
     static func == (lhs: MenuMarkerStyle, rhs: MenuMarkerStyle) -> Bool {
         switch (lhs, rhs) {
         case let (.color(left), .color(right)):
-            return left.isEqual(right)
+            return left == right
         case let (.reminder(left), .reminder(right)):
-            return left.isEqual(right)
+            return left == right
         case let (.birthday(left), .birthday(right)):
-            return left.isEqual(right)
+            return left == right
         case let (.allDay(left), .allDay(right)):
-            return left.isEqual(right)
+            return left == right
         case (.sunrise, .sunrise),
             (.solarNoon, .solarNoon),
             (.sunset, .sunset),
@@ -380,7 +379,7 @@ extension UpcomingItem {
             && lhs.attendees == rhs.attendees
             && lhs.calendarID == rhs.calendarID
             && lhs.calendarName == rhs.calendarName
-            && colorsAreEqual(lhs.calendarColor, rhs.calendarColor)
+            && lhs.calendarColor == rhs.calendarColor
             && lhs.kind == rhs.kind
             && lhs.footballMatch == rhs.footballMatch
             && lhs.footballMenuBarDisplay == rhs.footballMenuBarDisplay
@@ -391,15 +390,11 @@ extension AvailableCalendar {
     static func == (lhs: AvailableCalendar, rhs: AvailableCalendar) -> Bool {
         lhs.id == rhs.id
             && lhs.title == rhs.title
-            && colorsAreEqual(lhs.color, rhs.color)
+            && lhs.color == rhs.color
             && lhs.kind == rhs.kind
             && lhs.accountTitle == rhs.accountTitle
             && lhs.isSubscribed == rhs.isSubscribed
     }
-}
-
-private func colorsAreEqual(_ lhs: NSColor, _ rhs: NSColor) -> Bool {
-    lhs.isEqual(rhs)
 }
 
 private func meetingParticipantAvatarFallbackText(

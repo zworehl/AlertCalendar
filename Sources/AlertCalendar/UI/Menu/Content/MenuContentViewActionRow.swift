@@ -54,7 +54,7 @@ extension MenuContentView {
                             Button {
                                 monitor.markReminderCompleted(item)
                             } label: {
-                                reminderCompletionActionLabel(color: Color(nsColor: item.calendarColor))
+                                reminderCompletionActionLabel(color: Color(nsColor: item.calendarColor.nsColor))
                             }
                             .buttonStyle(.plain)
                             .controlSize(.small)
@@ -80,7 +80,7 @@ extension MenuContentView {
         hideTimeDetails: Bool = false,
         reservedTrailingWidth: CGFloat = 0
     ) -> some View {
-        let accentColor = Color(nsColor: item.calendarColor)
+        let accentColor = Color(nsColor: item.calendarColor.nsColor)
         let titleColor: Color = .primary
         let detailTextColor: Color = .secondary
         let tertiaryTextColor: Color = .secondary.opacity(0.85)
@@ -116,7 +116,7 @@ extension MenuContentView {
                     .padding(.top, markerTopPadding(for: item))
             } else {
                 Capsule()
-                    .fill(Color(nsColor: item.calendarColor))
+                    .fill(Color(nsColor: item.calendarColor.nsColor))
                     .frame(width: 4)
                     .padding(.vertical, 1)
             }
@@ -313,7 +313,7 @@ extension MenuContentView {
             if let progress = monitor.activeEventProgress(for: item, now: now, settings: settings), progress > 0 {
                 GeometryReader { proxy in
                     RoundedRectangle(cornerRadius: 7)
-                        .fill(Color(nsColor: item.calendarColor).opacity(0.22))
+                        .fill(Color(nsColor: item.calendarColor.nsColor).opacity(0.22))
                         .frame(width: max(10, proxy.size.width * progress))
                 }
             }

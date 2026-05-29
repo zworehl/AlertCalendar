@@ -52,8 +52,19 @@ enum MeetingURLResolver {
         guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else {
             return []
         }
-        let range = NSRange(location: 0, length: text.utf16.count)
-        return detector.matches(in: text, options: [], range: range).compactMap(\.url)
+
+        var urls: [URL] = []
+        var seenURLs: Set<String> = []
+
+        for candidateText in textVariants(for: text) {
+            let range = NSRange(location: 0, length: candidateText.utf16.count)
+            for url in detector.matches(in: candidateText, options: [], range: range).compactMap(\.url) {
+                guard seenURLs.insert(url.absoluteString).inserted else { continue }
+                urls.append(url)
+            }
+        }
+
+        return urls
     }
 
     static func resolvedMeetingURL(from url: URL) -> URL? {
@@ -195,6 +206,12 @@ enum MeetingURLResolver {
         }
     }
 
+    private static func textVariants(for text: String) -> [String] {
+        let decodedText = text.decodingCommonHTMLEntities()
+        guard decodedText != text else { return [text] }
+        return [decodedText, text]
+    }
+
     private static func isMeetingAssetURL(_ url: URL) -> Bool {
         let host = (url.host ?? "").lowercased()
         let absolute = url.absoluteString.lowercased()
@@ -233,5 +250,34 @@ enum MeetingURLResolver {
             || host.contains("meet.jit.si")
             || host.contains("chime.aws")
             || host.contains("amazonchime.")
+    }
+}
+
+private extension String {
+    func decodingCommonHTMLEntities() -> String {
+        var decoded = self
+        let replacements = [
+            ("&amp;", "&"),
+            ("&#38;", "&"),
+            ("&#x26;", "&"),
+            ("&quot;", "\""),
+            ("&#34;", "\""),
+            ("&#x22;", "\""),
+            ("&apos;", "'"),
+            ("&#39;", "'"),
+            ("&#x27;", "'"),
+            ("&lt;", "<"),
+            ("&#60;", "<"),
+            ("&#x3c;", "<"),
+            ("&gt;", ">"),
+            ("&#62;", ">"),
+            ("&#x3e;", ">"),
+        ]
+
+        for (entity, value) in replacements {
+            decoded = decoded.replacingOccurrences(of: entity, with: value, options: .caseInsensitive)
+        }
+
+        return decoded
     }
 }

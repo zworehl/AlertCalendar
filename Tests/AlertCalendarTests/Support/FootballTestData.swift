@@ -155,7 +155,7 @@ enum FootballTestData {
         endDate: Date? = nil,
         calendarID: String = "football-calendar",
         calendarName: String = "Football",
-        calendarColor: NSColor = .systemOrange
+        calendarColor: AlertCalendarColor = .systemOrange
     ) -> UpcomingItem {
         UpcomingItem(
             id: match.id,

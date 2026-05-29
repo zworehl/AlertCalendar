@@ -89,7 +89,7 @@ extension CalendarMonitor {
         return upcomingItems.sorted { $0.date < $1.date }
     }
 
-    func astronomyEvents(for date: Date, coordinate: (lat: Double, lon: Double), color: NSColor) -> [UpcomingItem] {
+    func astronomyEvents(for date: Date, coordinate: (lat: Double, lon: Double), color: AlertCalendarColor) -> [UpcomingItem] {
         guard let solar = solarTimes(for: date, coordinate: coordinate, timeZone: .current) else { return [] }
 
         var items: [UpcomingItem] = []
@@ -109,7 +109,7 @@ extension CalendarMonitor {
         return items
     }
 
-    func makeAstronomyItem(moment: AstronomyMoment, date: Date, color: NSColor) -> UpcomingItem {
+    func makeAstronomyItem(moment: AstronomyMoment, date: Date, color: AlertCalendarColor) -> UpcomingItem {
         let slug = moment.rawValue.replacingOccurrences(of: " ", with: "-")
         let dayKey = Self.dayKeyFormatter.string(from: date)
         return UpcomingItem(
@@ -162,13 +162,13 @@ extension CalendarMonitor {
             .sorted { $0.date < $1.date }
     }
 
-    private func lunarPhaseEvents(from start: Date, to end: Date, color: NSColor) -> [UpcomingItem] {
+    private func lunarPhaseEvents(from start: Date, to end: Date, color: AlertCalendarColor) -> [UpcomingItem] {
         nextLunarPhaseMoments(from: start)
             .filter { $0.date >= start && $0.date <= end }
             .map { makeAstronomyItem(moment: $0.moment, date: $0.date, color: color) }
     }
 
-    private func orbitalHighlightEvents(from start: Date, to end: Date, color: NSColor) -> [UpcomingItem] {
+    private func orbitalHighlightEvents(from start: Date, to end: Date, color: AlertCalendarColor) -> [UpcomingItem] {
         nextOrbitalHighlights(from: start)
             .filter { $0.date >= start && $0.date <= end }
             .map { makeAstronomyItem(moment: $0.moment, date: $0.date, color: color) }

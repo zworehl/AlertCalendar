@@ -181,7 +181,7 @@ struct MeetingAttendeeRow: View {
             Image(systemName: attendee.response.statusSymbolName)
                 .font(.system(size: 14, weight: .regular))
                 .frame(width: 14, height: 14, alignment: .center)
-                .foregroundStyle(Color(nsColor: attendee.response.statusColor))
+                .foregroundStyle(Color(nsColor: attendee.response.statusColor.nsColor))
 
             Text(attendee.displayText)
                 .font(.system(size: 12, weight: .medium))

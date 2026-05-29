@@ -159,14 +159,14 @@ struct MenuBarStatusLabel: View {
         let markerWidth: CGFloat = 3
         let imageMarkerSize: CGFloat = 11
         let dots = Array(dotColors.prefix(max(1, textSegments.count)))
-        let markers = markerStyles.isEmpty ? dots.map { MenuMarkerStyle.color($0) } : markerStyles
+        let markers = markerStyles.isEmpty ? dots.map { MenuMarkerStyle.color(AlertCalendarColor(nsColor: $0)) } : markerStyles
         let markerSpacing: CGFloat = 6
         let segmentSpacing: CGFloat = 8
         let leftPadding: CGFloat = segmentBackgroundOutsetX + outerCanvasPaddingX
         let rightPadding: CGFloat = segmentBackgroundOutsetX + outerCanvasPaddingX
         let textWidth = segmentSizes.reduce(CGFloat(0)) { $0 + $1.width }
         let resolvedMarkers = textSegments.indices.map { index in
-            index < markers.count ? markers[index] : .color(color)
+            index < markers.count ? markers[index] : .color(AlertCalendarColor(nsColor: color))
         }
         let markerWidths = resolvedMarkers.map {
             markerWidthForStyle($0, defaultWidth: markerWidth, imageWidth: imageMarkerSize)

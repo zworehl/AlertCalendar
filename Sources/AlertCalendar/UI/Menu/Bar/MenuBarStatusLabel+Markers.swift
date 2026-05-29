@@ -5,6 +5,7 @@ extension MenuBarStatusLabel {
     static func drawMarker(style: MenuMarkerStyle, x: CGFloat, height: CGFloat, markerWidth: CGFloat, markerHeight: CGFloat, imageMarkerSize: CGFloat) {
         switch style {
         case .color(let dotColor):
+            let dotColor = dotColor.nsColor
             let rect = NSRect(
                 x: x,
                 y: floor((height - markerHeight) / 2),
@@ -19,11 +20,11 @@ extension MenuBarStatusLabel {
             dotColor.setFill()
             path.fill()
         case .reminder(let ringColor):
-            drawReminderMarker(color: ringColor, x: x, height: height, markerSize: imageMarkerSize)
+            drawReminderMarker(color: ringColor.nsColor, x: x, height: height, markerSize: imageMarkerSize)
         case .birthday(let markerColor):
-            drawSymbolMarker(symbolName: "gift.circle.fill", tintColor: markerColor, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
+            drawSymbolMarker(symbolName: "gift.circle.fill", tintColor: markerColor.nsColor, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
         case .allDay(let markerColor):
-            drawSymbolMarker(symbolName: "calendar.circle.fill", tintColor: markerColor, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
+            drawSymbolMarker(symbolName: "calendar.circle.fill", tintColor: markerColor.nsColor, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
         case .sunrise:
             drawAstronomyMarker(moment: .sunrise, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
         case .solarNoon:

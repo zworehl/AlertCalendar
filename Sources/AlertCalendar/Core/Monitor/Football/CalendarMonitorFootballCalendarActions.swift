@@ -209,17 +209,11 @@ extension CalendarMonitor {
     }
 
     func footballTravelTime(for event: EKEvent) -> TimeInterval {
-        if let raw = (event as NSObject).value(forKey: "travelTime") as? NSNumber {
-            return max(0, raw.doubleValue)
-        }
-        if let raw = (event as NSObject).value(forKey: "travelTime") as? Double {
-            return max(0, raw)
-        }
-        return 0
+        EventTravelTimeResolver.travelTime(for: event)
     }
 
     func resetFootballTravelTime(on event: EKEvent) {
-        (event as NSObject).setValue(0, forKey: "travelTime")
+        EventTravelTimeResolver.resetTravelTime(on: event)
     }
 
     func footballAlertConfigurationNeedsUpdate(

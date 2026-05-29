@@ -68,7 +68,7 @@ struct SettingsAstronomySectionView: View {
                         date: previewReferenceDate,
                         isEnabled: hasValidCoordinates && !enabledSolarMoments.isEmpty
                     )
-                    .aspectRatio(2.02, contentMode: ContentMode.fit)
+                    .aspectRatio(DaylightPreviewArtwork.preferredAspectRatio, contentMode: ContentMode.fit)
                 }
 
                 if enabledSolarMoments.isEmpty {

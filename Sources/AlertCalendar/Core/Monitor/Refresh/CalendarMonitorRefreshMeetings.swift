@@ -16,14 +16,8 @@ extension CalendarMonitor {
         let hasLocationContext = event.structuredLocation != nil || normalizedLocation(for: event.location) != nil
         guard hasLocationContext else { return nil }
 
-        // Prefer native travel time when available through Objective-C runtime.
-        if let raw = (event as NSObject).value(forKey: "travelTime") as? NSNumber {
-            let seconds = max(0, raw.doubleValue)
-            if seconds >= 60 {
-                return max(1, Int(ceil(seconds / 60.0)))
-            }
-        } else if let raw = (event as NSObject).value(forKey: "travelTime") as? Double, raw >= 60 {
-            return max(1, Int(ceil(raw / 60.0)))
+        if let nativeTravelTimeMinutes = EventTravelTimeResolver.travelTimeMinutes(for: event) {
+            return nativeTravelTimeMinutes
         }
 
         guard let alarms = event.alarms, !alarms.isEmpty else { return nil }
@@ -68,18 +62,7 @@ extension CalendarMonitor {
     }
 
     func meetingURL(for event: EKEvent) -> URL? {
-        var candidates: [URL] = []
-        if let url = event.url {
-            candidates.append(url)
-        }
-        if let notes = event.notes {
-            candidates.append(contentsOf: allURLs(in: notes))
-        }
-        if let location = event.location {
-            candidates.append(contentsOf: allURLs(in: location))
-        }
-
-        return MeetingURLResolver.bestMeetingURL(from: candidates)
+        EventMeetingURLResolver.meetingURL(for: event)
     }
 
     func organizer(for event: EKEvent) -> MeetingOrganizer? {

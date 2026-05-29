@@ -19,6 +19,12 @@ jobs:
       - name: Run tests
         run: swift test
 
+      - name: Run architecture checks
+        run: ./scripts/check_architecture.sh
+
+      - name: Run coverage gate
+        run: ./scripts/check_coverage.sh
+
       - name: Build release bundle inputs
         run: |
           xcodebuild \
