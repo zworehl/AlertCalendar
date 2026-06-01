@@ -170,19 +170,17 @@ extension CalendarMonitor {
                 return "PEN"
             }
 
-            if footballStatusIndicatesExtraTime(for: match, now: now) {
-                return "ET"
+            if let minuteText = footballStatusBadgeMinuteText(
+                for: match,
+                rawStatusText: trimmed,
+                now: now
+            ) {
+                if footballStatusConfirmsExtraTime(match) {
+                    return "ET \(minuteText)"
+                }
+                return minuteText
             }
 
-            if let reportedMinute = footballParsedMinute(from: trimmed),
-               let inferredMinute = footballInferredMinuteFromKickoff(for: match, now: now),
-               shouldPreferInferredLiveMinute(
-                   reportedMinute: reportedMinute,
-                   inferredMinute: inferredMinute,
-                   match: match
-               ) {
-                return "\(inferredMinute)'"
-            }
             return trimmed
         }
 
@@ -198,12 +196,21 @@ extension CalendarMonitor {
             return "PEN"
         }
 
-        if normalized == "ET" || normalized.contains("EXTRA TIME") {
-            return "ET"
-        }
-
         if footballStatusIndicatesPenaltyShootout(for: match, now: now) {
             return "PEN"
+        }
+
+        if footballStatusConfirmsExtraTime(match) {
+            if let detailStatusText = match.statusDetailText,
+               let minuteText = footballStatusBadgeMinuteText(
+                   for: match,
+                   rawStatusText: detailStatusText,
+                   now: now
+               ) {
+                return "ET \(minuteText)"
+            }
+
+            return "ET"
         }
 
         if footballStatusIndicatesExtraTime(for: match, now: now) {
@@ -218,6 +225,34 @@ extension CalendarMonitor {
         }
 
         return nil
+    }
+
+    nonisolated static func footballStatusBadgeMinuteText(
+        for match: FootballFixtureMatch,
+        rawStatusText: String,
+        now: Date
+    ) -> String? {
+        let trimmed = rawStatusText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let parsedMinute = footballParsedMinuteComponents(from: trimmed) else { return nil }
+
+        let reportedMinute = parsedMinute.combinedMinute
+        if let inferredMinute = footballInferredMinuteFromKickoff(for: match, now: now),
+           shouldPreferInferredLiveMinute(
+               reportedMinute: reportedMinute,
+               inferredMinute: inferredMinute,
+               match: match
+           ) {
+            return "\(inferredMinute)'"
+        }
+
+        return footballStatusBadgeMinuteText(from: parsedMinute)
+    }
+
+    nonisolated static func footballStatusBadgeMinuteText(from parsedMinute: FootballStatusMinuteComponents) -> String {
+        if parsedMinute.stoppageMinute > 0 {
+            return "\(parsedMinute.baseMinute)'+\(parsedMinute.stoppageMinute)'"
+        }
+        return "\(parsedMinute.baseMinute)'"
     }
 
     nonisolated static func footballStatusTintColor(for text: String) -> NSColor {
@@ -243,7 +278,7 @@ extension CalendarMonitor {
         if normalized == "HT" {
             return .systemOrange
         }
-        if normalized == "ET" {
+        if normalized == "ET" || normalized.hasPrefix("ET ") {
             return .systemIndigo
         }
         if normalized == "SOON" {

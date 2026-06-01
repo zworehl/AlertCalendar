@@ -137,17 +137,152 @@ extension CalendarMonitor {
         case .finished:
             return bufferedEstimatedEnd
         case .inProgress:
+            if let liveEstimatedEnd = footballEstimatedLiveMatchEndDate(
+                for: match,
+                now: now,
+                fallbackEndDate: bufferedEstimatedEnd
+            ) {
+                return liveEstimatedEnd
+            }
             let minimumLiveEnd = now.addingTimeInterval(footballLiveMinimumTailDuration)
-            return max(bufferedEstimatedEnd, minimumLiveEnd)
+            return footballRoundedLiveEndDate(max(bufferedEstimatedEnd, minimumLiveEnd), now: now)
         case .scheduled:
             return bufferedEstimatedEnd
         case .unknown:
             if effectiveStartDate <= now {
+                if let liveEstimatedEnd = footballEstimatedLiveMatchEndDate(
+                    for: match,
+                    now: now,
+                    fallbackEndDate: bufferedEstimatedEnd
+                ) {
+                    return liveEstimatedEnd
+                }
                 let minimumLiveEnd = now.addingTimeInterval(footballLiveMinimumTailDuration)
-                return max(bufferedEstimatedEnd, minimumLiveEnd)
+                return footballRoundedLiveEndDate(max(bufferedEstimatedEnd, minimumLiveEnd), now: now)
             }
             return bufferedEstimatedEnd
         }
+    }
+
+    nonisolated static func footballEstimatedLiveMatchEndDate(
+        for match: FootballFixtureMatch,
+        now: Date,
+        fallbackEndDate: Date
+    ) -> Date? {
+        guard match.statusReliability == .reported else { return nil }
+
+        let normalizedStatus = footballNormalizedStatusText(match.statusText)
+        guard footballInterruptedStatusBadgeText(from: normalizedStatus) == nil else {
+            return nil
+        }
+
+        let phase = footballLiveMatchPhase(for: match, now: now)
+        let tailDuration = footballLiveTailDuration(for: match, phase: phase, now: now)
+        let minimumEndDate = now.addingTimeInterval(tailDuration)
+
+        guard let remainingDuration = footballEstimatedLiveRemainingDuration(
+            for: match,
+            phase: phase,
+            now: now
+        ) else {
+            return footballRoundedLiveEndDate(max(fallbackEndDate, minimumEndDate), now: now)
+        }
+
+        return footballRoundedLiveEndDate(
+            max(now.addingTimeInterval(remainingDuration), minimumEndDate),
+            now: now
+        )
+    }
+
+    nonisolated static func footballEstimatedLiveRemainingDuration(
+        for match: FootballFixtureMatch,
+        phase: FootballLiveMatchPhase,
+        now: Date
+    ) -> TimeInterval? {
+        switch phase {
+        case .firstHalf:
+            let minute = min(max(footballLiveMinute(for: match, now: now) ?? 0, 0), 45)
+            let firstHalfRemaining = TimeInterval(max(0, 45 - minute) * 60)
+            return firstHalfRemaining
+                + footballHalfTimeBreakDuration
+                + TimeInterval(45 * 60)
+                + footballEstimatedEndMarginDuration
+                + footballPotentialExtraTimeReserveDuration(for: match, now: now)
+
+        case .halfTime:
+            let scheduledSecondHalfStart = footballEffectiveStartDate(for: match)
+                .addingTimeInterval(TimeInterval(45 * 60) + footballHalfTimeBreakDuration)
+            let halfTimeRemaining = max(0, scheduledSecondHalfStart.timeIntervalSince(now))
+            return halfTimeRemaining
+                + TimeInterval(45 * 60)
+                + footballEstimatedEndMarginDuration
+                + footballPotentialExtraTimeReserveDuration(for: match, now: now)
+
+        case .secondHalf:
+            let minute = min(max(footballLiveMinute(for: match, now: now) ?? 46, 46), 90)
+            let regulationRemaining = TimeInterval(max(0, 90 - minute) * 60)
+            return regulationRemaining
+                + footballEstimatedEndMarginDuration
+                + footballPotentialExtraTimeReserveDuration(for: match, now: now)
+
+        case .extraTime:
+            let minute = min(max(footballLiveMinute(for: match, now: now) ?? 91, 91), 120)
+            let extraTimeRemaining = TimeInterval(max(0, 120 - minute) * 60)
+            return extraTimeRemaining
+                + footballEstimatedEndMarginDuration
+                + footballPotentialPenaltyReserveDuration(for: match, minute: minute)
+
+        case .penalties:
+            return footballPenaltyShootoutEstimateDuration
+
+        case .unknown:
+            return nil
+        }
+    }
+
+    nonisolated static func footballPotentialExtraTimeReserveDuration(
+        for match: FootballFixtureMatch,
+        now: Date
+    ) -> TimeInterval {
+        guard footballCanReachExtraTime(match) else { return 0 }
+        guard footballExtraTimeStillLooksLikely(for: match, now: now) else { return 0 }
+        return TimeInterval(30 * 60) + footballEstimatedEndMarginDuration
+    }
+
+    nonisolated static func footballPotentialPenaltyReserveDuration(
+        for match: FootballFixtureMatch,
+        minute: Int
+    ) -> TimeInterval {
+        guard footballCanReachExtraTime(match), footballScoresAreLevel(match) else { return 0 }
+        return minute >= 116 ? footballPenaltyShootoutEstimateDuration : 0
+    }
+
+    nonisolated static func footballLiveTailDuration(
+        for match: FootballFixtureMatch,
+        phase: FootballLiveMatchPhase,
+        now: Date
+    ) -> TimeInterval {
+        switch phase {
+        case .penalties, .extraTime, .halfTime, .firstHalf:
+            return footballLiveShortTailDuration
+        case .secondHalf:
+            let minute = footballLiveMinute(for: match, now: now) ?? 0
+            return minute >= 88 ? footballLiveLateTailDuration : footballLiveShortTailDuration
+        case .unknown:
+            return footballLiveMinimumTailDuration
+        }
+    }
+
+    nonisolated static func footballRoundedLiveEndDate(_ date: Date, now: Date) -> Date {
+        let interval = footballLiveEndDateRoundingInterval
+        guard interval > 0 else { return date }
+
+        let roundedTime = ceil(date.timeIntervalSince1970 / interval) * interval
+        let roundedDate = Date(timeIntervalSince1970: roundedTime)
+        guard roundedDate > now else {
+            return now.addingTimeInterval(footballLiveLateTailDuration)
+        }
+        return roundedDate
     }
 
     nonisolated static func approximateFootballMatchDuration(

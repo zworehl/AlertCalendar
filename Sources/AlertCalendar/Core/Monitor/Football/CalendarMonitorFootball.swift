@@ -26,6 +26,12 @@ extension CalendarMonitor {
     nonisolated static let footballExtraTimeMatchDuration: TimeInterval = 140 * 60
     nonisolated static let footballPenaltyMatchDuration: TimeInterval = 150 * 60
     nonisolated static let footballLiveMinimumTailDuration: TimeInterval = 10 * 60
+    nonisolated static let footballLiveShortTailDuration: TimeInterval = 5 * 60
+    nonisolated static let footballLiveLateTailDuration: TimeInterval = 2 * 60
+    nonisolated static let footballLiveEndDateRoundingInterval: TimeInterval = 5 * 60
+    nonisolated static let footballHalfTimeBreakDuration: TimeInterval = 15 * 60
+    nonisolated static let footballPenaltyShootoutEstimateDuration: TimeInterval = 15 * 60
+    nonisolated static let footballPenaltyShootoutInferenceMinute = 124
     nonisolated static let footballEstimatedEndMarginDuration: TimeInterval = 5 * 60
     nonisolated static let footballManagedEventMatchingTolerance: TimeInterval = 5 * 60
     nonisolated static let footballStructuredLocationToleranceMeters: CLLocationDistance = 150

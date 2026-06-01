@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 @testable import AlertCalendar
 
@@ -41,6 +42,129 @@ final class FootballFixtureStatusBadgeTests: FootballFixtureFormatterTestCase {
         XCTAssertEqual(CalendarMonitor.footballStatusBadgeText(for: extraTimeMatch, now: now), "ET")
         XCTAssertEqual(CalendarMonitor.footballStatusBadgeText(for: penaltiesMatch, now: now), "PEN")
         XCTAssertEqual(CalendarMonitor.footballStatusBadgeText(for: fullTimeMatch, now: now), "FT")
+    }
+    func testFootballStatusBadgeShowsConfirmedExtraTimeMinute() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let match = makeMatch(
+            id: "extra-time-minute",
+            startDate: now.addingTimeInterval(-120 * 60),
+            statusState: .inProgress,
+            statusText: "105'",
+            statusPeriod: 4,
+            competitionSlug: "uefa.super_cup",
+            seasonSlug: "final",
+            competitionNote: "Final",
+            homeScore: "1",
+            awayScore: "1"
+        )
+
+        XCTAssertEqual(CalendarMonitor.footballStatusBadgeText(for: match, now: now), "ET 105'")
+    }
+    func testFootballStatusBadgeUsesSupplementalMinuteForExtraTimeStatus() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let match = makeMatch(
+            id: "extra-time-detail-minute",
+            startDate: now.addingTimeInterval(-120 * 60),
+            statusState: .inProgress,
+            statusText: "ET",
+            statusDetailText: "105'",
+            statusPeriod: 4,
+            competitionSlug: "uefa.super_cup",
+            seasonSlug: "final",
+            competitionNote: "Final",
+            homeScore: "1",
+            awayScore: "1"
+        )
+
+        XCTAssertEqual(CalendarMonitor.footballStatusBadgeText(for: match, now: now), "ET 105'")
+    }
+    func testFootballStatusBadgeDoesNotInferPenaltiesAtConfirmedExtraTimeEdge() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let match = makeMatch(
+            id: "extra-time-edge",
+            startDate: now.addingTimeInterval(-135 * 60),
+            statusState: .inProgress,
+            statusText: "120'",
+            statusPeriod: 4,
+            competitionSlug: "uefa.super_cup",
+            seasonSlug: "final",
+            competitionNote: "Final",
+            homeScore: "1",
+            awayScore: "1"
+        )
+
+        XCTAssertEqual(CalendarMonitor.footballStatusBadgeText(for: match, now: now), "ET 120'")
+    }
+    func testFootballStatusBadgeKeepsExtraTimeStoppageBeforePenaltiesAreConfirmed() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let match = makeMatch(
+            id: "extra-time-stoppage",
+            startDate: now.addingTimeInterval(-137 * 60),
+            statusState: .inProgress,
+            statusText: "120'+2'",
+            statusPeriod: 4,
+            competitionSlug: "uefa.super_cup",
+            seasonSlug: "final",
+            competitionNote: "Final",
+            homeScore: "1",
+            awayScore: "1"
+        )
+
+        XCTAssertEqual(CalendarMonitor.footballStatusBadgeText(for: match, now: now), "ET 120'+2'")
+    }
+    func testFootballStatusBadgeUsesExplicitPenaltyPeriodOverExtraTimeText() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let match = makeMatch(
+            id: "penalty-period",
+            startDate: now.addingTimeInterval(-142 * 60),
+            statusState: .inProgress,
+            statusText: "ET",
+            statusPeriod: 5,
+            competitionSlug: "uefa.super_cup",
+            seasonSlug: "final",
+            competitionNote: "Final",
+            homeScore: "1",
+            awayScore: "1"
+        )
+
+        XCTAssertEqual(CalendarMonitor.footballStatusBadgeText(for: match, now: now), "PEN")
+    }
+    func testFootballStatusBadgeKeepsInferredExtraTimeAtPenaltyBoundary() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let match = makeMatch(
+            id: "inferred-extra-time-boundary",
+            startDate: now.addingTimeInterval(-136 * 60),
+            statusState: .inProgress,
+            statusText: "",
+            competitionSlug: "uefa.super_cup",
+            seasonSlug: "final",
+            competitionNote: "Final",
+            homeScore: "1",
+            awayScore: "1"
+        )
+
+        XCTAssertEqual(CalendarMonitor.footballStatusBadgeText(for: match, now: now), "ET")
+    }
+    func testFootballStatusBadgeInfersPenaltiesOnlyAfterConservativeBuffer() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let match = makeMatch(
+            id: "inferred-penalties-buffer",
+            startDate: now.addingTimeInterval(-139 * 60),
+            statusState: .inProgress,
+            statusText: "",
+            competitionSlug: "uefa.super_cup",
+            seasonSlug: "final",
+            competitionNote: "Final",
+            homeScore: "1",
+            awayScore: "1"
+        )
+
+        XCTAssertEqual(CalendarMonitor.footballStatusBadgeText(for: match, now: now), "PEN")
+    }
+    func testFootballStatusBadgeKeepsExtraTimeTintForMinuteBadge() {
+        XCTAssertTrue(
+            CalendarMonitor.footballStatusTintColor(for: "ET 105'").isEqual(NSColor.systemIndigo)
+        )
     }
     func testFootballStatusBadgePrefersInterruptedStateOverReportedMinute() {
         let now = Date(timeIntervalSince1970: 1_720_000_000)

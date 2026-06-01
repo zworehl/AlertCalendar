@@ -3,6 +3,24 @@ import CoreLocation
 import EventKit
 import Foundation
 
+enum FootballLiveMatchPhase: Equatable, Sendable {
+    case firstHalf
+    case halfTime
+    case secondHalf
+    case extraTime
+    case penalties
+    case unknown
+}
+
+struct FootballStatusMinuteComponents: Equatable, Sendable {
+    let baseMinute: Int
+    let stoppageMinute: Int
+
+    var combinedMinute: Int {
+        baseMinute + stoppageMinute
+    }
+}
+
 extension CalendarMonitor {
     nonisolated static func footballStatusWarningText(for match: FootballFixtureMatch) -> String? {
         switch match.statusReliability {
@@ -45,18 +63,9 @@ extension CalendarMonitor {
         for match: FootballFixtureMatch,
         now: Date
     ) -> Bool {
-        let normalizedStatus = footballNormalizedStatusText(match.statusText)
         let minute = footballLiveMinute(for: match, now: now)
 
-        if normalizedStatus.contains("AET") {
-            return true
-        }
-
-        if normalizedStatus == "ET" || normalizedStatus.contains("EXTRA TIME") {
-            return true
-        }
-
-        if footballStatusPeriodIndicatesExtraTime(match.statusPeriod) {
+        if footballStatusConfirmsExtraTime(match) {
             return true
         }
 
@@ -70,15 +79,67 @@ extension CalendarMonitor {
         return false
     }
 
+    nonisolated static func footballStatusConfirmsExtraTime(_ match: FootballFixtureMatch) -> Bool {
+        let normalizedStatus = footballNormalizedStatusText(match.statusText)
+        let normalizedDetail = footballNormalizedStatusText(match.statusDetailText ?? "")
+
+        if normalizedStatus.contains("AET") || normalizedDetail.contains("AET") {
+            return true
+        }
+
+        if normalizedStatus == "ET"
+            || normalizedStatus.contains("EXTRA TIME")
+            || normalizedDetail == "ET"
+            || normalizedDetail.contains("EXTRA TIME") {
+            return true
+        }
+
+        if (footballParsedMinuteComponents(from: match.statusText)?.baseMinute ?? 0) > 90 {
+            return true
+        }
+
+        if let statusDetailText = match.statusDetailText,
+           (footballParsedMinuteComponents(from: statusDetailText)?.baseMinute ?? 0) > 90 {
+            return true
+        }
+
+        return footballStatusPeriodIndicatesExtraTime(match.statusPeriod)
+    }
+
     nonisolated static func footballStatusIndicatesPenaltyShootout(
         for match: FootballFixtureMatch,
         now: Date
     ) -> Bool {
-        let normalizedStatus = footballNormalizedStatusText(match.statusText)
-        let normalizedNote = footballNormalizedStatusText(match.competitionNote ?? "")
         let minute = footballLiveMinute(for: match, now: now)
 
+        if footballStatusConfirmsPenaltyShootout(match) {
+            return true
+        }
+
+        if footballStatusConfirmsExtraTime(match) {
+            return false
+        }
+
+        guard footballCanReachExtraTime(match) else { return false }
+        guard footballScoresAreLevel(match) else { return false }
+
+        if let minute, minute >= footballPenaltyShootoutInferenceMinute {
+            return true
+        }
+
+        return false
+    }
+
+    nonisolated static func footballStatusConfirmsPenaltyShootout(_ match: FootballFixtureMatch) -> Bool {
+        let normalizedStatus = footballNormalizedStatusText(match.statusText)
+        let normalizedDetail = footballNormalizedStatusText(match.statusDetailText ?? "")
+        let normalizedNote = footballNormalizedStatusText(match.competitionNote ?? "")
+
         if normalizedStatus.contains("PEN") || normalizedStatus == "PK" || normalizedStatus.contains("PENALTY") {
+            return true
+        }
+
+        if normalizedDetail.contains("PEN") || normalizedDetail == "PK" || normalizedDetail.contains("PENALTY") {
             return true
         }
 
@@ -86,18 +147,7 @@ extension CalendarMonitor {
             return true
         }
 
-        if normalizedNote.contains("PENALTY") || normalizedNote.contains("PENALTIES") {
-            return true
-        }
-
-        guard footballCanReachExtraTime(match) else { return false }
-        guard footballScoresAreLevel(match) else { return false }
-
-        if let minute, minute >= 120 {
-            return true
-        }
-
-        return false
+        return normalizedNote.contains("PENALTY") || normalizedNote.contains("PENALTIES")
     }
 
     nonisolated static func footballCanReachExtraTime(_ match: FootballFixtureMatch) -> Bool {
@@ -260,12 +310,35 @@ extension CalendarMonitor {
             return 121
         }
 
-        if normalizedStatus == "ET" || normalizedStatus.contains("EXTRA TIME") {
-            return 91
+        if let parsed = footballParsedMinuteComponents(from: match.statusText) {
+            let reportedMinute = parsed.combinedMinute
+            if let inferredMinute = footballInferredMinuteFromKickoff(for: match, now: now),
+               shouldPreferInferredLiveMinute(
+                   reportedMinute: reportedMinute,
+                   inferredMinute: inferredMinute,
+                   match: match
+               ) {
+                return inferredMinute
+            }
+            return reportedMinute
         }
 
-        if let parsed = footballParsedMinute(from: match.statusText) {
-            return parsed
+        if let statusDetailText = match.statusDetailText,
+           let parsed = footballParsedMinuteComponents(from: statusDetailText) {
+            let reportedMinute = parsed.combinedMinute
+            if let inferredMinute = footballInferredMinuteFromKickoff(for: match, now: now),
+               shouldPreferInferredLiveMinute(
+                   reportedMinute: reportedMinute,
+                   inferredMinute: inferredMinute,
+                   match: match
+               ) {
+                return inferredMinute
+            }
+            return reportedMinute
+        }
+
+        if normalizedStatus == "ET" || normalizedStatus.contains("EXTRA TIME") {
+            return footballInferredMinuteFromKickoff(for: match, now: now) ?? 91
         }
 
         guard match.statusState == .inProgress
@@ -274,6 +347,66 @@ extension CalendarMonitor {
         }
 
         return footballInferredMinuteFromKickoff(for: match, now: now)
+    }
+
+    nonisolated static func footballLiveMatchPhase(
+        for match: FootballFixtureMatch,
+        now: Date
+    ) -> FootballLiveMatchPhase {
+        if match.statusReliability == .awaitingLiveData || match.statusReliability == .delayedLiveData {
+            return .unknown
+        }
+
+        let normalizedStatus = footballNormalizedStatusText(match.statusText)
+
+        if footballInterruptedStatusBadgeText(from: normalizedStatus) != nil {
+            return .unknown
+        }
+
+        if footballStatusIndicatesPenaltyShootout(for: match, now: now) {
+            return .penalties
+        }
+
+        if footballStatusIndicatesExtraTime(for: match, now: now) {
+            return .extraTime
+        }
+
+        if normalizedStatus == "HT" || normalizedStatus.contains("HALF") {
+            return .halfTime
+        }
+
+        if let parsed = footballParsedMinuteComponents(from: match.statusText)
+            ?? match.statusDetailText.flatMap(footballParsedMinuteComponents(from:)) {
+            let resolvedMinute = footballLiveMinute(for: match, now: now) ?? parsed.combinedMinute
+
+            if parsed.baseMinute > 90 {
+                return .extraTime
+            }
+
+            if resolvedMinute > 45 || parsed.baseMinute > 45 || match.statusPeriod == 2 {
+                return .secondHalf
+            }
+
+            return .firstHalf
+        }
+
+        guard let inferredMinute = footballLiveMinute(for: match, now: now) else {
+            return .unknown
+        }
+
+        if inferredMinute >= footballPenaltyShootoutInferenceMinute {
+            return .penalties
+        }
+
+        if inferredMinute > 90 {
+            return footballCanReachExtraTime(match) ? .extraTime : .secondHalf
+        }
+
+        if inferredMinute > 45 {
+            return .secondHalf
+        }
+
+        return .firstHalf
     }
 
     nonisolated static func footballInterruptedMatchDuration(
@@ -299,13 +432,26 @@ extension CalendarMonitor {
     ) -> Int? {
         let elapsedSeconds = max(0, now.timeIntervalSince(footballEffectiveStartDate(for: match)))
         let rawMinutes = Int(elapsedSeconds / 60)
+        if footballStatusPeriodIndicatesPenaltyShootout(match.statusPeriod) {
+            let inferredPenaltyMinute = rawMinutes <= 60 ? 121 : max(121, rawMinutes - 15)
+            return min(inferredPenaltyMinute, 130)
+        }
+        if footballStatusConfirmsExtraTime(match) {
+            let inferredExtraTimeMinute = rawMinutes <= 60 ? 91 : max(91, rawMinutes - 15)
+            return min(inferredExtraTimeMinute, 120)
+        }
         if rawMinutes <= 45 {
             return rawMinutes
         }
         if rawMinutes <= 60 {
             return 45
         }
-        return max(46, rawMinutes - 15)
+
+        let inferredMinute = max(46, rawMinutes - 15)
+        if footballCanReachExtraTime(match), footballScoresAreLevel(match) {
+            return min(inferredMinute, footballPenaltyShootoutInferenceMinute)
+        }
+        return min(inferredMinute, 90)
     }
 
     nonisolated static func shouldPreferInferredLiveMinute(
@@ -345,10 +491,14 @@ extension CalendarMonitor {
     }
 
     nonisolated static func footballParsedMinute(from rawStatusText: String) -> Int? {
+        footballParsedMinuteComponents(from: rawStatusText)?.combinedMinute
+    }
+
+    nonisolated static func footballParsedMinuteComponents(from rawStatusText: String) -> FootballStatusMinuteComponents? {
         let trimmed = rawStatusText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
 
-        let pattern = #"(\d{1,3})(?:\+(\d{1,2}))?\s*'"#
+        let pattern = #"(\d{1,3})\s*['’]?(?:\s*\+\s*(\d{1,2}))?\s*['’]"#
         guard let regex = try? NSRegularExpression(pattern: pattern),
               let match = regex.firstMatch(
                   in: trimmed,
@@ -359,8 +509,12 @@ extension CalendarMonitor {
 
         let baseMinute = footballRegexInt(match, in: trimmed, at: 1) ?? 0
         let extraMinute = footballRegexInt(match, in: trimmed, at: 2) ?? 0
-        let combinedMinute = baseMinute + extraMinute
-        return combinedMinute > 0 ? combinedMinute : nil
+        guard baseMinute + extraMinute > 0 else { return nil }
+
+        return FootballStatusMinuteComponents(
+            baseMinute: baseMinute,
+            stoppageMinute: extraMinute
+        )
     }
 
     nonisolated static func footballInterruptedStatusBadgeText(from normalizedStatus: String) -> String? {
