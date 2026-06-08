@@ -18,6 +18,7 @@ AlertCalendar is currently one SwiftPM executable target. Until the package is s
 - Reducers for settings and UI draft transformations.
 - Coordinators for feature side effects.
 - Adapters for platform APIs and time.
+- Runtime state structs for feature-specific coordinator state that still needs to be owned by `CalendarMonitor`.
 
 ## Rules Of Thumb
 
@@ -25,6 +26,7 @@ AlertCalendar is currently one SwiftPM executable target. Until the package is s
 - Parsing code should prefer typed `Decodable` envelopes. Dictionary parsing can remain where feeds are unstable, but it should be isolated behind parser helpers.
 - SwiftUI views should render state and forward user intent. They should not normalize persisted settings or make broad domain decisions.
 - Platform side effects should sit behind a named helper, service, or adapter. Direct calls to `UserDefaults.standard`, `URLSession.shared`, `NSWorkspace.shared`, and `NSSound.beep()` should not spread further.
+- Routing and rule models should stay Foundation-only when possible; AppKit discovery helpers belong in adjacent catalog/launcher files.
 - Any refactor should keep tests green at each checkpoint.
 
 ## Target Split Roadmap

@@ -1,7 +1,5 @@
 import AppKit
 import Combine
-import CoreLocation
-import CoreWLAN
 import EventKit
 import Foundation
 
@@ -72,37 +70,10 @@ final class CalendarMonitor: ObservableObject {
     var alreadyNotified: Set<String> = []
     var silencedAlertKeys: Set<String> = []
     var skippedItemKeys: Set<String> = []
-    var oneShotLocationManager: CLLocationManager?
-    var oneShotLocationDelegate: OneShotLocationDelegate?
-    var locationPermissionManager: CLLocationManager?
-    var locationPermissionDelegate: LocationPermissionDelegate?
-    var automaticAstronomyLocationRefreshTask: Task<Void, Never>?
-    var isAutomaticAstronomyLocationRefreshRunning = false
-    var lastAutomaticAstronomyLocationRefreshAttemptDate: Date?
-    var wiFiClient: CWWiFiClient?
-    var wiFiEventDelegate: WiFiNetworkChangeDelegate?
-    var lastObservedWiFiNetworkIdentity: WiFiNetworkIdentity?
-    var footballMatchesByID: [String: FootballFixtureMatch] = [:]
-    var managedFootballEventRecords: [ManagedFootballEventRecord] = []
-    var footballLocalLogoPathsByCompetitionSlug: [String: String] = [:]
-    var footballLocalLogoPathsByTeamID: [String: String] = [:]
-    var lastFootballMenuRefreshDate: Date?
-    var lastFootballManagedSyncDate: Date?
-    var lastFootballManagedCleanupDate: Date?
-    var lastFootballManagedRecoveryDate: Date?
-    var lastFootballLegacyMigrationDate: Date?
-    var activeFootballGoalHighlight: FootballGoalHighlight?
-    var cachedManagedFootballSnapshots: [ManagedFootballEventSnapshot] = []
-    var isManagedFootballSnapshotCacheValid = false
-    var didFootballEventStoreChange = false
+    var locationRuntimeState = CalendarMonitorLocationRuntimeState()
+    var footballState = CalendarMonitorFootballState()
     var menuBarRotationState = MenuBarRotationState()
-    var slackStatusSyncTask: Task<Void, Never>?
-    var slackStatusSyncNeedsAnotherPass = false
-    var slackQueuedTargets: [SlackStatusSyncTarget] = []
-    var slackStatusSyncTransitionTask: Task<Void, Never>?
-    var slackScheduledTransitionDate: Date?
-    var lastSlackStatusSyncEvaluationDate: Date?
-    var slackManagedStateByConnectionID: [String: SlackManagedStatusState] = [:]
+    var slackRuntimeState = CalendarMonitorSlackRuntimeState()
 
     init(
         eventStore: EKEventStore = EKEventStore(),
@@ -178,13 +149,6 @@ final class CalendarMonitor: ObservableObject {
     var activeAlertDescription: String? {
         guard let activeAlertItem else { return nil }
         return Self.alertDescription(for: activeAlertItem, now: fixedSecondNow())
-    }
-
-    struct MenuBarRotationState: Equatable {
-        var slot: Int?
-        var selectedKey: String?
-        var selectedIndex: Int?
-        var startedAt: Date?
     }
 
     static let dayFormatter: DateFormatter = {

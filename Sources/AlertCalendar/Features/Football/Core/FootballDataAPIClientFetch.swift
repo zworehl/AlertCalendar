@@ -13,9 +13,13 @@ extension FootballDataAPIClient {
             competition,
             dateRange: nil
         )
-        async let ranged = fetchMatchesForCompetitionPage(
+        let ranged = await fetchMatchesForCompetitionDateRanges(
             competition,
-            dateRange: (start, end)
+            dateRanges: Self.scoreboardDateRanges(
+                start: start,
+                end: end,
+                calendar: calendar
+            )
         )
 
         let merged = await primary + ranged

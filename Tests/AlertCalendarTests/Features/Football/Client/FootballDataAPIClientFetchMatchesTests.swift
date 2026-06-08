@@ -331,11 +331,28 @@ final class FootballDataAPIClientFetchMatchesTests: FootballDataAPIClientTestCas
             for: [.majorLeagueSoccer],
             enrichTeams: false
         )
+        let calendar = Calendar(identifier: .gregorian)
+        let dayStart = calendar.startOfDay(for: AlertCalendarClock.nowRoundedToSecond())
+        let expectedStart = calendar.date(
+            byAdding: .day,
+            value: -FootballCompetitionPreset.majorLeagueSoccer.lookbackDays,
+            to: dayStart
+        ) ?? dayStart
+        let expectedEnd = calendar.date(
+            byAdding: .day,
+            value: FootballCompetitionPreset.majorLeagueSoccer.lookaheadDays,
+            to: dayStart
+        ) ?? dayStart
+        let expectedScoreboardRequestCount = 1 + FootballDataAPIClient.scoreboardDateRanges(
+            start: expectedStart,
+            end: expectedEnd,
+            calendar: calendar
+        ).count
 
         XCTAssertEqual(firstMatches.map(\.id), ["shared-scoreboard-match"])
         XCTAssertEqual(secondMatches.map(\.id), ["shared-scoreboard-match"])
         XCTAssertEqual(thirdMatches.map(\.id), ["shared-scoreboard-match"])
-        XCTAssertEqual(scoreboardRequestCount, 2)
+        XCTAssertEqual(scoreboardRequestCount, expectedScoreboardRequestCount)
     }
     func testFetchMatchesCanSkipTeamEnrichmentForLightweightLists() async throws {
         let startDate = Date().addingTimeInterval(24 * 60 * 60)
@@ -365,6 +382,84 @@ final class FootballDataAPIClientFetchMatchesTests: FootballDataAPIClientTestCas
 
         XCTAssertEqual(matches.count, 1)
         XCTAssertNil(matches.first?.locationText)
+    }
+    func testFetchMatchesSplitsDateRangeSoLaterFriendlyFixturesAreNotDropped() async throws {
+        let calendar = Calendar(identifier: .gregorian)
+        let dayStart = calendar.startOfDay(for: AlertCalendarClock.nowRoundedToSecond())
+        let targetDate = try XCTUnwrap(
+            calendar.date(byAdding: .day, value: 20, to: dayStart)?
+                .addingTimeInterval(20 * 60 * 60)
+        )
+        let startDateText = ISO8601DateFormatter().string(from: targetDate)
+        let queryDateFormatter = DateFormatter()
+        queryDateFormatter.calendar = calendar
+        queryDateFormatter.locale = Locale(identifier: "en_US_POSIX")
+        queryDateFormatter.timeZone = .autoupdatingCurrent
+        queryDateFormatter.dateFormat = "yyyyMMdd"
+        let targetDateText = queryDateFormatter.string(from: targetDate)
+        let requestLock = NSLock()
+        var requestedDateRanges: [String] = []
+
+        let session = makeMockSession { request in
+            let url = try XCTUnwrap(request.url)
+            guard url.path == "/apis/site/v2/sports/soccer/fifa.friendly/scoreboard" else {
+                XCTFail("Unexpected URL: \(url.absoluteString)")
+                throw URLError(.badURL)
+            }
+
+            let dateRange = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?
+                .first(where: { $0.name == "dates" })?
+                .value
+
+            if let dateRange {
+                requestLock.lock()
+                requestedDateRanges.append(dateRange)
+                requestLock.unlock()
+            }
+
+            let dateRangeParts = dateRange?.split(separator: "-").map(String.init) ?? []
+            let dateRangeContainsTarget = dateRangeParts.count == 2
+                && dateRangeParts[0] <= targetDateText
+                && targetDateText <= dateRangeParts[1]
+            let body = dateRangeContainsTarget
+                ? self.scoreboardBody(
+                    leagueName: "FIFA Friendlies",
+                    matchID: "costa-rica-england",
+                    startDateText: startDateText
+                )
+                : [
+                    "leagues": [["name": "FIFA Friendlies"]],
+                    "events": [],
+                ]
+
+            return try self.jsonResponse(for: request, body: body)
+        }
+        let competition = FootballCompetitionPreset(
+            slug: "fifa.friendly",
+            title: "FIFA Friendlies",
+            lookbackDays: 0,
+            lookaheadDays: 45,
+            category: .nationalTeams,
+            region: .global
+        )
+        let client = FootballDataAPIClient(session: session)
+
+        let matches = try await client.fetchMatches(
+            for: [competition],
+            enrichTeams: false
+        )
+
+        XCTAssertEqual(matches.map(\.id), ["costa-rica-england"])
+        XCTAssertGreaterThan(requestedDateRanges.count, 1)
+        XCTAssertTrue(
+            requestedDateRanges.contains { dateRange in
+                let parts = dateRange.split(separator: "-").map(String.init)
+                return parts.count == 2
+                    && parts[0] <= targetDateText
+                    && targetDateText <= parts[1]
+            }
+        )
     }
     func testFetchMatchesPersistsTeamDetailsAcrossClientInstances() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory

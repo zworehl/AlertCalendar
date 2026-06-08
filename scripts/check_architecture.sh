@@ -16,6 +16,8 @@ check_forbidden_imports() {
 }
 
 check_forbidden_imports "Sources/AlertCalendar/Core/Settings" "AppKit|SwiftUI|EventKit|CoreLocation|MapKit|Contacts" "Core/Settings must stay platform-UI free"
+check_forbidden_imports "Sources/AlertCalendar/Core/Meetings/MeetingBrowserRouting.swift" "AppKit|SwiftUI|EventKit|CoreLocation|MapKit|Contacts" "MeetingBrowserRouting must stay platform-UI free"
+check_forbidden_imports "Sources/AlertCalendar/Core/Monitor/Base/CalendarMonitor.swift" "CoreLocation|CoreWLAN" "CalendarMonitor base should keep feature runtime state in dedicated state files"
 check_forbidden_imports "Sources/AlertCalendar/Features/Football/Core" "AppKit|SwiftUI|EventKit|CoreLocation|MapKit|Contacts" "Football/Core must stay UI and platform integration free"
 check_forbidden_imports "Sources/AlertCalendar/Core/Slack" "AppKit|SwiftUI|EventKit|CoreLocation|MapKit|Contacts" "Core/Slack must stay UI and calendar integration free"
 check_forbidden_imports "Sources/AlertCalendar/Shared" "AppKit|SwiftUI|EventKit|CoreLocation|CoreWLAN|MapKit|Contacts" "Shared must stay platform free"
