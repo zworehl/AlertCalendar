@@ -54,4 +54,35 @@ final class SettingsDraftReducerTests: XCTestCase {
         XCTAssertEqual(settings.slackStatusSyncRules.first?.connectionID, "conn-a")
         XCTAssertEqual(settings.slackStatusSyncRules.first?.calendarID, "cal-a")
     }
+
+    func testAppliedSettingsNormalizesMeetingBrowserRulesAgainstKnownCalendars() {
+        var draft = SettingsDraft(settings: .defaults)
+        draft.meetingBrowserRouting = MeetingBrowserRoutingSettings(
+            defaultRoute: MeetingBrowserRoute(browser: .chrome, profileID: ""),
+            rules: [
+                CalendarMeetingBrowserRule(
+                    id: "rule-a",
+                    name: "Work",
+                    calendarIDs: ["cal-a", "missing"],
+                    route: MeetingBrowserRoute(browser: .chrome, profileID: "Profile 3")
+                ),
+                CalendarMeetingBrowserRule(
+                    id: "rule-b",
+                    name: "Missing",
+                    calendarIDs: ["missing"],
+                    route: MeetingBrowserRoute(browser: .safari)
+                ),
+            ]
+        )
+
+        let settings = draft.applied(
+            to: .defaults,
+            availableEventCalendarIDs: ["cal-a"]
+        )
+
+        XCTAssertEqual(settings.meetingBrowserRouting.defaultRoute.browser, .chrome)
+        XCTAssertEqual(settings.meetingBrowserRouting.defaultRoute.profileID, "Default")
+        XCTAssertEqual(settings.meetingBrowserRouting.rules.map(\.id), ["rule-a"])
+        XCTAssertEqual(settings.meetingBrowserRouting.rules.first?.calendarIDs, Set(["cal-a"]))
+    }
 }

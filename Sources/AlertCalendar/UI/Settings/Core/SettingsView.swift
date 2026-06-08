@@ -238,6 +238,10 @@ struct SettingsView: View {
     @State var slackRuntimeStatusDescription: String?
     @State var isRefreshingSlackConnectionMetadata = false
     @State var didAttemptSlackConnectionMetadataRefresh = false
+    @State var installedMeetingBrowsers: [MeetingBrowserKind] = MeetingBrowserCatalog.installedBrowsers()
+    @State var meetingBrowserProfilesByBrowser: [MeetingBrowserKind: [MeetingBrowserProfileOption]] = MeetingBrowserProfileStore.profilesByBrowser(
+        for: MeetingBrowserCatalog.installedBrowsers()
+    )
     @State var settingsWindowWidth: CGFloat = 1040
 
     var body: some View {

@@ -200,6 +200,7 @@ struct SettingsDraft: Equatable {
     var slackStatusSyncRules: [SlackStatusSyncRule]
     var slackMeetingStatusText: String
     var slackMeetingStatusEmoji: String
+    var meetingBrowserRouting: MeetingBrowserRoutingSettings
 
     init(settings: AppSettings) {
         includeEvents = settings.includeEvents
@@ -233,6 +234,7 @@ struct SettingsDraft: Equatable {
         slackStatusSyncRules = settings.slackStatusSyncRules
         slackMeetingStatusText = settings.slackMeetingStatusText
         slackMeetingStatusEmoji = settings.slackMeetingStatusEmoji
+        meetingBrowserRouting = settings.meetingBrowserRouting
     }
 
     static let empty = SettingsDraft(settings: .defaults)

@@ -73,8 +73,8 @@ extension MenuContentView {
     ) -> some View {
         HStack(spacing: 4) {
             if showsJoinButton,
-               let meetingURL = item.meetingURL {
-                joinActionButton(for: meetingURL)
+               item.meetingURL != nil {
+                joinActionButton(for: item)
             }
 
             skipActionButton(for: item)

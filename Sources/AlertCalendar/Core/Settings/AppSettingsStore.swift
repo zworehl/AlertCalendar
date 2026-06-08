@@ -97,7 +97,8 @@ struct AppSettingsStore {
             slackConnections: storedSlackConnections,
             slackStatusSyncRules: migratedSlackStatusSyncRules,
             slackMeetingStatusText: legacySlackMeetingStatusText,
-            slackMeetingStatusEmoji: legacySlackMeetingStatusEmoji
+            slackMeetingStatusEmoji: legacySlackMeetingStatusEmoji,
+            meetingBrowserRouting: meetingBrowserRoutingSettings()
         )
     }
 
@@ -180,6 +181,11 @@ struct AppSettingsStore {
         ) {
             defaults.set(encodedSlackStatusSyncRules, forKey: DefaultsKeys.slackStatusSyncRules)
         }
+        if let encodedMeetingBrowserRouting = try? JSONEncoder().encode(
+            settings.meetingBrowserRouting.normalized
+        ) {
+            defaults.set(encodedMeetingBrowserRouting, forKey: DefaultsKeys.meetingBrowserRouting)
+        }
 
         // Clear the legacy single-rule keys once the new multi-rule settings are written.
         defaults.set(false, forKey: DefaultsKeys.enableSlackMeetingStatusSync)
@@ -214,6 +220,17 @@ struct AppSettingsStore {
             validConnectionIDs: Set(connections.map(\.id)),
             validCalendarIDs: availableCalendarIDs
         )
+    }
+
+    func meetingBrowserRoutingSettings(
+        availableCalendarIDs: Set<String>? = nil
+    ) -> MeetingBrowserRoutingSettings {
+        guard let data = defaults.data(forKey: DefaultsKeys.meetingBrowserRouting) else {
+            return .defaults
+        }
+
+        let decoded = (try? JSONDecoder().decode(MeetingBrowserRoutingSettings.self, from: data)) ?? .defaults
+        return decoded.normalized(availableCalendarIDs: availableCalendarIDs)
     }
 
     private var registrationDefaults: [String: Any] {
@@ -254,6 +271,7 @@ struct AppSettingsStore {
             DefaultsKeys.footballMatchLookaheadDays: defaultSettings.footballMatchLookaheadDays,
             DefaultsKeys.slackMeetingStatusText: defaultSettings.slackMeetingStatusText,
             DefaultsKeys.slackMeetingStatusEmoji: defaultSettings.slackMeetingStatusEmoji,
+            DefaultsKeys.meetingBrowserRouting: (try? JSONEncoder().encode(defaultSettings.meetingBrowserRouting)) ?? Data(),
             DefaultsKeys.didAutoRecoverEmptyEventCalendarSelection: false,
             DefaultsKeys.didAutoRecoverEmptyReminderCalendarSelection: false,
         ]

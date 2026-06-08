@@ -65,6 +65,28 @@ extension CalendarMonitor {
     }
 
     func activeEventProgress(for item: UpcomingItem, now: Date, settings: AppSettings) -> CGFloat? {
+        Self.activeItemProgress(
+            for: item,
+            now: now,
+            weekdayOnlyEventCalendarIDs: settings.weekdayOnlyEventCalendarIDs,
+            weekdayOnlyDuration: { start, end in
+                weekdayOnlyDuration(from: start, to: end)
+            }
+        )
+    }
+
+    nonisolated static func activeItemProgress(
+        for item: UpcomingItem,
+        now: Date,
+        weekdayOnlyEventCalendarIDs: Set<String>,
+        weekdayOnlyDuration: (Date, Date) -> TimeInterval = { start, end in
+            end.timeIntervalSince(start)
+        }
+    ) -> CGFloat? {
+        if item.kind == .reminder {
+            return item.date <= now ? 1 : nil
+        }
+
         guard item.kind == .event else { return nil }
         guard let endDate = item.endDate, endDate > item.date else { return nil }
         guard item.date <= now, now < endDate else { return nil }
@@ -73,9 +95,9 @@ extension CalendarMonitor {
         let elapsed: TimeInterval
         if item.kind == .event,
            let calendarID = item.calendarID,
-           settings.weekdayOnlyEventCalendarIDs.contains(calendarID) {
-            totalDuration = weekdayOnlyDuration(from: item.date, to: endDate)
-            elapsed = weekdayOnlyDuration(from: item.date, to: now)
+           weekdayOnlyEventCalendarIDs.contains(calendarID) {
+            totalDuration = weekdayOnlyDuration(item.date, endDate)
+            elapsed = weekdayOnlyDuration(item.date, now)
         } else {
             totalDuration = endDate.timeIntervalSince(item.date)
             elapsed = now.timeIntervalSince(item.date)

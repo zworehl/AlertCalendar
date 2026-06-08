@@ -3,6 +3,32 @@ import EventKit
 import Foundation
 
 extension CalendarMonitor {
+    nonisolated static let timedEventStartAlertDuration: TimeInterval = 60
+
+    nonisolated static func shouldShowTimedEventNowState(for item: UpcomingItem, now: Date) -> Bool {
+        guard item.kind == .event,
+              !item.isAllDay,
+              item.date <= now
+        else {
+            return false
+        }
+
+        if let endDate = item.endDate, endDate <= now {
+            return false
+        }
+
+        return now.timeIntervalSince(item.date) < timedEventStartAlertDuration
+    }
+
+    nonisolated static func timedEventNowMenuSegment(
+        for item: UpcomingItem,
+        compactTitle: String,
+        now: Date
+    ) -> String? {
+        guard shouldShowTimedEventNowState(for: item, now: now) else { return nil }
+        return "\(compactTitle) now"
+    }
+
     func menuLabel(
         for item: UpcomingItem?,
         now: Date,
@@ -51,6 +77,9 @@ extension CalendarMonitor {
             return compactTitle
         }
 
+        if let nowSegment = Self.timedEventNowMenuSegment(for: item, compactTitle: compactTitle, now: now) {
+            return nowSegment
+        }
         if item.kind == .event,
            item.endDate == nil,
            item.date <= now {

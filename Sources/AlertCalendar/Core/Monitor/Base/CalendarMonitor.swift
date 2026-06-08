@@ -177,11 +177,7 @@ final class CalendarMonitor: ObservableObject {
 
     var activeAlertDescription: String? {
         guard let activeAlertItem else { return nil }
-        return AlertCalendarRelativeTimeFormatter.leadTimeDescription(
-            for: activeAlertItem.title,
-            targetDate: activeAlertItem.date,
-            now: fixedSecondNow()
-        )
+        return Self.alertDescription(for: activeAlertItem, now: fixedSecondNow())
     }
 
     struct MenuBarRotationState: Equatable {

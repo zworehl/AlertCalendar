@@ -49,9 +49,9 @@ extension MenuContentView {
     }
 
     @ViewBuilder
-    func joinActionButton(for meetingURL: URL) -> some View {
+    func joinActionButton(for item: UpcomingItem) -> some View {
         Button {
-            NSWorkspace.shared.open(meetingURL)
+            monitor.openMeeting(item)
         } label: {
             actionPill {
                 Text("Join")

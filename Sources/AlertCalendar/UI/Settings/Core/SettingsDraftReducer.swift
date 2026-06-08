@@ -48,6 +48,9 @@ extension SettingsDraft {
             validConnectionIDs: Set(settings.slackConnections.map(\.id)),
             validCalendarIDs: availableEventCalendarIDs
         )
+        settings.meetingBrowserRouting = meetingBrowserRouting.normalized(
+            availableCalendarIDs: availableEventCalendarIDs
+        )
 
         return settings
     }

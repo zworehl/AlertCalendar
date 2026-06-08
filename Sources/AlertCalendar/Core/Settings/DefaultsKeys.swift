@@ -42,6 +42,7 @@ enum DefaultsKeys {
     static let slackStatusSyncRules = "slackStatusSyncRules"
     static let slackMeetingStatusText = "slackMeetingStatusText"
     static let slackMeetingStatusEmoji = "slackMeetingStatusEmoji"
+    static let meetingBrowserRouting = "meetingBrowserRouting"
     static let managedFootballEventRecords = "managedFootballEventRecords"
     static let didAutoRecoverEmptyEventCalendarSelection = "didAutoRecoverEmptyEventCalendarSelection"
     static let didAutoRecoverEmptyReminderCalendarSelection = "didAutoRecoverEmptyReminderCalendarSelection"

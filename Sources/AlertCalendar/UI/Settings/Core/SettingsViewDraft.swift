@@ -44,6 +44,8 @@ extension SettingsView {
         slackConnections = monitor.slackConnections()
         slackConnectionStatusMessage = monitor.slackConnectionStatusMessage
         slackRuntimeStatusDescription = monitor.slackRuntimeStatusDescription
+        installedMeetingBrowsers = MeetingBrowserCatalog.installedBrowsers()
+        meetingBrowserProfilesByBrowser = MeetingBrowserProfileStore.profilesByBrowser(for: installedMeetingBrowsers)
         syncSlackDraftSelectionIfNeeded()
     }
 

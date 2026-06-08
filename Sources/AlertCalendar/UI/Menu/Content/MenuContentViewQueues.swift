@@ -104,16 +104,11 @@ extension MenuContentView {
             if let kindFilter, item.kind != kindFilter {
                 return false
             }
-            let remaining = item.date.timeIntervalSince(now)
-            return remaining > 0 && remaining <= leadSeconds
+            return CalendarMonitor.shouldAlertForItem(item, now: now, leadSeconds: leadSeconds)
         }
 
         return items.map {
-            AlertCalendarRelativeTimeFormatter.leadTimeDescription(
-                for: $0.title,
-                targetDate: $0.date,
-                now: now
-            )
+            CalendarMonitor.alertDescription(for: $0, now: now)
         }
     }
 

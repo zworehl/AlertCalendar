@@ -42,8 +42,8 @@ extension MenuContentView {
 
             if isHovered {
                 HStack(spacing: 4) {
-                    if let meetingURL = item.meetingURL {
-                        joinActionButton(for: meetingURL)
+                    if item.meetingURL != nil {
+                        joinActionButton(for: item)
                     }
 
                     ForEach(actions.indices, id: \.self) { index in

@@ -9,6 +9,35 @@ final class AlertCalendarModelMetadataTests: AlertCalendarModelTestCase {
         XCTAssertEqual(ActiveEventDisplayMode.remaining.title, "Show time remaining")
         XCTAssertEqual(ActiveEventDisplayMode.elapsed.title, "Show elapsed time")
     }
+    func testMeetingBrowserKindMetadataIsStable() {
+        XCTAssertEqual(
+            MeetingBrowserKind.allCases.map(\.rawValue),
+            [
+                "chrome",
+                "edge",
+                "brave",
+                "vivaldi",
+                "chromium",
+                "safari",
+                "firefox",
+                "firefoxDeveloperEdition",
+                "librewolf",
+                "floorp",
+                "zen",
+                "arc",
+                "opera",
+                "duckDuckGo",
+                "orion",
+            ]
+        )
+        XCTAssertEqual(MeetingBrowserKind.safari.title, "Safari")
+        XCTAssertEqual(MeetingBrowserKind.chrome.title, "Chrome")
+        XCTAssertEqual(MeetingBrowserKind.edge.title, "Microsoft Edge")
+        XCTAssertEqual(MeetingBrowserKind.firefox.title, "Firefox")
+        XCTAssertEqual(MeetingBrowserKind.chrome.bundleIdentifier, "com.google.Chrome")
+        XCTAssertEqual(MeetingBrowserKind.edge.bundleIdentifier, "com.microsoft.edgemac")
+        XCTAssertEqual(MeetingBrowserKind.firefox.bundleIdentifier, "org.mozilla.firefox")
+    }
     func testFootballCalendarAlertOptionMetadataIsStable() {
         XCTAssertEqual(
             FootballCalendarAlertOption.allCases.map(\.rawValue),
@@ -109,15 +138,17 @@ final class AlertCalendarModelMetadataTests: AlertCalendarModelTestCase {
             DefaultsKeys.showFinishedFootballMatches,
             DefaultsKeys.finishedFootballMatchLookbackDays,
             DefaultsKeys.footballMatchLookaheadDays,
+            DefaultsKeys.meetingBrowserRouting,
             DefaultsKeys.managedFootballEventRecords,
         ]
 
-        XCTAssertEqual(keys.count, 35)
+        XCTAssertEqual(keys.count, 36)
         XCTAssertEqual(Set(keys).count, keys.count)
         XCTAssertTrue(keys.contains("activeEventDisplayMode"))
         XCTAssertTrue(keys.contains("contextualPreviewLeadMinutes"))
         XCTAssertTrue(keys.contains("menuBarRotationWindowMinutes"))
         XCTAssertTrue(keys.contains("menuBarFontSize"))
+        XCTAssertTrue(keys.contains("meetingBrowserRouting"))
     }
     func testUpcomingItemEqualityTracksKindAndMeetingURL() {
         let start = Date(timeIntervalSince1970: 1_700_000_000)

@@ -38,6 +38,7 @@ struct AppSettings: Equatable {
     var slackStatusSyncRules: [SlackStatusSyncRule]
     var slackMeetingStatusText: String
     var slackMeetingStatusEmoji: String
+    var meetingBrowserRouting: MeetingBrowserRoutingSettings
 
     var includesAnyAstronomy: Bool {
         includeAstronomy && (
@@ -100,6 +101,7 @@ struct AppSettings: Equatable {
         slackConnections: [],
         slackStatusSyncRules: [],
         slackMeetingStatusText: SlackMeetingStatus.defaultText,
-        slackMeetingStatusEmoji: SlackMeetingStatus.defaultEmoji
+        slackMeetingStatusEmoji: SlackMeetingStatus.defaultEmoji,
+        meetingBrowserRouting: .defaults
     )
 }

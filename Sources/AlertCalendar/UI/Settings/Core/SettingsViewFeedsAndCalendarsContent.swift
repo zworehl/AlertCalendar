@@ -124,14 +124,19 @@ extension SettingsView {
                 includeReminders: draft.includeReminders,
                 availableEventCalendars: availableEventCalendars,
                 availableReminderCalendars: availableReminderCalendars,
+                installedMeetingBrowsers: installedMeetingBrowsers,
+                meetingBrowserProfilesByBrowser: meetingBrowserProfilesByBrowser,
                 onSelectionChanged: persistCalendarSelectionDraft,
                 selectedEventCalendarIDs: $draft.selectedEventCalendarIDs,
                 selectedReminderCalendarIDs: $draft.selectedReminderCalendarIDs,
                 weekdayOnlyEventCalendarIDs: $draft.weekdayOnlyEventCalendarIDs,
-                weekdayOnlyReminderCalendarIDs: $draft.weekdayOnlyReminderCalendarIDs
+                weekdayOnlyReminderCalendarIDs: $draft.weekdayOnlyReminderCalendarIDs,
+                meetingBrowserRouting: $draft.meetingBrowserRouting
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+        meetingBrowserRoutingSettingsContent
     }
 }

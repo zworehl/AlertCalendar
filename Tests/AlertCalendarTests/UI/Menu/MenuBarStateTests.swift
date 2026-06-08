@@ -1,3 +1,4 @@
+import Foundation
 import XCTest
 @testable import AlertCalendar
 
@@ -161,5 +162,174 @@ final class MenuBarStateTests: XCTestCase {
         let late = CalendarMonitor.alertBlinkTextOpacity(now: Date(timeIntervalSince1970: 10.9))
 
         XCTAssertEqual(early, late)
+    }
+
+    func testTimedEventNowSegmentShowsForFirstMinuteAfterStartWithoutMeetingURL() {
+        let startDate = Date(timeIntervalSince1970: 1_800_000_000)
+        let event = makeTimedEvent(
+            title: "Design review",
+            startDate: startDate,
+            endDate: startDate.addingTimeInterval(30 * 60),
+            meetingURL: nil
+        )
+
+        XCTAssertEqual(
+            CalendarMonitor.timedEventNowMenuSegment(
+                for: event,
+                compactTitle: "Design review",
+                now: startDate
+            ),
+            "Design review now"
+        )
+        XCTAssertEqual(
+            CalendarMonitor.timedEventNowMenuSegment(
+                for: event,
+                compactTitle: "Design review",
+                now: startDate.addingTimeInterval(59)
+            ),
+            "Design review now"
+        )
+    }
+
+    func testTimedEventNowSegmentStopsAfterOneMinute() throws {
+        let startDate = Date(timeIntervalSince1970: 1_800_000_000)
+        let meeting = makeTimedEvent(
+            title: "Design review",
+            startDate: startDate,
+            endDate: startDate.addingTimeInterval(30 * 60),
+            meetingURL: try XCTUnwrap(URL(string: "https://meet.google.com/abc-defg-hij"))
+        )
+
+        XCTAssertNil(
+            CalendarMonitor.timedEventNowMenuSegment(
+                for: meeting,
+                compactTitle: "Design review",
+                now: startDate.addingTimeInterval(60)
+            )
+        )
+    }
+
+    func testTimedEventNowStateIgnoresAllDayEvents() {
+        let startDate = Date(timeIntervalSince1970: 1_800_000_000)
+        let allDayEvent = makeTimedEvent(
+            title: "Design review",
+            startDate: startDate,
+            endDate: startDate.addingTimeInterval(30 * 60),
+            isAllDay: true,
+            meetingURL: nil
+        )
+
+        XCTAssertFalse(
+            CalendarMonitor.shouldShowTimedEventNowState(
+                for: allDayEvent,
+                now: startDate.addingTimeInterval(30)
+            )
+        )
+    }
+
+    func testOverdueReminderProgressIsFull() {
+        let dueDate = Date(timeIntervalSince1970: 1_800_000_000)
+        let reminder = makeReminder(
+            title: "Submit expenses",
+            dueDate: dueDate
+        )
+
+        XCTAssertNil(
+            CalendarMonitor.activeItemProgress(
+                for: reminder,
+                now: dueDate.addingTimeInterval(-60),
+                weekdayOnlyEventCalendarIDs: []
+            )
+        )
+        XCTAssertEqual(
+            CalendarMonitor.activeItemProgress(
+                for: reminder,
+                now: dueDate,
+                weekdayOnlyEventCalendarIDs: []
+            ),
+            1
+        )
+        XCTAssertEqual(
+            CalendarMonitor.activeItemProgress(
+                for: reminder,
+                now: dueDate.addingTimeInterval(60),
+                weekdayOnlyEventCalendarIDs: []
+            ),
+            1
+        )
+    }
+
+    func testAlertForItemIncludesAnyTimedEventFirstMinute() throws {
+        let startDate = Date(timeIntervalSince1970: 1_800_000_000)
+        let event = makeTimedEvent(
+            title: "Design review",
+            startDate: startDate,
+            endDate: startDate.addingTimeInterval(30 * 60),
+            meetingURL: nil
+        )
+        let now = startDate.addingTimeInterval(30)
+
+        XCTAssertTrue(
+            CalendarMonitor.shouldAlertForItem(
+                event,
+                now: now,
+                leadSeconds: 5 * 60
+            )
+        )
+        XCTAssertEqual(
+            CalendarMonitor.alertDescription(for: event, now: now),
+            "Design review starts now."
+        )
+    }
+
+    private func makeTimedEvent(
+        id: String = "event-1",
+        title: String,
+        startDate: Date,
+        endDate: Date?,
+        isAllDay: Bool = false,
+        meetingURL: URL?
+    ) -> UpcomingItem {
+        UpcomingItem(
+            id: id,
+            title: title,
+            date: startDate,
+            endDate: endDate,
+            isAllDay: isAllDay,
+            showsMutedBackground: false,
+            travelTimeMinutes: nil,
+            locationText: nil,
+            meetingURL: meetingURL,
+            calendarID: "calendar-1",
+            calendarName: "Work",
+            calendarColor: .systemBlue,
+            kind: .event,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
+        )
+    }
+
+    private func makeReminder(
+        id: String = "reminder-1",
+        title: String,
+        dueDate: Date
+    ) -> UpcomingItem {
+        UpcomingItem(
+            id: id,
+            title: title,
+            date: dueDate,
+            endDate: nil,
+            isAllDay: false,
+            showsMutedBackground: false,
+            travelTimeMinutes: nil,
+            locationText: nil,
+            meetingURL: nil,
+            calendarID: "reminders-1",
+            calendarName: "Tasks",
+            calendarColor: .systemOrange,
+            kind: .reminder,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
+        )
     }
 }

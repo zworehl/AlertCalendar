@@ -99,12 +99,32 @@ extension CalendarMonitor {
         return wholeSecond.isMultiple(of: 2) ? 1.0 : 0.0
     }
 
+    nonisolated static func shouldAlertForItem(_ item: UpcomingItem, now: Date, leadSeconds: TimeInterval) -> Bool {
+        let remaining = item.date.timeIntervalSince(now)
+        if remaining > 0 && remaining <= leadSeconds {
+            return true
+        }
+
+        return shouldShowTimedEventNowState(for: item, now: now)
+    }
+
+    nonisolated static func alertDescription(for item: UpcomingItem, now: Date) -> String {
+        if shouldShowTimedEventNowState(for: item, now: now) {
+            return "\(item.title) starts now."
+        }
+
+        return AlertCalendarRelativeTimeFormatter.leadTimeDescription(
+            for: item.title,
+            targetDate: item.date,
+            now: now
+        )
+    }
+
     func evaluateAlert(now: Date, settings: AppSettings) {
         let leadSeconds = TimeInterval(max(1, settings.alertLeadMinutes) * 60)
         guard let candidate = upcomingItems.first(where: {
             guard AstronomyMoment(eventTitle: $0.title) == nil else { return false }
-            let remaining = $0.date.timeIntervalSince(now)
-            return remaining > 0 && remaining <= leadSeconds
+            return Self.shouldAlertForItem($0, now: now, leadSeconds: leadSeconds)
         }) else {
             setIfChanged(\.activeAlertItem, to: nil)
             return
@@ -117,7 +137,7 @@ extension CalendarMonitor {
 
         setIfChanged(\.activeAlertItem, to: candidate)
 
-        if !alreadyNotified.contains(candidate.notificationKey) {
+        if candidate.date > now, !alreadyNotified.contains(candidate.notificationKey) {
             alreadyNotified.insert(candidate.notificationKey)
             triggerLocalBeep()
         }
