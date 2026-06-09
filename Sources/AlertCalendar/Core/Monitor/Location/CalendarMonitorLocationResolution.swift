@@ -55,7 +55,7 @@ extension CalendarMonitor {
         request.timeoutInterval = CalendarMonitorLocationTimeout.approximateNetworkSeconds
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await AlertCalendarHTTPClient.data(for: request)
             if let httpResponse = response as? HTTPURLResponse,
                !(200 ... 299).contains(httpResponse.statusCode) {
                 return nil

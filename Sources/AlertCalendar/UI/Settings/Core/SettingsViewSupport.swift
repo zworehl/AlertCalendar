@@ -76,10 +76,7 @@ struct SettingsPermissionIconView: View {
 
     static func appIconImage(for appPath: String) -> NSImage? {
         guard FileManager.default.fileExists(atPath: appPath) else { return nil }
-        let image = NSWorkspace.shared.icon(forFile: appPath)
-        image.isTemplate = false
-        image.size = NSSize(width: 64, height: 64)
-        return image
+        return AlertCalendarWorkspace.icon(forFile: appPath, size: NSSize(width: 64, height: 64))
     }
 }
 

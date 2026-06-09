@@ -144,7 +144,7 @@ extension CalendarMonitor {
     }
 
     func triggerLocalBeep() {
-        NSSound.beep()
+        AlertCalendarSoundPlayer.beep()
     }
 
     func pruneAlertCaches(using items: [UpcomingItem]) {

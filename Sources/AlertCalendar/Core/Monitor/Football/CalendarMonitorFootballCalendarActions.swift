@@ -33,6 +33,7 @@ extension CalendarMonitor {
         event.calendar = calendar
         event.title = FootballFixtureFormatter.calendarTitle(for: match)
         await applyFootballLocation(to: event, locationText: match.locationText)
+        await applyFootballTimeZone(to: event, locationText: match.locationText)
         event.startDate = Self.footballEffectiveStartDate(for: match)
         event.endDate = approximateEndDate(for: match)
         applyFootballAlertConfiguration(to: event)

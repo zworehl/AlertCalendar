@@ -5,7 +5,7 @@ AlertCalendar is currently one SwiftPM executable target. Until the package is s
 ## Layers
 
 - `Shared`: low-level models, formatting, clocks, and styling primitives used across the app. This is still transitional because some shared models carry `NSColor`.
-- `Core`: domain services and platform integrations such as settings, calendar refresh, Slack, location, astronomy, and the monitor coordinator.
+- `Core`: domain services and platform integrations such as settings, calendar refresh, Slack, location, astronomy, system adapters, and the monitor coordinator.
 - `Features`: feature-specific domain code. Football owns ESPN fetching, parsing, enrichment, fixture formatting, caches, and football-specific views.
 - `UI`: SwiftUI and AppKit presentation code. UI may call monitor/coordinator entry points, but business rules should live in `Core`, `Features`, or small reducers.
 - `App`: application bootstrapping, scene wiring, and macOS app delegate behavior.
@@ -25,7 +25,7 @@ AlertCalendar is currently one SwiftPM executable target. Until the package is s
 - Domain rules should accept explicit `Date`, `Calendar`, `Locale`, or settings inputs instead of reading global state.
 - Parsing code should prefer typed `Decodable` envelopes. Dictionary parsing can remain where feeds are unstable, but it should be isolated behind parser helpers.
 - SwiftUI views should render state and forward user intent. They should not normalize persisted settings or make broad domain decisions.
-- Platform side effects should sit behind a named helper, service, or adapter. Direct calls to `UserDefaults.standard`, `URLSession.shared`, `NSWorkspace.shared`, and `NSSound.beep()` should not spread further.
+- Platform side effects should sit behind a named helper, service, or adapter. Direct calls to `UserDefaults.standard`, `URLSession.shared`, `NSWorkspace.shared`, `NSSound.beep()`, and `Process()` should not spread further.
 - Routing and rule models should stay Foundation-only when possible; AppKit discovery helpers belong in adjacent catalog/launcher files.
 - Any refactor should keep tests green at each checkpoint.
 

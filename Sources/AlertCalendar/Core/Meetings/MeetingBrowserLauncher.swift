@@ -20,7 +20,7 @@ enum MeetingBrowserLauncher {
     @MainActor
     private static func openChromiumBrowser(_ url: URL, browser: MeetingBrowserKind, profileID: String) -> Bool {
         guard let applicationURL = applicationURL(for: browser) else {
-            return NSWorkspace.shared.open(url)
+            return AlertCalendarWorkspace.open(url)
         }
 
         let executableURL = applicationURL
@@ -29,23 +29,17 @@ enum MeetingBrowserLauncher {
             .appendingPathComponent(browser.executableName)
 
         if FileManager.default.isExecutableFile(atPath: executableURL.path) {
-            let process = Process()
-            process.executableURL = executableURL
-            process.arguments = [
-                "--profile-directory=\(profileID)",
-                url.absoluteString,
-            ]
-
-            let nullDevice = FileHandle(forWritingAtPath: "/dev/null")
-            process.standardOutput = nullDevice
-            process.standardError = nullDevice
-
-            do {
-                try process.run()
+            if AlertCalendarProcessRunner.run(
+                executableURL: executableURL,
+                arguments: [
+                    "--profile-directory=\(profileID)",
+                    url.absoluteString,
+                ]
+            ) != nil {
                 return true
-            } catch {
-                return open(url, with: browser)
             }
+
+            return open(url, with: browser)
         }
 
         return open(url, with: browser)
@@ -54,7 +48,7 @@ enum MeetingBrowserLauncher {
     @MainActor
     private static func openFirefoxBrowser(_ url: URL, browser: MeetingBrowserKind, profileID: String) -> Bool {
         guard let applicationURL = applicationURL(for: browser) else {
-            return NSWorkspace.shared.open(url)
+            return AlertCalendarWorkspace.open(url)
         }
 
         let executableURL = applicationURL
@@ -63,25 +57,19 @@ enum MeetingBrowserLauncher {
             .appendingPathComponent(browser.executableName)
 
         if FileManager.default.isExecutableFile(atPath: executableURL.path) {
-            let process = Process()
-            process.executableURL = executableURL
-            process.arguments = [
-                "-P",
-                profileID,
-                "-new-tab",
-                url.absoluteString,
-            ]
-
-            let nullDevice = FileHandle(forWritingAtPath: "/dev/null")
-            process.standardOutput = nullDevice
-            process.standardError = nullDevice
-
-            do {
-                try process.run()
+            if AlertCalendarProcessRunner.run(
+                executableURL: executableURL,
+                arguments: [
+                    "-P",
+                    profileID,
+                    "-new-tab",
+                    url.absoluteString,
+                ]
+            ) != nil {
                 return true
-            } catch {
-                return open(url, with: browser)
             }
+
+            return open(url, with: browser)
         }
 
         return open(url, with: browser)
@@ -90,12 +78,12 @@ enum MeetingBrowserLauncher {
     @MainActor
     private static func open(_ url: URL, with browser: MeetingBrowserKind) -> Bool {
         guard let applicationURL = applicationURL(for: browser) else {
-            return NSWorkspace.shared.open(url)
+            return AlertCalendarWorkspace.open(url)
         }
 
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
-        NSWorkspace.shared.open(
+        AlertCalendarWorkspace.open(
             [url],
             withApplicationAt: applicationURL,
             configuration: configuration,

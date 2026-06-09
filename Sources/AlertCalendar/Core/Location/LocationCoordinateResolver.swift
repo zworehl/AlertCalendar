@@ -11,6 +11,11 @@ struct ResolvedLocationCoordinate: Equatable, Sendable {
     }
 }
 
+private struct ResolvedLocation: Equatable, Sendable {
+    let coordinate: ResolvedLocationCoordinate
+    let timeZoneIdentifier: String?
+}
+
 actor LocationCoordinateResolver {
     static let shared = LocationCoordinateResolver()
     private static let venueQualifierPrefixes = [
@@ -47,13 +52,22 @@ actor LocationCoordinateResolver {
     ]
 
     private enum CacheEntry: Sendable {
-        case found(ResolvedLocationCoordinate)
+        case found(ResolvedLocation)
         case notFound
     }
 
     private var cache: [String: CacheEntry] = [:]
 
     func coordinate(for rawText: String) async -> ResolvedLocationCoordinate? {
+        await location(for: rawText)?.coordinate
+    }
+
+    func timeZone(for rawText: String) async -> TimeZone? {
+        guard let identifier = await location(for: rawText)?.timeZoneIdentifier else { return nil }
+        return TimeZone(identifier: identifier)
+    }
+
+    private func location(for rawText: String) async -> ResolvedLocation? {
         let cacheKey = rawText
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .autoupdatingCurrent)
@@ -62,8 +76,8 @@ actor LocationCoordinateResolver {
 
         if let cached = cache[cacheKey] {
             switch cached {
-            case .found(let coordinate):
-                return coordinate
+            case .found(let location):
+                return location
             case .notFound:
                 return nil
             }
@@ -76,20 +90,36 @@ actor LocationCoordinateResolver {
         }
 
         if let parsed = queries.compactMap(Self.parseCoordinatePair).first {
-            cache[cacheKey] = .found(parsed)
-            return parsed
+            let location = ResolvedLocation(coordinate: parsed, timeZoneIdentifier: nil)
+            cache[cacheKey] = .found(location)
+            return location
         }
 
         for query in queries {
             // Stadiums and venues behave more like POIs than postal addresses, so let Maps search first.
-            if let coordinate = await Self.localSearchCoordinate(for: query) {
-                cache[cacheKey] = .found(coordinate)
-                return coordinate
+            if let location = await Self.localSearchLocation(for: query) {
+                if location.timeZoneIdentifier != nil {
+                    cache[cacheKey] = .found(location)
+                    return location
+                }
+
+                if let geocodedLocation = await Self.geocodeLocation(for: query),
+                   let timeZoneIdentifier = geocodedLocation.timeZoneIdentifier {
+                    let locationWithTimeZone = ResolvedLocation(
+                        coordinate: location.coordinate,
+                        timeZoneIdentifier: timeZoneIdentifier
+                    )
+                    cache[cacheKey] = .found(locationWithTimeZone)
+                    return locationWithTimeZone
+                }
+
+                cache[cacheKey] = .found(location)
+                return location
             }
 
-            if let coordinate = await Self.geocodeCoordinate(for: query) {
-                cache[cacheKey] = .found(coordinate)
-                return coordinate
+            if let location = await Self.geocodeLocation(for: query) {
+                cache[cacheKey] = .found(location)
+                return location
             }
         }
 
@@ -97,25 +127,29 @@ actor LocationCoordinateResolver {
         return nil
     }
 
-    private static func geocodeCoordinate(for query: String) async -> ResolvedLocationCoordinate? {
+    private static func geocodeLocation(for query: String) async -> ResolvedLocation? {
         await withCheckedContinuation { continuation in
             CLGeocoder().geocodeAddressString(query) { placemarks, _ in
-                guard let coordinate = placemarks?.first?.location?.coordinate else {
+                guard let placemark = placemarks?.first,
+                      let coordinate = placemark.location?.coordinate else {
                     continuation.resume(returning: nil)
                     return
                 }
 
                 continuation.resume(
-                    returning: ResolvedLocationCoordinate(
-                        latitude: coordinate.latitude,
-                        longitude: coordinate.longitude
+                    returning: ResolvedLocation(
+                        coordinate: ResolvedLocationCoordinate(
+                            latitude: coordinate.latitude,
+                            longitude: coordinate.longitude
+                        ),
+                        timeZoneIdentifier: placemark.timeZone?.identifier
                     )
                 )
             }
         }
     }
 
-    private static func localSearchCoordinate(for query: String) async -> ResolvedLocationCoordinate? {
+    private static func localSearchLocation(for query: String) async -> ResolvedLocation? {
         await withCheckedContinuation { continuation in
             let request = MKLocalSearch.Request()
             request.naturalLanguageQuery = query
@@ -128,9 +162,12 @@ actor LocationCoordinateResolver {
                 }
 
                 continuation.resume(
-                    returning: ResolvedLocationCoordinate(
-                        latitude: coordinate.latitude,
-                        longitude: coordinate.longitude
+                    returning: ResolvedLocation(
+                        coordinate: ResolvedLocationCoordinate(
+                            latitude: coordinate.latitude,
+                            longitude: coordinate.longitude
+                        ),
+                        timeZoneIdentifier: mapItem.timeZone?.identifier
                     )
                 )
             }

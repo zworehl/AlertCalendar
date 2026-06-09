@@ -20,6 +20,10 @@ extension CalendarMonitor {
                 for: snapshot.event,
                 locationText: updatedLocation
             )
+            let needsTimeZoneUpdate = await footballTimeZoneNeedsUpdate(
+                for: snapshot.event,
+                locationText: updatedLocation
+            )
             let needsAlertUpdate = footballAlertConfigurationNeedsUpdate(
                 for: snapshot.event,
                 desiredRelativeOffset: footballCalendarAlertRelativeOffset()
@@ -31,12 +35,14 @@ extension CalendarMonitor {
                 || snapshot.event.endDate != updatedEndDate
                 || snapshot.event.url != nil
                 || needsStructuredLocationUpdate
+                || needsTimeZoneUpdate
                 || needsAlertUpdate
 
             guard needsUpdate else { continue }
 
             snapshot.event.title = updatedTitle
             await applyFootballLocation(to: snapshot.event, locationText: updatedLocation)
+            await applyFootballTimeZone(to: snapshot.event, locationText: updatedLocation)
             snapshot.event.startDate = updatedStartDate
             snapshot.event.endDate = updatedEndDate
             snapshot.event.url = nil

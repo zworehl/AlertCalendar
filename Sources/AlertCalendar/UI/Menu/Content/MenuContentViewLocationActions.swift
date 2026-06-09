@@ -78,14 +78,14 @@ extension MenuContentView {
             if let coordinate = await LocationCoordinateResolver.shared.coordinate(for: locationText),
                let preciseURL = preciseMapURL(for: coordinate, label: label) {
                 _ = await MainActor.run {
-                    NSWorkspace.shared.open(preciseURL)
+                    AlertCalendarWorkspace.open(preciseURL)
                 }
                 return
             }
 
             if let fallbackURL = mapURL(for: locationText) {
                 _ = await MainActor.run {
-                    NSWorkspace.shared.open(fallbackURL)
+                    AlertCalendarWorkspace.open(fallbackURL)
                 }
             }
         }

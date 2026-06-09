@@ -31,9 +31,6 @@ struct MeetingBrowserIconView: View {
 
     private static func icon(for browser: MeetingBrowserKind) -> NSImage? {
         guard let appURL = MeetingBrowserCatalog.applicationURL(for: browser) else { return nil }
-        let image = NSWorkspace.shared.icon(forFile: appURL.path)
-        image.isTemplate = false
-        image.size = NSSize(width: 32, height: 32)
-        return image
+        return AlertCalendarWorkspace.icon(forFile: appURL.path, size: NSSize(width: 32, height: 32))
     }
 }

@@ -322,9 +322,11 @@ extension CalendarMonitor {
     func openCalendarApplication() -> Bool {
         let calendarAppURL = URL(fileURLWithPath: "/System/Applications/Calendar.app", isDirectory: true)
         let configuration = NSWorkspace.OpenConfiguration()
-        NSWorkspace.shared.openApplication(at: calendarAppURL, configuration: configuration) { _, error in
+        AlertCalendarWorkspace.openApplication(at: calendarAppURL, configuration: configuration) { _, error in
             if error != nil {
-                NSWorkspace.shared.open(calendarAppURL)
+                Task { @MainActor in
+                    AlertCalendarWorkspace.open(calendarAppURL)
+                }
             }
         }
         return true
@@ -347,17 +349,12 @@ extension CalendarMonitor {
     }
 
     nonisolated static func runAppleScript(_ source: String) -> Bool {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        process.arguments = ["-e", source]
-
-        do {
-            try process.run()
-            process.waitUntilExit()
-            return process.terminationStatus == 0
-        } catch {
-            return false
-        }
+        AlertCalendarProcessRunner.run(
+            executableURL: URL(fileURLWithPath: "/usr/bin/osascript"),
+            arguments: ["-e", source],
+            waitUntilExit: true,
+            redirectsOutputToNull: false
+        ) == 0
     }
 
     nonisolated static func appleScriptStringLiteral(_ value: String) -> String {

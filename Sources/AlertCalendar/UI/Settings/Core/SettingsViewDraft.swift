@@ -126,7 +126,7 @@ extension SettingsView {
 
     func openSlackAppDashboard() {
         guard let url = URL(string: "https://api.slack.com/apps") else { return }
-        NSWorkspace.shared.open(url)
+        AlertCalendarWorkspace.open(url)
     }
 
     func removeSlackAccount(_ connection: SlackConnection) {

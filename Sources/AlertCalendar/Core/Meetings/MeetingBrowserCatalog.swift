@@ -7,7 +7,7 @@ enum MeetingBrowserCatalog {
     }
 
     static func applicationURL(for browser: MeetingBrowserKind) -> URL? {
-        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: browser.bundleIdentifier) {
+        if let url = AlertCalendarWorkspace.applicationURL(forBundleIdentifier: browser.bundleIdentifier) {
             return url
         }
 

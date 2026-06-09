@@ -209,13 +209,13 @@ extension SettingsView {
 
         for rawValue in deepLinks {
             guard let url = URL(string: rawValue) else { continue }
-            if NSWorkspace.shared.open(url) {
+            if AlertCalendarWorkspace.open(url) {
                 return
             }
         }
 
         if let settingsAppURL = URL(string: "x-apple.systempreferences:") {
-            NSWorkspace.shared.open(settingsAppURL)
+            AlertCalendarWorkspace.open(settingsAppURL)
         }
     }
 
@@ -225,7 +225,7 @@ extension SettingsView {
             return
         }
 
-        if !NSWorkspace.shared.open(url) {
+        if !AlertCalendarWorkspace.open(url) {
             openPrivacySettings()
         }
     }

@@ -180,7 +180,8 @@ Sources/AlertCalendar/
 │   ├── Meetings/
 │   ├── Monitor/
 │   ├── Settings/
-│   └── Slack/
+│   ├── Slack/
+│   └── System/
 ├── Features/
 │   └── Football/
 ├── Resources/
@@ -194,6 +195,7 @@ Important root files:
 
 - `Package.swift`: Swift Package definition.
 - `install.sh`: local release bundle builder/installer.
+- `scripts/verify.sh`: local CI-style validation.
 - `Tests/AlertCalendarTests/`: unit and behavior tests.
 - `coverage-gate.conf` and `scripts/check_coverage.sh`: local coverage gate.
 
@@ -204,6 +206,12 @@ Recommended local loop:
 ```bash
 swift test
 ./install.sh
+```
+
+Run the full local verification path:
+
+```bash
+./scripts/verify.sh
 ```
 
 Run the coverage gate:
