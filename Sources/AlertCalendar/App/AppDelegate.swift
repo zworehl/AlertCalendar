@@ -1,4 +1,5 @@
 import AppKit
+import UserNotifications
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
@@ -6,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var emojiShortcutMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        UNUserNotificationCenter.current().delegate = self
         NSApp.mainMenu = makeMainMenu()
         installEmojiShortcutMonitor()
         ensureAccessoryActivationPolicy()
@@ -201,5 +203,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             zoomButton.action = #selector(toggleSettingsFullScreen(_:))
         }
         window.level = .normal
+    }
+}
+
+extension AppDelegate: UNUserNotificationCenterDelegate {
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .list, .sound])
     }
 }

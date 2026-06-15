@@ -262,7 +262,15 @@ extension CalendarMonitor {
         let trackedPresets = deduplicatedFootballPresets(from: trackedEvents.map(\.reference.competitionSlug))
         do {
             let matches = try await footballClient.fetchMatches(for: trackedPresets)
-            let refreshedMatches = await footballClient.refreshStatusesIfNeeded(for: matches)
+            let forceSummaryMatchIDs = Self.footballManagedMatchIDsNeedingActualEndBackfill(
+                matches,
+                trackedMatchIDs: Set(trackedEvents.map(\.reference.matchID)),
+                cachedMatchesByID: footballMatchesByID
+            )
+            let refreshedMatches = await footballClient.refreshStatusesIfNeeded(
+                for: matches,
+                forceSummaryForMatchIDs: forceSummaryMatchIDs
+            )
             let resolvedMatches = matchesPreservingKnownTimingContext(refreshedMatches)
             await cacheFootballMatches(resolvedMatches)
             updateManagedFootballMatches(using: trackedEvents, now: now)

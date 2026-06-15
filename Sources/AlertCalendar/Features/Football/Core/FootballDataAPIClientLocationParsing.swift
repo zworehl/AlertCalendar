@@ -67,7 +67,11 @@ extension FootballDataAPIClient {
         }
 
         guard !components.isEmpty else { return nil }
-        return components.joined(separator: ", ")
+        let fallbackLocationText = components.joined(separator: ", ")
+        return FootballVenueCanonicalizer.locationText(
+            from: venue,
+            fallbackLocationText: fallbackLocationText
+        )
     }
 
     static func normalizedLocationTextValue(_ rawValue: String?) -> String? {

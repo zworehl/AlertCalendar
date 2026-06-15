@@ -79,6 +79,7 @@ struct FootballFixtureMatch: Identifiable, Hashable {
     let locationText: String?
     let startDate: Date
     let actualStartDate: Date?
+    let actualEndDate: Date?
     let statusState: FootballFixtureStatusState
     let statusText: String
     let statusDetailText: String?
@@ -105,6 +106,7 @@ struct FootballFixtureMatch: Identifiable, Hashable {
         locationText: String?,
         startDate: Date,
         actualStartDate: Date? = nil,
+        actualEndDate: Date? = nil,
         statusState: FootballFixtureStatusState,
         statusText: String,
         statusDetailText: String? = nil,
@@ -130,6 +132,7 @@ struct FootballFixtureMatch: Identifiable, Hashable {
         self.locationText = locationText
         self.startDate = startDate
         self.actualStartDate = actualStartDate
+        self.actualEndDate = actualEndDate
         self.statusState = statusState
         self.statusText = statusText
         self.statusDetailText = statusDetailText

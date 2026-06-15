@@ -43,8 +43,9 @@ extension CalendarMonitor {
             )
             guard let keeper = sortedEvents.first else { continue }
 
-            if recordsByReference[reference] == nil {
-                recordsByReference[reference] = managedFootballEventRecord(for: keeper, reference: reference)
+            if recordsByReference[reference] == nil,
+               let recoveredRecord = managedFootballEventRecord(for: keeper, reference: reference) {
+                recordsByReference[reference] = recoveredRecord
                 didRecoverRecord = true
             }
 

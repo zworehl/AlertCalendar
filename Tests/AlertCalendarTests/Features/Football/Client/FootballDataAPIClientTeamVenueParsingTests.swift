@@ -292,7 +292,7 @@ final class FootballDataAPIClientTeamVenueParsingTests: FootballDataAPIClientTes
 
         XCTAssertEqual(
             FootballDataAPIClient.resolvedTeamVenueLocationText(from: root),
-            "Estadio BBVA, Guadalupe, Mexico"
+            "Estadio BBVA, Monterrey, Mexico"
         )
     }
     func testResolvedTeamVenueLocationTextKeepsPumasHomeStadium() {

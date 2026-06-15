@@ -31,7 +31,9 @@ extension CalendarMonitor {
                 }
             }
 
-            recordsByReference[reference] = managedFootballEventRecord(for: keeper.event, reference: reference)
+            if let keeperRecord = managedFootballEventRecord(for: keeper.event, reference: reference) {
+                recordsByReference[reference] = keeperRecord
+            }
 
             for duplicate in sortedSnapshots.dropFirst() {
                 do {
@@ -55,8 +57,8 @@ extension CalendarMonitor {
         preferredCalendarID: String?
     ) -> [ManagedFootballEventSnapshot] {
         snapshots.sorted { lhs, rhs in
-            let lhsPreferred = lhs.event.calendar.calendarIdentifier == preferredCalendarID
-            let rhsPreferred = rhs.event.calendar.calendarIdentifier == preferredCalendarID
+            let lhsPreferred = lhs.event.calendar?.calendarIdentifier == preferredCalendarID
+            let rhsPreferred = rhs.event.calendar?.calendarIdentifier == preferredCalendarID
             if lhsPreferred != rhsPreferred {
                 return lhsPreferred && !rhsPreferred
             }
@@ -78,8 +80,8 @@ extension CalendarMonitor {
         preferredCalendarID: String?
     ) -> [EKEvent] {
         events.sorted { lhs, rhs in
-            let lhsPreferred = lhs.calendar.calendarIdentifier == preferredCalendarID
-            let rhsPreferred = rhs.calendar.calendarIdentifier == preferredCalendarID
+            let lhsPreferred = lhs.calendar?.calendarIdentifier == preferredCalendarID
+            let rhsPreferred = rhs.calendar?.calendarIdentifier == preferredCalendarID
             if lhsPreferred != rhsPreferred {
                 return lhsPreferred && !rhsPreferred
             }
@@ -138,8 +140,9 @@ extension CalendarMonitor {
         }
 
         guard let eventStartDate = event.startDate else { return nil }
+        guard let eventCalendarIdentifier = event.calendar?.calendarIdentifier else { return nil }
         let nearbyRecords = managedFootballEventRecords.filter { record in
-            record.calendarIdentifier == event.calendar.calendarIdentifier
+            record.calendarIdentifier == eventCalendarIdentifier
                 && abs(record.startDate.timeIntervalSince(eventStartDate)) <= Self.footballManagedEventMatchingTolerance
         }
 
@@ -215,11 +218,12 @@ extension CalendarMonitor {
     func managedFootballEventRecord(
         for event: EKEvent,
         reference: ManagedFootballFixtureReference
-    ) -> ManagedFootballEventRecord {
-        ManagedFootballEventRecord(
+    ) -> ManagedFootballEventRecord? {
+        guard let eventCalendarIdentifier = event.calendar?.calendarIdentifier else { return nil }
+        return ManagedFootballEventRecord(
             matchID: reference.matchID,
             competitionSlug: reference.competitionSlug,
-            calendarIdentifier: event.calendar.calendarIdentifier,
+            calendarIdentifier: eventCalendarIdentifier,
             eventIdentifier: event.eventIdentifier,
             eventUID: normalizedEventUID(for: event),
             startDate: event.startDate ?? fixedSecondNow()
@@ -227,8 +231,9 @@ extension CalendarMonitor {
     }
 
     func upsertManagedFootballEventRecord(for event: EKEvent, reference: ManagedFootballFixtureReference) {
+        guard let record = managedFootballEventRecord(for: event, reference: reference) else { return }
         var recordsByReference = Dictionary(uniqueKeysWithValues: managedFootballEventRecords.map { ($0.reference, $0) })
-        recordsByReference[reference] = managedFootballEventRecord(for: event, reference: reference)
+        recordsByReference[reference] = record
         persistManagedFootballEventRecords(Array(recordsByReference.values))
     }
 

@@ -68,6 +68,25 @@ extension CalendarMonitor {
         return footballIdleRefreshInterval
     }
 
+    nonisolated static func footballManagedMatchIDsNeedingActualEndBackfill(
+        _ matches: [FootballFixtureMatch],
+        trackedMatchIDs: Set<String>,
+        cachedMatchesByID: [String: FootballFixtureMatch]
+    ) -> Set<String> {
+        Set(
+            matches.compactMap { match in
+                guard trackedMatchIDs.contains(match.id) else { return nil }
+                let cachedMatch = cachedMatchesByID[match.id]
+                let knownActualEndDate = match.actualEndDate ?? cachedMatch?.actualEndDate
+                guard knownActualEndDate == nil else { return nil }
+                guard match.statusState == .finished || cachedMatch?.statusState == .finished else {
+                    return nil
+                }
+                return match.id
+            }
+        )
+    }
+
     func trackedFootballEvents(now: Date) -> [ManagedFootballEventSnapshot] {
         resolveManagedFootballEventSnapshots().filter { snapshot in
             let startDate = snapshot.event.startDate ?? snapshot.record.startDate
@@ -89,7 +108,9 @@ extension CalendarMonitor {
                 continue
             }
 
-            let refreshedRecord = managedFootballEventRecord(for: event, reference: record.reference)
+            guard let refreshedRecord = managedFootballEventRecord(for: event, reference: record.reference) else {
+                continue
+            }
             refreshedRecords.append(refreshedRecord)
             resolvedSnapshots.append(
                 ManagedFootballEventSnapshot(
@@ -122,10 +143,11 @@ extension CalendarMonitor {
 
         return eventStore.events(matching: predicate).compactMap { event in
             guard let reference = ManagedFootballFixtureReference.parse(from: event.url) else { return nil }
+            guard let record = managedFootballEventRecord(for: event, reference: reference) else { return nil }
             return ManagedFootballEventSnapshot(
                 event: event,
                 reference: reference,
-                record: managedFootballEventRecord(for: event, reference: reference)
+                record: record
             )
         }
     }
@@ -151,8 +173,9 @@ extension CalendarMonitor {
                 continue
             }
 
-            if let resolvedEvent {
-                survivingRecords.append(managedFootballEventRecord(for: resolvedEvent, reference: record.reference))
+            if let resolvedEvent,
+               let survivingRecord = managedFootballEventRecord(for: resolvedEvent, reference: record.reference) {
+                survivingRecords.append(survivingRecord)
             } else {
                 survivingRecords.append(record)
             }
@@ -194,10 +217,23 @@ extension CalendarMonitor {
     func cacheFootballMatches(_ matches: [FootballFixtureMatch]) async {
         guard !matches.isEmpty else { return }
         let now = fixedSecondNow()
+        let settings = snapshotSettings()
         for match in matches {
             if let previousMatch = footballMatchesByID[match.id],
                let goalHighlight = Self.goalHighlight(from: previousMatch, to: match, now: now) {
                 activeFootballGoalHighlight = goalHighlight
+                queueFootballGoalNotification(
+                    for: match,
+                    highlight: goalHighlight,
+                    settings: settings
+                )
+            }
+            if let previousMatch = footballMatchesByID[match.id] {
+                queueFootballFinalNotificationIfNeeded(
+                    from: previousMatch,
+                    to: match,
+                    settings: settings
+                )
             }
             footballMatchesByID[match.id] = match
         }
@@ -272,6 +308,7 @@ extension CalendarMonitor {
         guard let previousMatch, previousMatch.id == match.id else { return match }
 
         let actualStartDate = match.actualStartDate ?? previousMatch.actualStartDate
+        let actualEndDate = match.actualEndDate ?? previousMatch.actualEndDate
         let locationText = FootballDataAPIClient.bestAvailableLocationText(
             reportedLocationText: match.locationText,
             fallbackLocationText: previousMatch.locationText
@@ -293,6 +330,7 @@ extension CalendarMonitor {
         )
 
         guard actualStartDate != match.actualStartDate
+            || actualEndDate != match.actualEndDate
             || locationText != match.locationText
             || statusDetailText != match.statusDetailText
             || statusPeriod != match.statusPeriod
@@ -313,6 +351,7 @@ extension CalendarMonitor {
             locationText: locationText,
             startDate: match.startDate,
             actualStartDate: actualStartDate,
+            actualEndDate: actualEndDate,
             statusState: match.statusState,
             statusText: match.statusText,
             statusDetailText: statusDetailText,

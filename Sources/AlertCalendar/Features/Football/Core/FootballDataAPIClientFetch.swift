@@ -345,6 +345,14 @@ extension FootballDataAPIClient {
             statusText: statusText,
             startDate: fallbackStartDate
         )
+        let actualEndDate = inferred.state == .finished
+            ? Self.actualEndDate(
+                from: root,
+                fallbackStartDate: fallbackStartDate,
+                actualStartDate: actualStartDate,
+                statusPeriod: statusPeriod
+            )
+            : nil
         let cards = cardCounts(from: root)
 
         return SummarySnapshot(
@@ -357,6 +365,7 @@ extension FootballDataAPIClient {
             seriesSummary: seriesSummary,
             locationText: locationText,
             actualStartDate: actualStartDate,
+            actualEndDate: actualEndDate,
             homeScore: (inferred.inferred && inferred.state == .inProgress) ? "0" : (stringValue(home?["score"]) ?? "0"),
             awayScore: (inferred.inferred && inferred.state == .inProgress) ? "0" : (stringValue(away?["score"]) ?? "0"),
             homeYellowCards: cards.homeYellowCards,

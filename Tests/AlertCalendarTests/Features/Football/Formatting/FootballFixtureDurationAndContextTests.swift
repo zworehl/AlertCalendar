@@ -42,6 +42,25 @@ final class FootballFixtureDurationAndContextTests: FootballFixtureFormatterTest
             actualKickoff.addingTimeInterval((110 + 5) * 60)
         )
     }
+    func testFinishedMatchEndDateUsesActualEndWhenAvailable() {
+        let scheduledStart = Date(timeIntervalSince1970: 1_720_000_000)
+        let actualKickoff = scheduledStart.addingTimeInterval(3 * 60)
+        let actualEnd = actualKickoff.addingTimeInterval(121 * 60)
+        let match = makeMatch(
+            id: "actual-end",
+            startDate: scheduledStart,
+            actualStartDate: actualKickoff,
+            actualEndDate: actualEnd,
+            statusState: .finished,
+            statusText: "FT",
+            statusPeriod: 2
+        )
+
+        XCTAssertEqual(
+            CalendarMonitor.approximateFootballMatchEndDate(for: match, now: scheduledStart),
+            actualEnd
+        )
+    }
     func testLiveSecondHalfEndDateUsesReportedMinute() {
         let now = Date(timeIntervalSince1970: 1_720_000_000)
         let match = makeMatch(
@@ -233,10 +252,12 @@ final class FootballFixtureDurationAndContextTests: FootballFixtureFormatterTest
     func testFinishedMatchPreservingKnownTimingContextKeepsActualKickoffAndLongerStatusPeriod() {
         let scheduledStart = Date(timeIntervalSince1970: 1_720_000_000)
         let actualKickoff = scheduledStart.addingTimeInterval(7 * 60)
+        let actualEnd = actualKickoff.addingTimeInterval(143 * 60)
         let previousMatch = makeMatch(
             id: "finished-preserve",
             startDate: scheduledStart,
             actualStartDate: actualKickoff,
+            actualEndDate: actualEnd,
             statusState: .inProgress,
             statusText: "118'",
             statusPeriod: 4,
@@ -265,10 +286,11 @@ final class FootballFixtureDurationAndContextTests: FootballFixtureFormatterTest
         )
 
         XCTAssertEqual(resolvedMatch.actualStartDate, actualKickoff)
+        XCTAssertEqual(resolvedMatch.actualEndDate, actualEnd)
         XCTAssertEqual(resolvedMatch.statusPeriod, 4)
         XCTAssertEqual(
             CalendarMonitor.approximateFootballMatchEndDate(for: resolvedMatch, now: scheduledStart),
-            actualKickoff.addingTimeInterval((140 + 5) * 60)
+            actualEnd
         )
     }
     func testLateOneGoalLeadFallsBackToRegulationBuffer() {
@@ -452,6 +474,63 @@ final class FootballFixtureDurationAndContextTests: FootballFixtureFormatterTest
             CalendarMonitor.footballRefreshInterval(for: [distant], now: now),
             CalendarMonitor.footballIdleRefreshInterval
         )
+    }
+    func testManagedActualEndBackfillForcesOnlyTrackedFinishedMatchesWithoutKnownEnd() {
+        let startDate = Date(timeIntervalSince1970: 1_720_000_000)
+        let finishedMissingEnd = makeMatch(
+            id: "finished-missing-end",
+            startDate: startDate,
+            statusState: .finished,
+            statusText: "FT"
+        )
+        let finishedWithEnd = makeMatch(
+            id: "finished-with-end",
+            startDate: startDate,
+            actualEndDate: startDate.addingTimeInterval(119 * 60),
+            statusState: .finished,
+            statusText: "FT"
+        )
+        let scheduled = makeMatch(
+            id: "scheduled",
+            startDate: startDate.addingTimeInterval(24 * 60 * 60),
+            statusState: .scheduled
+        )
+        let untrackedFinished = makeMatch(
+            id: "untracked-finished",
+            startDate: startDate,
+            statusState: .finished,
+            statusText: "FT"
+        )
+
+        let matchIDs = CalendarMonitor.footballManagedMatchIDsNeedingActualEndBackfill(
+            [finishedMissingEnd, finishedWithEnd, scheduled, untrackedFinished],
+            trackedMatchIDs: ["finished-missing-end", "finished-with-end", "scheduled"],
+            cachedMatchesByID: [:]
+        )
+
+        XCTAssertEqual(matchIDs, ["finished-missing-end"])
+    }
+    func testManagedActualEndBackfillUsesCachedFinishedState() {
+        let startDate = Date(timeIntervalSince1970: 1_720_000_000)
+        let lightweightMatch = makeMatch(
+            id: "cached-finished",
+            startDate: startDate,
+            statusState: .unknown
+        )
+        let cachedFinishedMatch = makeMatch(
+            id: "cached-finished",
+            startDate: startDate,
+            statusState: .finished,
+            statusText: "FT"
+        )
+
+        let matchIDs = CalendarMonitor.footballManagedMatchIDsNeedingActualEndBackfill(
+            [lightweightMatch],
+            trackedMatchIDs: ["cached-finished"],
+            cachedMatchesByID: [cachedFinishedMatch.id: cachedFinishedMatch]
+        )
+
+        XCTAssertEqual(matchIDs, ["cached-finished"])
     }
     func testFootballMatchPreservingKnownTimingContextKeepsResolvedTeamDetails() {
         let startDate = Date(timeIntervalSince1970: 1_720_000_000)

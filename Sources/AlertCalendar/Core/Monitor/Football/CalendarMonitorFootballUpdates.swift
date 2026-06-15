@@ -50,10 +50,12 @@ extension CalendarMonitor {
 
             do {
                 try eventStore.save(snapshot.event, span: .thisEvent, commit: false)
-                refreshedRecordsByReference[snapshot.reference] = managedFootballEventRecord(
+                if let refreshedRecord = managedFootballEventRecord(
                     for: snapshot.event,
                     reference: snapshot.reference
-                )
+                ) {
+                    refreshedRecordsByReference[snapshot.reference] = refreshedRecord
+                }
                 updatedReferences.append(snapshot.reference)
                 hasPendingChanges = true
             } catch {
@@ -99,7 +101,7 @@ extension CalendarMonitor {
             }
 
             guard let resolvedCoordinate = await LocationCoordinateResolver.shared.coordinate(for: normalizedLocationText) else {
-                return false
+                return true
             }
 
             let resolvedGeoLocation = CLLocation(
@@ -113,14 +115,15 @@ extension CalendarMonitor {
 
     func footballStructuredLocation(for locationText: String?) async -> EKStructuredLocation? {
         guard let locationText else { return nil }
+        guard let coordinate = await LocationCoordinateResolver.shared.coordinate(for: locationText) else {
+            return nil
+        }
 
         let structuredLocation = EKStructuredLocation(title: locationText)
-        if let coordinate = await LocationCoordinateResolver.shared.coordinate(for: locationText) {
-            structuredLocation.geoLocation = CLLocation(
-                latitude: coordinate.latitude,
-                longitude: coordinate.longitude
-            )
-        }
+        structuredLocation.geoLocation = CLLocation(
+            latitude: coordinate.latitude,
+            longitude: coordinate.longitude
+        )
 
         return structuredLocation
     }
@@ -141,6 +144,10 @@ extension CalendarMonitor {
 
         switch match.statusState {
         case .finished:
+            if let actualEndDate = match.actualEndDate,
+               actualEndDate > effectiveStartDate {
+                return actualEndDate
+            }
             return bufferedEstimatedEnd
         case .inProgress:
             if let liveEstimatedEnd = footballEstimatedLiveMatchEndDate(

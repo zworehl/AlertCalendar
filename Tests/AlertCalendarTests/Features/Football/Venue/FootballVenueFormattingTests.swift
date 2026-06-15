@@ -51,6 +51,39 @@ final class FootballVenueFormattingTests: XCTestCase {
         XCTAssertEqual(value, "Mercedes-Benz Stadium, Atlanta, Georgia, USA")
     }
 
+    func testVenueLocationTextCanonicalizesKnownAmbiguousVenueID() {
+        let json: [String: Any] = [
+            "venue": [
+                "id": "6351",
+                "fullName": "Estadio BBVA",
+                "address": [
+                    "city": "Guadalupe",
+                    "country": "Mexico",
+                ],
+            ],
+        ]
+
+        let value = FootballDataAPIClient.venueLocationText(from: json)
+
+        XCTAssertEqual(value, "Estadio BBVA, Monterrey, Mexico")
+    }
+
+    func testVenueLocationTextCanonicalizesKnownAmbiguousVenueNameAndContext() {
+        let json: [String: Any] = [
+            "venue": [
+                "fullName": "Estadio BBVA",
+                "address": [
+                    "city": "Guadalupe",
+                    "country": "Mexico",
+                ],
+            ],
+        ]
+
+        let value = FootballDataAPIClient.venueLocationText(from: json)
+
+        XCTAssertEqual(value, "Estadio BBVA, Monterrey, Mexico")
+    }
+
     func testVenueLocationTextReturnsNilWhenVenueIsStillTBD() {
         let json: [String: Any] = [
             "venue": [

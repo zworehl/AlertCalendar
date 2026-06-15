@@ -39,6 +39,7 @@ actor FootballDataAPIClient {
         let seriesSummary: FootballFixtureSeriesSummary?
         let locationText: String?
         let actualStartDate: Date?
+        let actualEndDate: Date?
         let homeScore: String
         let awayScore: String
         let homeYellowCards: Int
@@ -384,6 +385,7 @@ actor FootballDataAPIClient {
                 fallbackLocationText: match.locationText
             )
             let refreshedActualStartDate = snapshot.actualStartDate ?? match.actualStartDate
+            let refreshedActualEndDate = snapshot.actualEndDate ?? match.actualEndDate
             guard snapshot.statusState != match.statusState
                 || snapshot.statusText != match.statusText
                 || snapshot.statusDetailText != match.statusDetailText
@@ -393,6 +395,7 @@ actor FootballDataAPIClient {
                 || snapshot.seriesSummary != match.seriesSummary
                 || refreshedLocationText != match.locationText
                 || refreshedActualStartDate != match.actualStartDate
+                || refreshedActualEndDate != match.actualEndDate
                 || snapshot.homeScore != match.homeScore
                 || snapshot.awayScore != match.awayScore
                 || snapshot.homeYellowCards != match.homeYellowCards
@@ -414,6 +417,7 @@ actor FootballDataAPIClient {
                 locationText: refreshedLocationText,
                 startDate: match.startDate,
                 actualStartDate: refreshedActualStartDate,
+                actualEndDate: refreshedActualEndDate,
                 statusState: snapshot.statusState,
                 statusText: snapshot.statusText,
                 statusDetailText: snapshot.statusDetailText ?? match.statusDetailText,

@@ -87,6 +87,9 @@ struct AppSettingsStore {
             footballCalendarAlertOption: FootballCalendarAlertOption(
                 rawValue: defaults.string(forKey: DefaultsKeys.footballCalendarAlertOption) ?? ""
             ) ?? defaultSettings.footballCalendarAlertOption,
+            enableFootballGoalNotifications: defaults.bool(forKey: DefaultsKeys.enableFootballGoalNotifications),
+            includeFootballGoalScorerInNotifications: defaults.bool(forKey: DefaultsKeys.includeFootballGoalScorerInNotifications),
+            enableFootballFinalNotifications: defaults.bool(forKey: DefaultsKeys.enableFootballFinalNotifications),
             showFinishedFootballMatches: defaults.bool(forKey: DefaultsKeys.showFinishedFootballMatches),
             finishedFootballMatchLookbackDays: AppSettingsRules.normalizedFootballWindowDays(
                 defaults.integer(forKey: DefaultsKeys.finishedFootballMatchLookbackDays)
@@ -151,6 +154,9 @@ struct AppSettingsStore {
         )
         defaults.set(settings.footballTargetCalendarID, forKey: DefaultsKeys.footballTargetCalendarID)
         defaults.set(settings.footballCalendarAlertOption.rawValue, forKey: DefaultsKeys.footballCalendarAlertOption)
+        defaults.set(settings.enableFootballGoalNotifications, forKey: DefaultsKeys.enableFootballGoalNotifications)
+        defaults.set(settings.includeFootballGoalScorerInNotifications, forKey: DefaultsKeys.includeFootballGoalScorerInNotifications)
+        defaults.set(settings.enableFootballFinalNotifications, forKey: DefaultsKeys.enableFootballFinalNotifications)
         defaults.set(settings.showFinishedFootballMatches, forKey: DefaultsKeys.showFinishedFootballMatches)
         defaults.set(
             AppSettingsRules.normalizedFootballWindowDays(settings.finishedFootballMatchLookbackDays),
@@ -266,6 +272,9 @@ struct AppSettingsStore {
             DefaultsKeys.skippedItemKeys: [],
             DefaultsKeys.footballTargetCalendarID: defaultSettings.footballTargetCalendarID,
             DefaultsKeys.footballCalendarAlertOption: defaultSettings.footballCalendarAlertOption.rawValue,
+            DefaultsKeys.enableFootballGoalNotifications: defaultSettings.enableFootballGoalNotifications,
+            DefaultsKeys.includeFootballGoalScorerInNotifications: defaultSettings.includeFootballGoalScorerInNotifications,
+            DefaultsKeys.enableFootballFinalNotifications: defaultSettings.enableFootballFinalNotifications,
             DefaultsKeys.showFinishedFootballMatches: defaultSettings.showFinishedFootballMatches,
             DefaultsKeys.finishedFootballMatchLookbackDays: defaultSettings.finishedFootballMatchLookbackDays,
             DefaultsKeys.footballMatchLookaheadDays: defaultSettings.footballMatchLookaheadDays,

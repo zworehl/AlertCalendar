@@ -299,10 +299,11 @@ extension CalendarMonitor {
                 continue
             }
 
-            recordsByReference[reference] = managedFootballEventRecord(
+            guard let refreshedRecord = managedFootballEventRecord(
                 for: cleanedEvent,
                 reference: reference
-            )
+            ) else { continue }
+            recordsByReference[reference] = refreshedRecord
         }
     }
 
@@ -326,10 +327,12 @@ extension CalendarMonitor {
 
             do {
                 try eventStore.save(snapshot.event, span: .thisEvent, commit: false)
-                refreshedRecordsByReference[snapshot.reference] = managedFootballEventRecord(
+                if let refreshedRecord = managedFootballEventRecord(
                     for: snapshot.event,
                     reference: snapshot.reference
-                )
+                ) {
+                    refreshedRecordsByReference[snapshot.reference] = refreshedRecord
+                }
                 updatedReferences.append(snapshot.reference)
                 hasPendingChanges = true
             } catch {

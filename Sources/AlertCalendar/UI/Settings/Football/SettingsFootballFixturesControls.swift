@@ -175,6 +175,7 @@ extension SettingsFootballFixturesSectionView {
     var footballTopControlsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             footballPrimaryControlsSection
+            footballNotificationControlsSection
         }
     }
 
@@ -231,6 +232,29 @@ extension SettingsFootballFixturesSectionView {
             .pickerStyle(.menu)
             .labelsHidden()
         }
+    }
+
+    var footballNotificationControlsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            footballControlTitle(
+                title: "Notifications",
+                helpText: "Applies to football fixtures managed by Alert Calendar."
+            )
+
+            HStack(alignment: .center, spacing: 18) {
+                Toggle("Goals", isOn: $enableFootballGoalNotifications)
+                    .toggleStyle(.checkbox)
+
+                Toggle("Scorer names", isOn: $includeFootballGoalScorerInNotifications)
+                    .toggleStyle(.checkbox)
+                    .disabled(!enableFootballGoalNotifications)
+
+                Toggle("Final score", isOn: $enableFootballFinalNotifications)
+                    .toggleStyle(.checkbox)
+            }
+            .font(.subheadline)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     func footballControlField<Control: View>(

@@ -114,6 +114,95 @@ extension FootballDataAPIClient {
         return actualKickoff
     }
 
+    static func actualEndDate(
+        from root: [String: Any],
+        fallbackStartDate: Date,
+        actualStartDate: Date?,
+        statusPeriod: Int?
+    ) -> Date? {
+        let keyEvents = root["keyEvents"] as? [[String: Any]] ?? []
+        let matchStartDate = actualStartDate ?? fallbackStartDate
+        let terminalEndDates = keyEvents.compactMap { event -> (date: Date, kind: MatchTerminalEndKind)? in
+            guard let kind = matchTerminalEndKind(from: event),
+                  let wallclock = stringValue(event["wallclock"]),
+                  let date = parseEventDate(wallclock),
+                  isReasonableMatchEndDate(date, startDate: matchStartDate) else {
+                return nil
+            }
+            return (date, kind)
+        }
+
+        guard !terminalEndDates.isEmpty else { return nil }
+
+        if let statusPeriod {
+            if statusPeriod >= 5 {
+                return terminalEndDates.filter({ $0.kind == .penalties }).map(\.date).max()
+            }
+
+            if statusPeriod >= 3 {
+                return terminalEndDates.filter({ $0.kind == .extraTime }).map(\.date).max()
+            }
+
+            return terminalEndDates.filter({ $0.kind == .regularTime }).map(\.date).max()
+        }
+
+        return terminalEndDates
+            .filter { $0.kind == .penalties || $0.kind == .extraTime || $0.kind == .regularTime }
+            .map(\.date)
+            .max()
+    }
+
+    private enum MatchTerminalEndKind {
+        case regularTime
+        case extraTime
+        case penalties
+    }
+
+    private static func matchTerminalEndKind(from event: [String: Any]) -> MatchTerminalEndKind? {
+        let type = event["type"] as? [String: Any]
+        let typeText = normalizedEventTypeToken(stringValue(type?["text"]) ?? "")
+        let typeValue = normalizedEventTypeToken(stringValue(type?["type"]) ?? "")
+
+        if typeValue == "END REGULAR TIME" || typeText == "END REGULAR TIME" {
+            return .regularTime
+        }
+
+        if typeValue == "END EXTRA TIME"
+            || typeText == "END EXTRA TIME"
+            || typeValue == "END ET"
+            || typeText == "END ET" {
+            return .extraTime
+        }
+
+        if typeValue.contains("PENAL")
+            && (typeValue.contains("END") || typeValue.contains("SHOOTOUT")) {
+            return .penalties
+        }
+
+        if typeText.contains("PENAL")
+            && (typeText.contains("END") || typeText.contains("SHOOTOUT")) {
+            return .penalties
+        }
+
+        if typeText == "FULL TIME" || typeValue == "FULL TIME" {
+            return .regularTime
+        }
+
+        return nil
+    }
+
+    private static func normalizedEventTypeToken(_ text: String) -> String {
+        normalizedStatusToken(text)
+            .replacingOccurrences(of: #"[^A-Z0-9]+"#, with: " ", options: .regularExpression)
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func isReasonableMatchEndDate(_ endDate: Date, startDate: Date) -> Bool {
+        let elapsed = endDate.timeIntervalSince(startDate)
+        return elapsed > 0 && elapsed <= 4 * 60 * 60
+    }
+
     static func isGoalScoringEvent(_ event: [String: Any]) -> Bool {
         if (event["scoringPlay"] as? Bool) == true { return true }
         guard let typeText = stringValue((event["type"] as? [String: Any])?["text"])?.lowercased() else {

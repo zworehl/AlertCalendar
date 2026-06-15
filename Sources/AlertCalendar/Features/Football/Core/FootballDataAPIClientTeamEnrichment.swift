@@ -102,6 +102,7 @@ extension FootballDataAPIClient {
             locationText: resolvedLocationText,
             startDate: match.startDate,
             actualStartDate: match.actualStartDate,
+            actualEndDate: match.actualEndDate,
             statusState: match.statusState,
             statusText: match.statusText,
             statusDetailText: match.statusDetailText,

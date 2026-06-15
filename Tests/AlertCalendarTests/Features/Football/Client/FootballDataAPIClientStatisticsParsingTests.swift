@@ -105,9 +105,66 @@ final class FootballDataAPIClientStatisticsParsingTests: FootballDataAPIClientTe
             )
         )
     }
+    func testActualEndDateUsesEndRegularTimeWallclock() {
+        let fallbackStartDate = FootballDataAPIClient.parseEventDate("2026-06-14T23:00:00Z")!
+        let actualKickoff = FootballDataAPIClient.parseEventDate("2026-06-14T23:03:28Z")!
+        let actualEnd = FootballDataAPIClient.parseEventDate("2026-06-15T01:04:09Z")!
+        let root: [String: Any] = [
+            "keyEvents": [
+                [
+                    "type": [
+                        "text": "End Delay",
+                        "type": "end-delay",
+                    ],
+                    "wallclock": "2026-06-14T23:30:18Z",
+                ],
+                [
+                    "type": [
+                        "text": "End Regular Time",
+                        "type": "end-regular-time",
+                    ],
+                    "wallclock": "2026-06-15T01:04:09Z",
+                ],
+            ],
+        ]
+
+        let endDate = FootballDataAPIClient.actualEndDate(
+            from: root,
+            fallbackStartDate: fallbackStartDate,
+            actualStartDate: actualKickoff,
+            statusPeriod: 2
+        )
+
+        XCTAssertEqual(endDate, actualEnd)
+    }
+    func testActualEndDateDoesNotUseRegularTimeForExtraTimeFinish() {
+        let fallbackStartDate = FootballDataAPIClient.parseEventDate("2026-06-14T23:00:00Z")!
+        let actualKickoff = FootballDataAPIClient.parseEventDate("2026-06-14T23:03:28Z")!
+        let root: [String: Any] = [
+            "keyEvents": [
+                [
+                    "type": [
+                        "text": "End Regular Time",
+                        "type": "end-regular-time",
+                    ],
+                    "wallclock": "2026-06-15T01:04:09Z",
+                ],
+            ],
+        ]
+
+        let endDate = FootballDataAPIClient.actualEndDate(
+            from: root,
+            fallbackStartDate: fallbackStartDate,
+            actualStartDate: actualKickoff,
+            statusPeriod: 4
+        )
+
+        XCTAssertNil(endDate)
+    }
     func testRefreshStatusesIfNeededCanForceSummaryForFinishedMatchOutsideDefaultWindow() async throws {
         let scheduledStart = Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970) - 8 * 60 * 60)
         let actualKickoff = scheduledStart.addingTimeInterval(7 * 60)
+        let actualEnd = actualKickoff.addingTimeInterval(120 * 60)
         let match = FootballTestData.match(
             id: "finished-force-summary",
             competitionSlug: "fifa.friendly",
@@ -153,6 +210,13 @@ final class FootballDataAPIClientStatisticsParsingTests: FootballDataAPIClientTe
                         ],
                         "wallclock": ISO8601DateFormatter().string(from: actualKickoff),
                     ],
+                    [
+                        "type": [
+                            "text": "End Regular Time",
+                            "type": "end-regular-time",
+                        ],
+                        "wallclock": ISO8601DateFormatter().string(from: actualEnd),
+                    ],
                 ],
             ]
 
@@ -177,6 +241,8 @@ final class FootballDataAPIClientStatisticsParsingTests: FootballDataAPIClientTe
 
         let resolvedKickoff = try XCTUnwrap(refreshed.first?.actualStartDate)
         XCTAssertEqual(resolvedKickoff.timeIntervalSince1970, actualKickoff.timeIntervalSince1970, accuracy: 0.001)
+        let resolvedEnd = try XCTUnwrap(refreshed.first?.actualEndDate)
+        XCTAssertEqual(resolvedEnd.timeIntervalSince1970, actualEnd.timeIntervalSince1970, accuracy: 0.001)
         XCTAssertEqual(refreshed.first?.homeScore, "2")
         XCTAssertEqual(refreshed.first?.awayScore, "1")
     }

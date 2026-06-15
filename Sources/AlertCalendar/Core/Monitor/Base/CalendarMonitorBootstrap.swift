@@ -4,6 +4,7 @@ import Foundation
 
 extension CalendarMonitor {
     func bootstrap() async {
+        prepareFootballNotificationAuthorizationIfNeeded(settings: snapshotSettings())
         await requestCalendarAccess()
         if snapshotSettings().useAutomaticAstronomyLocation {
             await refreshAutomaticAstronomyLocationIfNeeded(trigger: .launch)

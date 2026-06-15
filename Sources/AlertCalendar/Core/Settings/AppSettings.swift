@@ -31,6 +31,9 @@ struct AppSettings: Equatable {
     var eventTitleMaxCharacters: Int
     var footballTargetCalendarID: String
     var footballCalendarAlertOption: FootballCalendarAlertOption
+    var enableFootballGoalNotifications: Bool
+    var includeFootballGoalScorerInNotifications: Bool
+    var enableFootballFinalNotifications: Bool
     var showFinishedFootballMatches: Bool
     var finishedFootballMatchLookbackDays: Int
     var footballMatchLookaheadDays: Int
@@ -95,6 +98,9 @@ struct AppSettings: Equatable {
         eventTitleMaxCharacters: 22,
         footballTargetCalendarID: "",
         footballCalendarAlertOption: .none,
+        enableFootballGoalNotifications: true,
+        includeFootballGoalScorerInNotifications: true,
+        enableFootballFinalNotifications: true,
         showFinishedFootballMatches: true,
         finishedFootballMatchLookbackDays: 7,
         footballMatchLookaheadDays: 14,

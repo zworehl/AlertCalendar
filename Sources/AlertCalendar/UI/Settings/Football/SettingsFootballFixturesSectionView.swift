@@ -26,6 +26,9 @@ struct SettingsFootballFixturesSectionView: View {
 
     @AppStorage(DefaultsKeys.footballTargetCalendarID) var footballTargetCalendarID = ""
     @AppStorage(DefaultsKeys.footballCalendarAlertOption) var footballCalendarAlertOptionRaw = FootballCalendarAlertOption.none.rawValue
+    @AppStorage(DefaultsKeys.enableFootballGoalNotifications) var enableFootballGoalNotifications = true
+    @AppStorage(DefaultsKeys.includeFootballGoalScorerInNotifications) var includeFootballGoalScorerInNotifications = true
+    @AppStorage(DefaultsKeys.enableFootballFinalNotifications) var enableFootballFinalNotifications = true
     @AppStorage(DefaultsKeys.showFinishedFootballMatches) var showFinishedFootballMatches = true
     @AppStorage(DefaultsKeys.finishedFootballMatchLookbackDays) var finishedFootballMatchLookbackDays = 7
     @AppStorage(DefaultsKeys.footballMatchLookaheadDays) var footballMatchLookaheadDays = 14

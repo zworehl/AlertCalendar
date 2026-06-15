@@ -177,7 +177,9 @@ final class CalendarMonitor: ObservableObject {
     }
 
     func reloadCurrentSettings() {
-        currentSettings = settingsStore.load()
+        let settings = settingsStore.load()
+        currentSettings = settings
+        prepareFootballNotificationAuthorizationIfNeeded(settings: settings)
     }
 
     func persistSettings(_ settings: AppSettings) {
