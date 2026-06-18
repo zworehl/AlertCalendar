@@ -146,22 +146,39 @@ final class MenuBarStateTests: XCTestCase {
         )
     }
 
-    func testAlertBlinkTextOpacityUsesWholeSecondParity() {
+    func testAlertBlinkTextOpacityUsesSmoothPeriodicWave() {
         XCTAssertEqual(
-            CalendarMonitor.alertBlinkTextOpacity(now: Date(timeIntervalSince1970: 2)),
-            1
+            CalendarMonitor.alertBlinkTextOpacity(now: Date(timeIntervalSinceReferenceDate: 0)),
+            1,
+            accuracy: 0.001
         )
         XCTAssertEqual(
-            CalendarMonitor.alertBlinkTextOpacity(now: Date(timeIntervalSince1970: 3)),
-            0
+            CalendarMonitor.alertBlinkTextOpacity(
+                now: Date(timeIntervalSinceReferenceDate: CalendarMonitor.alertBlinkPeriod / 2)
+            ),
+            0,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            CalendarMonitor.alertBlinkTextOpacity(
+                now: Date(timeIntervalSinceReferenceDate: CalendarMonitor.alertBlinkPeriod)
+            ),
+            1,
+            accuracy: 0.001
         )
     }
 
-    func testAlertBlinkTextOpacityDoesNotChangeWithinSameSecond() {
-        let early = CalendarMonitor.alertBlinkTextOpacity(now: Date(timeIntervalSince1970: 10.1))
-        let late = CalendarMonitor.alertBlinkTextOpacity(now: Date(timeIntervalSince1970: 10.9))
+    func testAlertBlinkTextOpacityTransitionsWithinPeriod() {
+        let peak = CalendarMonitor.alertBlinkTextOpacity(now: Date(timeIntervalSinceReferenceDate: 0))
+        let falling = CalendarMonitor.alertBlinkTextOpacity(
+            now: Date(timeIntervalSinceReferenceDate: CalendarMonitor.alertBlinkPeriod / 4)
+        )
+        let trough = CalendarMonitor.alertBlinkTextOpacity(
+            now: Date(timeIntervalSinceReferenceDate: CalendarMonitor.alertBlinkPeriod / 2)
+        )
 
-        XCTAssertEqual(early, late)
+        XCTAssertGreaterThan(peak, falling)
+        XCTAssertGreaterThan(falling, trough)
     }
 
     func testTimedEventNowSegmentShowsForFirstMinuteAfterStartWithoutMeetingURL() {
@@ -227,6 +244,91 @@ final class MenuBarStateTests: XCTestCase {
         )
     }
 
+    func testTravelDepartureMenuSegmentCountsDownToLeaveTime() {
+        let startDate = Date(timeIntervalSince1970: 1_800_000_000)
+        let event = makeTimedEvent(
+            title: "Dentist",
+            startDate: startDate,
+            endDate: startDate.addingTimeInterval(30 * 60),
+            travelTimeMinutes: 25,
+            meetingURL: nil
+        )
+
+        XCTAssertEqual(
+            CalendarMonitor.travelDepartureMenuSegment(
+                for: event,
+                compactTitle: "Dentist",
+                now: startDate.addingTimeInterval(-30 * 60),
+                simplified: false
+            ),
+            "Dentist leave in 5m"
+        )
+    }
+
+    func testTravelDepartureMenuSegmentShowsLeaveNowBeforeEventStart() {
+        let startDate = Date(timeIntervalSince1970: 1_800_000_000)
+        let event = makeTimedEvent(
+            title: "Dentist",
+            startDate: startDate,
+            endDate: startDate.addingTimeInterval(30 * 60),
+            travelTimeMinutes: 25,
+            meetingURL: nil
+        )
+
+        XCTAssertEqual(
+            CalendarMonitor.travelDepartureMenuSegment(
+                for: event,
+                compactTitle: "Dentist",
+                now: startDate.addingTimeInterval(-10 * 60),
+                simplified: false
+            ),
+            "Leave now for Dentist"
+        )
+    }
+
+    func testTravelDepartureProgressTracksTravelWindow() {
+        let startDate = Date(timeIntervalSince1970: 1_800_000_000)
+        let event = makeTimedEvent(
+            title: "Dentist",
+            startDate: startDate,
+            endDate: startDate.addingTimeInterval(30 * 60),
+            travelTimeMinutes: 20,
+            meetingURL: nil
+        )
+
+        XCTAssertNil(
+            CalendarMonitor.travelDepartureProgress(
+                for: event,
+                now: startDate.addingTimeInterval(-25 * 60)
+            )
+        )
+        let midpointProgress = CalendarMonitor.travelDepartureProgress(
+            for: event,
+            now: startDate.addingTimeInterval(-10 * 60)
+        )
+        XCTAssertEqual(midpointProgress ?? -1, 0.5, accuracy: 0.001)
+        XCTAssertNil(CalendarMonitor.travelDepartureProgress(for: event, now: startDate))
+    }
+
+    func testTravelDepartureStateIgnoresVirtualMeetings() throws {
+        let startDate = Date(timeIntervalSince1970: 1_800_000_000)
+        let event = makeTimedEvent(
+            title: "Design review",
+            startDate: startDate,
+            endDate: startDate.addingTimeInterval(30 * 60),
+            travelTimeMinutes: 25,
+            meetingURL: try XCTUnwrap(URL(string: "https://meet.google.com/abc-defg-hij"))
+        )
+
+        XCTAssertNil(CalendarMonitor.travelStartDate(for: event))
+        XCTAssertFalse(
+            CalendarMonitor.shouldShowTravelDepartureState(
+                for: event,
+                now: startDate.addingTimeInterval(-10 * 60)
+            )
+        )
+    }
+
     func testOverdueReminderProgressIsFull() {
         let dueDate = Date(timeIntervalSince1970: 1_800_000_000)
         let reminder = makeReminder(
@@ -288,6 +390,7 @@ final class MenuBarStateTests: XCTestCase {
         startDate: Date,
         endDate: Date?,
         isAllDay: Bool = false,
+        travelTimeMinutes: Int? = nil,
         meetingURL: URL?
     ) -> UpcomingItem {
         UpcomingItem(
@@ -297,7 +400,7 @@ final class MenuBarStateTests: XCTestCase {
             endDate: endDate,
             isAllDay: isAllDay,
             showsMutedBackground: false,
-            travelTimeMinutes: nil,
+            travelTimeMinutes: travelTimeMinutes,
             locationText: nil,
             meetingURL: meetingURL,
             calendarID: "calendar-1",

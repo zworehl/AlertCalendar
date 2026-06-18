@@ -181,6 +181,62 @@ final class MenuBarRotationStateTests: AlertCalendarModelTestCase {
             )
         )
     }
+    func testMenuBarRotationWindowIncludesTravelEventWhenLeaveTimeIsNear() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let event = UpcomingItem(
+            id: "travel-event",
+            title: "Dentist",
+            date: now.addingTimeInterval(90 * 60),
+            endDate: now.addingTimeInterval(120 * 60),
+            isAllDay: false,
+            showsMutedBackground: false,
+            travelTimeMinutes: 40,
+            locationText: "123 Main Street",
+            meetingURL: nil,
+            calendarID: nil,
+            calendarName: "Personal",
+            calendarColor: .systemBlue,
+            kind: .event,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
+        )
+        let virtualMeeting = UpcomingItem(
+            id: "virtual-meeting",
+            title: "Remote review",
+            date: now.addingTimeInterval(90 * 60),
+            endDate: now.addingTimeInterval(120 * 60),
+            isAllDay: false,
+            showsMutedBackground: false,
+            travelTimeMinutes: 40,
+            locationText: "Google Meet",
+            meetingURL: URL(string: "https://meet.google.com/abc-defg-hij"),
+            calendarID: nil,
+            calendarName: "Work",
+            calendarColor: .systemGreen,
+            kind: .event,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
+        )
+
+        XCTAssertTrue(
+            CalendarMonitor.shouldIncludeTimedItemInMenuBarRotation(
+                event,
+                now: now,
+                futureWindowSeconds: 60 * 60
+            )
+        )
+        XCTAssertFalse(
+            CalendarMonitor.shouldIncludeTimedItemInMenuBarRotation(
+                virtualMeeting,
+                now: now,
+                futureWindowSeconds: 60 * 60
+            )
+        )
+        XCTAssertEqual(
+            CalendarMonitor.menuBarRotationReferenceDate(for: event, now: now),
+            now.addingTimeInterval(50 * 60)
+        )
+    }
     func testPreservedMenuBarSelectionKeyKeepsCurrentSelectionWhenPreferredPoolChangesWithinSameSlot() {
         let previousState = CalendarMonitor.MenuBarRotationState(
             slot: 42,

@@ -84,6 +84,88 @@ final class FootballVenueFormattingTests: XCTestCase {
         XCTAssertEqual(value, "Estadio BBVA, Monterrey, Mexico")
     }
 
+    func testVenueLocationTextCanonicalizesWorldCupVenueID() {
+        let json: [String: Any] = [
+            "venue": [
+                "id": "1672",
+                "fullName": "Estadio Azteca",
+                "address": [
+                    "city": "Ciudad de México",
+                    "country": "México",
+                ],
+            ],
+        ]
+
+        let value = FootballDataAPIClient.venueLocationText(from: json)
+
+        XCTAssertEqual(value, "Estadio Banorte, Mexico City, Mexico")
+    }
+
+    func testVenueLocationTextCanonicalizesWorldCupVenueNameAndContextWithoutID() {
+        let json: [String: Any] = [
+            "venue": [
+                "fullName": "GEHA Field at Arrowhead Stadium",
+                "address": [
+                    "city": "Kansas City, Missouri",
+                    "country": "USA",
+                ],
+            ],
+        ]
+
+        let value = FootballDataAPIClient.venueLocationText(from: json)
+
+        XCTAssertEqual(value, "GEHA Field at Arrowhead Stadium, Kansas City, Missouri, USA")
+    }
+
+    func testVenueLocationTextCanonicalizesMalformedESPNVenueID() {
+        let json: [String: Any] = [
+            "venue": [
+                "id": "7474",
+                "fullName": "Toyota Stadium",
+                "address": [
+                    "city": "Toyota Stadium",
+                    "country": "USA",
+                ],
+            ],
+        ]
+
+        let value = FootballDataAPIClient.venueLocationText(from: json)
+
+        XCTAssertEqual(value, "Toyota Stadium, Frisco, Texas, USA")
+    }
+
+    func testVenueLocationTextCanonicalizesRenamedVenueID() {
+        let json: [String: Any] = [
+            "venue": [
+                "id": "8689",
+                "fullName": "Lower.com Field",
+                "address": [
+                    "city": "Columbus, Ohio",
+                    "country": "USA",
+                ],
+            ],
+        ]
+
+        let value = FootballDataAPIClient.venueLocationText(from: json)
+
+        XCTAssertEqual(value, "ScottsMiracle-Gro Field, Columbus, Ohio, USA")
+    }
+
+    func testVenueLocationTextSuppressesAmbiguousCountryOnlyVenueFallback() {
+        let json: [String: Any] = [
+            "venue": [
+                "fullName": "Central Stadium",
+                "address": [
+                    "country": "USA",
+                ],
+            ],
+        ]
+
+        let value = FootballDataAPIClient.venueLocationText(from: json)
+
+        XCTAssertNil(value)
+    }
+
     func testVenueLocationTextReturnsNilWhenVenueIsStillTBD() {
         let json: [String: Any] = [
             "venue": [
@@ -113,6 +195,6 @@ final class FootballVenueFormattingTests: XCTestCase {
 
         let value = FootballDataAPIClient.venueLocationText(from: json)
 
-        XCTAssertEqual(value, "MetLife Stadium, United States")
+        XCTAssertEqual(value, "MetLife Stadium, East Rutherford, New Jersey, USA")
     }
 }

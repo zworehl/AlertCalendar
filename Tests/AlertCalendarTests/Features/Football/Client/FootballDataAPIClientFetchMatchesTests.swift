@@ -93,6 +93,161 @@ final class FootballDataAPIClientFetchMatchesTests: FootballDataAPIClientTestCas
         XCTAssertEqual(matches.count, 1)
         XCTAssertNil(matches.first?.locationText)
     }
+
+    func testFetchMatchesUsesFederationLogosForNationalCompetitionWithoutEnrichment() async throws {
+        let startDate = Date().addingTimeInterval(6 * 60 * 60)
+        let startDateText = ISO8601DateFormatter().string(from: startDate)
+        let session = makeMockSession { request in
+            let url = try XCTUnwrap(request.url)
+            guard url.path == "/apis/site/v2/sports/soccer/fifa.friendly/scoreboard" else {
+                XCTFail("Unexpected URL: \(url.absoluteString)")
+                throw URLError(.badURL)
+            }
+
+            let body: [String: Any] = [
+                "leagues": [["name": "FIFA Friendlies"]],
+                "events": [[
+                    "id": "usa-spain",
+                    "date": startDateText,
+                    "competitions": [[
+                        "status": [
+                            "type": [
+                                "state": "pre",
+                                "shortDetail": "Scheduled",
+                                "detail": "Scheduled",
+                            ],
+                        ],
+                        "competitors": [
+                            [
+                                "homeAway": "home",
+                                "score": "0",
+                                "team": [
+                                    "id": "2642",
+                                    "displayName": "United States",
+                                    "abbreviation": "USA",
+                                    "logo": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+                                ],
+                            ],
+                            [
+                                "homeAway": "away",
+                                "score": "0",
+                                "team": [
+                                    "id": "2650",
+                                    "displayName": "Spain",
+                                    "abbreviation": "ESP",
+                                    "logo": "https://a.espncdn.com/i/teamlogos/countries/500/esp.png",
+                                ],
+                            ],
+                        ],
+                    ]],
+                ]],
+            ]
+            return try self.jsonResponse(for: request, body: body)
+        }
+        let competition = FootballCompetitionPreset(
+            slug: "fifa.friendly",
+            title: "FIFA Friendlies",
+            lookbackDays: 0,
+            lookaheadDays: 1,
+            category: .nationalTeams,
+            region: .global
+        )
+        let client = FootballDataAPIClient(session: session)
+
+        let matches = try await client.fetchMatches(
+            for: [competition],
+            enrichTeams: false
+        )
+
+        let match = try XCTUnwrap(matches.first)
+        XCTAssertTrue(match.homeTeam.isNational)
+        XCTAssertTrue(match.awayTeam.isNational)
+        XCTAssertEqual(
+            match.homeTeam.logoURL?.absoluteString,
+            "https://api.fifa.com/api/v3/picture/associations-sq-2/USA"
+        )
+        XCTAssertEqual(
+            match.awayTeam.logoURL?.absoluteString,
+            "https://api.fifa.com/api/v3/picture/associations-sq-2/ESP"
+        )
+    }
+
+    func testFetchMatchesUsesPresetCategoryForCustomNationalCompetitionLogos() async throws {
+        let startDate = Date().addingTimeInterval(6 * 60 * 60)
+        let startDateText = ISO8601DateFormatter().string(from: startDate)
+        let session = makeMockSession { request in
+            let url = try XCTUnwrap(request.url)
+            guard url.path == "/apis/site/v2/sports/soccer/custom.national/scoreboard" else {
+                XCTFail("Unexpected URL: \(url.absoluteString)")
+                throw URLError(.badURL)
+            }
+
+            let body: [String: Any] = [
+                "leagues": [["name": "Custom National Cup"]],
+                "events": [[
+                    "id": "crc-mex",
+                    "date": startDateText,
+                    "competitions": [[
+                        "status": [
+                            "type": [
+                                "state": "pre",
+                                "shortDetail": "Scheduled",
+                                "detail": "Scheduled",
+                            ],
+                        ],
+                        "competitors": [
+                            [
+                                "homeAway": "home",
+                                "score": "0",
+                                "team": [
+                                    "id": "2677",
+                                    "displayName": "Costa Rica",
+                                    "abbreviation": "CRC",
+                                    "logo": "https://a.espncdn.com/i/teamlogos/countries/500/crc.png",
+                                ],
+                            ],
+                            [
+                                "homeAway": "away",
+                                "score": "0",
+                                "team": [
+                                    "id": "2634",
+                                    "displayName": "Mexico",
+                                    "abbreviation": "MEX",
+                                    "logo": "https://a.espncdn.com/i/teamlogos/countries/500/mex.png",
+                                ],
+                            ],
+                        ],
+                    ]],
+                ]],
+            ]
+            return try self.jsonResponse(for: request, body: body)
+        }
+        let competition = FootballCompetitionPreset(
+            slug: "custom.national",
+            title: "Custom National Cup",
+            lookbackDays: 0,
+            lookaheadDays: 1,
+            category: .nationalTeams,
+            region: .global
+        )
+        let client = FootballDataAPIClient(session: session)
+
+        let matches = try await client.fetchMatches(
+            for: [competition],
+            enrichTeams: false
+        )
+
+        let match = try XCTUnwrap(matches.first)
+        XCTAssertEqual(
+            match.homeTeam.logoURL?.absoluteString,
+            "https://api.fifa.com/api/v3/picture/associations-sq-2/CRC"
+        )
+        XCTAssertEqual(
+            match.awayTeam.logoURL?.absoluteString,
+            "https://api.fifa.com/api/v3/picture/associations-sq-2/MEX"
+        )
+    }
+
     func testFetchMatchesUsesClubVenueFallbackWhenScoreboardVenueIsMissing() async throws {
         let startDate = Date().addingTimeInterval(10 * 24 * 60 * 60)
         let startDateText = ISO8601DateFormatter().string(from: startDate)

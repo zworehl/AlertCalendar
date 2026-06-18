@@ -103,6 +103,24 @@ final class LocationCoordinateResolverTests: XCTestCase {
         )
     }
 
+    func testSearchConfidenceRejectsVenueWithOnlyCountryContext() {
+        XCTAssertFalse(
+            LocationCoordinateResolver.isConfidentSearchMatch(
+                query: "Central Stadium, USA",
+                candidateFields: ["Central Stadium", "United States"]
+            )
+        )
+    }
+
+    func testSearchConfidenceAcceptsVenueWithCityStateCountryContext() {
+        XCTAssertTrue(
+            LocationCoordinateResolver.isConfidentSearchMatch(
+                query: "Toyota Stadium, Frisco, Texas, USA",
+                candidateFields: ["Toyota Stadium", "Frisco", "Texas", "United States"]
+            )
+        )
+    }
+
     func testKnownAmbiguousVenueResolvesToStadiumCoordinate() async {
         let coordinate = await LocationCoordinateResolver.shared.coordinate(
             for: "Estadio BBVA, Guadalupe, Mexico"
@@ -118,5 +136,49 @@ final class LocationCoordinateResolverTests: XCTestCase {
         )
 
         XCTAssertEqual(timeZone?.identifier, "America/Monterrey")
+    }
+
+    func testKnownWorldCupVenueResolvesToStadiumCoordinate() async {
+        let coordinate = await LocationCoordinateResolver.shared.coordinate(
+            for: "Estadio Banorte, Mexico City, Mexico"
+        )
+
+        XCTAssertEqual(coordinate?.latitude ?? 0, 19.302911, accuracy: 0.0001)
+        XCTAssertEqual(coordinate?.longitude ?? 0, -99.150442, accuracy: 0.0001)
+    }
+
+    func testKnownWorldCupVenueResolvesTimeZone() async {
+        let timeZone = await LocationCoordinateResolver.shared.timeZone(
+            for: "SoFi Stadium, Inglewood, California, USA"
+        )
+
+        XCTAssertEqual(timeZone?.identifier, "America/Los_Angeles")
+    }
+
+    func testKnownWorldCupVenueAliasResolvesToStadiumCoordinate() async {
+        let coordinate = await LocationCoordinateResolver.shared.coordinate(
+            for: "Arrowhead Stadium, Kansas City, Missouri, USA"
+        )
+
+        XCTAssertEqual(coordinate?.latitude ?? 0, 39.049002, accuracy: 0.0001)
+        XCTAssertEqual(coordinate?.longitude ?? 0, -94.483864, accuracy: 0.0001)
+    }
+
+    func testKnownMalformedESPNVenueResolvesToStadiumCoordinate() async {
+        let coordinate = await LocationCoordinateResolver.shared.coordinate(
+            for: "Toyota Stadium, USA"
+        )
+
+        XCTAssertEqual(coordinate?.latitude ?? 0, 33.154444, accuracy: 0.0001)
+        XCTAssertEqual(coordinate?.longitude ?? 0, -96.835278, accuracy: 0.0001)
+    }
+
+    func testKnownRenamedVenueResolvesToStadiumCoordinate() async {
+        let coordinate = await LocationCoordinateResolver.shared.coordinate(
+            for: "Lower.com Field, Columbus, Ohio, USA"
+        )
+
+        XCTAssertEqual(coordinate?.latitude ?? 0, 39.968461, accuracy: 0.0001)
+        XCTAssertEqual(coordinate?.longitude ?? 0, -83.017089, accuracy: 0.0001)
     }
 }

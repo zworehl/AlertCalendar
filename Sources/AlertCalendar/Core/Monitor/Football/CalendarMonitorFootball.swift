@@ -13,6 +13,7 @@ extension CalendarMonitor {
     nonisolated static let footballMenuRefreshInterval: TimeInterval = 60
     nonisolated static let footballManagedSyncInterval: TimeInterval = 60
     nonisolated static let footballActiveRefreshInterval: TimeInterval = 30
+    nonisolated static let footballMissingCacheRefreshInterval: TimeInterval = 30
     nonisolated static let footballUpcomingRefreshInterval: TimeInterval = 5 * 60
     nonisolated static let footballIdleRefreshInterval: TimeInterval = 15 * 60
     static let footballManagedCleanupInterval: TimeInterval = 6 * 60 * 60
@@ -252,14 +253,19 @@ extension CalendarMonitor {
         }
 
         let trackedMatches = trackedEvents.compactMap { footballMatchesByID[$0.reference.matchID] }
-        let managedSyncInterval = Self.footballRefreshInterval(for: trackedMatches, now: now)
+        let hasMissingTrackedMatches = trackedMatches.count < trackedEvents.count
+        let managedSyncInterval = Self.footballManagedRefreshInterval(
+            for: trackedMatches,
+            hasMissingTrackedMatches: hasMissingTrackedMatches,
+            now: now
+        )
         let needsNetworkRefresh = force
-            || trackedEvents.contains { footballMatchesByID[$0.reference.matchID] == nil }
             || CalendarMonitorTime.hasElapsed(since: lastFootballManagedSyncDate, now: now, interval: managedSyncInterval)
 
         guard needsNetworkRefresh else { return }
 
         let trackedPresets = deduplicatedFootballPresets(from: trackedEvents.map(\.reference.competitionSlug))
+        lastFootballManagedSyncDate = now
         do {
             let matches = try await footballClient.fetchMatches(for: trackedPresets)
             let forceSummaryMatchIDs = Self.footballManagedMatchIDsNeedingActualEndBackfill(

@@ -111,6 +111,15 @@ extension CalendarMonitor {
             return true
         }
 
+        if item.kind == .event,
+           item.date > now,
+           let travelStartDate = travelStartDate(for: item) {
+            if travelStartDate <= now {
+                return true
+            }
+            return travelStartDate.timeIntervalSince(now) <= futureWindowSeconds
+        }
+
         return item.date >= now && item.date.timeIntervalSince(now) <= futureWindowSeconds
     }
 

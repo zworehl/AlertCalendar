@@ -24,16 +24,27 @@ extension CalendarMonitor {
             return false
         }
 
-        if managedFootballMatchIDs.contains(where: { footballMatchesByID[$0] == nil }) {
-            return true
-        }
-
         let trackedMatches = managedFootballMatchIDs.compactMap { footballMatchesByID[$0] }
+        let hasMissingTrackedMatches = trackedMatches.count < managedFootballMatchIDs.count
         return CalendarMonitorTime.hasElapsed(
             since: lastFootballManagedSyncDate,
             now: now,
-            interval: Self.footballRefreshInterval(for: trackedMatches, now: now)
+            interval: Self.footballManagedRefreshInterval(
+                for: trackedMatches,
+                hasMissingTrackedMatches: hasMissingTrackedMatches,
+                now: now
+            )
         )
+    }
+
+    nonisolated static func footballManagedRefreshInterval(
+        for matches: [FootballFixtureMatch],
+        hasMissingTrackedMatches: Bool,
+        now: Date
+    ) -> TimeInterval {
+        let matchInterval = footballRefreshInterval(for: matches, now: now)
+        guard hasMissingTrackedMatches else { return matchInterval }
+        return min(footballMissingCacheRefreshInterval, matchInterval)
     }
 
     nonisolated static func footballRefreshInterval(
@@ -244,27 +255,25 @@ extension CalendarMonitor {
                 partialResult[team.id] = team
             }
 
-        let missingTeamLogos = teams.values.compactMap { team -> (String, URL)? in
-            guard footballLocalLogoPathsByTeamID[team.id] == nil,
-                  let logoURL = team.logoURL else {
+        let teamLogoRequests = teams.values.compactMap { team -> (String, URL)? in
+            guard let logoURL = team.logoURL else {
                 return nil
             }
             return (team.id, logoURL)
         }
-        let teamLogoPaths = await resolvedFootballLogoPaths(for: missingTeamLogos)
-        for (teamID, path) in teamLogoPaths where footballLocalLogoPathsByTeamID[teamID] == nil {
+        let teamLogoPaths = await resolvedFootballLogoPaths(for: teamLogoRequests)
+        for (teamID, path) in teamLogoPaths where footballLocalLogoPathsByTeamID[teamID] != path {
             footballLocalLogoPathsByTeamID[teamID] = path
         }
 
-        let missingCompetitionLogos = matches.compactMap { match -> (String, URL)? in
-            guard footballLocalLogoPathsByCompetitionSlug[match.competitionSlug] == nil,
-                  let logoURL = match.competitionLogoURL else {
+        let competitionLogoRequests = matches.compactMap { match -> (String, URL)? in
+            guard let logoURL = match.competitionLogoURL else {
                 return nil
             }
             return (match.competitionSlug, logoURL)
         }
-        let competitionLogoPaths = await resolvedFootballLogoPaths(for: missingCompetitionLogos)
-        for (competitionSlug, path) in competitionLogoPaths where footballLocalLogoPathsByCompetitionSlug[competitionSlug] == nil {
+        let competitionLogoPaths = await resolvedFootballLogoPaths(for: competitionLogoRequests)
+        for (competitionSlug, path) in competitionLogoPaths where footballLocalLogoPathsByCompetitionSlug[competitionSlug] != path {
             footballLocalLogoPathsByCompetitionSlug[competitionSlug] = path
         }
     }

@@ -77,10 +77,15 @@ extension CalendarMonitor {
     }
 
     func applyMenuBarPresentationState(_ state: MenuBarPresentationState) {
+        let shouldAnimateAlert = state.alertedSegmentIndex != nil && currentSettings.enableBlinkAlert
+        let previousAlertedSegmentIndex = combinedMenuBarAlertedSegmentIndex
+
         setIfChanged(\.combinedMenuBarLabel, to: state.label)
         setColorIfChanged(\.combinedMenuBarColor, to: state.color)
         setIfChanged(\.combinedMenuBarAlertedSegmentIndex, to: state.alertedSegmentIndex)
-        setIfChanged(\.combinedMenuBarAlertTextOpacity, to: state.alertTextOpacity)
+        if !shouldAnimateAlert || previousAlertedSegmentIndex != state.alertedSegmentIndex || menuBarAnimationCancellable == nil {
+            setIfChanged(\.combinedMenuBarAlertTextOpacity, to: state.alertTextOpacity)
+        }
         setColorArrayIfChanged(\.combinedMenuBarDotColors, to: state.dotColors)
         setIfChanged(\.combinedMenuBarMarkerStyles, to: state.markerStyles)
         setIfChanged(\.combinedMenuBarSegments, to: state.segments)
@@ -92,11 +97,16 @@ extension CalendarMonitor {
         setColorIfChanged(\.combinedMenuBarFootballStatusColor, to: state.footballStatusColor)
         setIfChanged(\.combinedMenuBarFootballGoalHighlightSide, to: state.footballGoalHighlightSide)
         setIfChanged(\.combinedMenuBarFootballGoalHighlightTextOpacity, to: state.footballGoalHighlightTextOpacity)
+        setMenuBarAlertAnimationEnabled(shouldAnimateAlert)
     }
 
+    nonisolated static let alertBlinkPeriod: TimeInterval = 1.2
+
     nonisolated static func alertBlinkTextOpacity(now: Date) -> CGFloat {
-        let wholeSecond = Int(now.timeIntervalSince1970.rounded(.down))
-        return wholeSecond.isMultiple(of: 2) ? 1.0 : 0.0
+        let remainder = now.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: alertBlinkPeriod)
+        let normalizedRemainder = remainder < 0 ? remainder + alertBlinkPeriod : remainder
+        let phase = normalizedRemainder / alertBlinkPeriod
+        return CGFloat((cos(phase * 2 * .pi) + 1) / 2)
     }
 
     nonisolated static func shouldAlertForItem(_ item: UpcomingItem, now: Date, leadSeconds: TimeInterval) -> Bool {
@@ -219,7 +229,7 @@ extension CalendarMonitor {
                     alertedSegmentIndex: alertedSegmentIndex,
                     alertTextOpacity: alertTextOpacity,
                     dotColors: previewItems.map { $0.calendarColor.nsColor },
-                    markerStyles: previewItems.map { markerStyle(for: $0) },
+                    markerStyles: previewItems.map { markerStyle(for: $0, now: now) },
                     segments: segments,
                     segmentBackgroundColors: segmentBackgrounds.map(\.color),
                     segmentBackgroundProgresses: segmentBackgrounds.map(\.progress),

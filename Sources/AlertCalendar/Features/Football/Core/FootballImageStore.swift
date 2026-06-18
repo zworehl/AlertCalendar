@@ -1,5 +1,8 @@
+import CoreGraphics
 import CryptoKit
 import Foundation
+import ImageIO
+import UniformTypeIdentifiers
 
 actor FootballImageStore {
     private let fileManager: FileManager
@@ -38,6 +41,7 @@ actor FootballImageStore {
         let destinationURL = baseDirectoryURL.appendingPathComponent(fileName)
 
         if fileManager.fileExists(atPath: destinationURL.path) {
+            normalizeExistingImageIfNeeded(at: destinationURL, remoteURL: remoteURL)
             return destinationURL
         }
 
@@ -49,7 +53,10 @@ actor FootballImageStore {
                 return nil
             }
 
-            try data.write(to: destinationURL, options: [.atomic])
+            let imageData = Self.shouldRemoveCornerBackground(for: remoteURL)
+                ? Self.imageDataByRemovingCornerBackground(from: data) ?? data
+                : data
+            try imageData.write(to: destinationURL, options: [.atomic])
             return destinationURL
         } catch {
             return nil
@@ -64,6 +71,189 @@ actor FootballImageStore {
     private func normalizedFileExtension(from remoteURL: URL) -> String {
         let ext = remoteURL.pathExtension.lowercased()
         return ext.isEmpty ? "png" : ext
+    }
+
+    private func normalizeExistingImageIfNeeded(at url: URL, remoteURL: URL) {
+        guard Self.shouldRemoveCornerBackground(for: remoteURL),
+              let data = try? Data(contentsOf: url),
+              let imageData = Self.imageDataByRemovingCornerBackground(from: data),
+              imageData != data else {
+            return
+        }
+
+        try? imageData.write(to: url, options: [.atomic])
+    }
+
+    nonisolated static func shouldRemoveCornerBackground(for remoteURL: URL) -> Bool {
+        remoteURL.host?.caseInsensitiveCompare("api.fifa.com") == .orderedSame
+            && remoteURL.path.contains("/api/v3/picture/associations-sq-2/")
+    }
+
+    nonisolated static func imageDataByRemovingCornerBackground(from data: Data) -> Data? {
+        guard let imageSource = CGImageSourceCreateWithData(data as CFData, nil),
+              let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) else {
+            return nil
+        }
+
+        let width = cgImage.width
+        let height = cgImage.height
+        guard width > 1, height > 1 else { return nil }
+
+        let bytesPerPixel = 4
+        let bytesPerRow = width * bytesPerPixel
+        var pixels = [UInt8](repeating: 0, count: height * bytesPerRow)
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let bitmapInfo = CGBitmapInfo.byteOrder32Big.rawValue
+            | CGImageAlphaInfo.premultipliedLast.rawValue
+
+        let didDraw = pixels.withUnsafeMutableBytes { buffer in
+            guard let baseAddress = buffer.baseAddress,
+                  let context = CGContext(
+                    data: baseAddress,
+                    width: width,
+                    height: height,
+                    bitsPerComponent: 8,
+                    bytesPerRow: bytesPerRow,
+                    space: colorSpace,
+                    bitmapInfo: bitmapInfo
+                  ) else {
+                return false
+            }
+
+            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+            return true
+        }
+        guard didDraw else { return nil }
+
+        let cornerIndexes = [
+            0,
+            width - 1,
+            (height - 1) * width,
+            (height * width) - 1,
+        ]
+        var removedPixels = [Bool](repeating: false, count: width * height)
+
+        for seedIndex in cornerIndexes {
+            removeBackgroundConnectedToSeed(
+                seedIndex,
+                width: width,
+                height: height,
+                bytesPerPixel: bytesPerPixel,
+                pixels: &pixels,
+                removedPixels: &removedPixels
+            )
+        }
+
+        let removedCount = removedPixels.reduce(0) { $0 + ($1 ? 1 : 0) }
+        guard removedCount > 0 else { return nil }
+
+        for index in removedPixels.indices where removedPixels[index] {
+            let offset = index * bytesPerPixel
+            pixels[offset] = 0
+            pixels[offset + 1] = 0
+            pixels[offset + 2] = 0
+            pixels[offset + 3] = 0
+        }
+
+        return pixels.withUnsafeMutableBytes { buffer in
+            guard let baseAddress = buffer.baseAddress,
+                  let context = CGContext(
+                    data: baseAddress,
+                    width: width,
+                    height: height,
+                    bitsPerComponent: 8,
+                    bytesPerRow: bytesPerRow,
+                    space: colorSpace,
+                    bitmapInfo: bitmapInfo
+                  ),
+                  let outputImage = context.makeImage() else {
+                return nil
+            }
+
+            return pngData(from: outputImage)
+        }
+    }
+
+    private nonisolated static func pngData(from image: CGImage) -> Data? {
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(
+            data,
+            UTType.png.identifier as CFString,
+            1,
+            nil
+        ) else {
+            return nil
+        }
+
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else { return nil }
+        return data as Data
+    }
+
+    private nonisolated static func removeBackgroundConnectedToSeed(
+        _ seedIndex: Int,
+        width: Int,
+        height: Int,
+        bytesPerPixel: Int,
+        pixels: inout [UInt8],
+        removedPixels: inout [Bool]
+    ) {
+        let seedOffset = seedIndex * bytesPerPixel
+        let seedAlpha = pixels[seedOffset + 3]
+        guard seedAlpha > 240 else { return }
+
+        let seedColor = (
+            red: pixels[seedOffset],
+            green: pixels[seedOffset + 1],
+            blue: pixels[seedOffset + 2]
+        )
+        var visited = [Bool](repeating: false, count: width * height)
+        var stack = [seedIndex]
+
+        while let index = stack.popLast() {
+            guard index >= 0,
+                  index < width * height,
+                  !visited[index] else {
+                continue
+            }
+
+            visited[index] = true
+            guard pixel(at: index, bytesPerPixel: bytesPerPixel, pixels: pixels, matchesBackground: seedColor) else {
+                continue
+            }
+
+            removedPixels[index] = true
+            let x = index % width
+            let y = index / width
+
+            if x > 0 {
+                stack.append(index - 1)
+            }
+            if x + 1 < width {
+                stack.append(index + 1)
+            }
+            if y > 0 {
+                stack.append(index - width)
+            }
+            if y + 1 < height {
+                stack.append(index + width)
+            }
+        }
+    }
+
+    private nonisolated static func pixel(
+        at index: Int,
+        bytesPerPixel: Int,
+        pixels: [UInt8],
+        matchesBackground seedColor: (red: UInt8, green: UInt8, blue: UInt8)
+    ) -> Bool {
+        let offset = index * bytesPerPixel
+        guard pixels[offset + 3] > 16 else { return false }
+
+        let tolerance = 24
+        return abs(Int(pixels[offset]) - Int(seedColor.red)) <= tolerance
+            && abs(Int(pixels[offset + 1]) - Int(seedColor.green)) <= tolerance
+            && abs(Int(pixels[offset + 2]) - Int(seedColor.blue)) <= tolerance
     }
 
     private func hashed(_ value: String) -> String {

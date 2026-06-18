@@ -310,6 +310,7 @@ enum MenuMarkerStyle: Equatable {
     case reminder(AlertCalendarColor)
     case birthday(AlertCalendarColor)
     case allDay(AlertCalendarColor)
+    case travel(AlertCalendarColor)
     case sunrise
     case solarNoon
     case sunset
@@ -338,6 +339,8 @@ enum MenuMarkerStyle: Equatable {
         case let (.birthday(left), .birthday(right)):
             return left == right
         case let (.allDay(left), .allDay(right)):
+            return left == right
+        case let (.travel(left), .travel(right)):
             return left == right
         case (.sunrise, .sunrise),
             (.solarNoon, .solarNoon),

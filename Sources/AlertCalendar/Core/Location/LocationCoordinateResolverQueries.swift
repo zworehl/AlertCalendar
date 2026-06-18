@@ -11,7 +11,7 @@ extension LocationCoordinateResolver {
         "Arena",
         "Ground",
     ]
-    private static let venueDescriptorTokens = [
+    static let venueDescriptorTokens = [
         "arena",
         "autodromo",
         "ballpark",

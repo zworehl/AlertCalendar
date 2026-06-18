@@ -29,6 +29,30 @@ extension CalendarMonitor {
         return "\(compactTitle) now"
     }
 
+    nonisolated static func travelDepartureMenuSegment(
+        for item: UpcomingItem,
+        compactTitle: String,
+        now: Date,
+        simplified: Bool
+    ) -> String? {
+        guard let travelStartDate = travelStartDate(for: item),
+              now < item.date
+        else {
+            return nil
+        }
+
+        if travelStartDate > now {
+            let countdownText = formattedRelativeCountdown(
+                to: travelStartDate,
+                from: now,
+                simplified: simplified
+            )
+            return "\(compactTitle) leave in \(countdownText)"
+        }
+
+        return "Leave now for \(compactTitle)"
+    }
+
     func menuLabel(
         for item: UpcomingItem?,
         now: Date,
@@ -75,6 +99,15 @@ extension CalendarMonitor {
            (item.endDate ?? item.date) > now,
            FootballFixtureFormatter.looksLikeFootballCalendarTitle(item.title) {
             return compactTitle
+        }
+
+        if let travelSegment = Self.travelDepartureMenuSegment(
+            for: item,
+            compactTitle: compactTitle,
+            now: now,
+            simplified: simplified
+        ) {
+            return travelSegment
         }
 
         if let nowSegment = Self.timedEventNowMenuSegment(for: item, compactTitle: compactTitle, now: now) {

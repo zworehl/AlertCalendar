@@ -7,7 +7,7 @@ extension CalendarMonitor {
             return AstronomyDetectedLocation(coordinate: coordinate, source: .system)
         }
 
-        astronomyLocationStatus = "Core Location did not return coordinates. Trying approximate network location..."
+        astronomyLocationStatus = "Detecting location..."
 
         if let coordinate = await requestApproximateNetworkCoordinate() {
             return AstronomyDetectedLocation(coordinate: coordinate, source: .networkApproximate)

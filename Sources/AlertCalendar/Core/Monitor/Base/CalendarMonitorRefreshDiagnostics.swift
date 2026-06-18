@@ -26,7 +26,7 @@ enum CalendarMonitorRefreshReason: String, CaseIterable, Hashable {
         case .periodic:
             return "Periodic"
         case .footballHeartbeat:
-            return "Football heartbeat"
+            return "Football update"
         case .locationChanged:
             return "Location changed"
         case .calendarSelectionChanged:

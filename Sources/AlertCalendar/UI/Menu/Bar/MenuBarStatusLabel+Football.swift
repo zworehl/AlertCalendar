@@ -24,7 +24,22 @@ extension MenuBarStatusLabel {
 
     @MainActor
     static func alertTextColor(opacity: CGFloat, baseColor: NSColor) -> NSColor {
-        opacity >= 0.5 ? NSColor.systemRed : baseColor
+        let fraction = min(max(opacity, 0), 1)
+        if fraction <= 0 {
+            return baseColor
+        }
+        if fraction >= 1 {
+            return .systemRed
+        }
+
+        let base = baseColor.usingColorSpace(.deviceRGB) ?? baseColor
+        let alert = NSColor.systemRed.usingColorSpace(.deviceRGB) ?? .systemRed
+        return NSColor(
+            red: base.redComponent + ((alert.redComponent - base.redComponent) * fraction),
+            green: base.greenComponent + ((alert.greenComponent - base.greenComponent) * fraction),
+            blue: base.blueComponent + ((alert.blueComponent - base.blueComponent) * fraction),
+            alpha: base.alphaComponent + ((alert.alphaComponent - base.alphaComponent) * fraction)
+        )
     }
 
     @MainActor

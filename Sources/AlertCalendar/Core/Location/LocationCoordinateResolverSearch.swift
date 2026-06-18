@@ -5,6 +5,22 @@ import MapKit
 extension LocationCoordinateResolver {
     private static let minimumSearchConfidenceScore = 12
     private static let minimumFirstComponentScoreWithContext = 3
+    private static let countryOnlyContextKeys: Set<String> = [
+        "argentina",
+        "brazil",
+        "canada",
+        "colombia",
+        "england",
+        "france",
+        "germany",
+        "italy",
+        "mexico",
+        "netherlands",
+        "portugal",
+        "spain",
+        "united kingdom",
+        "united states",
+    ]
 
     private struct LocationSearchScore: Equatable, Sendable {
         let total: Int
@@ -169,9 +185,19 @@ extension LocationCoordinateResolver {
         if queryComponents.count >= 3, score.countryScore <= 0 {
             return false
         }
+        if isVenueQueryWithOnlyCountryContext(queryComponents) {
+            return false
+        }
 
         return score.firstComponentScore >= minimumFirstComponentScoreWithContext
             && score.matchedContextCount > 0
+    }
+
+    private static func isVenueQueryWithOnlyCountryContext(_ queryComponents: [String]) -> Bool {
+        guard queryComponents.count == 2 else { return false }
+        guard countryOnlyContextKeys.contains(normalizedCountrySearchKey(queryComponents[1])) else { return false }
+        let firstComponentTokens = Set(searchTokens(queryComponents[0]))
+        return firstComponentTokens.contains { venueDescriptorTokens.contains($0) }
     }
 
     private static func rankedLocalSearchCandidateSort(

@@ -53,6 +53,8 @@ final class AlertCalendarModelTests: XCTestCase {
         XCTAssertNotEqual(MenuMarkerStyle.color(.systemBlue), MenuMarkerStyle.color(.systemRed))
         XCTAssertEqual(MenuMarkerStyle.sunrise, MenuMarkerStyle.sunrise)
         XCTAssertNotEqual(MenuMarkerStyle.sunrise, MenuMarkerStyle.sunset)
+        XCTAssertEqual(MenuMarkerStyle.travel(.systemBlue), MenuMarkerStyle.travel(.systemBlue))
+        XCTAssertNotEqual(MenuMarkerStyle.travel(.systemBlue), MenuMarkerStyle.travel(.systemRed))
         XCTAssertEqual(MenuMarkerStyle.fullMoon, MenuMarkerStyle.fullMoon)
         XCTAssertNotEqual(MenuMarkerStyle.perihelion, MenuMarkerStyle.aphelion)
         XCTAssertNotEqual(MenuMarkerStyle.marchEquinox, MenuMarkerStyle.decemberSolstice)

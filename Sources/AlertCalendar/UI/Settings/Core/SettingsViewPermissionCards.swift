@@ -34,7 +34,6 @@ extension SettingsView {
                     useAutomaticAstronomyLocation: $draft.useAutomaticAstronomyLocation,
                     astronomyLatitude: $draft.astronomyLatitude,
                     astronomyLongitude: $draft.astronomyLongitude,
-                    astronomyLocationStatus: astronomyLocationStatus,
                     onDetectNow: detectLocation
                 )
             }
@@ -61,8 +60,10 @@ extension SettingsView {
 
     @ViewBuilder
     func permissionActionCardHeader(for permission: SettingsPermissionKind, grantState: PermissionGrantState) -> some View {
+        let headerStatus = permissionHeaderStatusText(for: permission)
+
         ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 12) {
+            HStack(alignment: .center, spacing: 12) {
                 SettingsPermissionIconView(
                     fallbackSymbolName: permission.fallbackSymbolName,
                     gradient: permission.accentGradient,
@@ -77,25 +78,62 @@ extension SettingsView {
 
                     permissionStatusBadge(for: grantState)
                 }
+
+                if let headerStatus {
+                    Spacer(minLength: 12)
+
+                    permissionHeaderStatusLabel(headerStatus)
+                }
             }
-            .fixedSize(horizontal: true, vertical: false)
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            HStack(alignment: .top, spacing: 12) {
-                SettingsPermissionIconView(
-                    fallbackSymbolName: permission.fallbackSymbolName,
-                    gradient: permission.accentGradient,
-                    appIconPath: permission.appIconPath
-                )
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .center, spacing: 12) {
+                    SettingsPermissionIconView(
+                        fallbackSymbolName: permission.fallbackSymbolName,
+                        gradient: permission.accentGradient,
+                        appIconPath: permission.appIconPath
+                    )
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(permission.title)
-                        .font(.headline)
-                        .fixedSize(horizontal: false, vertical: true)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(permission.title)
+                            .font(.headline)
+                            .fixedSize(horizontal: false, vertical: true)
 
-                    permissionStatusBadge(for: grantState)
+                        permissionStatusBadge(for: grantState)
+                    }
+                }
+
+                if let headerStatus {
+                    permissionHeaderStatusLabel(headerStatus)
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    func permissionHeaderStatusLabel(_ status: String) -> some View {
+        Text(status)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.trailing)
+            .lineLimit(2)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+
+    func permissionHeaderStatusText(for permission: SettingsPermissionKind) -> String? {
+        guard permission == .location else { return nil }
+        guard astronomyLocationStatus != "Manual coordinates" else { return nil }
+        guard draft.useAutomaticAstronomyLocation else { return astronomyLocationStatus }
+        return isAutomaticLocationResultStatus ? nil : astronomyLocationStatus
+    }
+
+    var isAutomaticLocationResultStatus: Bool {
+        astronomyLocationStatus.hasPrefix("Auto location:")
+            || astronomyLocationStatus.hasPrefix("Approximate auto location:")
+            || astronomyLocationStatus.hasPrefix("Detected location:")
+            || astronomyLocationStatus.hasPrefix("Detected approximate location:")
+            || astronomyLocationStatus.contains("Using saved coordinates:")
     }
 
     @ViewBuilder

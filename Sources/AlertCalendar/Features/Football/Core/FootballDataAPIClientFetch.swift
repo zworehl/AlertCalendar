@@ -45,7 +45,8 @@ extension FootballDataAPIClient {
         return await scoreboardMatchesPage(
             url: url,
             slug: competition.slug,
-            competitionName: competition.title
+            competitionName: competition.title,
+            competitionCategory: competition.category
         )
     }
 
@@ -94,14 +95,16 @@ extension FootballDataAPIClient {
         slug: String,
         competitionName: String,
         session: URLSession,
-        dateRange: (Date, Date)?
+        dateRange: (Date, Date)?,
+        competitionCategory: FootballCompetitionCategory? = nil
     ) async -> [FootballFixtureMatch] {
         guard let url = scoreboardURL(slug: slug, dateRange: dateRange) else { return [] }
         return await fetchMatchesPage(
             url: url,
             slug: slug,
             competitionName: competitionName,
-            session: session
+            session: session,
+            competitionCategory: competitionCategory
         )
     }
 
@@ -109,7 +112,8 @@ extension FootballDataAPIClient {
         url: URL,
         slug: String,
         competitionName: String,
-        session: URLSession
+        session: URLSession,
+        competitionCategory: FootballCompetitionCategory? = nil
     ) async -> [FootballFixtureMatch] {
         do {
             var request = URLRequest(url: url)
@@ -125,13 +129,15 @@ extension FootballDataAPIClient {
             let competitionLogoURL = leagueLogoURL(from: league)
             let competitionStage = leagueStageName(from: league)
             let events = root["events"] as? [[String: Any]] ?? []
+            let isNationalCompetition = (competitionCategory ?? FootballCompetitionPreset.category(forCompetitionSlug: slug)) == .nationalTeams
             return events.compactMap {
                 liveMatch(
                     from: $0,
                     competitionSlug: slug,
                     competitionName: resolvedCompetitionName,
                     competitionStage: competitionStage,
-                    competitionLogoURL: competitionLogoURL
+                    competitionLogoURL: competitionLogoURL,
+                    isNationalCompetition: isNationalCompetition
                 )
             }
         } catch {
@@ -154,17 +160,32 @@ extension FootballDataAPIClient {
             }
 
             let root = try jsonDictionary(from: data)
-            let isNational = (root["isNational"] as? Bool) == true
+            let displayName = stringValue(root["displayName"])
+            let location = stringValue(root["location"])
+            let teamAbbreviation = stringValue(root["abbreviation"])
+            let inferredNationalCountry = inferredNationalCountryName(
+                displayName: displayName,
+                location: location
+            )
+            let isNational = (root["isNational"] as? Bool) == true || inferredNationalCountry != nil
             let countryName = resolvedTeamCountryName(from: root)
             let venueLocationText = resolvedTeamVenueLocationText(from: root)
 
             let logos = root["logos"] as? [[String: Any]] ?? []
             let preferredLogo = logos.first(where: { (($0["rel"] as? [String]) ?? []).contains("default") }) ?? logos.first
+            let espnLogoURL = safeURL(from: stringValue(preferredLogo?["href"]))
 
             return TeamResponse(
                 countryName: countryName,
                 isNational: isNational,
-                logoURL: safeURL(from: stringValue(preferredLogo?["href"])),
+                logoURL: FootballFederationLogoResolver.resolvedLogoURL(
+                    existingLogoURL: espnLogoURL,
+                    teamID: stringValue(root["id"]) ?? teamID,
+                    name: displayName,
+                    abbreviation: teamAbbreviation,
+                    countryName: countryName,
+                    isNational: isNational
+                ),
                 venueLocationText: venueLocationText
             )
         } catch {

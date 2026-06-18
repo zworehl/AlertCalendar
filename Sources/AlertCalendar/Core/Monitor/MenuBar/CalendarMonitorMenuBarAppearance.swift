@@ -25,7 +25,10 @@ extension CalendarMonitor {
         AlertCalendarString.trimmedNonEmpty(rawTitle) ?? "(Untitled)"
     }
 
-    func markerStyle(for item: UpcomingItem) -> MenuMarkerStyle {
+    func markerStyle(for item: UpcomingItem, now: Date? = nil) -> MenuMarkerStyle {
+        if let now, Self.shouldShowTravelDepartureState(for: item, now: now) {
+            return .travel(item.calendarColor)
+        }
         if item.kind == .reminder {
             return .reminder(item.calendarColor)
         }
@@ -52,6 +55,10 @@ extension CalendarMonitor {
     }
 
     func segmentBackgroundVisual(for item: UpcomingItem, now: Date, settings: AppSettings) -> (color: NSColor, progress: CGFloat) {
+        if let progress = Self.travelDepartureProgress(for: item, now: now) {
+            return (item.calendarColor.nsColor.withAlphaComponent(0.30), progress)
+        }
+
         if let progress = activeEventProgress(for: item, now: now, settings: settings) {
             return (item.calendarColor.nsColor.withAlphaComponent(0.30), progress)
         }
@@ -73,6 +80,39 @@ extension CalendarMonitor {
                 weekdayOnlyDuration(from: start, to: end)
             }
         )
+    }
+
+    nonisolated static func travelStartDate(for item: UpcomingItem) -> Date? {
+        guard item.kind == .event,
+              !item.isAllDay,
+              item.meetingURL == nil,
+              let travelTimeMinutes = item.travelTimeMinutes,
+              travelTimeMinutes > 0
+        else {
+            return nil
+        }
+
+        return item.date.addingTimeInterval(TimeInterval(-travelTimeMinutes * 60))
+    }
+
+    nonisolated static func shouldShowTravelDepartureState(for item: UpcomingItem, now: Date) -> Bool {
+        guard travelStartDate(for: item) != nil else { return false }
+        return now < item.date
+    }
+
+    nonisolated static func travelDepartureProgress(for item: UpcomingItem, now: Date) -> CGFloat? {
+        guard let travelStartDate = travelStartDate(for: item),
+              travelStartDate <= now,
+              now < item.date
+        else {
+            return nil
+        }
+
+        let travelDuration = item.date.timeIntervalSince(travelStartDate)
+        guard travelDuration > 0 else { return nil }
+
+        let elapsed = now.timeIntervalSince(travelStartDate)
+        return min(max(CGFloat(elapsed / travelDuration), 0), 1)
     }
 
     nonisolated static func activeItemProgress(

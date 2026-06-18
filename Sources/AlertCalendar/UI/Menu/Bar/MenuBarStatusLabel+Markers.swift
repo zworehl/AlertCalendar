@@ -25,6 +25,8 @@ extension MenuBarStatusLabel {
             drawSymbolMarker(symbolName: "gift.circle.fill", tintColor: markerColor.nsColor, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
         case .allDay(let markerColor):
             drawSymbolMarker(symbolName: "calendar.circle.fill", tintColor: markerColor.nsColor, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
+        case .travel(let markerColor):
+            drawSymbolMarker(symbolName: "car.fill", tintColor: markerColor.nsColor, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
         case .sunrise:
             drawAstronomyMarker(moment: .sunrise, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
         case .solarNoon:
@@ -71,6 +73,7 @@ extension MenuBarStatusLabel {
         case .reminder,
             .birthday,
             .allDay,
+            .travel,
             .sunrise,
             .solarNoon,
             .sunset,
@@ -181,8 +184,28 @@ extension MenuBarStatusLabel {
             width: markerWidth,
             height: markerHeight
         )
-        symbol.draw(in: rect)
+        let drawingRect = aspectFitRect(for: symbol.size, in: rect)
+        symbol.draw(in: drawingRect)
         tintColor.setFill()
-        rect.fill(using: .sourceAtop)
+        drawingRect.fill(using: .sourceAtop)
+    }
+
+    static func aspectFitRect(for imageSize: CGSize, in rect: CGRect) -> CGRect {
+        guard imageSize.width > 0,
+              imageSize.height > 0,
+              rect.width > 0,
+              rect.height > 0 else {
+            return rect
+        }
+
+        let scale = min(rect.width / imageSize.width, rect.height / imageSize.height)
+        let width = imageSize.width * scale
+        let height = imageSize.height * scale
+        return CGRect(
+            x: rect.midX - (width / 2),
+            y: rect.midY - (height / 2),
+            width: width,
+            height: height
+        )
     }
 }

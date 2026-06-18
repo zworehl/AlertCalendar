@@ -59,6 +59,7 @@ final class CalendarMonitor: ObservableObject {
     }
 
     var heartbeatCancellable: AnyCancellable?
+    var menuBarAnimationCancellable: AnyCancellable?
     var defaultsObserver: AnyCancellable?
     var eventStoreObserver: AnyCancellable?
     var appActivationObserver: AnyCancellable?

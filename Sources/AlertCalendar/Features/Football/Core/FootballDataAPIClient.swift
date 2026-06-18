@@ -132,7 +132,8 @@ actor FootballDataAPIClient {
     func scoreboardMatchesPage(
         url: URL,
         slug: String,
-        competitionName: String
+        competitionName: String,
+        competitionCategory: FootballCompetitionCategory? = nil
     ) async -> [FootballFixtureMatch] {
         let cacheKey = url.absoluteString
         let now = AlertCalendarClock.nowRoundedToSecond()
@@ -151,7 +152,8 @@ actor FootballDataAPIClient {
                     url: url,
                     slug: slug,
                     competitionName: competitionName,
-                    session: session
+                    session: session,
+                    competitionCategory: competitionCategory
                 )
             }
             scoreboardPageTasks[cacheKey] = task

@@ -22,13 +22,24 @@ struct FootballTeamSummary: Identifiable, Hashable {
     let isNational: Bool
 
     func withResolvedDetails(countryName: String?, isNational: Bool, logoURL: URL?) -> FootballTeamSummary {
-        FootballTeamSummary(
+        let resolvedCountryName = countryName ?? self.countryName
+        let resolvedIsNational = isNational || self.isNational
+        let resolvedLogoURL = FootballFederationLogoResolver.resolvedLogoURL(
+            existingLogoURL: logoURL ?? self.logoURL,
+            teamID: id,
+            name: name,
+            abbreviation: abbreviation,
+            countryName: resolvedCountryName,
+            isNational: resolvedIsNational
+        )
+
+        return FootballTeamSummary(
             id: id,
             name: name,
             abbreviation: abbreviation,
-            logoURL: logoURL ?? self.logoURL,
-            countryName: countryName ?? self.countryName,
-            isNational: isNational || self.isNational
+            logoURL: resolvedLogoURL,
+            countryName: resolvedCountryName,
+            isNational: resolvedIsNational
         )
     }
 }

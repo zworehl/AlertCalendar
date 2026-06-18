@@ -234,6 +234,7 @@ final class AlertCalendarModelMetadataTests: AlertCalendarModelTestCase {
         XCTAssertEqual(MenuMarkerStyle.allDay(.systemBlue), MenuMarkerStyle.allDay(.systemBlue))
         XCTAssertNotEqual(MenuMarkerStyle.color(.systemBlue), MenuMarkerStyle.reminder(.systemBlue))
         XCTAssertNotEqual(MenuMarkerStyle.birthday(.systemPink), MenuMarkerStyle.allDay(.systemPink))
+        XCTAssertNotEqual(MenuMarkerStyle.travel(.systemPink), MenuMarkerStyle.allDay(.systemPink))
         XCTAssertNotEqual(MenuMarkerStyle.newMoon, MenuMarkerStyle.fullMoon)
         XCTAssertNotEqual(MenuMarkerStyle.juneSolstice, MenuMarkerStyle.aphelion)
     }

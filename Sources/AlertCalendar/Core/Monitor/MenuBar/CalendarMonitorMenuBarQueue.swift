@@ -38,8 +38,10 @@ extension CalendarMonitor {
             if leftPriority != rightPriority {
                 return leftPriority < rightPriority
             }
-            if left.date != right.date {
-                return left.date < right.date
+            let leftDate = Self.menuBarRotationReferenceDate(for: left, now: now)
+            let rightDate = Self.menuBarRotationReferenceDate(for: right, now: now)
+            if leftDate != rightDate {
+                return leftDate < rightDate
             }
             if left.kind != right.kind {
                 return left.kind.rawValue < right.kind.rawValue
@@ -54,6 +56,15 @@ extension CalendarMonitor {
 
     func menuBarQueuePriority(for item: UpcomingItem) -> Int {
         item.isAllDay ? 1 : 0
+    }
+
+    nonisolated static func menuBarRotationReferenceDate(for item: UpcomingItem, now: Date) -> Date {
+        if let travelStartDate = travelStartDate(for: item),
+           now < item.date {
+            return travelStartDate
+        }
+
+        return item.date
     }
 
     func hasUpcomingItemsOutsideMenuBarWindow(now: Date, settings: AppSettings) -> Bool {

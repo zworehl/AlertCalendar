@@ -76,6 +76,38 @@ extension CalendarMonitor {
             }
     }
 
+    func setMenuBarAlertAnimationEnabled(_ isEnabled: Bool) {
+        if isEnabled {
+            guard menuBarAnimationCancellable == nil else { return }
+            menuBarAnimationCancellable = Timer.publish(
+                every: CalendarMonitorCadence.menuBarAnimationInterval,
+                on: .main,
+                in: .common
+            )
+                .autoconnect()
+                .sink { [weak self] now in
+                    self?.updateMenuBarAlertAnimation(now: now)
+                }
+            updateMenuBarAlertAnimation(now: Date())
+            return
+        }
+
+        menuBarAnimationCancellable?.cancel()
+        menuBarAnimationCancellable = nil
+    }
+
+    func updateMenuBarAlertAnimation(now: Date) {
+        guard currentSettings.enableBlinkAlert,
+              combinedMenuBarAlertedSegmentIndex != nil
+        else {
+            setMenuBarAlertAnimationEnabled(false)
+            setIfChanged(\.combinedMenuBarAlertTextOpacity, to: 0)
+            return
+        }
+
+        setIfChanged(\.combinedMenuBarAlertTextOpacity, to: Self.alertBlinkTextOpacity(now: now))
+    }
+
     func requestCalendarAccess() async {
         hasEventsAccess = await requestEventsAccess()
         hasRemindersAccess = await requestRemindersAccess()

@@ -474,6 +474,14 @@ final class FootballFixtureDurationAndContextTests: FootballFixtureFormatterTest
             CalendarMonitor.footballRefreshInterval(for: [distant], now: now),
             CalendarMonitor.footballIdleRefreshInterval
         )
+        XCTAssertEqual(
+            CalendarMonitor.footballManagedRefreshInterval(
+                for: [],
+                hasMissingTrackedMatches: true,
+                now: now
+            ),
+            CalendarMonitor.footballMissingCacheRefreshInterval
+        )
     }
     func testManagedActualEndBackfillForcesOnlyTrackedFinishedMatchesWithoutKnownEnd() {
         let startDate = Date(timeIntervalSince1970: 1_720_000_000)

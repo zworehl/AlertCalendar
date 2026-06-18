@@ -5,7 +5,6 @@ struct AstronomyCoordinatesCard: View {
     @Binding var useAutomaticAstronomyLocation: Bool
     @Binding var astronomyLatitude: Double
     @Binding var astronomyLongitude: Double
-    let astronomyLocationStatus: String
     let onDetectNow: () -> Void
     @State private var latitudeInput = ""
     @State private var longitudeInput = ""
@@ -40,12 +39,6 @@ struct AstronomyCoordinatesCard: View {
                         onDetectNow()
                     }
                 }
-            }
-
-            if shouldShowLocationStatus {
-                Text(astronomyLocationStatus)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
 
             if !useAutomaticAstronomyLocation {
@@ -176,20 +169,6 @@ struct AstronomyCoordinatesCard: View {
     private enum CoordinateAxis: Hashable {
         case latitude
         case longitude
-    }
-
-    private var shouldShowLocationStatus: Bool {
-        guard astronomyLocationStatus != "Manual coordinates" else { return false }
-        guard useAutomaticAstronomyLocation else { return true }
-        return !isAutomaticLocationResultStatus
-    }
-
-    private var isAutomaticLocationResultStatus: Bool {
-        astronomyLocationStatus.hasPrefix("Auto location:")
-            || astronomyLocationStatus.hasPrefix("Approximate auto location:")
-            || astronomyLocationStatus.hasPrefix("Detected location:")
-            || astronomyLocationStatus.hasPrefix("Detected approximate location:")
-            || astronomyLocationStatus.contains("Using saved coordinates:")
     }
 
     private func parsedCoordinateValue(_ raw: String, axis: CoordinateAxis) -> Double? {
