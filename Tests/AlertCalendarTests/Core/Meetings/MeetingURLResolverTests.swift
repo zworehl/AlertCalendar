@@ -58,6 +58,17 @@ final class MeetingURLResolverTests: XCTestCase {
         XCTAssertFalse(teamsURL?.absoluteString.contains("amp;") ?? true)
     }
 
+    func testURLInspectionSkipsPlainLocationText() {
+        XCTAssertFalse(MeetingURLResolver.shouldInspectTextForURLs("Room 310, San Jose"))
+        XCTAssertFalse(MeetingURLResolver.shouldInspectTextForURLs("Office - Avenida Central"))
+    }
+
+    func testURLInspectionKeepsMeetingLinkCandidates() {
+        XCTAssertTrue(MeetingURLResolver.shouldInspectTextForURLs("Join from https://g.co/meet/abc-defg-hij"))
+        XCTAssertTrue(MeetingURLResolver.shouldInspectTextForURLs("https://nam12.safelinks.protection.outlook.com/?url=https%3A%2F%2Fteams.microsoft.com%2Fl%2Fmeetup-join"))
+        XCTAssertTrue(MeetingURLResolver.shouldInspectTextForURLs("msteams:/l/meetup-join/19:meeting"))
+    }
+
     func testEventMeetingURLResolverUsesEventKitConferenceURL() {
         let event = EKEvent(eventStore: EKEventStore())
         let teamsURL = URL(

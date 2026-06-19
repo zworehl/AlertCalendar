@@ -58,6 +58,10 @@ extension CalendarMonitor {
             return true
         }
 
+        guard MeetingURLResolver.shouldInspectTextForURLs(text) else {
+            return false
+        }
+
         return allURLs(in: text).contains(where: isKnownMeetingURL)
     }
 

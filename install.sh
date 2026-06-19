@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_NAME="AlertCalendar"
 BINARY_NAME="AlertCalendar"
+BUNDLE_IDENTIFIER="com.zworehl.alertcalendar"
 APP_DIR="${APP_DIR:-/Applications}"
 OPEN_AFTER_INSTALL="${OPEN_AFTER_INSTALL:-1}"
 ICON_SOURCE="$ROOT/Sources/AlertCalendar/Resources/Images/icon.png"
@@ -34,15 +35,120 @@ BINARY_PATH="$PRODUCTS_DIR/$BINARY_NAME"
 
 APP_BUNDLE="$APP_DIR/${APP_NAME}.app"
 
+running_app_pids() {
+  pgrep -x "$BINARY_NAME" 2>/dev/null || true
+}
+
+terminate_running_instances() {
+  local pid
+  local pids=()
+  local remaining=()
+  local deadline
+
+  while IFS= read -r pid; do
+    if [[ -n "$pid" ]]; then
+      pids+=("$pid")
+    fi
+  done < <(running_app_pids)
+
+  if [[ "${#pids[@]}" -eq 0 ]]; then
+    return
+  fi
+
+  echo "Stopping running ${APP_NAME} instance(s): ${pids[*]}"
+  osascript -e "tell application id \"$BUNDLE_IDENTIFIER\" to quit" >/dev/null 2>&1 || true
+
+  deadline=$((SECONDS + 10))
+  while (( SECONDS < deadline )); do
+    remaining=()
+    for pid in "${pids[@]}"; do
+      if kill -0 "$pid" 2>/dev/null; then
+        remaining+=("$pid")
+      fi
+    done
+
+    if [[ "${#remaining[@]}" -eq 0 ]]; then
+      return
+    fi
+
+    sleep 0.2
+  done
+
+  for pid in "${remaining[@]}"; do
+    echo "Force stopping stale ${APP_NAME} instance: $pid"
+    kill "$pid" 2>/dev/null || true
+  done
+
+  sleep 1
+  for pid in "${remaining[@]}"; do
+    kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null || true
+  done
+}
+
+compile_asset_catalog() {
+  local asset_tmp
+  local asset_catalog
+
+  asset_tmp="$(mktemp -d)"
+  asset_catalog="$asset_tmp/Assets.xcassets"
+
+  mkdir -p "$asset_catalog/AccentColor.colorset"
+  cat > "$asset_catalog/Contents.json" <<'JSON'
+{
+  "info": {
+    "author": "xcode",
+    "version": 1
+  }
+}
+JSON
+  cat > "$asset_catalog/AccentColor.colorset/Contents.json" <<'JSON'
+{
+  "colors": [
+    {
+      "idiom": "universal",
+      "color": {
+        "color-space": "srgb",
+        "components": {
+          "red": "0.250",
+          "green": "0.560",
+          "blue": "0.960",
+          "alpha": "1.000"
+        }
+      }
+    }
+  ],
+  "info": {
+    "author": "xcode",
+    "version": 1
+  }
+}
+JSON
+
+  if ! xcrun actool "$asset_catalog" \
+    --compile "$APP_BUNDLE/Contents/Resources" \
+    --platform macosx \
+    --minimum-deployment-target "$DEPLOYMENT_TARGET" \
+    --output-format human-readable-text >/dev/null; then
+    rm -rf "$asset_tmp"
+    echo "Unable to compile asset catalog."
+    exit 1
+  fi
+
+  rm -rf "$asset_tmp"
+}
+
 remove_duplicate_installs() {
   local candidate
 
-  while IFS= read -r candidate; do
-    if [[ "$candidate" != "$APP_BUNDLE" ]]; then
-      echo "Removing duplicate install: $candidate"
-      rm -rf "$candidate"
-    fi
-  done < <(find "$USER_APP_DIR" /Applications -maxdepth 2 -iname "${APP_NAME}.app" -print 2>/dev/null)
+  for search_dir in "$USER_APP_DIR" /Applications; do
+    [[ -d "$search_dir" ]] || continue
+    while IFS= read -r candidate; do
+      if [[ "$candidate" != "$APP_BUNDLE" ]]; then
+        echo "Removing duplicate install: $candidate"
+        rm -rf "$candidate"
+      fi
+    done < <(find "$search_dir" -maxdepth 2 -iname "${APP_NAME}.app" -print 2>/dev/null)
+  done
 }
 
 echo "[1/4] Building ${APP_NAME} (${BUILD_CONFIGURATION})..."
@@ -65,6 +171,7 @@ if [[ ! -d "$RESOURCE_BUNDLE_SOURCE" ]]; then
 fi
 
 echo "[2/4] Installing to ${APP_BUNDLE}..."
+terminate_running_instances
 remove_duplicate_installs
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
@@ -87,6 +194,7 @@ if [[ -f "$ICON_SOURCE" ]]; then
   iconutil -c icns "$ICONSET_DIR" -o "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
   rm -rf "$ICONSET_DIR"
 fi
+compile_asset_catalog
 
 cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -98,7 +206,7 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
   <key>CFBundleDisplayName</key>
   <string>${APP_NAME}</string>
   <key>CFBundleIdentifier</key>
-  <string>com.zworehl.alertcalendar</string>
+  <string>${BUNDLE_IDENTIFIER}</string>
   <key>CFBundleExecutable</key>
   <string>${BINARY_NAME}</string>
   <key>CFBundlePackageType</key>
@@ -111,6 +219,8 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
   <string>AppIcon</string>
   <key>LSMinimumSystemVersion</key>
   <string>13.0</string>
+  <key>LSMultipleInstancesProhibited</key>
+  <true/>
   <key>NSCalendarsUsageDescription</key>
   <string>AlertCalendar needs Calendar access to show upcoming events and alerts.</string>
   <key>NSRemindersUsageDescription</key>

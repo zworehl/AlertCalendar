@@ -1,6 +1,8 @@
 import Foundation
 
 enum MeetingURLResolver {
+    private static let linkDetectorThreadKey = "AlertCalendar.MeetingURLResolver.linkDetector"
+
     private static let assetExtensions: Set<String> = [
         "png", "jpg", "jpeg", "gif", "svg", "webp", "bmp", "ico", "tif", "tiff", "heic", "avif",
     ]
@@ -49,7 +51,7 @@ enum MeetingURLResolver {
     }
 
     static func allURLs(in text: String) -> [URL] {
-        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else {
+        guard let detector = linkDetector() else {
             return []
         }
 
@@ -65,6 +67,32 @@ enum MeetingURLResolver {
         }
 
         return urls
+    }
+
+    static func shouldInspectTextForURLs(_ text: String) -> Bool {
+        let normalized = text.lowercased()
+        let urlMarkers = [
+            "://",
+            "www.",
+            "http",
+            "msteams:",
+            "microsoftteams:",
+            "teams.",
+            "zoom.",
+            "meet.",
+            "webex.",
+            "whereby.",
+            "jitsi.",
+            "chime.aws",
+            "amazonchime.",
+            "aka.ms",
+            "g.co",
+            ".com",
+            ".net",
+            ".org",
+        ]
+
+        return urlMarkers.contains { normalized.contains($0) }
     }
 
     static func resolvedMeetingURL(from url: URL) -> URL? {
@@ -210,6 +238,20 @@ enum MeetingURLResolver {
         let decodedText = text.decodingCommonHTMLEntities()
         guard decodedText != text else { return [text] }
         return [decodedText, text]
+    }
+
+    private static func linkDetector() -> NSDataDetector? {
+        let threadDictionary = Thread.current.threadDictionary
+        if let detector = threadDictionary[linkDetectorThreadKey] as? NSDataDetector {
+            return detector
+        }
+
+        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else {
+            return nil
+        }
+
+        threadDictionary[linkDetectorThreadKey] = detector
+        return detector
     }
 
     private static func isMeetingAssetURL(_ url: URL) -> Bool {
