@@ -146,13 +146,103 @@ struct SettingsView: View {
             }
         }
 
-        static func currentLocationAuthorizationStatus() -> CLAuthorizationStatus {
-            guard CLLocationManager.locationServicesEnabled() else { return .restricted }
-            return CLLocationManager().authorizationStatus
+        @MainActor private static let authorizationCacheInterval: TimeInterval = 30
+        @MainActor private static var cachedEventAuthorizationStatus: EKAuthorizationStatus?
+        @MainActor private static var cachedEventAuthorizationStatusDate: Date?
+        @MainActor private static var cachedReminderAuthorizationStatus: EKAuthorizationStatus?
+        @MainActor private static var cachedReminderAuthorizationStatusDate: Date?
+        @MainActor private static let locationAuthorizationManager = CLLocationManager()
+        @MainActor private static var cachedLocationAuthorizationStatus: CLAuthorizationStatus?
+        @MainActor private static var cachedLocationAuthorizationStatusDate: Date?
+        @MainActor private static var cachedContactsAuthorizationStatus: CNAuthorizationStatus?
+        @MainActor private static var cachedContactsAuthorizationStatusDate: Date?
+
+        @MainActor static func currentEventAuthorizationStatus(
+            now: Date = Date(),
+            forceRefresh: Bool = false
+        ) -> EKAuthorizationStatus {
+            if !forceRefresh,
+               let cachedEventAuthorizationStatus,
+               let cachedEventAuthorizationStatusDate,
+               now.timeIntervalSince(cachedEventAuthorizationStatusDate) < authorizationCacheInterval {
+                return cachedEventAuthorizationStatus
+            }
+
+            let status = EKEventStore.authorizationStatus(for: .event)
+            cachedEventAuthorizationStatus = status
+            cachedEventAuthorizationStatusDate = now
+            return status
         }
 
-        static func currentContactsAuthorizationStatus() -> CNAuthorizationStatus {
-            CNContactStore.authorizationStatus(for: .contacts)
+        @MainActor static func currentReminderAuthorizationStatus(
+            now: Date = Date(),
+            forceRefresh: Bool = false
+        ) -> EKAuthorizationStatus {
+            if !forceRefresh,
+               let cachedReminderAuthorizationStatus,
+               let cachedReminderAuthorizationStatusDate,
+               now.timeIntervalSince(cachedReminderAuthorizationStatusDate) < authorizationCacheInterval {
+                return cachedReminderAuthorizationStatus
+            }
+
+            let status = EKEventStore.authorizationStatus(for: .reminder)
+            cachedReminderAuthorizationStatus = status
+            cachedReminderAuthorizationStatusDate = now
+            return status
+        }
+
+        @MainActor static func currentLocationAuthorizationStatus(
+            now: Date = Date(),
+            forceRefresh: Bool = false
+        ) -> CLAuthorizationStatus {
+            if !forceRefresh,
+               let cachedLocationAuthorizationStatus,
+               let cachedLocationAuthorizationStatusDate,
+               now.timeIntervalSince(cachedLocationAuthorizationStatusDate) < authorizationCacheInterval {
+                return cachedLocationAuthorizationStatus
+            }
+
+            let status: CLAuthorizationStatus
+            if CLLocationManager.locationServicesEnabled() {
+                status = locationAuthorizationManager.authorizationStatus
+            } else {
+                status = .restricted
+            }
+
+            updateCachedLocationAuthorizationStatus(status, now: now)
+            return status
+        }
+
+        @MainActor static func updateCachedLocationAuthorizationStatus(
+            _ status: CLAuthorizationStatus,
+            now: Date = Date()
+        ) {
+            cachedLocationAuthorizationStatus = status
+            cachedLocationAuthorizationStatusDate = now
+        }
+
+        @MainActor static func currentContactsAuthorizationStatus(
+            now: Date = Date(),
+            forceRefresh: Bool = false
+        ) -> CNAuthorizationStatus {
+            if !forceRefresh,
+               let cachedContactsAuthorizationStatus,
+               let cachedContactsAuthorizationStatusDate,
+               now.timeIntervalSince(cachedContactsAuthorizationStatusDate) < authorizationCacheInterval {
+                return cachedContactsAuthorizationStatus
+            }
+
+            let status = CNContactStore.authorizationStatus(for: .contacts)
+            updateCachedContactsAuthorizationStatus(status, now: now)
+            return status
+        }
+
+        @MainActor static func updateCachedContactsAuthorizationStatus(
+            _ status: CNAuthorizationStatus,
+            now: Date = Date()
+        ) {
+            cachedContactsAuthorizationStatus = status
+            cachedContactsAuthorizationStatusDate = now
         }
     }
 
@@ -225,8 +315,10 @@ struct SettingsView: View {
     @State var availableReminderCalendars: [AvailableCalendar] = []
     @State var calendarAccessDescription = "Requesting access..."
     @State var astronomyLocationStatus = "Manual coordinates"
-    @State var locationAuthorizationStatus = SettingsPermissionKind.currentLocationAuthorizationStatus()
-    @State var contactsAuthorizationStatus = SettingsPermissionKind.currentContactsAuthorizationStatus()
+    @State var eventAuthorizationStatus: EKAuthorizationStatus = .notDetermined
+    @State var reminderAuthorizationStatus: EKAuthorizationStatus = .notDetermined
+    @State var locationAuthorizationStatus: CLAuthorizationStatus = .notDetermined
+    @State var contactsAuthorizationStatus: CNAuthorizationStatus = .notDetermined
     @State var lastRefreshDate: Date?
     @State var refreshDiagnostics = CalendarMonitorRefreshDiagnostics()
     @State var isShowingPermissionDiagnostics = false
@@ -360,6 +452,8 @@ struct SettingsView: View {
             astronomyLocationStatus = status
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            eventAuthorizationStatus = SettingsPermissionKind.currentEventAuthorizationStatus()
+            reminderAuthorizationStatus = SettingsPermissionKind.currentReminderAuthorizationStatus()
             locationAuthorizationStatus = SettingsPermissionKind.currentLocationAuthorizationStatus()
             contactsAuthorizationStatus = SettingsPermissionKind.currentContactsAuthorizationStatus()
         }

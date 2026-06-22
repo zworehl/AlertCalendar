@@ -142,27 +142,19 @@ extension SettingsView {
     func permissionGrantState(for permission: SettingsPermissionKind) -> PermissionGrantState {
         switch permission {
         case .events:
-            if hasEventsAccess || Self.isGrantedEventKitAuthorizationStatus(EKEventStore.authorizationStatus(for: .event)) {
+            if hasEventsAccess || Self.isGrantedEventKitAuthorizationStatus(eventAuthorizationStatus) {
                 return .allowed
             }
-            return Self.permissionGrantState(for: EKEventStore.authorizationStatus(for: .event))
+            return Self.permissionGrantState(for: eventAuthorizationStatus)
         case .reminders:
-            if hasRemindersAccess || Self.isGrantedEventKitAuthorizationStatus(EKEventStore.authorizationStatus(for: .reminder)) {
+            if hasRemindersAccess || Self.isGrantedEventKitAuthorizationStatus(reminderAuthorizationStatus) {
                 return .allowed
             }
-            return Self.permissionGrantState(for: EKEventStore.authorizationStatus(for: .reminder))
+            return Self.permissionGrantState(for: reminderAuthorizationStatus)
         case .location:
-            let status = SettingsPermissionKind.currentLocationAuthorizationStatus()
-            if status != locationAuthorizationStatus {
-                locationAuthorizationStatus = status
-            }
-            return Self.permissionGrantState(for: status)
+            return Self.permissionGrantState(for: locationAuthorizationStatus)
         case .contacts:
-            let status = SettingsPermissionKind.currentContactsAuthorizationStatus()
-            if status != contactsAuthorizationStatus {
-                contactsAuthorizationStatus = status
-            }
-            return Self.permissionGrantState(for: status)
+            return Self.permissionGrantState(for: contactsAuthorizationStatus)
         }
     }
 
@@ -176,29 +168,34 @@ extension SettingsView {
             switch permission {
             case .events:
                 monitor.hasEventsAccess = await monitor.requestEventsAccess()
+                eventAuthorizationStatus = SettingsPermissionKind.currentEventAuthorizationStatus(forceRefresh: true)
                 monitor.updateAccessDescription()
             case .reminders:
                 monitor.hasRemindersAccess = await monitor.requestRemindersAccess()
+                reminderAuthorizationStatus = SettingsPermissionKind.currentReminderAuthorizationStatus(forceRefresh: true)
                 monitor.updateAccessDescription()
             case .location:
                 let status = await monitor.requestLocationAuthorizationIfNeeded()
                 locationAuthorizationStatus = status
+                SettingsPermissionKind.updateCachedLocationAuthorizationStatus(status)
                 if monitor.currentSettings.useAutomaticAstronomyLocation,
                    Self.permissionGrantState(for: status) == .allowed {
                     monitor.refreshAstronomyCoordinatesFromSystem()
                 }
             case .contacts:
                 _ = await MeetingContactResolver.shared.requestAccess()
-                contactsAuthorizationStatus = SettingsPermissionKind.currentContactsAuthorizationStatus()
+                contactsAuthorizationStatus = SettingsPermissionKind.currentContactsAuthorizationStatus(forceRefresh: true)
             }
 
             refreshPermissionStatuses()
         }
     }
 
-    func refreshPermissionStatuses() {
-        locationAuthorizationStatus = SettingsPermissionKind.currentLocationAuthorizationStatus()
-        contactsAuthorizationStatus = SettingsPermissionKind.currentContactsAuthorizationStatus()
+    func refreshPermissionStatuses(forceRefresh: Bool = true) {
+        eventAuthorizationStatus = SettingsPermissionKind.currentEventAuthorizationStatus(forceRefresh: forceRefresh)
+        reminderAuthorizationStatus = SettingsPermissionKind.currentReminderAuthorizationStatus(forceRefresh: forceRefresh)
+        locationAuthorizationStatus = SettingsPermissionKind.currentLocationAuthorizationStatus(forceRefresh: forceRefresh)
+        contactsAuthorizationStatus = SettingsPermissionKind.currentContactsAuthorizationStatus(forceRefresh: forceRefresh)
         monitor.refreshAvailableCalendars()
         synchronizeSettingsStateFromMonitor()
         monitor.refreshNow(reason: .manual)

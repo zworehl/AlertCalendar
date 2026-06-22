@@ -81,7 +81,7 @@ extension SettingsView {
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 10) {
                         Button {
-                            refreshPermissionStatuses()
+                            refreshPermissionStatuses(forceRefresh: true)
                         } label: {
                             Label("Refresh Permission Status", systemImage: "arrow.clockwise")
                         }
@@ -98,7 +98,7 @@ extension SettingsView {
 
                     VStack(alignment: .leading, spacing: 10) {
                         Button {
-                            refreshPermissionStatuses()
+                            refreshPermissionStatuses(forceRefresh: true)
                         } label: {
                             Label("Refresh Permission Status", systemImage: "arrow.clockwise")
                         }

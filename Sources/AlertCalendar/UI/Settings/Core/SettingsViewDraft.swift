@@ -38,7 +38,10 @@ extension SettingsView {
         availableReminderCalendars = monitor.availableReminderCalendars
         calendarAccessDescription = monitor.calendarAccessDescription
         astronomyLocationStatus = monitor.astronomyLocationStatus
+        eventAuthorizationStatus = SettingsPermissionKind.currentEventAuthorizationStatus()
+        reminderAuthorizationStatus = SettingsPermissionKind.currentReminderAuthorizationStatus()
         locationAuthorizationStatus = SettingsPermissionKind.currentLocationAuthorizationStatus()
+        contactsAuthorizationStatus = SettingsPermissionKind.currentContactsAuthorizationStatus()
         lastRefreshDate = monitor.lastRefreshDate
         refreshDiagnostics = monitor.refreshDiagnostics
         slackConnections = monitor.slackConnections()
