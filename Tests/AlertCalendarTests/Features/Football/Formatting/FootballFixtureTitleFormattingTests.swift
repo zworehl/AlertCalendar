@@ -150,6 +150,26 @@ final class FootballFixtureTitleFormattingTests: FootballFixtureFormatterTestCas
         XCTAssertEqual(display.competitionLocalLogoPath, "/tmp/competition.png")
         XCTAssertEqual(display.homeLocalLogoPath, "/tmp/home.png")
         XCTAssertEqual(display.awayLocalLogoPath, "/tmp/away.png")
+        XCTAssertFalse(display.homeLogoUsesCircularOutline)
+        XCTAssertFalse(display.awayLogoUsesCircularOutline)
+    }
+    func testMenuBarDisplayMarksNationalTeamLogosAsCircular() {
+        let match = FootballTestData.friendlyMatch(
+            id: "national-badges",
+            statusState: .scheduled
+        )
+
+        let display = FootballFixtureFormatter.menuBarDisplay(
+            for: match,
+            competitionLocalLogoURL: nil,
+            homeLocalLogoURL: URL(fileURLWithPath: "/tmp/home-flag.png"),
+            awayLocalLogoURL: URL(fileURLWithPath: "/tmp/away-flag.png")
+        )
+
+        XCTAssertEqual(display.homeLocalLogoPath, "/tmp/home-flag.png")
+        XCTAssertEqual(display.awayLocalLogoPath, "/tmp/away-flag.png")
+        XCTAssertTrue(display.homeLogoUsesCircularOutline)
+        XCTAssertTrue(display.awayLogoUsesCircularOutline)
     }
     func testCalendarTitleUsesBlackFlagAndTBDForUnknownKnockoutSlots() {
         let match = FootballFixtureMatch(

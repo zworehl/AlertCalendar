@@ -352,6 +352,7 @@ struct FootballMatchSectionTeamHeaderView: View {
             localPath: localLogoPath,
             remoteURL: FootballFixtureFormatter.isUnknownTeam(team) ? nil : team.logoURL,
             isUnknown: FootballFixtureFormatter.isUnknownTeam(team),
+            usesCircularOutline: team.isNational,
             size: 26,
             placeholderSymbolSize: 13
         )

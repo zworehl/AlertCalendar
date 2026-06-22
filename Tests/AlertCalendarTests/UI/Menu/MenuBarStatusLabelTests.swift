@@ -17,6 +17,21 @@ final class MenuBarStatusLabelTests: XCTestCase {
         XCTAssertEqual(fitted.midY, rect.midY, accuracy: 0.001)
     }
 
+    func testFootballLogoAspectFillCoversCircleWithoutDistortion() {
+        let rect = CGRect(x: 10, y: 20, width: 18, height: 18)
+        let filled = MenuBarStatusLabel.aspectFillRect(
+            for: CGSize(width: 36, height: 18),
+            in: rect
+        )
+
+        XCTAssertEqual(filled.width, 36, accuracy: 0.001)
+        XCTAssertEqual(filled.height, 18, accuracy: 0.001)
+        XCTAssertEqual(filled.midX, rect.midX, accuracy: 0.001)
+        XCTAssertEqual(filled.midY, rect.midY, accuracy: 0.001)
+        XCTAssertLessThanOrEqual(filled.minX, rect.minX)
+        XCTAssertGreaterThanOrEqual(filled.maxX, rect.maxX)
+    }
+
     func testFootballAttributedSegmentAppliesAlertColorButKeepsGoalHighlight() throws {
         let display = FootballMenuBarDisplay(
             accessibilityText: "USA 2 - 0 POR",
@@ -29,7 +44,9 @@ final class MenuBarStatusLabelTests: XCTestCase {
             awayScore: "0",
             competitionLocalLogoPath: nil,
             homeLocalLogoPath: nil,
-            awayLocalLogoPath: nil
+            awayLocalLogoPath: nil,
+            homeLogoUsesCircularOutline: true,
+            awayLogoUsesCircularOutline: true
         )
 
         let attributed = MenuBarStatusLabel.footballAttributedSegment(

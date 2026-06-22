@@ -255,11 +255,26 @@ extension CalendarMonitor {
                 partialResult[team.id] = team
             }
 
-        let teamLogoRequests = teams.values.compactMap { team -> (String, URL)? in
-            guard let logoURL = team.logoURL else {
-                return nil
+        var teamLogoRequests: [(String, URL)] = []
+        for team in teams.values {
+            if team.isNational,
+               let localFlagURL = FootballNationalLogoResolver.localFlagImageURL(
+                   teamID: team.id,
+                   name: team.name,
+                   abbreviation: team.abbreviation,
+                   countryName: team.countryName
+               ) {
+                let localPath = localFlagURL.path
+                if footballLocalLogoPathsByTeamID[team.id] != localPath {
+                    footballLocalLogoPathsByTeamID[team.id] = localPath
+                }
+                continue
             }
-            return (team.id, logoURL)
+
+            guard let logoURL = team.logoURL else {
+                continue
+            }
+            teamLogoRequests.append((team.id, logoURL))
         }
         let teamLogoPaths = await resolvedFootballLogoPaths(for: teamLogoRequests)
         for (teamID, path) in teamLogoPaths where footballLocalLogoPathsByTeamID[teamID] != path {

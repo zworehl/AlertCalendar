@@ -94,7 +94,7 @@ final class FootballDataAPIClientFetchMatchesTests: FootballDataAPIClientTestCas
         XCTAssertNil(matches.first?.locationText)
     }
 
-    func testFetchMatchesUsesFederationLogosForNationalCompetitionWithoutEnrichment() async throws {
+    func testFetchMatchesUsesCountryFlagsForNationalCompetitionWithoutEnrichment() async throws {
         let startDate = Date().addingTimeInterval(6 * 60 * 60)
         let startDateText = ISO8601DateFormatter().string(from: startDate)
         let session = makeMockSession { request in
@@ -164,15 +164,15 @@ final class FootballDataAPIClientFetchMatchesTests: FootballDataAPIClientTestCas
         XCTAssertTrue(match.awayTeam.isNational)
         XCTAssertEqual(
             match.homeTeam.logoURL?.absoluteString,
-            "https://api.fifa.com/api/v3/picture/associations-sq-2/USA"
+            "https://a.espncdn.com/i/teamlogos/countries/500/usa.png"
         )
         XCTAssertEqual(
             match.awayTeam.logoURL?.absoluteString,
-            "https://api.fifa.com/api/v3/picture/associations-sq-2/ESP"
+            "https://a.espncdn.com/i/teamlogos/countries/500/esp.png"
         )
     }
 
-    func testFetchMatchesUsesPresetCategoryForCustomNationalCompetitionLogos() async throws {
+    func testFetchMatchesUsesPresetCategoryForCustomNationalCompetitionFlags() async throws {
         let startDate = Date().addingTimeInterval(6 * 60 * 60)
         let startDateText = ISO8601DateFormatter().string(from: startDate)
         let session = makeMockSession { request in
@@ -240,11 +240,11 @@ final class FootballDataAPIClientFetchMatchesTests: FootballDataAPIClientTestCas
         let match = try XCTUnwrap(matches.first)
         XCTAssertEqual(
             match.homeTeam.logoURL?.absoluteString,
-            "https://api.fifa.com/api/v3/picture/associations-sq-2/CRC"
+            "https://a.espncdn.com/i/teamlogos/countries/500/crc.png"
         )
         XCTAssertEqual(
             match.awayTeam.logoURL?.absoluteString,
-            "https://api.fifa.com/api/v3/picture/associations-sq-2/MEX"
+            "https://a.espncdn.com/i/teamlogos/countries/500/mex.png"
         )
     }
 

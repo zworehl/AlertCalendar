@@ -139,6 +139,7 @@ extension SettingsFootballFixturesSectionView {
                     localPath: localTeamLogoPath(for: team),
                     remoteURL: team.logoURL,
                     isUnknown: FootballFixtureFormatter.isUnknownTeam(team),
+                    usesCircularOutline: team.isNational,
                     size: 18,
                     placeholderSymbolSize: 9
                 )
@@ -149,6 +150,7 @@ extension SettingsFootballFixturesSectionView {
                     localPath: localTeamLogoPath(for: team),
                     remoteURL: team.logoURL,
                     isUnknown: FootballFixtureFormatter.isUnknownTeam(team),
+                    usesCircularOutline: team.isNational,
                     size: 18,
                     placeholderSymbolSize: 9
                 )

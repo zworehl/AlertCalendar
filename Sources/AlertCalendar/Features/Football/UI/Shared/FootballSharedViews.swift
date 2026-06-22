@@ -1,4 +1,5 @@
 import AppKit
+import ImageIO
 import SwiftUI
 
 struct FootballStatusAccessoriesData {
@@ -21,18 +22,34 @@ struct FootballTeamLogoView: View {
     let localPath: String?
     let remoteURL: URL?
     let isUnknown: Bool
+    var usesCircularOutline = false
     var size: CGFloat = 16
     var placeholderSymbolSize: CGFloat = 8
 
     var body: some View {
-        FootballRemoteLogoView(localPath: localPath, remoteURL: isUnknown ? nil : remoteURL, size: size) {
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                .fill(Color.secondary.opacity(0.15))
-                .overlay(
-                    Image(systemName: "shield")
-                        .font(.system(size: placeholderSymbolSize, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                )
+        FootballRemoteLogoView(
+            localPath: localPath,
+            remoteURL: isUnknown ? nil : remoteURL,
+            size: size,
+            usesCircularOutline: usesCircularOutline
+        ) {
+            if usesCircularOutline {
+                Circle()
+                    .fill(FootballFlagCircleStyle.fill)
+                    .overlay(
+                        Image(systemName: "flag")
+                            .font(.system(size: placeholderSymbolSize, weight: .semibold))
+                            .foregroundStyle(FootballFlagCircleStyle.placeholderTint)
+                    )
+            } else {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(Color.secondary.opacity(0.15))
+                    .overlay(
+                        Image(systemName: "shield")
+                            .font(.system(size: placeholderSymbolSize, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    )
+            }
         }
     }
 }
@@ -44,7 +61,7 @@ struct FootballCompetitionLogoView: View {
     var placeholderSymbolSize: CGFloat = 10
 
     var body: some View {
-        FootballRemoteLogoView(localPath: localPath, remoteURL: remoteURL, size: size) {
+        FootballRemoteLogoView(localPath: localPath, remoteURL: remoteURL, size: size, usesCircularOutline: false) {
             Image(systemName: "trophy")
                 .font(.system(size: placeholderSymbolSize, weight: .semibold))
                 .foregroundStyle(.secondary)
@@ -117,6 +134,7 @@ private struct FootballRemoteLogoView<Placeholder: View>: View {
     let localPath: String?
     let remoteURL: URL?
     let size: CGFloat
+    let usesCircularOutline: Bool
     let placeholder: Placeholder
     @State private var localImage: NSImage?
     @State private var localImagePath: String?
@@ -126,11 +144,13 @@ private struct FootballRemoteLogoView<Placeholder: View>: View {
         localPath: String?,
         remoteURL: URL?,
         size: CGFloat,
+        usesCircularOutline: Bool,
         @ViewBuilder placeholder: () -> Placeholder
     ) {
         self.localPath = localPath
         self.remoteURL = remoteURL
         self.size = size
+        self.usesCircularOutline = usesCircularOutline
         self.placeholder = placeholder()
     }
 
@@ -141,18 +161,13 @@ private struct FootballRemoteLogoView<Placeholder: View>: View {
 
         Group {
             if let image = stateImage ?? cachedImage {
-                Image(nsImage: image)
-                    .resizable()
-                    .interpolation(.high)
-                    .scaledToFit()
+                logoImage(Image(nsImage: image))
             } else if shouldLoadLocalImage {
                 placeholder
             } else {
                 AsyncImage(url: remoteURL, transaction: Transaction(animation: nil)) { phase in
                     if let image = phase.image {
-                        image
-                            .resizable()
-                            .scaledToFit()
+                        logoImage(image)
                     } else {
                         placeholder
                     }
@@ -160,9 +175,46 @@ private struct FootballRemoteLogoView<Placeholder: View>: View {
             }
         }
         .frame(width: size, height: size)
+        .background {
+            if usesCircularOutline {
+                Circle()
+                    .fill(FootballFlagCircleStyle.fill)
+            }
+        }
+        .mask {
+            if usesCircularOutline {
+                Circle()
+            } else {
+                Rectangle()
+            }
+        }
+        .overlay {
+            if usesCircularOutline {
+                ZStack {
+                    Circle()
+                        .strokeBorder(FootballFlagCircleStyle.outerStroke, lineWidth: flagCircleBorderWidth)
+                    Circle()
+                        .inset(by: flagCircleBorderWidth)
+                        .strokeBorder(FootballFlagCircleStyle.innerStroke, lineWidth: 0.5)
+                }
+            }
+        }
         .task(id: localPath) {
             await loadLocalImageIfNeeded()
         }
+    }
+
+    private func logoImage(_ image: Image) -> some View {
+        image
+            .resizable()
+            .interpolation(.high)
+            .aspectRatio(contentMode: usesCircularOutline ? .fill : .fit)
+            .frame(width: size, height: size)
+            .clipped()
+    }
+
+    private var flagCircleBorderWidth: CGFloat {
+        max(1, size * 0.065)
     }
 
     @MainActor
@@ -203,6 +255,13 @@ private struct FootballRemoteLogoView<Placeholder: View>: View {
     }
 }
 
+private enum FootballFlagCircleStyle {
+    static var fill: Color { Color.white.opacity(0.18) }
+    static var outerStroke: Color { Color.white.opacity(0.62) }
+    static var innerStroke: Color { Color.black.opacity(0.18) }
+    static var placeholderTint: Color { Color.white.opacity(0.82) }
+}
+
 @MainActor
 enum FootballLocalImageCache {
     private static let cache: NSCache<NSString, NSImage> = {
@@ -224,19 +283,27 @@ enum FootballLocalImageCache {
             return cachedImage
         }
 
-        guard let imageData = await imageData(for: path),
-              !Task.isCancelled,
-              let image = NSImage(data: imageData) else {
+        guard let cgImage = await decodedCGImage(for: path),
+              !Task.isCancelled else {
             return nil
         }
 
+        let image = NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
         store(image, for: path)
         return image
     }
 
-    nonisolated static func imageData(for path: String) async -> Data? {
+    nonisolated static func decodedCGImage(for path: String) async -> CGImage? {
         await Task.detached(priority: .utility) {
-            try? Data(contentsOf: URL(fileURLWithPath: path))
+            guard let imageSource = CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, nil) else {
+                return nil
+            }
+
+            let options = [
+                kCGImageSourceShouldCache: true,
+                kCGImageSourceShouldCacheImmediately: true,
+            ] as CFDictionary
+            return CGImageSourceCreateImageAtIndex(imageSource, 0, options)
         }.value
     }
 }

@@ -53,9 +53,7 @@ actor FootballImageStore {
                 return nil
             }
 
-            let imageData = Self.shouldRemoveCornerBackground(for: remoteURL)
-                ? Self.imageDataByRemovingCornerBackground(from: data) ?? data
-                : data
+            let imageData = Self.normalizedImageData(from: data, remoteURL: remoteURL)
             try imageData.write(to: destinationURL, options: [.atomic])
             return destinationURL
         } catch {
@@ -74,14 +72,112 @@ actor FootballImageStore {
     }
 
     private func normalizeExistingImageIfNeeded(at url: URL, remoteURL: URL) {
-        guard Self.shouldRemoveCornerBackground(for: remoteURL),
-              let data = try? Data(contentsOf: url),
-              let imageData = Self.imageDataByRemovingCornerBackground(from: data),
-              imageData != data else {
+        guard Self.shouldNormalizeImage(for: remoteURL),
+              let data = try? Data(contentsOf: url) else {
+            return
+        }
+
+        let imageData = Self.normalizedImageData(from: data, remoteURL: remoteURL)
+        guard imageData != data else {
             return
         }
 
         try? imageData.write(to: url, options: [.atomic])
+    }
+
+    nonisolated static func shouldNormalizeImage(for remoteURL: URL) -> Bool {
+        shouldRemoveCornerBackground(for: remoteURL)
+            || shouldCropTransparentPadding(for: remoteURL)
+    }
+
+    nonisolated static func normalizedImageData(from data: Data, remoteURL: URL) -> Data {
+        if Self.shouldRemoveCornerBackground(for: remoteURL),
+           let imageData = Self.imageDataByRemovingCornerBackground(from: data) {
+            return imageData
+        }
+
+        if Self.shouldCropTransparentPadding(for: remoteURL),
+           let imageData = Self.imageDataByCroppingTransparentPadding(from: data) {
+            return imageData
+        }
+
+        return data
+    }
+
+    nonisolated static func shouldCropTransparentPadding(for remoteURL: URL) -> Bool {
+        remoteURL.host?.caseInsensitiveCompare("a.espncdn.com") == .orderedSame
+            && remoteURL.path.contains("/i/teamlogos/countries/500/")
+    }
+
+    nonisolated static func imageDataByCroppingTransparentPadding(from data: Data) -> Data? {
+        guard let imageSource = CGImageSourceCreateWithData(data as CFData, nil),
+              let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil),
+              let cropRect = transparentPaddingCropRect(for: cgImage),
+              let croppedImage = cgImage.cropping(to: cropRect) else {
+            return nil
+        }
+
+        guard cropRect.width < CGFloat(cgImage.width) || cropRect.height < CGFloat(cgImage.height) else {
+            return nil
+        }
+
+        return pngData(from: croppedImage)
+    }
+
+    private nonisolated static func transparentPaddingCropRect(for cgImage: CGImage) -> CGRect? {
+        let width = cgImage.width
+        let height = cgImage.height
+        guard width > 1, height > 1 else { return nil }
+
+        let bytesPerPixel = 4
+        let bytesPerRow = width * bytesPerPixel
+        var pixels = [UInt8](repeating: 0, count: height * bytesPerRow)
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let bitmapInfo = CGBitmapInfo.byteOrder32Big.rawValue
+            | CGImageAlphaInfo.premultipliedLast.rawValue
+
+        let didDraw = pixels.withUnsafeMutableBytes { buffer in
+            guard let baseAddress = buffer.baseAddress,
+                  let context = CGContext(
+                    data: baseAddress,
+                    width: width,
+                    height: height,
+                    bitsPerComponent: 8,
+                    bytesPerRow: bytesPerRow,
+                    space: colorSpace,
+                    bitmapInfo: bitmapInfo
+                  ) else {
+                return false
+            }
+
+            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+            return true
+        }
+        guard didDraw else { return nil }
+
+        var minX = width
+        var minY = height
+        var maxX = -1
+        var maxY = -1
+
+        for y in 0..<height {
+            for x in 0..<width {
+                let alpha = pixels[((y * width) + x) * bytesPerPixel + 3]
+                guard alpha > 16 else { continue }
+                minX = min(minX, x)
+                minY = min(minY, y)
+                maxX = max(maxX, x)
+                maxY = max(maxY, y)
+            }
+        }
+
+        guard maxX >= minX, maxY >= minY else { return nil }
+        return CGRect(
+            x: minX,
+            y: minY,
+            width: maxX - minX + 1,
+            height: maxY - minY + 1
+        )
     }
 
     nonisolated static func shouldRemoveCornerBackground(for remoteURL: URL) -> Bool {

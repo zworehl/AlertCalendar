@@ -80,6 +80,7 @@ extension MenuContentView {
                     localLogoPath: display?.homeLocalLogoPath,
                     remoteLogoURL: FootballFixtureFormatter.isUnknownTeam(match.homeTeam) ? nil : match.homeTeam.logoURL,
                     isUnknown: FootballFixtureFormatter.isUnknownTeam(match.homeTeam),
+                    usesCircularOutline: match.homeTeam.isNational,
                     logoLeading: false,
                     yellowCards: match.homeYellowCards,
                     redCards: match.homeRedCards,
@@ -126,6 +127,7 @@ extension MenuContentView {
                     localLogoPath: display?.awayLocalLogoPath,
                     remoteLogoURL: FootballFixtureFormatter.isUnknownTeam(match.awayTeam) ? nil : match.awayTeam.logoURL,
                     isUnknown: FootballFixtureFormatter.isUnknownTeam(match.awayTeam),
+                    usesCircularOutline: match.awayTeam.isNational,
                     logoLeading: true,
                     yellowCards: match.awayYellowCards,
                     redCards: match.awayRedCards,
@@ -152,6 +154,7 @@ extension MenuContentView {
         localLogoPath: String?,
         remoteLogoURL: URL?,
         isUnknown: Bool,
+        usesCircularOutline: Bool,
         logoLeading: Bool,
         yellowCards: Int,
         redCards: Int,
@@ -167,7 +170,8 @@ extension MenuContentView {
                 FootballTeamLogoView(
                     localPath: localLogoPath,
                     remoteURL: remoteLogoURL,
-                    isUnknown: isUnknown
+                    isUnknown: isUnknown,
+                    usesCircularOutline: usesCircularOutline
                 )
                 Text(abbreviation)
                     .font(font)
@@ -177,7 +181,8 @@ extension MenuContentView {
                 FootballTeamLogoView(
                     localPath: localLogoPath,
                     remoteURL: remoteLogoURL,
-                    isUnknown: isUnknown
+                    isUnknown: isUnknown,
+                    usesCircularOutline: usesCircularOutline
                 )
             }
 

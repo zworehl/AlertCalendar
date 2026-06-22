@@ -342,7 +342,7 @@ extension FootballDataAPIClient {
             id: stringValue(homeTeam["id"]) ?? stringValue(home["id"]) ?? UUID().uuidString,
             name: homeName,
             abbreviation: homeAbbreviation,
-            logoURL: FootballFederationLogoResolver.resolvedLogoURL(
+            logoURL: FootballNationalLogoResolver.resolvedLogoURL(
                 existingLogoURL: teamLogoURL(from: homeTeam),
                 teamID: stringValue(homeTeam["id"]) ?? stringValue(home["id"]),
                 name: homeName,
@@ -357,7 +357,7 @@ extension FootballDataAPIClient {
             id: stringValue(awayTeam["id"]) ?? stringValue(away["id"]) ?? UUID().uuidString,
             name: awayName,
             abbreviation: awayAbbreviation,
-            logoURL: FootballFederationLogoResolver.resolvedLogoURL(
+            logoURL: FootballNationalLogoResolver.resolvedLogoURL(
                 existingLogoURL: teamLogoURL(from: awayTeam),
                 teamID: stringValue(awayTeam["id"]) ?? stringValue(away["id"]),
                 name: awayName,

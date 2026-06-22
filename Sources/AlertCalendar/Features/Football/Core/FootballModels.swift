@@ -24,7 +24,7 @@ struct FootballTeamSummary: Identifiable, Hashable {
     func withResolvedDetails(countryName: String?, isNational: Bool, logoURL: URL?) -> FootballTeamSummary {
         let resolvedCountryName = countryName ?? self.countryName
         let resolvedIsNational = isNational || self.isNational
-        let resolvedLogoURL = FootballFederationLogoResolver.resolvedLogoURL(
+        let resolvedLogoURL = FootballNationalLogoResolver.resolvedLogoURL(
             existingLogoURL: logoURL ?? self.logoURL,
             teamID: id,
             name: name,
@@ -252,6 +252,8 @@ struct FootballMenuBarDisplay: Equatable {
     let competitionLocalLogoPath: String?
     let homeLocalLogoPath: String?
     let awayLocalLogoPath: String?
+    let homeLogoUsesCircularOutline: Bool
+    let awayLogoUsesCircularOutline: Bool
 }
 
 struct FootballMatchGoalScorer: Identifiable, Hashable {

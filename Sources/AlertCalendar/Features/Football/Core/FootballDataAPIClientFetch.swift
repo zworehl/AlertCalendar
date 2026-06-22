@@ -178,7 +178,7 @@ extension FootballDataAPIClient {
             return TeamResponse(
                 countryName: countryName,
                 isNational: isNational,
-                logoURL: FootballFederationLogoResolver.resolvedLogoURL(
+                logoURL: FootballNationalLogoResolver.resolvedLogoURL(
                     existingLogoURL: espnLogoURL,
                     teamID: stringValue(root["id"]) ?? teamID,
                     name: displayName,

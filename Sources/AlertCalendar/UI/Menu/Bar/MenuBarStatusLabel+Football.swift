@@ -75,12 +75,19 @@ extension MenuBarStatusLabel {
             segment.append(NSAttributedString(string: text, attributes: attributes))
         }
 
-        func appendLogo(path: String?) {
-            guard let attachment = footballLogoAttachment(path: path, font: font) else { return }
+        func appendLogo(path: String?, usesCircularOutline: Bool) {
+            guard let attachment = footballLogoAttachment(
+                path: path,
+                usesCircularOutline: usesCircularOutline,
+                font: font
+            ) else { return }
             segment.append(attachment)
         }
 
-        appendLogo(path: display.homeLocalLogoPath)
+        appendLogo(
+            path: display.homeLocalLogoPath,
+            usesCircularOutline: display.homeLogoUsesCircularOutline
+        )
         appendText(" ")
 
         if display.showsScore {
@@ -98,7 +105,10 @@ extension MenuBarStatusLabel {
             appendText("- ")
         }
 
-        appendLogo(path: display.awayLocalLogoPath)
+        appendLogo(
+            path: display.awayLocalLogoPath,
+            usesCircularOutline: display.awayLogoUsesCircularOutline
+        )
 
         if let trailingText,
            !trailingText.isEmpty {
@@ -122,17 +132,21 @@ extension MenuBarStatusLabel {
     }
 
     @MainActor
-    static func footballLogoAttachment(path: String?, font: NSFont) -> NSAttributedString? {
+    static func footballLogoAttachment(
+        path: String?,
+        usesCircularOutline: Bool = false,
+        font: NSFont
+    ) -> NSAttributedString? {
         let logoSize: CGFloat = 18
         let image: NSImage?
         if let path,
            let localImage = FootballLocalImageCache.cachedImage(for: path) {
-            image = localImage.copy() as? NSImage ?? localImage
+            let resolvedImage = localImage.copy() as? NSImage ?? localImage
+            image = usesCircularOutline
+                ? circularFootballLogoImage(resolvedImage, size: logoSize)
+                : resolvedImage
         } else {
-            image = NSImage(
-                systemSymbolName: "shield.fill",
-                accessibilityDescription: nil
-            )?.withSymbolConfiguration(.init(pointSize: logoSize - 1, weight: .semibold))
+            image = footballPlaceholderLogoImage(size: logoSize, usesCircularOutline: usesCircularOutline)
         }
 
         guard let image else { return nil }
@@ -149,5 +163,115 @@ extension MenuBarStatusLabel {
             height: logoSize
         )
         return NSAttributedString(attachment: attachment)
+    }
+
+    @MainActor
+    static func circularFootballLogoImage(_ source: NSImage, size: CGFloat) -> NSImage {
+        let outputSize = NSSize(width: size, height: size)
+        let output = NSImage(size: outputSize)
+        let rect = NSRect(origin: .zero, size: outputSize)
+        let clipPath = NSBezierPath(ovalIn: rect)
+
+        output.lockFocus()
+        defer { output.unlockFocus() }
+
+        NSGraphicsContext.current?.imageInterpolation = .high
+        footballFlagCircleFillColor.setFill()
+        clipPath.fill()
+
+        NSGraphicsContext.saveGraphicsState()
+        clipPath.addClip()
+        source.draw(
+            in: aspectFillRect(for: source.size, in: rect),
+            from: NSRect(origin: .zero, size: source.size),
+            operation: .sourceOver,
+            fraction: 1
+        )
+        NSGraphicsContext.restoreGraphicsState()
+
+        drawFootballFlagCircleBorder(in: rect, size: size)
+        return output
+    }
+
+    @MainActor
+    static func footballPlaceholderLogoImage(size: CGFloat, usesCircularOutline: Bool) -> NSImage? {
+        guard usesCircularOutline else {
+            return NSImage(
+                systemSymbolName: "shield.fill",
+                accessibilityDescription: nil
+            )?.withSymbolConfiguration(.init(pointSize: size - 1, weight: .semibold))
+        }
+
+        let outputSize = NSSize(width: size, height: size)
+        let output = NSImage(size: outputSize)
+        let rect = NSRect(origin: .zero, size: outputSize)
+        let circle = NSBezierPath(ovalIn: rect.insetBy(dx: 0.5, dy: 0.5))
+
+        output.lockFocus()
+        defer { output.unlockFocus() }
+
+        footballFlagCircleFillColor.setFill()
+        circle.fill()
+        drawFootballFlagCircleBorder(in: rect, size: size)
+
+        let symbolSize = size * 0.56
+        let symbolRect = NSRect(
+            x: floor((size - symbolSize) / 2),
+            y: floor((size - symbolSize) / 2),
+            width: symbolSize,
+            height: symbolSize
+        )
+        if let symbol = NSImage(
+            systemSymbolName: "flag.fill",
+            accessibilityDescription: nil
+        )?.withSymbolConfiguration(.init(pointSize: symbolSize, weight: .semibold)) {
+            symbol.draw(in: symbolRect)
+            footballFlagPlaceholderTintColor.setFill()
+            symbolRect.fill(using: .sourceAtop)
+        }
+
+        return output
+    }
+
+    @MainActor
+    static func drawFootballFlagCircleBorder(in rect: CGRect, size: CGFloat) {
+        let borderWidth = footballFlagCircleBorderWidth(for: size)
+        let outerPath = NSBezierPath(ovalIn: rect.insetBy(dx: borderWidth / 2, dy: borderWidth / 2))
+        outerPath.lineWidth = borderWidth
+        footballFlagOuterStrokeColor.setStroke()
+        outerPath.stroke()
+
+        let innerPath = NSBezierPath(ovalIn: rect.insetBy(dx: borderWidth + 0.35, dy: borderWidth + 0.35))
+        innerPath.lineWidth = 0.5
+        footballFlagInnerStrokeColor.setStroke()
+        innerPath.stroke()
+    }
+
+    static func footballFlagCircleBorderWidth(for size: CGFloat) -> CGFloat {
+        max(1, size * 0.065)
+    }
+
+    private static let footballFlagCircleFillColor = NSColor.white.withAlphaComponent(0.18)
+    private static let footballFlagOuterStrokeColor = NSColor.white.withAlphaComponent(0.62)
+    private static let footballFlagInnerStrokeColor = NSColor.black.withAlphaComponent(0.18)
+    private static let footballFlagPlaceholderTintColor = NSColor.white.withAlphaComponent(0.82)
+
+    static func aspectFillRect(for imageSize: CGSize, in rect: CGRect) -> CGRect {
+        guard imageSize.width > 0,
+              imageSize.height > 0,
+              rect.width > 0,
+              rect.height > 0 else {
+            return rect
+        }
+
+        let scale = max(rect.width / imageSize.width, rect.height / imageSize.height)
+        let width = imageSize.width * scale
+        let height = imageSize.height * scale
+        return CGRect(
+            x: rect.midX - (width / 2),
+            y: rect.midY - (height / 2),
+            width: width,
+            height: height
+        )
     }
 }

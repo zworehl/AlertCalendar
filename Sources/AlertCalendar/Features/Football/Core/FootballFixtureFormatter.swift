@@ -36,7 +36,9 @@ enum FootballFixtureFormatter {
             awayScore: scoreText(match.awayScore),
             competitionLocalLogoPath: competitionLocalLogoURL?.path,
             homeLocalLogoPath: isUnknownTeam(match.homeTeam) ? nil : homeLocalLogoURL?.path,
-            awayLocalLogoPath: isUnknownTeam(match.awayTeam) ? nil : awayLocalLogoURL?.path
+            awayLocalLogoPath: isUnknownTeam(match.awayTeam) ? nil : awayLocalLogoURL?.path,
+            homeLogoUsesCircularOutline: match.homeTeam.isNational,
+            awayLogoUsesCircularOutline: match.awayTeam.isNational
         )
     }
 

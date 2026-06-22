@@ -3,6 +3,8 @@ import Combine
 import SwiftUI
 
 extension SettingsFootballFixturesSectionView {
+    nonisolated static let competitionOffseasonFeedbackTitle = "Offseason"
+
     var competitionListPanel: some View {
         HStack(alignment: .top, spacing: 16) {
             competitionSelectionContentPanel
@@ -36,6 +38,10 @@ extension SettingsFootballFixturesSectionView {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.orange)
+                    } else if Self.isCompetitionOffseason(section) {
+                        Text(Self.competitionOffseasonFeedbackTitle)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
                     } else if section.hasLoaded {
                         Text("\(visibleMatches.count)")
                             .font(.caption.weight(.semibold))
@@ -219,6 +225,17 @@ extension SettingsFootballFixturesSectionView {
             ) {
                 await loadCompetitionFixtures(section)
             }
+        } else if Self.isCompetitionOffseason(section) {
+            feedbackState(
+                title: Self.competitionOffseasonFeedbackTitle,
+                text: Self.competitionOffseasonFeedbackText(for: section.competition),
+                systemImage: "pause.circle.fill",
+                tint: .secondary,
+                buttonTitle: "Refresh Fixtures",
+                isButtonDisabled: section.isLoading
+            ) {
+                await loadCompetitionFixtures(section)
+            }
         } else if visibleMatches.isEmpty {
             emptyState(showFinishedFootballMatches
                 ? "No matches are available inside the current FT lookback and ahead windows."
@@ -283,6 +300,11 @@ extension SettingsFootballFixturesSectionView {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.orange)
+                } else if Self.isCompetitionOffseason(section) {
+                    Text(Self.competitionOffseasonFeedbackTitle)
+                        .font(.caption.weight(.semibold))
+                        .lineLimit(1)
+                        .foregroundStyle(isSelected ? .white.opacity(0.92) : .secondary)
                 } else if section.hasLoaded {
                     Text("\(visibleMatchCount)")
                         .font(.caption.weight(.semibold))
@@ -342,5 +364,16 @@ extension SettingsFootballFixturesSectionView {
         return "Several competitions could not be loaded right now. Try again in a moment."
     }
 
+    nonisolated static func isCompetitionOffseason(_ section: FootballMenuCompetitionSection) -> Bool {
+        section.hasLoaded
+            && !section.isLoading
+            && section.errorMessage == nil
+            && section.matches.isEmpty
+    }
 
+    nonisolated static func competitionOffseasonFeedbackText(for competition: FootballCompetitionPreset) -> String {
+        "No fixtures are available for \(competition.title) in the "
+            + "\(FootballCompetitionPreset.suggestionWindowDescription). "
+            + "This competition appears to be in its offseason."
+    }
 }
