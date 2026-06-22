@@ -83,19 +83,7 @@ struct SlackStatusSyncRule: Codable, Equatable, Identifiable, Sendable {
             )
         }
 
-        return normalizedRules.sorted { lhs, rhs in
-            let connectionOrder = lhs.connectionID.localizedCaseInsensitiveCompare(rhs.connectionID)
-            if connectionOrder != .orderedSame {
-                return connectionOrder == .orderedAscending
-            }
-
-            let calendarOrder = lhs.calendarID.localizedCaseInsensitiveCompare(rhs.calendarID)
-            if calendarOrder != .orderedSame {
-                return calendarOrder == .orderedAscending
-            }
-
-            return lhs.id < rhs.id
-        }
+        return normalizedRules
     }
 
     static func firstAvailablePair(

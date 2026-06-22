@@ -137,6 +137,58 @@ final class SlackStatusSyncSchedulingTests: SlackStatusSyncTestCase {
         )
     }
 
+    func testActiveSlackRuleStateUsesRuleOrderAsPriority() {
+        let now = Date(timeIntervalSince1970: 1_777_000_000)
+        let connectionID = "T1|U1"
+        let rules = [
+            SlackStatusSyncRule(
+                connectionID: connectionID,
+                calendarID: "calendar-2",
+                statusText: "Pairing",
+                statusEmoji: "💬",
+                isEnabled: true
+            ),
+            SlackStatusSyncRule(
+                connectionID: connectionID,
+                calendarID: "calendar-1",
+                statusText: "Heads down",
+                statusEmoji: "🎯",
+                isEnabled: true
+            ),
+        ]
+        let items = [
+            makeEvent(
+                id: "first",
+                title: "Focus",
+                calendarID: "calendar-1",
+                startDate: now.addingTimeInterval(-10 * 60),
+                endDate: now.addingTimeInterval(20 * 60)
+            ),
+            makeEvent(
+                id: "second",
+                title: "Pairing",
+                calendarID: "calendar-2",
+                startDate: now.addingTimeInterval(-5 * 60),
+                endDate: now.addingTimeInterval(35 * 60)
+            ),
+        ]
+
+        XCTAssertEqual(
+            CalendarMonitor.activeSlackRuleStateByConnectionID(
+                for: items,
+                rules: rules,
+                now: now
+            ),
+            [
+                connectionID: CalendarMonitor.SlackActiveRuleState(
+                    statusText: "Pairing",
+                    statusEmoji: "💬",
+                    expiration: Int(now.addingTimeInterval(35 * 60).timeIntervalSince1970)
+                ),
+            ]
+        )
+    }
+
     func testActiveSlackRuleStateUsesRemainingMeetingAfterSkippedOverlapDropsOut() {
         let now = Date(timeIntervalSince1970: 1_777_000_000)
         let connectionID = "T1|U1"

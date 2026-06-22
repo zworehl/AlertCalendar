@@ -155,6 +155,41 @@ final class SlackStatusSyncModelsTests: SlackStatusSyncTestCase {
         )
     }
 
+    func testSlackStatusSyncRuleNormalizationPreservesPriorityOrder() {
+        let rules = [
+            SlackStatusSyncRule(
+                id: "low-alpha-id-but-second-priority",
+                connectionID: "T1|U1",
+                calendarID: "calendar-b",
+                statusText: "Second",
+                statusEmoji: "✌️",
+                isEnabled: true
+            ),
+            SlackStatusSyncRule(
+                id: "z-high-id-but-first-priority",
+                connectionID: "T1|U1",
+                calendarID: "calendar-a",
+                statusText: "First",
+                statusEmoji: "☝️",
+                isEnabled: true
+            ),
+        ]
+
+        let normalizedRules = SlackStatusSyncRule.normalized(
+            rules,
+            validConnectionIDs: ["T1|U1"],
+            validCalendarIDs: ["calendar-a", "calendar-b"]
+        )
+
+        XCTAssertEqual(
+            normalizedRules.map(\.id),
+            [
+                "low-alpha-id-but-second-priority",
+                "z-high-id-but-first-priority",
+            ]
+        )
+    }
+
     func testSlackMeetingStatusNormalizesKnownAliasesToPrettyEmoji() {
         XCTAssertEqual(SlackMeetingStatus.normalizedEmoji(":spiral_calendar_pad:"), "🗓️")
         XCTAssertEqual(SlackMeetingStatus.normalizedEmoji(":dog:"), "🐶")

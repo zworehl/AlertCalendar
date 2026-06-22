@@ -330,6 +330,7 @@ struct SettingsView: View {
     @State var slackRuntimeStatusDescription: String?
     @State var isRefreshingSlackConnectionMetadata = false
     @State var didAttemptSlackConnectionMetadataRefresh = false
+    @State var draggingSlackStatusRuleID: String?
     @State var installedMeetingBrowsers: [MeetingBrowserKind] = MeetingBrowserCatalog.installedBrowsers()
     @State var meetingBrowserProfilesByBrowser: [MeetingBrowserKind: [MeetingBrowserProfileOption]] = MeetingBrowserProfileStore.profilesByBrowser(
         for: MeetingBrowserCatalog.installedBrowsers()

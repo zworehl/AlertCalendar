@@ -4,6 +4,7 @@ import Contacts
 import CoreLocation
 import EventKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 extension SettingsView {
     @ViewBuilder
@@ -277,6 +278,15 @@ extension SettingsView {
                 LazyVGrid(columns: slackStatusRulesGridColumns, alignment: .leading, spacing: 12) {
                     ForEach(Array(draft.slackStatusSyncRules.enumerated()), id: \.element.id) { index, rule in
                         slackStatusSyncRuleCard(index: index, rule: rule)
+                            .opacity(draggingSlackStatusRuleID == rule.id ? 0.55 : 1)
+                            .onDrop(
+                                of: [.text],
+                                delegate: SlackStatusSyncRuleDropDelegate(
+                                    targetRuleID: rule.id,
+                                    rules: $draft.slackStatusSyncRules,
+                                    draggingRuleID: $draggingSlackStatusRuleID
+                                )
+                            )
                     }
                 }
                 .padding(.trailing, 4)
@@ -384,5 +394,37 @@ extension SettingsView {
         let ruleText = ruleCount == 1 ? "1 rule" : "\(ruleCount) rules"
         let workspaceText = workspaceCount == 1 ? "1 workspace" : "\(workspaceCount) workspaces"
         return "\(ruleText) across \(workspaceText)."
+    }
+}
+
+private struct SlackStatusSyncRuleDropDelegate: DropDelegate {
+    let targetRuleID: String
+    @Binding var rules: [SlackStatusSyncRule]
+    @Binding var draggingRuleID: String?
+
+    func validateDrop(info: DropInfo) -> Bool {
+        draggingRuleID != nil
+    }
+
+    func dropEntered(info: DropInfo) {
+        moveDraggingRuleIfNeeded()
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggingRuleID = nil
+        return true
+    }
+
+    private func moveDraggingRuleIfNeeded() {
+        guard let draggingRuleID, draggingRuleID != targetRuleID else { return }
+        guard let sourceIndex = rules.firstIndex(where: { $0.id == draggingRuleID }) else { return }
+        guard let targetIndex = rules.firstIndex(where: { $0.id == targetRuleID }) else { return }
+
+        withAnimation(.easeInOut(duration: 0.14)) {
+            rules.move(
+                fromOffsets: IndexSet(integer: sourceIndex),
+                toOffset: targetIndex > sourceIndex ? targetIndex + 1 : targetIndex
+            )
+        }
     }
 }

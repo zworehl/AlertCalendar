@@ -44,6 +44,8 @@ extension SettingsView {
     @ViewBuilder
     func slackStatusSyncRuleHeader(index: Int, rule: SlackStatusSyncRule, isComplete: Bool) -> some View {
         HStack(alignment: .top, spacing: 14) {
+            slackStatusSyncRuleDragHandle(for: rule)
+
             slackStatusSyncRuleIdentity(for: rule)
 
             Spacer(minLength: 0)
@@ -56,6 +58,13 @@ extension SettingsView {
     @ViewBuilder
     func slackStatusSyncRuleActionBar(index: Int, rule: SlackStatusSyncRule, isComplete: Bool) -> some View {
         HStack(spacing: 10) {
+            Text("#\(index + 1)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+                .frame(minWidth: 24)
+                .help("Priority \(index + 1)")
+
             Toggle("Active", isOn: $draft.slackStatusSyncRules[index].isEnabled)
                 .font(.caption)
                 .toggleStyle(.switch)
@@ -72,6 +81,21 @@ extension SettingsView {
             .help("Remove")
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+
+    @ViewBuilder
+    func slackStatusSyncRuleDragHandle(for rule: SlackStatusSyncRule) -> some View {
+        Image(systemName: "line.3.horizontal")
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(.secondary)
+            .frame(width: 24, height: 34)
+            .contentShape(Rectangle())
+            .help("Drag to set priority")
+            .onDrag {
+                draggingSlackStatusRuleID = rule.id
+                return NSItemProvider(object: rule.id as NSString)
+            }
+            .accessibilityLabel("Priority handle")
     }
 
     @ViewBuilder
