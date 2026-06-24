@@ -164,15 +164,13 @@ struct FootballFixtureMatch: Identifiable, Hashable {
     }
 
     var hasVisibleScore: Bool {
-        if hasInterruptedStatus {
-            return false
-        }
-
         switch statusState {
         case .scheduled:
             return false
-        case .inProgress, .finished, .unknown:
+        case .inProgress:
             return true
+        case .finished, .unknown:
+            return !hasInterruptedStatus
         }
     }
 

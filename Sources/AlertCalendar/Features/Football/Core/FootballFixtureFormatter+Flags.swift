@@ -116,18 +116,21 @@ extension FootballFixtureFormatter {
     static func isUnknownTeam(_ team: FootballTeamSummary) -> Bool {
         let abbreviation = team.abbreviation.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         let normalizedName = FootballDataAPIClient.normalizedLookupKey(team.name)
+        let normalizedCountryName = FootballDataAPIClient.normalizedLookupKey(team.countryName)
         let compactName = compactIdentifier(team.name)
+        let missingCountryName = team.countryName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true
 
         if abbreviation == "TBD" || abbreviation == "TBC" {
             return true
         }
 
-        if normalizedName.contains("winner")
-            || normalizedName.contains("runner up")
-            || normalizedName.contains("runner-up")
-            || normalizedName.contains("to be determined")
-            || normalizedName.contains("quarterfinal")
-            || normalizedName.contains("semifinal") {
+        if isPlaceholderSlotDescription(normalizedName)
+            || isPlaceholderSlotDescription(normalizedCountryName) {
+            return true
+        }
+
+        if missingCountryName,
+           normalizedName.contains("group") || abbreviation == "GRO" || compactName == "GRO" {
             return true
         }
 
@@ -194,7 +197,23 @@ extension FootballFixtureFormatter {
         guard !compact.isEmpty else { return false }
 
         return compact.range(of: #"^G[A-Z]\d+$"#, options: .regularExpression) != nil
-            || compact.range(of: #"^RD\d+$"#, options: .regularExpression) != nil
+            || compact.range(of: #"^RD\d+[A-Z0-9]*$"#, options: .regularExpression) != nil
+            || compact.range(of: #"^[123][A-L]$"#, options: .regularExpression) != nil
+            || compact.range(of: #"^3RD[A-Z0-9]*$"#, options: .regularExpression) != nil
+    }
+
+    static func isPlaceholderSlotDescription(_ normalized: String) -> Bool {
+        guard !normalized.isEmpty else { return false }
+
+        if normalized.contains("winner")
+            || normalized.contains("runner up")
+            || normalized.contains("to be determined")
+            || normalized.contains("quarterfinal")
+            || normalized.contains("semifinal") {
+            return true
+        }
+
+        return normalized.contains("group") && normalized.contains("place")
     }
 
     static func flagEmoji(forRegionCode regionCode: String) -> String {

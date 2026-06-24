@@ -79,6 +79,48 @@ final class MenuBarStatusLabelTests: XCTestCase {
         XCTAssertTrue(red.isEqual(NSColor.systemRed))
     }
 
+    func testParticipationTextColorDimsPendingButKeepsAcceptedSolid() {
+        let baseColor = NSColor.white.withAlphaComponent(0.97)
+
+        let accepted = MenuBarStatusLabel.segmentTextColor(
+            baseColor: baseColor,
+            participationStatus: .accepted
+        )
+        let pending = MenuBarStatusLabel.segmentTextColor(
+            baseColor: baseColor,
+            participationStatus: .pending
+        )
+
+        XCTAssertTrue(accepted.isEqual(baseColor))
+        XCTAssertLessThan(pending.alphaComponent, accepted.alphaComponent)
+    }
+
+    func testAccessorySymbolsReserveTrailingWidthForBothSymbols() {
+        let font = NSFont.systemFont(ofSize: 13, weight: .semibold)
+        let oneSymbolWidth = MenuBarStatusLabel.accessorySymbolsWidth(
+            symbolNames: ["paperclip"],
+            font: font
+        )
+        let twoSymbolWidth = MenuBarStatusLabel.accessorySymbolsWidth(
+            symbolNames: ["paperclip", "repeat"],
+            font: font
+        )
+
+        XCTAssertGreaterThan(oneSymbolWidth, 0)
+        XCTAssertGreaterThan(twoSymbolWidth, oneSymbolWidth)
+    }
+
+    func testAccessorySymbolSizeTracksMenuFont() {
+        let small = MenuBarStatusLabel.accessorySymbolSize(
+            font: NSFont.systemFont(ofSize: 10, weight: .semibold)
+        )
+        let large = MenuBarStatusLabel.accessorySymbolSize(
+            font: NSFont.systemFont(ofSize: 18, weight: .semibold)
+        )
+
+        XCTAssertGreaterThan(large, small)
+    }
+
     private func textColor(in attributed: NSAttributedString, for text: String) throws -> NSColor {
         let range = (attributed.string as NSString).range(of: text)
         guard range.location != NSNotFound else {

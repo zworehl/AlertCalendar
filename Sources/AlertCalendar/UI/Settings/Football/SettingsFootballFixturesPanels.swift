@@ -174,10 +174,12 @@ extension SettingsFootballFixturesSectionView {
         showsCompetitionName: Bool,
         showsSeparateMetadataRows: Bool = false
     ) -> some View {
-        if matches.count > Self.scrollableMatchCardThreshold {
+        let cardMatches = Self.matchesEligibleForFootballCards(matches)
+
+        if cardMatches.count > Self.scrollableMatchCardThreshold {
             ScrollView(.vertical, showsIndicators: true) {
                 matchCardsGrid(
-                    matches,
+                    cardMatches,
                     showsCompetitionName: showsCompetitionName,
                     showsSeparateMetadataRows: showsSeparateMetadataRows
                 )
@@ -186,7 +188,7 @@ extension SettingsFootballFixturesSectionView {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         } else {
             matchCardsGrid(
-                matches,
+                cardMatches,
                 showsCompetitionName: showsCompetitionName,
                 showsSeparateMetadataRows: showsSeparateMetadataRows
             )
@@ -212,7 +214,7 @@ extension SettingsFootballFixturesSectionView {
             alignment: .leading,
             spacing: 12
         ) {
-            ForEach(matches) { match in
+            ForEach(Self.matchesEligibleForFootballCards(matches)) { match in
                 matchCard(
                     match,
                     showsCompetitionName: showsCompetitionName,

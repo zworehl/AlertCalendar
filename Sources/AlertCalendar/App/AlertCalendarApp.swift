@@ -40,6 +40,8 @@ struct AlertCalendarApp: App {
                 segments: monitor.combinedMenuBarSegments,
                 segmentBackgroundColors: monitor.combinedMenuBarSegmentBackgroundColors,
                 segmentBackgroundProgresses: monitor.combinedMenuBarSegmentBackgroundProgresses,
+                segmentParticipationStatuses: monitor.combinedMenuBarSegmentParticipationStatuses,
+                segmentAccessorySymbolNames: monitor.combinedMenuBarSegmentAccessorySymbolNames,
                 footballDisplay: monitor.combinedMenuBarFootballDisplay,
                 footballTrailingText: monitor.combinedMenuBarFootballTrailingText,
                 footballStatusText: monitor.combinedMenuBarFootballStatusText,

@@ -48,14 +48,34 @@ extension FootballDataAPIClient {
         detail: String?,
         displayClock: String?
     ) -> String? {
+        let normalizedPreferred = normalizedStatusToken(preferredStatusText)
+        let resolvedDetail = detail?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedDisplayClock = displayClock?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if FootballStatusText.indicatesInterruptedPlay(normalizedPreferred) {
+            if let resolvedDetail,
+               !resolvedDetail.isEmpty,
+               normalizedStatusToken(resolvedDetail) != normalizedPreferred,
+               statusTextLooksLikeMinute(resolvedDetail) {
+                return resolvedDetail
+            }
+
+            if let resolvedDisplayClock,
+               !resolvedDisplayClock.isEmpty,
+               normalizedStatusToken(resolvedDisplayClock) != normalizedPreferred,
+               statusTextLooksLikeMinute(resolvedDisplayClock) {
+                return resolvedDisplayClock
+            }
+        }
+
         let candidates = [
-            detail?.trimmingCharacters(in: .whitespacesAndNewlines),
-            displayClock?.trimmingCharacters(in: .whitespacesAndNewlines),
+            resolvedDetail,
+            resolvedDisplayClock,
         ]
 
         for candidate in candidates {
             guard let candidate, !candidate.isEmpty else { continue }
-            if normalizedStatusToken(candidate) != normalizedStatusToken(preferredStatusText) {
+            if normalizedStatusToken(candidate) != normalizedPreferred {
                 return candidate
             }
         }
@@ -130,7 +150,7 @@ extension FootballDataAPIClient {
     }
 
     static func statusTextLooksLikeMinute(_ text: String) -> Bool {
-        let pattern = #"\d{1,3}(?:\+\d{1,2})?\s*'"#
+        let pattern = #"\d{1,3}\s*['’]?(?:\s*\+\s*\d{1,2})?\s*['’]"#
         return text.range(of: pattern, options: .regularExpression) != nil
     }
 

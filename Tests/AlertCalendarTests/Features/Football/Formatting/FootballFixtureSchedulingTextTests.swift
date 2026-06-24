@@ -126,4 +126,39 @@ final class FootballFixtureSchedulingTextTests: FootballFixtureFormatterTestCase
             ),
             "Started \(formatter.string(from: startDate))"
         )
-    }}
+    }
+    func testDelayedLiveFixtureUsesStartedScheduleText() {
+        let locale = Locale(identifier: "en_US_POSIX")
+        let timeZone = TimeZone(secondsFromGMT: 0)!
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let startDate = calendar.date(byAdding: .hour, value: -1, to: now)!
+        let match = makeMatch(
+            id: "delayed-live-schedule",
+            startDate: startDate,
+            statusState: .inProgress,
+            statusText: "Delay",
+            statusDetailText: "45'+3'",
+            homeScore: "1",
+            awayScore: "0"
+        )
+
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.timeZone = timeZone
+        formatter.setLocalizedDateFormatFromTemplate("h:mm a")
+
+        XCTAssertEqual(
+            CalendarMonitor.footballScheduleText(
+                for: match,
+                now: now,
+                calendar: calendar,
+                locale: locale,
+                timeZone: timeZone
+            ),
+            "Started \(formatter.string(from: startDate))"
+        )
+    }
+}

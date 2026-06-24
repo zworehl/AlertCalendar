@@ -128,7 +128,7 @@ extension SettingsFootballFixturesSectionView {
         let lookaheadEnd = Calendar.autoupdatingCurrent.date(byAdding: .day, value: normalizedMatchLookaheadDays, to: now)
             ?? now.addingTimeInterval(Double(normalizedMatchLookaheadDays) * 24 * 60 * 60)
 
-        return matches.filter { match in
+        return Self.matchesEligibleForFootballCards(matches).filter { match in
             if match.statusState == .inProgress {
                 return true
             }
@@ -148,6 +148,10 @@ extension SettingsFootballFixturesSectionView {
 
             return match.startDate >= lookbackStart && match.startDate <= lookaheadEnd
         }
+    }
+
+    nonisolated static func matchesEligibleForFootballCards(_ matches: [FootballFixtureMatch]) -> [FootballFixtureMatch] {
+        matches.filter { !FootballFixtureFormatter.hasUnknownParticipants(in: $0) }
     }
 
     func refreshManagedMatchesDerivedState(now: Date) {

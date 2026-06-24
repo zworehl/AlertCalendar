@@ -30,4 +30,14 @@ final class FootballDataAPIClientStatusParsingTests: FootballDataAPIClientTestCa
         )
 
         XCTAssertEqual(text, "11'")
-    }}
+    }
+    func testSupplementalStatusTextUsesDisplayClockWhenInterruptedDetailRepeatsDelay() {
+        let text = FootballDataAPIClient.supplementalStatusText(
+            preferredStatusText: "Delay",
+            detail: "Delayed",
+            displayClock: "45'+3'"
+        )
+
+        XCTAssertEqual(text, "45'+3'")
+    }
+}

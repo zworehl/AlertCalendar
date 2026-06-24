@@ -9,6 +9,16 @@ final class AlertCalendarModelMetadataTests: AlertCalendarModelTestCase {
         XCTAssertEqual(ActiveEventDisplayMode.remaining.title, "Show time remaining")
         XCTAssertEqual(ActiveEventDisplayMode.elapsed.title, "Show elapsed time")
     }
+    func testEventParticipationStatusVisualMetadataMatchesAppleCalendarStyle() {
+        XCTAssertFalse(EventParticipationStatus.accepted.usesTexturedFill)
+        XCTAssertTrue(EventParticipationStatus.tentative.usesTexturedFill)
+        XCTAssertTrue(EventParticipationStatus.pending.usesTexturedFill)
+        XCTAssertTrue(EventParticipationStatus.declined.usesTexturedFill)
+
+        XCTAssertGreaterThan(EventParticipationStatus.accepted.appleCalendarTextAlpha, EventParticipationStatus.pending.appleCalendarTextAlpha)
+        XCTAssertGreaterThan(EventParticipationStatus.pending.appleCalendarStripeAlpha, 0)
+        XCTAssertGreaterThan(EventParticipationStatus.tentative.appleCalendarBackgroundAlpha, EventParticipationStatus.declined.appleCalendarBackgroundAlpha)
+    }
     func testMeetingBrowserKindMetadataIsStable() {
         XCTAssertEqual(
             MeetingBrowserKind.allCases.map(\.rawValue),
@@ -225,10 +235,67 @@ final class AlertCalendarModelMetadataTests: AlertCalendarModelTestCase {
             footballMatch: nil,
             footballMenuBarDisplay: nil
         )
+        let tentative = UpcomingItem(
+            id: "item-1",
+            title: "Planning",
+            date: start,
+            endDate: start.addingTimeInterval(1800),
+            isAllDay: false,
+            showsMutedBackground: false,
+            travelTimeMinutes: 12,
+            locationText: "Room 4",
+            meetingURL: meetingURL,
+            eventParticipationStatus: .tentative,
+            calendarID: "cal-1",
+            calendarName: "Work",
+            calendarColor: AlertCalendarColor(red: 0.20, green: 0.50, blue: 0.90),
+            kind: .event,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
+        )
+        let recurring = UpcomingItem(
+            id: "item-1",
+            title: "Planning",
+            date: start,
+            endDate: start.addingTimeInterval(1800),
+            isAllDay: false,
+            showsMutedBackground: false,
+            travelTimeMinutes: 12,
+            locationText: "Room 4",
+            meetingURL: meetingURL,
+            isRecurring: true,
+            calendarID: "cal-1",
+            calendarName: "Work",
+            calendarColor: AlertCalendarColor(red: 0.20, green: 0.50, blue: 0.90),
+            kind: .event,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
+        )
+        let withDocument = UpcomingItem(
+            id: "item-1",
+            title: "Planning",
+            date: start,
+            endDate: start.addingTimeInterval(1800),
+            isAllDay: false,
+            showsMutedBackground: false,
+            travelTimeMinutes: 12,
+            locationText: "Room 4",
+            meetingURL: meetingURL,
+            hasDocumentIndicator: true,
+            calendarID: "cal-1",
+            calendarName: "Work",
+            calendarColor: AlertCalendarColor(red: 0.20, green: 0.50, blue: 0.90),
+            kind: .event,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
+        )
 
         XCTAssertEqual(base, same)
         XCTAssertNotEqual(base, differentKind)
         XCTAssertNotEqual(base, withoutMeetingURL)
+        XCTAssertNotEqual(base, tentative)
+        XCTAssertNotEqual(base, recurring)
+        XCTAssertNotEqual(base, withDocument)
     }
     func testMenuMarkerStyleDistinguishesSymbolFamilies() {
         XCTAssertEqual(MenuMarkerStyle.allDay(.systemBlue), MenuMarkerStyle.allDay(.systemBlue))

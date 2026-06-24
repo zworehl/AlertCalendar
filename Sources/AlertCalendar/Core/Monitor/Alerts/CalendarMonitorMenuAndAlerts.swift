@@ -91,6 +91,8 @@ extension CalendarMonitor {
         setIfChanged(\.combinedMenuBarSegments, to: state.segments)
         setColorArrayIfChanged(\.combinedMenuBarSegmentBackgroundColors, to: state.segmentBackgroundColors)
         setIfChanged(\.combinedMenuBarSegmentBackgroundProgresses, to: state.segmentBackgroundProgresses)
+        setIfChanged(\.combinedMenuBarSegmentParticipationStatuses, to: state.segmentParticipationStatuses)
+        setIfChanged(\.combinedMenuBarSegmentAccessorySymbolNames, to: state.segmentAccessorySymbolNames)
         setIfChanged(\.combinedMenuBarFootballDisplay, to: state.footballDisplay)
         setIfChanged(\.combinedMenuBarFootballTrailingText, to: state.footballTrailingText)
         setIfChanged(\.combinedMenuBarFootballStatusText, to: state.footballStatusText)
@@ -233,6 +235,8 @@ extension CalendarMonitor {
                     segments: segments,
                     segmentBackgroundColors: segmentBackgrounds.map(\.color),
                     segmentBackgroundProgresses: segmentBackgrounds.map(\.progress),
+                    segmentParticipationStatuses: previewItems.map(\.eventParticipationStatus),
+                    segmentAccessorySymbolNames: previewItems.map(menuBarAccessorySymbolNames(for:)),
                     footballDisplay: previewItems.first?.footballMenuBarDisplay,
                     footballTrailingText: previewItems.first.flatMap {
                         footballMenuBarTrailingText(

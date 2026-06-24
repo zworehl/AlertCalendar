@@ -95,6 +95,29 @@ final class FootballFixtureTitleFormattingTests: FootballFixtureFormatterTestCas
         XCTAssertEqual(FootballFixtureFormatter.calendarTitle(for: match), "BAR 🇪🇸 - 🇩🇪 BAY")
         XCTAssertFalse(display.showsScore)
     }
+    func testDelayedLiveFixtureKeepsCurrentScoreVisible() {
+        let match = makeMatch(
+            id: "match-delayed-live",
+            startDate: Date(timeIntervalSince1970: 1_720_000_000),
+            statusState: .inProgress,
+            statusText: "Delay",
+            statusDetailText: "45'+3'",
+            homeScore: "1",
+            awayScore: "0"
+        )
+
+        let display = FootballFixtureFormatter.menuBarDisplay(
+            for: match,
+            competitionLocalLogoURL: nil,
+            homeLocalLogoURL: nil,
+            awayLocalLogoURL: nil
+        )
+
+        XCTAssertTrue(match.hasInterruptedStatus)
+        XCTAssertTrue(match.hasVisibleScore)
+        XCTAssertEqual(FootballFixtureFormatter.calendarTitle(for: match), "BAR 🇪🇸 1 - 0 🇩🇪 BAY")
+        XCTAssertTrue(display.showsScore)
+    }
     func testScoreHighlightRangeFindsHomeAndAwayScoresInCalendarTitle() {
         let title = "BAR 🇪🇸 2 - 1 🇩🇪 BAY"
 
@@ -237,6 +260,40 @@ final class FootballFixtureTitleFormattingTests: FootballFixtureFormatterTestCas
 
         XCTAssertEqual(FootballFixtureFormatter.calendarTitle(for: match), "TBD 🏴 - 🏴 TBD")
         XCTAssertTrue(FootballFixtureFormatter.hasUnknownParticipants(in: match))
+    }
+    func testWorldCupKnockoutSlotCodesAreUnknownParticipants() {
+        for code in ["GRO", "3RD", "1I", "1L", "2J", "2K", "2L", "RD1", "RD16W5"] {
+            let team = FootballTeamSummary(
+                id: code.lowercased(),
+                name: code,
+                abbreviation: code,
+                logoURL: nil,
+                countryName: nil,
+                isNational: true
+            )
+
+            XCTAssertTrue(FootballFixtureFormatter.isUnknownTeam(team), "\(code) should be treated as a pending knockout slot")
+            XCTAssertEqual(FootballFixtureFormatter.teamDisplayIdentifier(for: team), "TBD")
+        }
+    }
+    func testWorldCupKnockoutSlotDescriptionsFromTeamCacheAreUnknownParticipants() {
+        for (code, countryName) in [
+            ("GRO", "Group A Winner"),
+            ("SFL", "Semifinal 1 Loser"),
+            ("SFW", "Semifinal 2 Winner"),
+        ] {
+            let team = FootballTeamSummary(
+                id: code.lowercased(),
+                name: code,
+                abbreviation: code,
+                logoURL: nil,
+                countryName: countryName,
+                isNational: true
+            )
+
+            XCTAssertTrue(FootballFixtureFormatter.isUnknownTeam(team), "\(countryName) should be treated as a pending knockout slot")
+            XCTAssertEqual(FootballFixtureFormatter.teamDisplayIdentifier(for: team), "TBD")
+        }
     }
     func testClubIdentifiersAreTrimmedToThreeLetters() {
         let team = FootballTeamSummary(

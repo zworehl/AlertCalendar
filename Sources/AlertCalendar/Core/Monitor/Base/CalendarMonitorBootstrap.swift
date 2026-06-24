@@ -44,7 +44,29 @@ extension CalendarMonitor {
                 self.scheduleAutomaticAstronomyLocationRefresh(trigger: .appActivation)
             }
 
+        workspaceResumeObserver = Publishers.Merge3(
+            NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification),
+            NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.screensDidWakeNotification),
+            NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.sessionDidBecomeActiveNotification)
+        )
+        .debounce(for: .milliseconds(750), scheduler: RunLoop.main)
+        .receive(on: RunLoop.main)
+        .sink { [weak self] _ in
+            self?.handleWorkspaceResume()
+        }
+
         startWiFiNetworkMonitoring()
+    }
+
+    func handleWorkspaceResume() {
+        reloadCurrentSettings()
+        let settings = snapshotSettings()
+        let now = fixedSecondNow()
+        CalendarMonitorLog.refresh.info("Workspace resumed; refreshing calendar state")
+        evaluateAlert(now: now, settings: settings)
+        updateMenuBarState(now: now, settings: settings)
+        scheduleAutomaticAstronomyLocationRefresh(trigger: .appActivation)
+        enqueueRefresh(reason: .workspaceResumed)
     }
 
     func startHeartbeat() {

@@ -17,6 +17,8 @@ final class CalendarMonitor: ObservableObject {
     @Published var combinedMenuBarSegments: [String] = ["Loading..."]
     @Published var combinedMenuBarSegmentBackgroundColors: [NSColor] = [.clear]
     @Published var combinedMenuBarSegmentBackgroundProgresses: [CGFloat] = [0]
+    @Published var combinedMenuBarSegmentParticipationStatuses: [EventParticipationStatus?] = [nil]
+    @Published var combinedMenuBarSegmentAccessorySymbolNames: [[String]] = [[]]
     @Published var combinedMenuBarFootballDisplay: FootballMenuBarDisplay?
     @Published var combinedMenuBarFootballTrailingText: String?
     @Published var combinedMenuBarFootballStatusText: String?
@@ -63,6 +65,7 @@ final class CalendarMonitor: ObservableObject {
     var defaultsObserver: AnyCancellable?
     var eventStoreObserver: AnyCancellable?
     var appActivationObserver: AnyCancellable?
+    var workspaceResumeObserver: AnyCancellable?
     let refreshCoordinator = CalendarMonitorRefreshCoordinator()
     var tickCount = 0
     var lastPeriodicRefreshDate: Date?

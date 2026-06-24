@@ -58,6 +58,9 @@ extension CalendarMonitor {
             let footballMenuBarDisplay = footballMatch.map(footballMenuBarDisplay(for:))
             let organizer = organizer(for: event)
             let attendees = invitees(for: event)
+            let eventParticipationStatus = eventParticipationStatus(for: event)
+            let isRecurring = isRecurringEvent(event)
+            let hasDocumentIndicator = hasDocumentIndicator(for: event, meetingURL: meetingURL)
             let travelTimeMinutes = normalizedTravelTimeMinutes(
                 for: event,
                 meetingURL: meetingURL,
@@ -84,6 +87,9 @@ extension CalendarMonitor {
                         meetingURL: meetingURL,
                         organizer: organizer,
                         attendees: attendees,
+                        eventParticipationStatus: eventParticipationStatus,
+                        isRecurring: isRecurring,
+                        hasDocumentIndicator: hasDocumentIndicator,
                         calendarID: calendarIdentifier,
                         calendarName: calendarName,
                         calendarColor: calendarColor,
@@ -112,6 +118,9 @@ extension CalendarMonitor {
                     meetingURL: meetingURL,
                     organizer: organizer,
                     attendees: attendees,
+                    eventParticipationStatus: eventParticipationStatus,
+                    isRecurring: isRecurring,
+                    hasDocumentIndicator: hasDocumentIndicator,
                     calendarID: calendarIdentifier,
                     calendarName: calendarName,
                     calendarColor: calendarColor,
@@ -146,11 +155,10 @@ extension CalendarMonitor {
             calendars: calendars
         )
 
-        let reminders: [EKReminder] = await withCheckedContinuation { continuation in
-            eventStore.fetchReminders(matching: predicate) { reminders in
-                continuation.resume(returning: reminders ?? [])
-            }
-        }
+        let reminders = await fetchReminders(
+            matching: predicate,
+            timeout: CalendarMonitorCadence.reminderFetchTimeoutInterval
+        )
 
         return reminders.compactMap { reminder -> UpcomingItem? in
             guard let dueDate = dueDate(for: reminder) else { return nil }
@@ -177,19 +185,148 @@ extension CalendarMonitor {
         }
     }
 
-    func requiresMutedParticipationStyle(for event: EKEvent) -> Bool {
-        if let participantStatus = event.attendees?.first(where: { $0.isCurrentUser })?.participantStatus {
-            switch participantStatus {
-            case .accepted:
-                return false
-            case .tentative, .pending:
-                return true
-            default:
-                return true
+    func fetchReminders(matching predicate: NSPredicate, timeout: TimeInterval) async -> [EKReminder] {
+        await withCheckedContinuation { continuation in
+            var didResume = false
+
+            func resumeOnce(with reminders: [EKReminder], timedOut: Bool = false) {
+                guard !didResume else { return }
+                didResume = true
+                if timedOut {
+                    CalendarMonitorLog.refresh.error("Timed out fetching reminders from EventKit")
+                }
+                continuation.resume(returning: reminders)
+            }
+
+            eventStore.fetchReminders(matching: predicate) { reminders in
+                DispatchQueue.main.async {
+                    resumeOnce(with: reminders ?? [])
+                }
+            }
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + timeout) {
+                resumeOnce(with: [], timedOut: true)
             }
         }
+    }
 
-        return event.status == .tentative
+    func requiresMutedParticipationStyle(for event: EKEvent) -> Bool {
+        eventParticipationStatus(for: event)?.usesTexturedFill == true
+    }
+
+    func eventParticipationStatus(for event: EKEvent) -> EventParticipationStatus? {
+        if let participantStatus = event.attendees?.first(where: { $0.isCurrentUser })?.participantStatus {
+            return Self.eventParticipationStatus(for: participantStatus)
+        }
+
+        if event.status == .tentative || event.availability == .tentative {
+            return .tentative
+        }
+
+        return nil
+    }
+
+    nonisolated static func eventParticipationStatus(for participantStatus: EKParticipantStatus) -> EventParticipationStatus {
+        switch participantStatus {
+        case .accepted:
+            return .accepted
+        case .tentative:
+            return .tentative
+        case .declined:
+            return .declined
+        case .pending, .unknown, .delegated, .completed, .inProcess:
+            return .pending
+        @unknown default:
+            return .pending
+        }
+    }
+
+    func isRecurringEvent(_ event: EKEvent) -> Bool {
+        event.hasRecurrenceRules || event.isDetached
+    }
+
+    func hasDocumentIndicator(for event: EKEvent, meetingURL: URL?) -> Bool {
+        var candidates = [URL]()
+
+        if let eventURL = event.url {
+            candidates.append(eventURL)
+        }
+
+        if let notes = AlertCalendarString.trimmedNonEmpty(event.notes) {
+            candidates.append(contentsOf: allURLs(in: notes))
+        }
+
+        return candidates.contains { candidate in
+            guard !Self.urlsMatch(candidate, meetingURL) else { return false }
+            guard !isKnownMeetingURL(candidate) else { return false }
+            return Self.isDocumentIndicatorURL(candidate)
+        }
+    }
+
+    nonisolated static func isDocumentIndicatorURL(_ url: URL) -> Bool {
+        if url.isFileURL {
+            return true
+        }
+
+        let pathExtension = url.pathExtension.lowercased()
+        if documentIndicatorPathExtensions.contains(pathExtension) {
+            return true
+        }
+
+        guard let host = url.host?.lowercased() else { return false }
+        let path = url.path.lowercased()
+
+        if host == "docs.google.com" || host.hasSuffix(".docs.google.com") {
+            return path.hasPrefix("/document/")
+                || path.hasPrefix("/spreadsheets/")
+                || path.hasPrefix("/presentation/")
+                || path.hasPrefix("/drawings/")
+                || path.hasPrefix("/forms/")
+        }
+
+        if host == "drive.google.com" || host.hasSuffix(".drive.google.com") {
+            return path.hasPrefix("/file/")
+        }
+
+        if host == "1drv.ms" || host.hasSuffix(".1drv.ms") {
+            return true
+        }
+
+        if host.hasSuffix(".sharepoint.com") || host == "sharepoint.com" {
+            return pathExtension.isEmpty == false
+        }
+
+        return false
+    }
+
+    nonisolated private static var documentIndicatorPathExtensions: Set<String> {
+        [
+            "csv",
+            "doc",
+            "docx",
+            "ics",
+            "key",
+            "numbers",
+            "pages",
+            "pdf",
+            "ppt",
+            "pptx",
+            "rtf",
+            "txt",
+            "xls",
+            "xlsx",
+            "zip",
+        ]
+    }
+
+    nonisolated static func urlsMatch(_ left: URL, _ right: URL?) -> Bool {
+        guard let right else { return false }
+        return normalizedURLString(left) == normalizedURLString(right)
+    }
+
+    nonisolated private static func normalizedURLString(_ url: URL) -> String {
+        let rawString = url.absoluteString.removingPercentEncoding ?? url.absoluteString
+        return rawString.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
     func dueDate(for reminder: EKReminder) -> Date? {

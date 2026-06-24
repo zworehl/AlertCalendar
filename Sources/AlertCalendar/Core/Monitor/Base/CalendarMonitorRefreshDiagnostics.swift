@@ -5,6 +5,7 @@ enum CalendarMonitorRefreshReason: String, CaseIterable, Hashable {
     case manual
     case settingsChanged
     case eventStoreChanged
+    case workspaceResumed
     case periodic
     case footballHeartbeat
     case locationChanged
@@ -23,6 +24,8 @@ enum CalendarMonitorRefreshReason: String, CaseIterable, Hashable {
             return "Settings changed"
         case .eventStoreChanged:
             return "Calendar changed"
+        case .workspaceResumed:
+            return "Mac wake"
         case .periodic:
             return "Periodic"
         case .footballHeartbeat:
@@ -42,7 +45,7 @@ enum CalendarMonitorRefreshReason: String, CaseIterable, Hashable {
 
     var triggersManagedFootballSync: Bool {
         switch self {
-        case .launch, .manual, .settingsChanged, .eventStoreChanged, .periodic, .footballHeartbeat, .footballCalendarAction:
+        case .launch, .manual, .settingsChanged, .eventStoreChanged, .workspaceResumed, .periodic, .footballHeartbeat, .footballCalendarAction:
             return true
         case .locationChanged, .calendarSelectionChanged, .itemAction, .slackConnectionChanged:
             return false

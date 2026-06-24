@@ -84,9 +84,11 @@ extension MenuContentView {
         let titleColor: Color = .primary
         let detailTextColor: Color = .secondary
         let tertiaryTextColor: Color = .secondary.opacity(0.85)
+        let participationTextOpacity = item.eventParticipationStatus?.appleCalendarTextAlpha ?? 1
         let titleFont = Font.system(size: 12, weight: .semibold)
         let detailFont = Font.system(size: 11, weight: .medium)
         let detailIconFont = Font.system(size: 12, weight: .regular)
+        let accessorySymbolNames = monitor.menuBarAccessorySymbolNames(for: item)
         let hasVirtualLocation = monitor.isVirtualLocationText(item.locationText)
         let usesEventStyleLayout = item.kind == .event
         let showTravelTime = item.kind == .event
@@ -147,11 +149,14 @@ extension MenuContentView {
                                 }
                             }
 
-                            Text(item.title)
-                                .font(titleFont)
-                                .foregroundStyle(titleColor)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
+                            titleLine(
+                                title: item.title,
+                                symbolNames: accessorySymbolNames,
+                                titleFont: titleFont,
+                                iconFont: detailIconFont,
+                                titleColor: titleColor.opacity(participationTextOpacity),
+                                iconColor: detailTextColor.opacity(participationTextOpacity)
+                            )
 
                             if !item.isAllDay, let locationText = item.locationText {
                                 let locationName = displayLocationName(from: locationText)
@@ -163,7 +168,7 @@ extension MenuContentView {
                                             .foregroundStyle(accentColor)
                                         Text(locationName)
                                             .font(detailFont)
-                                            .foregroundStyle(detailTextColor)
+                                            .foregroundStyle(detailTextColor.opacity(participationTextOpacity))
                                             .lineLimit(1)
                                             .truncationMode(.tail)
                                     }
@@ -178,7 +183,7 @@ extension MenuContentView {
                                         .foregroundStyle(accentColor)
                                     Text(meetingServiceName(for: meetingURL))
                                         .font(detailFont)
-                                        .foregroundStyle(detailTextColor)
+                                        .foregroundStyle(detailTextColor.opacity(participationTextOpacity))
                                 }
                             }
                         }
@@ -198,18 +203,18 @@ extension MenuContentView {
                                 if let allDayRightLabel {
                                     Text(allDayRightLabel)
                                         .font(detailFont)
-                                        .foregroundStyle(detailTextColor)
+                                        .foregroundStyle(detailTextColor.opacity(participationTextOpacity))
                                 }
                             } else {
                                 Text(timeText(item.date))
                                     .font(detailFont)
-                                    .foregroundStyle(detailTextColor)
+                                    .foregroundStyle(detailTextColor.opacity(participationTextOpacity))
                             }
 
                             if !item.isAllDay, let endDate = item.endDate, endDate > item.date {
                                 Text(timeText(endDate))
                                     .font(detailFont)
-                                    .foregroundStyle(tertiaryTextColor)
+                                    .foregroundStyle(tertiaryTextColor.opacity(participationTextOpacity))
                             }
                         }
                     }
@@ -272,12 +277,17 @@ extension MenuContentView {
                     }
                 } else {
                     VStack(alignment: .leading, spacing: 0) {
-                        Text(item.title)
-                            .font(titleFont)
-                            .foregroundStyle(titleColor)
+                        titleLine(
+                            title: item.title,
+                            symbolNames: accessorySymbolNames,
+                            titleFont: titleFont,
+                            iconFont: detailIconFont,
+                            titleColor: titleColor.opacity(participationTextOpacity),
+                            iconColor: detailTextColor.opacity(participationTextOpacity)
+                        )
 
-                            if !hideTimeDetails,
-                               let detailTime = timeRangeText(for: item) {
+                        if !hideTimeDetails,
+                           let detailTime = timeRangeText(for: item) {
                             HStack(alignment: .center, spacing: 4) {
                                 Image(systemName: "clock")
                                     .font(detailIconFont)
@@ -285,7 +295,7 @@ extension MenuContentView {
                                     .foregroundStyle(accentColor)
                                 Text(detailTime)
                                     .font(detailFont)
-                                    .foregroundStyle(detailTextColor)
+                                    .foregroundStyle(detailTextColor.opacity(participationTextOpacity))
                             }
                         }
                     }
@@ -306,15 +316,30 @@ extension MenuContentView {
 
             if visual.color.alphaComponent > 0.01 {
                 RoundedRectangle(cornerRadius: 7)
-                    .fill(Color(nsColor: visual.color).opacity(0.08))
+                    .fill(
+                        Color(nsColor: visual.color)
+                            .opacity(item.eventParticipationStatus?.usesTexturedFill == true ? 0.55 : 0.08)
+                    )
+
+                if item.eventParticipationStatus?.usesTexturedFill == true {
+                    CalendarParticipationTexture(status: item.eventParticipationStatus)
+                        .clipShape(RoundedRectangle(cornerRadius: 7))
+                }
             }
         }
         .overlay(alignment: .leading) {
             if let progress = monitor.activeEventProgress(for: item, now: now, settings: settings), progress > 0 {
                 GeometryReader { proxy in
-                    RoundedRectangle(cornerRadius: 7)
-                        .fill(Color(nsColor: item.calendarColor.nsColor).opacity(0.22))
-                        .frame(width: max(10, proxy.size.width * progress))
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 7)
+                            .fill(Color(nsColor: item.calendarColor.nsColor).opacity(0.22))
+
+                        if item.eventParticipationStatus?.usesTexturedFill == true {
+                            CalendarParticipationTexture(status: item.eventParticipationStatus)
+                                .clipShape(RoundedRectangle(cornerRadius: 7))
+                        }
+                    }
+                    .frame(width: max(10, proxy.size.width * progress))
                 }
             }
         }
@@ -323,6 +348,69 @@ extension MenuContentView {
         textBlock
     }
 
+    @ViewBuilder
+    func titleLine(
+        title: String,
+        symbolNames: [String],
+        titleFont: Font,
+        iconFont: Font,
+        titleColor: Color,
+        iconColor: Color
+    ) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            Text(title)
+                .font(titleFont)
+                .foregroundStyle(titleColor)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .layoutPriority(0)
+
+            if !symbolNames.isEmpty {
+                Spacer(minLength: 8)
+
+                HStack(spacing: 4) {
+                    ForEach(symbolNames, id: \.self) { symbolName in
+                        Image(systemName: symbolName)
+                            .font(iconFont)
+                            .frame(width: 12, height: 12, alignment: .center)
+                            .foregroundStyle(iconColor)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .fixedSize()
+                .layoutPriority(1)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+}
+
+private struct CalendarParticipationTexture: View {
+    let status: EventParticipationStatus?
+
+    var body: some View {
+        if let status, status.usesTexturedFill {
+            Canvas { context, size in
+                var path = Path()
+                let spacing = max(4, status.appleCalendarStripeSpacing)
+                var currentX = -size.height
+
+                while currentX <= size.width + size.height {
+                    path.move(to: CGPoint(x: currentX, y: size.height))
+                    path.addLine(to: CGPoint(x: currentX + size.height, y: 0))
+                    currentX += spacing
+                }
+
+                context.stroke(
+                    path,
+                    with: .color(.black.opacity(Double(status.appleCalendarStripeAlpha))),
+                    lineWidth: 1.5
+                )
+            }
+            .allowsHitTesting(false)
+        }
+    }
 }
 
 struct MenuContentHoverContainer<Content: View>: View {

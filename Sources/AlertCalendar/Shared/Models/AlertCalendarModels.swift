@@ -5,6 +5,74 @@ enum CalendarItemKind: String {
     case reminder = "Reminder"
 }
 
+enum EventParticipationStatus: String, Equatable {
+    case accepted
+    case tentative
+    case pending
+    case declined
+
+    var usesTexturedFill: Bool {
+        switch self {
+        case .accepted:
+            return false
+        case .tentative, .pending, .declined:
+            return true
+        }
+    }
+
+    var appleCalendarBackgroundAlpha: CGFloat {
+        switch self {
+        case .accepted:
+            return 0.30
+        case .tentative:
+            return 0.30
+        case .pending:
+            return 0.24
+        case .declined:
+            return 0.20
+        }
+    }
+
+    var appleCalendarTextAlpha: CGFloat {
+        switch self {
+        case .accepted:
+            return 1.0
+        case .tentative:
+            return 0.88
+        case .pending:
+            return 0.74
+        case .declined:
+            return 0.62
+        }
+    }
+
+    var appleCalendarStripeAlpha: CGFloat {
+        switch self {
+        case .accepted:
+            return 0
+        case .tentative:
+            return 0.16
+        case .pending:
+            return 0.18
+        case .declined:
+            return 0.24
+        }
+    }
+
+    var appleCalendarStripeSpacing: CGFloat {
+        switch self {
+        case .accepted:
+            return 6
+        case .tentative:
+            return 6
+        case .pending:
+            return 7
+        case .declined:
+            return 5
+        }
+    }
+}
+
 enum MeetingAttendeeResponse: String, Equatable {
     case accepted
     case tentative
@@ -230,6 +298,9 @@ struct UpcomingItem: Identifiable, Equatable {
     let meetingURL: URL?
     let organizer: MeetingOrganizer?
     let attendees: [MeetingAttendee]
+    let eventParticipationStatus: EventParticipationStatus?
+    let isRecurring: Bool
+    let hasDocumentIndicator: Bool
     let calendarID: String?
     let calendarName: String
     let calendarColor: AlertCalendarColor
@@ -249,6 +320,9 @@ struct UpcomingItem: Identifiable, Equatable {
         meetingURL: URL?,
         organizer: MeetingOrganizer? = nil,
         attendees: [MeetingAttendee] = [],
+        eventParticipationStatus: EventParticipationStatus? = nil,
+        isRecurring: Bool = false,
+        hasDocumentIndicator: Bool = false,
         calendarID: String?,
         calendarName: String,
         calendarColor: AlertCalendarColor,
@@ -267,6 +341,9 @@ struct UpcomingItem: Identifiable, Equatable {
         self.meetingURL = meetingURL
         self.organizer = organizer
         self.attendees = attendees
+        self.eventParticipationStatus = eventParticipationStatus
+        self.isRecurring = isRecurring
+        self.hasDocumentIndicator = hasDocumentIndicator
         self.calendarID = calendarID
         self.calendarName = calendarName
         self.calendarColor = calendarColor
@@ -380,6 +457,9 @@ extension UpcomingItem {
             && lhs.meetingURL == rhs.meetingURL
             && lhs.organizer == rhs.organizer
             && lhs.attendees == rhs.attendees
+            && lhs.eventParticipationStatus == rhs.eventParticipationStatus
+            && lhs.isRecurring == rhs.isRecurring
+            && lhs.hasDocumentIndicator == rhs.hasDocumentIndicator
             && lhs.calendarID == rhs.calendarID
             && lhs.calendarName == rhs.calendarName
             && lhs.calendarColor == rhs.calendarColor

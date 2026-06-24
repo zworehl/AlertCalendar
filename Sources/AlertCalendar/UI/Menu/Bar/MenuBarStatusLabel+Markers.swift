@@ -99,6 +99,7 @@ extension MenuBarStatusLabel {
     static func drawSegmentBackground(
         color: NSColor,
         progress: CGFloat,
+        participationStatus: EventParticipationStatus?,
         segmentStartX: CGFloat,
         segmentWidth: CGFloat,
         segmentHeight: CGFloat,
@@ -138,6 +139,43 @@ extension MenuBarStatusLabel {
         NSBezierPath(roundedRect: backgroundRect, xRadius: cornerRadius, yRadius: cornerRadius).addClip()
         color.setFill()
         NSBezierPath(rect: fillRect).fill()
+        if participationStatus?.usesTexturedFill == true {
+            drawParticipationTexture(
+                in: backgroundRect,
+                participationStatus: participationStatus,
+                cornerRadius: cornerRadius
+            )
+        }
+        NSGraphicsContext.restoreGraphicsState()
+    }
+
+    static func drawParticipationTexture(
+        in rect: NSRect,
+        participationStatus: EventParticipationStatus?,
+        cornerRadius: CGFloat
+    ) {
+        guard let participationStatus,
+              participationStatus.usesTexturedFill else {
+            return
+        }
+
+        NSGraphicsContext.saveGraphicsState()
+        NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius).addClip()
+
+        let stripePath = NSBezierPath()
+        stripePath.lineWidth = 1.5
+        stripePath.lineCapStyle = .square
+
+        let spacing = max(4, participationStatus.appleCalendarStripeSpacing)
+        var currentX = rect.minX - rect.height
+        while currentX <= rect.maxX + rect.height {
+            stripePath.move(to: NSPoint(x: currentX, y: rect.minY))
+            stripePath.line(to: NSPoint(x: currentX + rect.height, y: rect.maxY))
+            currentX += spacing
+        }
+
+        NSColor.black.withAlphaComponent(participationStatus.appleCalendarStripeAlpha).setStroke()
+        stripePath.stroke()
         NSGraphicsContext.restoreGraphicsState()
     }
 

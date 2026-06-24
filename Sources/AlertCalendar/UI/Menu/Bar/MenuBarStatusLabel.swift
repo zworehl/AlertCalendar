@@ -13,6 +13,8 @@ struct MenuBarStatusLabel: View {
     let segments: [String]
     let segmentBackgroundColors: [NSColor]
     let segmentBackgroundProgresses: [CGFloat]
+    let segmentParticipationStatuses: [EventParticipationStatus?]
+    let segmentAccessorySymbolNames: [[String]]
     let footballDisplay: FootballMenuBarDisplay?
     let footballTrailingText: String?
     let footballStatusText: String?
@@ -34,6 +36,8 @@ struct MenuBarStatusLabel: View {
                 segments: segments,
                 segmentBackgroundColors: segmentBackgroundColors,
                 segmentBackgroundProgresses: segmentBackgroundProgresses,
+                segmentParticipationStatuses: segmentParticipationStatuses,
+                segmentAccessorySymbolNames: segmentAccessorySymbolNames,
                 footballDisplay: footballDisplay,
                 footballTrailingText: footballTrailingText,
                 footballStatusText: footballStatusText,
@@ -89,6 +93,8 @@ struct MenuBarStatusLabel: View {
         segments: [String],
         segmentBackgroundColors: [NSColor],
         segmentBackgroundProgresses: [CGFloat],
+        segmentParticipationStatuses: [EventParticipationStatus?],
+        segmentAccessorySymbolNames: [[String]],
         footballDisplay: FootballMenuBarDisplay?,
         footballTrailingText: String?,
         footballStatusText: String?,
@@ -107,20 +113,33 @@ struct MenuBarStatusLabel: View {
             .foregroundColor: defaultTextColor,
         ]
         let textSegments = segments.isEmpty ? [text] : segments
-        let attributedSegments = textSegments.enumerated().map { index, segment in
+        let resolvedSegments = textSegments.enumerated().map { index, segment in
             let isAlertedSegment = alertedSegmentIndex == index
             let alertedTextOpacity = isAlertedSegment ? alertTextOpacity : nil
+            let participationStatus = index < segmentParticipationStatuses.count
+                ? segmentParticipationStatuses[index]
+                : nil
+            let baseSegmentTextColor = segmentTextColor(
+                baseColor: defaultTextColor,
+                participationStatus: participationStatus
+            )
             var segmentTextAttributes = baseTextAttributes
+            segmentTextAttributes[.foregroundColor] = baseSegmentTextColor
             if let alertedTextOpacity {
                 segmentTextAttributes[.foregroundColor] = alertTextColor(
                     opacity: alertedTextOpacity,
-                    baseColor: defaultTextColor
+                    baseColor: baseSegmentTextColor
                 )
             }
 
+            let segmentAccessorySymbols = index < segmentAccessorySymbolNames.count
+                ? segmentAccessorySymbolNames[index]
+                : []
+            let resolvedTextColor = segmentTextAttributes[.foregroundColor] as? NSColor ?? baseSegmentTextColor
+            let attributedSegment: NSAttributedString
             if index == 0,
                let footballDisplay {
-                return footballAttributedSegment(
+                attributedSegment = footballAttributedSegment(
                     display: footballDisplay,
                     trailingText: footballTrailingText,
                     statusText: footballStatusText,
@@ -129,25 +148,37 @@ struct MenuBarStatusLabel: View {
                     highlightSide: footballGoalHighlightSide,
                     highlightOpacity: footballGoalHighlightTextOpacity,
                     alertTextOpacity: alertedTextOpacity,
-                    baseColor: defaultTextColor
+                    baseColor: baseSegmentTextColor
                 )
+            } else {
+                let shouldHighlightFootballScore = index == 0
+                    && footballGoalHighlightSide != nil
+                    && footballGoalHighlightTextOpacity > 0
+                if shouldHighlightFootballScore {
+                    attributedSegment = footballHighlightedSegment(
+                        text: segment,
+                        side: footballGoalHighlightSide,
+                        opacity: footballGoalHighlightTextOpacity,
+                        baseAttributes: segmentTextAttributes
+                    )
+                } else {
+                    attributedSegment = NSAttributedString(string: segment, attributes: segmentTextAttributes)
+                }
             }
 
-            let shouldHighlightFootballScore = index == 0
-                && footballGoalHighlightSide != nil
-                && footballGoalHighlightTextOpacity > 0
-            if shouldHighlightFootballScore {
-                return footballHighlightedSegment(
-                    text: segment,
-                    side: footballGoalHighlightSide,
-                    opacity: footballGoalHighlightTextOpacity,
-                    baseAttributes: segmentTextAttributes
-                )
-            }
-
-            return NSAttributedString(string: segment, attributes: segmentTextAttributes)
+            return (
+                attributedSegment: attributedSegment,
+                accessorySymbolNames: segmentAccessorySymbols,
+                accessoryTintColor: resolvedTextColor
+            )
         }
+        let attributedSegments = resolvedSegments.map { $0.attributedSegment }
+        let accessorySymbolNamesBySegment = resolvedSegments.map { $0.accessorySymbolNames }
+        let accessoryTintColors = resolvedSegments.map { $0.accessoryTintColor }
         let segmentSizes = attributedSegments.map { $0.size() }
+        let accessoryWidths = accessorySymbolNamesBySegment.map {
+            accessorySymbolsWidth(symbolNames: $0, font: font)
+        }
 
         let statusBarHeight = NSStatusBar.system.thickness
         let segmentBackgroundOutsetX: CGFloat = 4
@@ -164,7 +195,9 @@ struct MenuBarStatusLabel: View {
         let segmentSpacing: CGFloat = 8
         let leftPadding: CGFloat = segmentBackgroundOutsetX + outerCanvasPaddingX
         let rightPadding: CGFloat = segmentBackgroundOutsetX + outerCanvasPaddingX
-        let textWidth = segmentSizes.reduce(CGFloat(0)) { $0 + $1.width }
+        let textWidth = zip(segmentSizes, accessoryWidths).reduce(CGFloat(0)) { partial, values in
+            partial + values.0.width + values.1
+        }
         let resolvedMarkers = textSegments.indices.map { index in
             index < markers.count ? markers[index] : .color(AlertCalendarColor(nsColor: color))
         }
@@ -188,10 +221,14 @@ struct MenuBarStatusLabel: View {
         var currentX = leftPadding
         for (index, segment) in attributedSegments.enumerated() {
             let segmentSize = segmentSizes[index]
+            let accessorySymbols = accessorySymbolNamesBySegment[index]
+            let accessoryWidth = accessoryWidths[index]
+            let accessoryTintColor = accessoryTintColors[index]
             let marker = resolvedMarkers[index]
             let currentMarkerWidth = markerWidthForStyle(marker, defaultWidth: markerWidth, imageWidth: imageMarkerSize)
             let markerX = currentX
             let textX = markerX + currentMarkerWidth + markerSpacing
+            let segmentContentWidth = currentMarkerWidth + markerSpacing + segmentSize.width + accessoryWidth
             let backgroundColor = index < segmentBackgroundColors.count ? segmentBackgroundColors[index] : .clear
             let backgroundProgress: CGFloat
             if index < segmentBackgroundProgresses.count {
@@ -199,11 +236,15 @@ struct MenuBarStatusLabel: View {
             } else {
                 backgroundProgress = backgroundColor.alphaComponent > 0.01 ? 1.0 : 0.0
             }
+            let participationStatus = index < segmentParticipationStatuses.count
+                ? segmentParticipationStatuses[index]
+                : nil
             drawSegmentBackground(
                 color: backgroundColor,
                 progress: backgroundProgress,
+                participationStatus: participationStatus,
                 segmentStartX: markerX,
-                segmentWidth: currentMarkerWidth + markerSpacing + segmentSize.width,
+                segmentWidth: segmentContentWidth,
                 segmentHeight: segmentSize.height,
                 canvasHeight: height,
                 externalInsetX: segmentBackgroundOutsetX,
@@ -223,12 +264,89 @@ struct MenuBarStatusLabel: View {
                 y: floor((height - segmentSize.height) / 2)
             )
             segment.draw(at: textOrigin)
-            currentX = textX + segmentSize.width
+            drawAccessorySymbols(
+                symbolNames: accessorySymbols,
+                font: font,
+                tintColor: accessoryTintColor,
+                rightX: markerX + segmentContentWidth,
+                canvasHeight: height
+            )
+            currentX = textX + segmentSize.width + accessoryWidth
 
             guard index < attributedSegments.count - 1 else { continue }
             currentX += segmentSpacing
         }
 
         return image
+    }
+
+    static func segmentTextColor(
+        baseColor: NSColor,
+        participationStatus: EventParticipationStatus?
+    ) -> NSColor {
+        guard let participationStatus else { return baseColor }
+        return baseColor.withAlphaComponent(baseColor.alphaComponent * participationStatus.appleCalendarTextAlpha)
+    }
+
+    static func accessorySymbolsWidth(
+        symbolNames: [String],
+        font: NSFont
+    ) -> CGFloat {
+        guard !symbolNames.isEmpty else { return 0 }
+
+        let symbolSize = accessorySymbolSize(font: font)
+        let leadingSpacing: CGFloat = 6
+        let symbolSpacing: CGFloat = 3
+        return leadingSpacing
+            + (CGFloat(symbolNames.count) * symbolSize)
+            + (CGFloat(max(0, symbolNames.count - 1)) * symbolSpacing)
+    }
+
+    static func drawAccessorySymbols(
+        symbolNames: [String],
+        font: NSFont,
+        tintColor: NSColor,
+        rightX: CGFloat,
+        canvasHeight: CGFloat
+    ) {
+        guard !symbolNames.isEmpty else { return }
+
+        let symbolSize = accessorySymbolSize(font: font)
+        let leadingSpacing: CGFloat = 6
+        let symbolSpacing: CGFloat = 3
+        let totalWidth = accessorySymbolsWidth(symbolNames: symbolNames, font: font)
+        var currentX = rightX - totalWidth + leadingSpacing
+        let symbolY = floor((canvasHeight - symbolSize) / 2)
+
+        for symbolName in symbolNames {
+            drawAccessorySymbol(
+                symbolName: symbolName,
+                tintColor: tintColor,
+                rect: NSRect(x: currentX, y: symbolY, width: symbolSize, height: symbolSize)
+            )
+            currentX += symbolSize + symbolSpacing
+        }
+    }
+
+    static func accessorySymbolSize(font: NSFont) -> CGFloat {
+        ceil(max(9, font.pointSize - 1))
+    }
+
+    static func drawAccessorySymbol(
+        symbolName: String,
+        tintColor: NSColor,
+        rect: NSRect
+    ) {
+        let pointSize = max(rect.width, rect.height)
+        let config = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .semibold)
+        guard let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
+            .withSymbolConfiguration(config) else {
+            return
+        }
+
+        let drawingRect = aspectFitRect(for: symbol.size, in: rect)
+        symbol.draw(in: drawingRect)
+        tintColor.setFill()
+        drawingRect.fill(using: .sourceAtop)
     }
 }

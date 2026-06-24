@@ -111,7 +111,7 @@ extension CalendarMonitor {
         locale: Locale = .autoupdatingCurrent,
         timeZone: TimeZone = .autoupdatingCurrent
     ) -> String {
-        if match.hasInterruptedStatus {
+        if match.hasInterruptedStatus, match.statusState != .inProgress {
             return footballKickoffStatusText(
                 for: match.startDate,
                 now: now,

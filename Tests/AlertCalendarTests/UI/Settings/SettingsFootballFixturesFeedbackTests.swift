@@ -35,6 +35,46 @@ final class SettingsFootballFixturesFeedbackTests: XCTestCase {
         ))
     }
 
+    func testFootballCardsExcludeMatchesWithAnyPendingParticipant() {
+        let knownMatch = FootballTestData.match(
+            id: "known",
+            statusState: .scheduled
+        )
+        let unknownHomeMatch = FootballTestData.match(
+            id: "unknown-home",
+            statusState: .scheduled,
+            homeTeam: FootballTeamSummary(
+                id: "gro",
+                name: "GRO",
+                abbreviation: "GRO",
+                logoURL: nil,
+                countryName: "Group A Winner",
+                isNational: true
+            )
+        )
+        let unknownAwayMatch = FootballTestData.match(
+            id: "unknown-away",
+            statusState: .inProgress,
+            awayTeam: FootballTeamSummary(
+                id: "sfl",
+                name: "SFL",
+                abbreviation: "SFL",
+                logoURL: nil,
+                countryName: "Semifinal 1 Loser",
+                isNational: true
+            )
+        )
+
+        XCTAssertEqual(
+            SettingsFootballFixturesSectionView.matchesEligibleForFootballCards([
+                unknownHomeMatch,
+                knownMatch,
+                unknownAwayMatch,
+            ]).map(\.id),
+            ["known"]
+        )
+    }
+
     private func makeSection(
         matches: [FootballFixtureMatch],
         errorMessage: String?,

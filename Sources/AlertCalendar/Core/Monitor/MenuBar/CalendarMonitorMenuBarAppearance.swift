@@ -46,7 +46,9 @@ extension CalendarMonitor {
 
     func backgroundTintColor(for item: UpcomingItem, now: Date) -> NSColor {
         if item.showsMutedBackground {
-            return item.calendarColor.nsColor.withAlphaComponent(0.26)
+            return item.calendarColor.nsColor.withAlphaComponent(
+                item.eventParticipationStatus?.appleCalendarBackgroundAlpha ?? 0.26
+            )
         }
         if item.kind == .reminder, item.date <= now {
             return item.calendarColor.nsColor.withAlphaComponent(0.26)
@@ -69,6 +71,24 @@ extension CalendarMonitor {
         }
 
         return (.clear, 0)
+    }
+
+    func menuBarAccessorySymbolNames(for item: UpcomingItem) -> [String] {
+        Self.menuBarAccessorySymbolNames(for: item)
+    }
+
+    nonisolated static func menuBarAccessorySymbolNames(for item: UpcomingItem) -> [String] {
+        guard item.kind == .event else { return [] }
+
+        var symbolNames: [String] = []
+        if item.hasDocumentIndicator {
+            symbolNames.append("paperclip")
+        }
+        if item.isRecurring {
+            symbolNames.append("repeat")
+        }
+
+        return symbolNames
     }
 
     func activeEventProgress(for item: UpcomingItem, now: Date, settings: AppSettings) -> CGFloat? {

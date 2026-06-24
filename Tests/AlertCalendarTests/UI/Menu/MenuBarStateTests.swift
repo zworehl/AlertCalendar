@@ -146,6 +146,52 @@ final class MenuBarStateTests: XCTestCase {
         )
     }
 
+    func testMenuBarAccessorySymbolsShowDocumentBeforeRecurrence() throws {
+        let startDate = Date(timeIntervalSince1970: 1_800_000_000)
+        let event = UpcomingItem(
+            id: "event-1",
+            title: "Design review",
+            date: startDate,
+            endDate: startDate.addingTimeInterval(30 * 60),
+            isAllDay: false,
+            showsMutedBackground: false,
+            travelTimeMinutes: nil,
+            locationText: nil,
+            meetingURL: try XCTUnwrap(URL(string: "https://meet.google.com/abc-defg-hij")),
+            isRecurring: true,
+            hasDocumentIndicator: true,
+            calendarID: "calendar-1",
+            calendarName: "Work",
+            calendarColor: .systemBlue,
+            kind: .event,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
+        )
+
+        XCTAssertEqual(
+            CalendarMonitor.menuBarAccessorySymbolNames(for: event),
+            ["paperclip", "repeat"]
+        )
+    }
+
+    func testDocumentIndicatorURLDetectsDocumentsButIgnoresMeetingLinks() throws {
+        XCTAssertTrue(
+            CalendarMonitor.isDocumentIndicatorURL(
+                try XCTUnwrap(URL(string: "https://example.com/agenda.pdf"))
+            )
+        )
+        XCTAssertTrue(
+            CalendarMonitor.isDocumentIndicatorURL(
+                try XCTUnwrap(URL(string: "https://docs.google.com/document/d/doc-id/edit"))
+            )
+        )
+        XCTAssertFalse(
+            CalendarMonitor.isDocumentIndicatorURL(
+                try XCTUnwrap(URL(string: "https://meet.google.com/abc-defg-hij"))
+            )
+        )
+    }
+
     func testAlertBlinkTextOpacityUsesSmoothPeriodicWave() {
         XCTAssertEqual(
             CalendarMonitor.alertBlinkTextOpacity(now: Date(timeIntervalSinceReferenceDate: 0)),

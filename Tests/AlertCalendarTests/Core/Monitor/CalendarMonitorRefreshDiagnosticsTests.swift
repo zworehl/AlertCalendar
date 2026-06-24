@@ -31,6 +31,7 @@ final class CalendarMonitorRefreshDiagnosticsTests: XCTestCase {
 
     func testManagedFootballSyncPolicySkipsUnrelatedRefreshReasons() {
         XCTAssertTrue(CalendarMonitorRefreshReason.manual.triggersManagedFootballSync)
+        XCTAssertTrue(CalendarMonitorRefreshReason.workspaceResumed.triggersManagedFootballSync)
         XCTAssertTrue(CalendarMonitorRefreshReason.footballHeartbeat.triggersManagedFootballSync)
         XCTAssertFalse(CalendarMonitorRefreshReason.locationChanged.triggersManagedFootballSync)
         XCTAssertFalse(CalendarMonitorRefreshReason.itemAction.triggersManagedFootballSync)
