@@ -131,6 +131,7 @@ extension MenuContentView {
                                 item: item,
                                 match: footballMatch,
                                 accentColor: accentColor,
+                                titleColor: titleColor.opacity(participationTextOpacity),
                                 titleFont: titleFont,
                                 detailFont: detailFont,
                                 detailIconFont: detailIconFont,

@@ -101,17 +101,18 @@ extension CalendarMonitor {
         for items: [UpcomingItem],
         rules: [SlackStatusSyncRule],
         now: Date,
-        defaultEventDuration: TimeInterval = 60 * 60
+        defaultEventDuration: TimeInterval = 60 * 60,
+        dynamicStatusRotationInterval: TimeInterval = CalendarMonitorCadence.slackDynamicStatusRotationInterval
     ) -> Date? {
         let relevantCalendarIDs = Set(rules.map(\.calendarID))
         guard !relevantCalendarIDs.isEmpty else { return nil }
 
-        return items.compactMap { item in
+        var transitionDates: [Date] = items.compactMap { item -> Date? in
             guard isSlackStatusMeetingItem(item) else { return nil }
             guard let calendarID = item.calendarID else { return nil }
             guard relevantCalendarIDs.contains(calendarID) else { return nil }
 
-            let endDate = item.endDate ?? item.date.addingTimeInterval(defaultEventDuration)
+            let endDate = slackStatusEndDate(for: item, defaultEventDuration: defaultEventDuration)
 
             if item.date > now {
                 return item.date
@@ -123,27 +124,52 @@ extension CalendarMonitor {
 
             return nil
         }
-        .filter { $0 > now }
-        .min()
+
+        transitionDates.append(
+            contentsOf: slackDynamicStatusRotationTransitionDates(
+                for: items,
+                rules: rules,
+                now: now,
+                defaultEventDuration: defaultEventDuration,
+                dynamicStatusRotationInterval: dynamicStatusRotationInterval
+            )
+        )
+
+        return transitionDates
+            .filter { $0 > now }
+            .min()
     }
 
     nonisolated static func activeSlackRuleStateByConnectionID(
         for items: [UpcomingItem],
         rules: [SlackStatusSyncRule],
         now: Date,
-        defaultEventDuration: TimeInterval = 60 * 60
+        defaultEventDuration: TimeInterval = 60 * 60,
+        dynamicStatusRotationInterval: TimeInterval = CalendarMonitorCadence.slackDynamicStatusRotationInterval
     ) -> [String: SlackActiveRuleState] {
         var activeRuleStateByConnectionID: [String: SlackActiveRuleState] = [:]
 
         for rule in rules {
-            guard let expirationTimestamp = slackMeetingStatusExpirationTimestamp(
+            let activeItems = activeSlackStatusMeetingItems(
                 for: items,
                 calendarID: rule.calendarID,
                 now: now,
                 defaultEventDuration: defaultEventDuration
-            ) else {
+            )
+            guard !activeItems.isEmpty else {
                 continue
             }
+
+            guard let expirationTimestamp = slackMeetingStatusExpirationTimestamp(
+                for: activeItems,
+                defaultEventDuration: defaultEventDuration
+            ) else { continue }
+            let statusText = slackStatusText(
+                for: rule,
+                activeItems: activeItems,
+                now: now,
+                dynamicStatusRotationInterval: dynamicStatusRotationInterval
+            )
 
             if var existing = activeRuleStateByConnectionID[rule.connectionID] {
                 existing = SlackActiveRuleState(
@@ -154,7 +180,7 @@ extension CalendarMonitor {
                 activeRuleStateByConnectionID[rule.connectionID] = existing
             } else {
                 activeRuleStateByConnectionID[rule.connectionID] = SlackActiveRuleState(
-                    statusText: rule.statusText,
+                    statusText: statusText,
                     statusEmoji: rule.statusEmoji,
                     expiration: expirationTimestamp
                 )
@@ -170,19 +196,136 @@ extension CalendarMonitor {
         now: Date,
         defaultEventDuration: TimeInterval = 60 * 60
     ) -> Int? {
-        let activeItems = items.filter { item in
+        let activeItems = activeSlackStatusMeetingItems(
+            for: items,
+            calendarID: calendarID,
+            now: now,
+            defaultEventDuration: defaultEventDuration
+        )
+
+        guard !activeItems.isEmpty else { return nil }
+        return slackMeetingStatusExpirationTimestamp(
+            for: activeItems,
+            defaultEventDuration: defaultEventDuration
+        )
+    }
+
+    nonisolated static func activeSlackStatusMeetingItems(
+        for items: [UpcomingItem],
+        calendarID: String,
+        now: Date,
+        defaultEventDuration: TimeInterval = 60 * 60
+    ) -> [UpcomingItem] {
+        items.filter { item in
             guard isSlackStatusMeetingItem(item, calendarID: calendarID) else { return false }
 
-            let endDate = item.endDate ?? item.date.addingTimeInterval(defaultEventDuration)
+            let endDate = slackStatusEndDate(for: item, defaultEventDuration: defaultEventDuration)
             return item.date <= now && endDate > now
         }
+        .sorted(by: slackStatusItemSort)
+    }
 
+    nonisolated static func slackMeetingStatusExpirationTimestamp(
+        for activeItems: [UpcomingItem],
+        defaultEventDuration: TimeInterval = 60 * 60
+    ) -> Int? {
         let latestEndDate = activeItems.compactMap { item in
-            item.endDate ?? item.date.addingTimeInterval(defaultEventDuration)
+            slackStatusEndDate(for: item, defaultEventDuration: defaultEventDuration)
         }.max()
 
         guard let latestEndDate else { return nil }
         return Int(latestEndDate.timeIntervalSince1970.rounded(.down))
+    }
+
+    nonisolated static func slackStatusText(
+        for rule: SlackStatusSyncRule,
+        activeItems: [UpcomingItem],
+        now: Date,
+        dynamicStatusRotationInterval: TimeInterval = CalendarMonitorCadence.slackDynamicStatusRotationInterval
+    ) -> String {
+        guard rule.statusTextSource == .eventTitle else {
+            return rule.statusText
+        }
+
+        guard !activeItems.isEmpty else {
+            return rule.statusText
+        }
+
+        let index = slackDynamicStatusItemIndex(
+            itemCount: activeItems.count,
+            now: now,
+            dynamicStatusRotationInterval: dynamicStatusRotationInterval
+        )
+        return activeItems[index].title
+    }
+
+    nonisolated static func slackDynamicStatusRotationTransitionDates(
+        for items: [UpcomingItem],
+        rules: [SlackStatusSyncRule],
+        now: Date,
+        defaultEventDuration: TimeInterval = 60 * 60,
+        dynamicStatusRotationInterval: TimeInterval = CalendarMonitorCadence.slackDynamicStatusRotationInterval
+    ) -> [Date] {
+        guard dynamicStatusRotationInterval > 0 else { return [] }
+
+        return rules.compactMap { rule in
+            guard rule.statusTextSource == .eventTitle else { return nil }
+
+            let activeItems = activeSlackStatusMeetingItems(
+                for: items,
+                calendarID: rule.calendarID,
+                now: now,
+                defaultEventDuration: defaultEventDuration
+            )
+            guard activeItems.count > 1 else { return nil }
+
+            return slackDynamicStatusNextRotationDate(
+                now: now,
+                dynamicStatusRotationInterval: dynamicStatusRotationInterval
+            )
+        }
+    }
+
+    nonisolated static func slackDynamicStatusNextRotationDate(
+        now: Date,
+        dynamicStatusRotationInterval: TimeInterval = CalendarMonitorCadence.slackDynamicStatusRotationInterval
+    ) -> Date? {
+        guard dynamicStatusRotationInterval > 0 else { return nil }
+
+        let elapsed = now.timeIntervalSince1970
+        let nextBoundary = (floor(elapsed / dynamicStatusRotationInterval) + 1) * dynamicStatusRotationInterval
+        return Date(timeIntervalSince1970: nextBoundary)
+    }
+
+    nonisolated static func slackDynamicStatusItemIndex(
+        itemCount: Int,
+        now: Date,
+        dynamicStatusRotationInterval: TimeInterval = CalendarMonitorCadence.slackDynamicStatusRotationInterval
+    ) -> Int {
+        guard itemCount > 1, dynamicStatusRotationInterval > 0 else { return 0 }
+
+        let bucket = Int(floor(now.timeIntervalSince1970 / dynamicStatusRotationInterval))
+        return ((bucket % itemCount) + itemCount) % itemCount
+    }
+
+    nonisolated static func slackStatusEndDate(
+        for item: UpcomingItem,
+        defaultEventDuration: TimeInterval = 60 * 60
+    ) -> Date {
+        item.endDate ?? item.date.addingTimeInterval(defaultEventDuration)
+    }
+
+    nonisolated static func slackStatusItemSort(_ lhs: UpcomingItem, _ rhs: UpcomingItem) -> Bool {
+        if lhs.date != rhs.date {
+            return lhs.date < rhs.date
+        }
+
+        let titleOrder = lhs.title.localizedCaseInsensitiveCompare(rhs.title)
+        if titleOrder != .orderedSame {
+            return titleOrder == .orderedAscending
+        }
+
+        return lhs.notificationKey < rhs.notificationKey
     }
 
     func updateSlackRuntimeStatusDescription(

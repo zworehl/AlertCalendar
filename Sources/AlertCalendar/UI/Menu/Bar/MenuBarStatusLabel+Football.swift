@@ -79,7 +79,8 @@ extension MenuBarStatusLabel {
             guard let attachment = footballLogoAttachment(
                 path: path,
                 usesCircularOutline: usesCircularOutline,
-                font: font
+                font: font,
+                borderColor: resolvedBaseColor
             ) else { return }
             segment.append(attachment)
         }
@@ -135,18 +136,24 @@ extension MenuBarStatusLabel {
     static func footballLogoAttachment(
         path: String?,
         usesCircularOutline: Bool = false,
-        font: NSFont
+        font: NSFont,
+        borderColor: NSColor? = nil
     ) -> NSAttributedString? {
         let logoSize: CGFloat = 18
+        let resolvedBorderColor = borderColor ?? NSColor.labelColor
         let image: NSImage?
         if let path,
            let localImage = FootballLocalImageCache.cachedImage(for: path) {
             let resolvedImage = localImage.copy() as? NSImage ?? localImage
             image = usesCircularOutline
-                ? circularFootballLogoImage(resolvedImage, size: logoSize)
+                ? circularFootballLogoImage(resolvedImage, size: logoSize, borderColor: resolvedBorderColor)
                 : resolvedImage
         } else {
-            image = footballPlaceholderLogoImage(size: logoSize, usesCircularOutline: usesCircularOutline)
+            image = footballPlaceholderLogoImage(
+                size: logoSize,
+                usesCircularOutline: usesCircularOutline,
+                borderColor: resolvedBorderColor
+            )
         }
 
         guard let image else { return nil }
@@ -166,7 +173,7 @@ extension MenuBarStatusLabel {
     }
 
     @MainActor
-    static func circularFootballLogoImage(_ source: NSImage, size: CGFloat) -> NSImage {
+    static func circularFootballLogoImage(_ source: NSImage, size: CGFloat, borderColor: NSColor) -> NSImage {
         let outputSize = NSSize(width: size, height: size)
         let output = NSImage(size: outputSize)
         let rect = NSRect(origin: .zero, size: outputSize)
@@ -189,12 +196,16 @@ extension MenuBarStatusLabel {
         )
         NSGraphicsContext.restoreGraphicsState()
 
-        drawFootballFlagCircleBorder(in: rect, size: size)
+        drawFootballFlagCircleBorder(in: rect, size: size, borderColor: borderColor)
         return output
     }
 
     @MainActor
-    static func footballPlaceholderLogoImage(size: CGFloat, usesCircularOutline: Bool) -> NSImage? {
+    static func footballPlaceholderLogoImage(
+        size: CGFloat,
+        usesCircularOutline: Bool,
+        borderColor: NSColor? = nil
+    ) -> NSImage? {
         guard usesCircularOutline else {
             return NSImage(
                 systemSymbolName: "shield.fill",
@@ -212,7 +223,7 @@ extension MenuBarStatusLabel {
 
         footballFlagCircleFillColor.setFill()
         circle.fill()
-        drawFootballFlagCircleBorder(in: rect, size: size)
+        drawFootballFlagCircleBorder(in: rect, size: size, borderColor: borderColor ?? NSColor.labelColor)
 
         let symbolSize = size * 0.56
         let symbolRect = NSRect(
@@ -234,11 +245,11 @@ extension MenuBarStatusLabel {
     }
 
     @MainActor
-    static func drawFootballFlagCircleBorder(in rect: CGRect, size: CGFloat) {
+    static func drawFootballFlagCircleBorder(in rect: CGRect, size: CGFloat, borderColor: NSColor) {
         let borderWidth = footballFlagCircleBorderWidth(for: size)
         let outerPath = NSBezierPath(ovalIn: rect.insetBy(dx: borderWidth / 2, dy: borderWidth / 2))
         outerPath.lineWidth = borderWidth
-        footballFlagOuterStrokeColor.setStroke()
+        borderColor.setStroke()
         outerPath.stroke()
 
         let innerPath = NSBezierPath(ovalIn: rect.insetBy(dx: borderWidth + 0.35, dy: borderWidth + 0.35))
@@ -252,7 +263,6 @@ extension MenuBarStatusLabel {
     }
 
     private static let footballFlagCircleFillColor = NSColor.white.withAlphaComponent(0.18)
-    private static let footballFlagOuterStrokeColor = NSColor.white.withAlphaComponent(0.62)
     private static let footballFlagInnerStrokeColor = NSColor.black.withAlphaComponent(0.18)
     private static let footballFlagPlaceholderTintColor = NSColor.white.withAlphaComponent(0.82)
 

@@ -189,6 +189,129 @@ final class SlackStatusSyncSchedulingTests: SlackStatusSyncTestCase {
         )
     }
 
+    func testActiveSlackRuleStateUsesEventTitleWhenRuleRequestsDynamicText() {
+        let now = Date(timeIntervalSince1970: 90)
+        let connectionID = "T1|U1"
+        let rules = [
+            SlackStatusSyncRule(
+                connectionID: connectionID,
+                calendarID: "calendar-1",
+                statusText: "In a meeting",
+                statusEmoji: "💬",
+                statusTextSource: .eventTitle,
+                isEnabled: true
+            ),
+        ]
+        let items = [
+            makeEvent(
+                id: "event-title",
+                title: "Design Review",
+                calendarID: "calendar-1",
+                startDate: now.addingTimeInterval(-10 * 60),
+                endDate: now.addingTimeInterval(20 * 60)
+            ),
+        ]
+
+        XCTAssertEqual(
+            CalendarMonitor.activeSlackRuleStateByConnectionID(
+                for: items,
+                rules: rules,
+                now: now
+            ),
+            [
+                connectionID: CalendarMonitor.SlackActiveRuleState(
+                    statusText: "Design Review",
+                    statusEmoji: "💬",
+                    expiration: Int(now.addingTimeInterval(20 * 60).timeIntervalSince1970)
+                ),
+            ]
+        )
+    }
+
+    func testActiveSlackRuleStateRotatesConcurrentDynamicEventTitlesEveryThirtySeconds() {
+        let connectionID = "T1|U1"
+        let rules = [
+            SlackStatusSyncRule(
+                connectionID: connectionID,
+                calendarID: "calendar-1",
+                statusText: "In a meeting",
+                statusEmoji: "🗓️",
+                statusTextSource: .eventTitle,
+                isEnabled: true
+            ),
+        ]
+        let items = [
+            makeEvent(
+                id: "alpha",
+                title: "Alpha Review",
+                calendarID: "calendar-1",
+                startDate: Date(timeIntervalSince1970: 10),
+                endDate: Date(timeIntervalSince1970: 300)
+            ),
+            makeEvent(
+                id: "beta",
+                title: "Beta Planning",
+                calendarID: "calendar-1",
+                startDate: Date(timeIntervalSince1970: 10),
+                endDate: Date(timeIntervalSince1970: 300)
+            ),
+        ]
+
+        XCTAssertEqual(
+            CalendarMonitor.activeSlackRuleStateByConnectionID(
+                for: items,
+                rules: rules,
+                now: Date(timeIntervalSince1970: 91)
+            )[connectionID]?.statusText,
+            "Beta Planning"
+        )
+        XCTAssertEqual(
+            CalendarMonitor.activeSlackRuleStateByConnectionID(
+                for: items,
+                rules: rules,
+                now: Date(timeIntervalSince1970: 121)
+            )[connectionID]?.statusText,
+            "Alpha Review"
+        )
+    }
+
+    func testNextSlackStatusSyncTransitionDateUsesDynamicRotationBoundary() {
+        let now = Date(timeIntervalSince1970: 91)
+        let rules = [
+            SlackStatusSyncRule(
+                connectionID: "T1|U1",
+                calendarID: "calendar-1",
+                statusTextSource: .eventTitle,
+                isEnabled: true
+            ),
+        ]
+        let items = [
+            makeEvent(
+                id: "alpha",
+                title: "Alpha Review",
+                calendarID: "calendar-1",
+                startDate: Date(timeIntervalSince1970: 10),
+                endDate: Date(timeIntervalSince1970: 300)
+            ),
+            makeEvent(
+                id: "beta",
+                title: "Beta Planning",
+                calendarID: "calendar-1",
+                startDate: Date(timeIntervalSince1970: 10),
+                endDate: Date(timeIntervalSince1970: 300)
+            ),
+        ]
+
+        XCTAssertEqual(
+            CalendarMonitor.nextSlackStatusSyncTransitionDate(
+                for: items,
+                rules: rules,
+                now: now
+            ),
+            Date(timeIntervalSince1970: 120)
+        )
+    }
+
     func testActiveSlackRuleStateUsesRemainingMeetingAfterSkippedOverlapDropsOut() {
         let now = Date(timeIntervalSince1970: 1_777_000_000)
         let connectionID = "T1|U1"

@@ -3,6 +3,7 @@ import Foundation
 
 extension CalendarMonitor {
     static let slackStatusSyncHeartbeatEvaluationInterval = CalendarMonitorCadence.slackStatusHeartbeatInterval
+    static let slackDynamicStatusRotationInterval = CalendarMonitorCadence.slackDynamicStatusRotationInterval
     static let slackConnectionMetadataRefreshInterval = CalendarMonitorCadence.slackConnectionMetadataRefreshInterval
     static let slackDiagnosticsLogSizeLimit = CalendarMonitorCadence.slackDiagnosticsLogSizeLimit
     static let slackRuntimeDateFormatter: DateFormatter = {

@@ -1,11 +1,28 @@
 import Foundation
 
+enum SlackStatusTextSource: String, Codable, CaseIterable, Identifiable, Sendable {
+    case fixed
+    case eventTitle
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .fixed:
+            return "Fixed Text"
+        case .eventTitle:
+            return "Event Title"
+        }
+    }
+}
+
 struct SlackStatusSyncRule: Codable, Equatable, Identifiable, Sendable {
     let id: String
     var connectionID: String
     var calendarID: String
     var statusText: String
     var statusEmoji: String
+    var statusTextSource: SlackStatusTextSource
     var isEnabled: Bool
 
     enum CodingKeys: String, CodingKey {
@@ -14,6 +31,7 @@ struct SlackStatusSyncRule: Codable, Equatable, Identifiable, Sendable {
         case calendarID
         case statusText
         case statusEmoji
+        case statusTextSource
         case isEnabled
     }
 
@@ -23,6 +41,7 @@ struct SlackStatusSyncRule: Codable, Equatable, Identifiable, Sendable {
         calendarID: String,
         statusText: String = SlackMeetingStatus.defaultText,
         statusEmoji: String = SlackMeetingStatus.defaultEmoji,
+        statusTextSource: SlackStatusTextSource = .fixed,
         isEnabled: Bool
     ) {
         self.id = id
@@ -30,6 +49,7 @@ struct SlackStatusSyncRule: Codable, Equatable, Identifiable, Sendable {
         self.calendarID = calendarID
         self.statusText = statusText
         self.statusEmoji = statusEmoji
+        self.statusTextSource = statusTextSource
         self.isEnabled = isEnabled
     }
 
@@ -40,6 +60,7 @@ struct SlackStatusSyncRule: Codable, Equatable, Identifiable, Sendable {
         calendarID = try container.decodeIfPresent(String.self, forKey: .calendarID) ?? ""
         statusText = try container.decodeIfPresent(String.self, forKey: .statusText) ?? SlackMeetingStatus.defaultText
         statusEmoji = try container.decodeIfPresent(String.self, forKey: .statusEmoji) ?? SlackMeetingStatus.defaultEmoji
+        statusTextSource = (try? container.decodeIfPresent(SlackStatusTextSource.self, forKey: .statusTextSource)) ?? .fixed
         isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? false
     }
 
@@ -78,6 +99,7 @@ struct SlackStatusSyncRule: Codable, Equatable, Identifiable, Sendable {
                     calendarID: calendarID,
                     statusText: SlackMeetingStatus.normalizedText(rule.statusText),
                     statusEmoji: SlackMeetingStatus.normalizedEmoji(rule.statusEmoji),
+                    statusTextSource: rule.statusTextSource,
                     isEnabled: rule.isEnabled
                 )
             )
@@ -173,6 +195,7 @@ struct SlackStatusSyncRule: Codable, Equatable, Identifiable, Sendable {
                 calendarID: resolvedPair.calendarID,
                 statusText: SlackMeetingStatus.normalizedText(rule.statusText),
                 statusEmoji: SlackMeetingStatus.normalizedEmoji(rule.statusEmoji),
+                statusTextSource: rule.statusTextSource,
                 isEnabled: rule.isEnabled
             )
             usedPairKeys.insert(pairKey(connectionID: resolvedPair.connectionID, calendarID: resolvedPair.calendarID))

@@ -117,12 +117,18 @@ extension SettingsView {
             }
             if slackShouldUseInlineRuleEditorRows {
                 HStack(alignment: .top, spacing: 10) {
-                    slackStatusSyncRuleTextField(index: index)
+                    slackStatusSyncRuleTextSourcePicker(index: index)
+                    if draft.slackStatusSyncRules[index].statusTextSource == .fixed {
+                        slackStatusSyncRuleTextField(index: index)
+                    }
                     slackStatusSyncRuleEmojiField(index: index)
                 }
             } else {
                 VStack(alignment: .leading, spacing: 8) {
-                    slackStatusSyncRuleTextField(index: index)
+                    slackStatusSyncRuleTextSourcePicker(index: index)
+                    if draft.slackStatusSyncRules[index].statusTextSource == .fixed {
+                        slackStatusSyncRuleTextField(index: index)
+                    }
                     slackStatusSyncRuleEmojiField(index: index)
                 }
             }
@@ -151,8 +157,13 @@ extension SettingsView {
             }
 
             HStack(alignment: .top, spacing: 10) {
-                slackStatusSyncRuleTextField(index: index)
-                    .frame(minWidth: 260, maxWidth: 520, alignment: .leading)
+                slackStatusSyncRuleTextSourcePicker(index: index)
+                    .frame(width: 180, alignment: .leading)
+
+                if draft.slackStatusSyncRules[index].statusTextSource == .fixed {
+                    slackStatusSyncRuleTextField(index: index)
+                        .frame(minWidth: 260, maxWidth: 520, alignment: .leading)
+                }
 
                 slackStatusSyncRuleEmojiField(index: index)
                     .frame(width: 88, alignment: .leading)
@@ -260,6 +271,27 @@ extension SettingsView {
     }
 
     @ViewBuilder
+    func slackStatusSyncRuleTextSourcePicker(index: Int) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Status Mode")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            Picker(
+                "Slack status mode",
+                selection: $draft.slackStatusSyncRules[index].statusTextSource
+            ) {
+                ForEach(SlackStatusTextSource.allCases) { source in
+                    Text(source.title).tag(source)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
     func slackStatusSyncRuleTextField(index: Int) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Status Text")
@@ -310,7 +342,7 @@ extension SettingsView {
 
     func slackStatusRuleStatusPreview(for rule: SlackStatusSyncRule) -> String {
         SlackMeetingStatus.statusLine(
-            text: rule.statusText,
+            text: rule.statusTextSource == .eventTitle ? "Event Title" : rule.statusText,
             emoji: rule.statusEmoji
         )
     }

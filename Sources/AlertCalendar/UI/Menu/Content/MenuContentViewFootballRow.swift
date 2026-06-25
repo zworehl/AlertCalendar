@@ -9,6 +9,7 @@ extension MenuContentView {
         item: UpcomingItem,
         match: FootballFixtureMatch,
         accentColor: Color,
+        titleColor: Color,
         titleFont: Font,
         detailFont: Font,
         detailIconFont: Font,
@@ -18,6 +19,7 @@ extension MenuContentView {
             match: match,
             display: item.footballMenuBarDisplay,
             font: titleFont,
+            titleColor: titleColor,
             showsCardBadges: false,
             showsStatusAccessories: false
         )
@@ -66,6 +68,7 @@ extension MenuContentView {
         match: FootballFixtureMatch,
         display: FootballMenuBarDisplay?,
         font: Font,
+        titleColor: Color = .primary,
         showsScore: Bool = true,
         showsInlineAggregate: Bool = false,
         showsCardBadges: Bool,
@@ -85,7 +88,8 @@ extension MenuContentView {
                     yellowCards: match.homeYellowCards,
                     redCards: match.homeRedCards,
                     showsCardBadges: showsCardBadges,
-                    font: font
+                    font: font,
+                    titleColor: titleColor
                 )
 
                 if showsScore {
@@ -132,7 +136,8 @@ extension MenuContentView {
                     yellowCards: match.awayYellowCards,
                     redCards: match.awayRedCards,
                     showsCardBadges: showsCardBadges,
-                    font: font
+                    font: font,
+                    titleColor: titleColor
                 )
             }
             .fixedSize(horizontal: true, vertical: false)
@@ -143,7 +148,7 @@ extension MenuContentView {
             }
         }
         .font(font)
-        .foregroundStyle(.primary)
+        .foregroundStyle(titleColor)
         .frame(maxWidth: .infinity, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
     }
@@ -159,7 +164,8 @@ extension MenuContentView {
         yellowCards: Int,
         redCards: Int,
         showsCardBadges: Bool,
-        font: Font
+        font: Font,
+        titleColor: Color = .primary
     ) -> some View {
         HStack(spacing: 4) {
             if showsCardBadges && !logoLeading {
@@ -171,7 +177,8 @@ extension MenuContentView {
                     localPath: localLogoPath,
                     remoteURL: remoteLogoURL,
                     isUnknown: isUnknown,
-                    usesCircularOutline: usesCircularOutline
+                    usesCircularOutline: usesCircularOutline,
+                    circularOutlineColor: titleColor
                 )
                 Text(abbreviation)
                     .font(font)
@@ -182,7 +189,8 @@ extension MenuContentView {
                     localPath: localLogoPath,
                     remoteURL: remoteLogoURL,
                     isUnknown: isUnknown,
-                    usesCircularOutline: usesCircularOutline
+                    usesCircularOutline: usesCircularOutline,
+                    circularOutlineColor: titleColor
                 )
             }
 

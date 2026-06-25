@@ -123,6 +123,7 @@ final class SlackStatusSyncModelsTests: SlackStatusSyncTestCase {
                 calendarID: "calendar-1",
                 statusText: "In a workshop",
                 statusEmoji: "🎙️",
+                statusTextSource: .eventTitle,
                 isEnabled: true
             ),
             SlackStatusSyncRule(
@@ -149,10 +150,28 @@ final class SlackStatusSyncModelsTests: SlackStatusSyncTestCase {
                     calendarID: "calendar-1",
                     statusText: "In a workshop",
                     statusEmoji: "🎙️",
+                    statusTextSource: .eventTitle,
                     isEnabled: true
                 ),
             ]
         )
+    }
+
+    func testSlackStatusSyncRuleDecodingDefaultsLegacyRulesToFixedText() throws {
+        let payload = """
+        {
+          "id": "rule-1",
+          "connectionID": "T1|U1",
+          "calendarID": "calendar-1",
+          "statusText": "Heads down",
+          "statusEmoji": "🎯",
+          "isEnabled": true
+        }
+        """.data(using: .utf8)!
+
+        let rule = try JSONDecoder().decode(SlackStatusSyncRule.self, from: payload)
+
+        XCTAssertEqual(rule.statusTextSource, .fixed)
     }
 
     func testSlackStatusSyncRuleNormalizationPreservesPriorityOrder() {

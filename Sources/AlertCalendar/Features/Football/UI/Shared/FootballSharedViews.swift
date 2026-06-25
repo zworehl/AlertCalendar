@@ -23,6 +23,7 @@ struct FootballTeamLogoView: View {
     let remoteURL: URL?
     let isUnknown: Bool
     var usesCircularOutline = false
+    var circularOutlineColor: Color = .primary
     var size: CGFloat = 16
     var placeholderSymbolSize: CGFloat = 8
 
@@ -31,7 +32,8 @@ struct FootballTeamLogoView: View {
             localPath: localPath,
             remoteURL: isUnknown ? nil : remoteURL,
             size: size,
-            usesCircularOutline: usesCircularOutline
+            usesCircularOutline: usesCircularOutline,
+            circularOutlineColor: circularOutlineColor
         ) {
             if usesCircularOutline {
                 Circle()
@@ -135,6 +137,7 @@ private struct FootballRemoteLogoView<Placeholder: View>: View {
     let remoteURL: URL?
     let size: CGFloat
     let usesCircularOutline: Bool
+    let circularOutlineColor: Color
     let placeholder: Placeholder
     @State private var localImage: NSImage?
     @State private var localImagePath: String?
@@ -145,12 +148,14 @@ private struct FootballRemoteLogoView<Placeholder: View>: View {
         remoteURL: URL?,
         size: CGFloat,
         usesCircularOutline: Bool,
+        circularOutlineColor: Color = FootballFlagCircleStyle.outerStroke,
         @ViewBuilder placeholder: () -> Placeholder
     ) {
         self.localPath = localPath
         self.remoteURL = remoteURL
         self.size = size
         self.usesCircularOutline = usesCircularOutline
+        self.circularOutlineColor = circularOutlineColor
         self.placeholder = placeholder()
     }
 
@@ -192,7 +197,7 @@ private struct FootballRemoteLogoView<Placeholder: View>: View {
             if usesCircularOutline {
                 ZStack {
                     Circle()
-                        .strokeBorder(FootballFlagCircleStyle.outerStroke, lineWidth: flagCircleBorderWidth)
+                        .strokeBorder(circularOutlineColor, lineWidth: flagCircleBorderWidth)
                     Circle()
                         .inset(by: flagCircleBorderWidth)
                         .strokeBorder(FootballFlagCircleStyle.innerStroke, lineWidth: 0.5)
@@ -257,7 +262,7 @@ private struct FootballRemoteLogoView<Placeholder: View>: View {
 
 private enum FootballFlagCircleStyle {
     static var fill: Color { Color.white.opacity(0.18) }
-    static var outerStroke: Color { Color.white.opacity(0.62) }
+    static var outerStroke: Color { .primary }
     static var innerStroke: Color { Color.black.opacity(0.18) }
     static var placeholderTint: Color { Color.white.opacity(0.82) }
 }
