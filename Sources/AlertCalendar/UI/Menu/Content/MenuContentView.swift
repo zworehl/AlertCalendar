@@ -28,36 +28,38 @@ struct MenuContentView: View {
     }
 
     var body: some View {
+        let snapshot = layoutSnapshot
+
         VStack(alignment: .leading, spacing: 12) {
             headerView
 
             if monitor.isInitialLoadInProgress {
                 initialLoadingSection
             } else {
-                if !shouldUseSplitDropdownLayout && !filteredAlertDescriptions.isEmpty {
-                    alertBannerSection
+                if !snapshot.shouldUseSplitDropdownLayout && !snapshot.filteredAlertDescriptions.isEmpty {
+                    alertBannerSection(alertDescriptions: snapshot.filteredAlertDescriptions)
                 }
 
-                if shouldUseSplitDropdownLayout {
+                if snapshot.shouldUseSplitDropdownLayout {
                     HStack(alignment: .top, spacing: splitColumnSpacing) {
-                        contextualActionSection
+                        contextualActionSection(snapshot: snapshot)
                             .frame(width: splitActionsColumnWidth, alignment: .topLeading)
 
                         VStack(alignment: .leading, spacing: 8) {
-                            if !filteredAlertDescriptions.isEmpty {
-                                alertBannerSection
+                            if !snapshot.filteredAlertDescriptions.isEmpty {
+                                alertBannerSection(alertDescriptions: snapshot.filteredAlertDescriptions)
                             }
 
-                            upcomingSection
+                            upcomingSection(snapshot: snapshot)
                         }
                         .frame(width: splitQueueColumnWidth, alignment: .topLeading)
                     }
                 } else {
-                    if !displayedContextualActionItems.isEmpty {
-                        contextualActionSection
+                    if !snapshot.displayedContextualActionItems.isEmpty {
+                        contextualActionSection(snapshot: snapshot)
                     }
 
-                    upcomingSection
+                    upcomingSection(snapshot: snapshot)
                 }
             }
 
@@ -90,12 +92,12 @@ struct MenuContentView: View {
         .background(Color(nsColor: .windowBackgroundColor))
         .fixedSize(horizontal: false, vertical: true)
         .frame(
-            minWidth: dropdownMinimumWidth,
-            idealWidth: shouldUseSplitDropdownLayout ? dropdownPreferredWidth : nil,
-            maxWidth: shouldUseSplitDropdownLayout ? dropdownPreferredWidth : dropdownMinimumWidth,
+            minWidth: snapshot.dropdownMinimumWidth,
+            idealWidth: snapshot.shouldUseSplitDropdownLayout ? dropdownPreferredWidth : nil,
+            maxWidth: snapshot.shouldUseSplitDropdownLayout ? dropdownPreferredWidth : snapshot.dropdownMinimumWidth,
             alignment: .leading
         )
-        .id(shouldUseSplitDropdownLayout ? "split-dropdown" : "single-dropdown")
+        .id(snapshot.shouldUseSplitDropdownLayout ? "split-dropdown" : "single-dropdown")
         .onPreferenceChange(SplitContextualPanelHeightPreferenceKey.self) { height in
             guard abs(splitContextualPanelHeight - height) > 0.5 else { return }
             splitContextualPanelHeight = height

@@ -2,6 +2,8 @@ import Foundation
 
 struct CalendarMonitorSlackRuntimeState {
     var statusSyncTask: Task<Void, Never>?
+    var statusSyncTaskStartedAt: Date?
+    var statusSyncRunID: UUID?
     var statusSyncNeedsAnotherPass = false
     var queuedTargets: [CalendarMonitor.SlackStatusSyncTarget] = []
     var statusSyncTransitionTask: Task<Void, Never>?
@@ -14,6 +16,16 @@ extension CalendarMonitor {
     var slackStatusSyncTask: Task<Void, Never>? {
         get { slackRuntimeState.statusSyncTask }
         set { slackRuntimeState.statusSyncTask = newValue }
+    }
+
+    var slackStatusSyncTaskStartedAt: Date? {
+        get { slackRuntimeState.statusSyncTaskStartedAt }
+        set { slackRuntimeState.statusSyncTaskStartedAt = newValue }
+    }
+
+    var slackStatusSyncRunID: UUID? {
+        get { slackRuntimeState.statusSyncRunID }
+        set { slackRuntimeState.statusSyncRunID = newValue }
     }
 
     var slackStatusSyncNeedsAnotherPass: Bool {

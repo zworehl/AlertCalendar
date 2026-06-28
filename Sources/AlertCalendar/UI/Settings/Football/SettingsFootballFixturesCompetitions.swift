@@ -27,9 +27,7 @@ extension SettingsFootballFixturesSectionView {
 
                     Spacer()
 
-                    if !visibleMatches.isEmpty {
-                        competitionBulkActionButton(for: visibleMatches)
-                    }
+                    competitionAutoAddToggle(for: section)
 
                     if section.isLoading && !section.hasLoaded && section.matches.isEmpty {
                         ProgressView()
@@ -296,6 +294,10 @@ extension SettingsFootballFixturesSectionView {
                 if section.isLoading && !section.hasLoaded && section.matches.isEmpty {
                     ProgressView()
                         .controlSize(.small)
+                } else if autoAddFootballCompetitionSlugs.contains(section.competition.slug) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(isSelected ? .white.opacity(0.92) : .green)
                 } else if section.errorMessage != nil {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.caption.weight(.semibold))

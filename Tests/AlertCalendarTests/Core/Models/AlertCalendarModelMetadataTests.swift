@@ -144,7 +144,9 @@ final class AlertCalendarModelMetadataTests: AlertCalendarModelTestCase {
             DefaultsKeys.menuBarFontSize,
             DefaultsKeys.skippedItemKeys,
             DefaultsKeys.footballTargetCalendarID,
+            DefaultsKeys.footballAutoAddCompetitionSlugs,
             DefaultsKeys.footballCalendarAlertOption,
+            DefaultsKeys.enableFootballAutoAddNotifications,
             DefaultsKeys.showFinishedFootballMatches,
             DefaultsKeys.finishedFootballMatchLookbackDays,
             DefaultsKeys.footballMatchLookaheadDays,
@@ -152,13 +154,15 @@ final class AlertCalendarModelMetadataTests: AlertCalendarModelTestCase {
             DefaultsKeys.managedFootballEventRecords,
         ]
 
-        XCTAssertEqual(keys.count, 36)
+        XCTAssertEqual(keys.count, 38)
         XCTAssertEqual(Set(keys).count, keys.count)
         XCTAssertTrue(keys.contains("activeEventDisplayMode"))
         XCTAssertTrue(keys.contains("contextualPreviewLeadMinutes"))
         XCTAssertTrue(keys.contains("menuBarRotationWindowMinutes"))
         XCTAssertTrue(keys.contains("menuBarFontSize"))
         XCTAssertTrue(keys.contains("meetingBrowserRouting"))
+        XCTAssertTrue(keys.contains("footballAutoAddCompetitionSlugs"))
+        XCTAssertTrue(keys.contains("enableFootballAutoAddNotifications"))
     }
     func testUpcomingItemEqualityTracksKindAndMeetingURL() {
         let start = Date(timeIntervalSince1970: 1_700_000_000)

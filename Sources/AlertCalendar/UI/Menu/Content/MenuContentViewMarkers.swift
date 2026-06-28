@@ -109,8 +109,8 @@ extension MenuContentView {
             return .daylight(daylightMoment)
         }
 
-        if let locationText = locationTextForMenuBarItem(item),
-           shouldShowPhysicalMap(for: item, locationText: locationText) {
+        if item.meetingURL == nil,
+           let locationText = locationTextForMenuBarItem(item) {
             return .location(locationText)
         }
 
@@ -122,7 +122,14 @@ extension MenuContentView {
     }
 
     func contextualCardMinimumWidth(for item: UpcomingItem) -> CGFloat {
-        guard let previewKind = contextualPreviewKind(for: item) else {
+        contextualCardMinimumWidth(for: item, previewKind: contextualPreviewKind(for: item))
+    }
+
+    func contextualCardMinimumWidth(
+        for item: UpcomingItem,
+        previewKind: ContextualPreviewKind?
+    ) -> CGFloat {
+        guard let previewKind else {
             return minimumSingleColumnDropdownWidth
         }
 

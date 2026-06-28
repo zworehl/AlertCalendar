@@ -29,6 +29,7 @@ struct SettingsFootballFixturesSectionView: View {
     @AppStorage(DefaultsKeys.enableFootballGoalNotifications) var enableFootballGoalNotifications = true
     @AppStorage(DefaultsKeys.includeFootballGoalScorerInNotifications) var includeFootballGoalScorerInNotifications = true
     @AppStorage(DefaultsKeys.enableFootballFinalNotifications) var enableFootballFinalNotifications = true
+    @AppStorage(DefaultsKeys.enableFootballAutoAddNotifications) var enableFootballAutoAddNotifications = true
     @AppStorage(DefaultsKeys.showFinishedFootballMatches) var showFinishedFootballMatches = true
     @AppStorage(DefaultsKeys.finishedFootballMatchLookbackDays) var finishedFootballMatchLookbackDays = 7
     @AppStorage(DefaultsKeys.footballMatchLookaheadDays) var footballMatchLookaheadDays = 14
@@ -44,6 +45,7 @@ struct SettingsFootballFixturesSectionView: View {
     @State var footballLiveAndNextDaySection = FootballMatchesOverviewSection.placeholder(title: "Now & Next 24 Hours")
     @State var managedFootballMatchIDs: Set<String> = []
     @State var managedFootballMatches: [FootballFixtureMatch] = []
+    @State var autoAddFootballCompetitionSlugs: Set<String> = []
     @State var competitionSectionsByRegionCache: [(region: FootballCompetitionRegion, sections: [FootballMenuCompetitionSection])] = []
     @State var competitionSectionsWithErrorsCache: [FootballMenuCompetitionSection] = []
     @State var hasAnyCompetitionCardsCache = false
@@ -82,6 +84,7 @@ struct SettingsFootballFixturesSectionView: View {
             }
             monitor.ensureFootballCompetitionSections()
             monitor.refreshManagedFootballTrackingSnapshot(now: visibleNow)
+            autoAddFootballCompetitionSlugs = monitor.footballAutoAddCompetitionSlugs()
             synchronizeViewStateFromMonitor()
         }
         .task(id: browseMode) {
@@ -119,6 +122,11 @@ struct SettingsFootballFixturesSectionView: View {
         }
         .onChange(of: footballCalendarAlertOptionRaw) { _ in
             applyFootballCalendarAlertPreference()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in
+            let nextSlugs = monitor.footballAutoAddCompetitionSlugs()
+            guard autoAddFootballCompetitionSlugs != nextSlugs else { return }
+            autoAddFootballCompetitionSlugs = nextSlugs
         }
         .onChange(of: showFinishedFootballMatches) { _ in
             refreshCompetitionSectionsDerivedState()

@@ -55,6 +55,8 @@ actor FootballDataAPIClient {
     var scoreboardPageCache: [String: ScoreboardPageCacheEntry] = [:]
     var scoreboardPageTasks: [String: Task<[FootballFixtureMatch], Never>] = [:]
     var goalScorersCache: [String: FootballMatchGoalScorers] = [:]
+    var athleteCountryCache: [String: String] = [:]
+    var missingAthleteCountryIDs: Set<String> = []
     var statisticsCache: [String: [FootballMatchStatistic]] = [:]
     var summaryRootCache: [String: SummaryRootCacheEntry] = [:]
     var summaryRootTasks: [String: Task<Data?, Error>] = [:]
@@ -265,8 +267,9 @@ actor FootballDataAPIClient {
                 }
 
                 if candidateCount >= match.totalGoals {
-                    goalScorersCache[cacheKey] = candidate
-                    return candidate
+                    let enrichedCandidate = await enrichedGoalScorers(candidate)
+                    goalScorersCache[cacheKey] = enrichedCandidate
+                    return enrichedCandidate
                 }
             } catch {
                 lastTransportError = error
@@ -274,7 +277,7 @@ actor FootballDataAPIClient {
         }
 
         if let bestScorers {
-            return bestScorers
+            return await enrichedGoalScorers(bestScorers)
         }
 
         if let lastTransportError {

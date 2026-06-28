@@ -256,8 +256,30 @@ struct FootballMenuBarDisplay: Equatable {
 
 struct FootballMatchGoalScorer: Identifiable, Hashable {
     let id: String
+    let athleteID: String?
     let name: String
     let minute: String?
+    let countryName: String?
+    let isOwnGoal: Bool
+    let isPenalty: Bool
+
+    init(
+        id: String,
+        athleteID: String? = nil,
+        name: String,
+        minute: String?,
+        countryName: String? = nil,
+        isOwnGoal: Bool = false,
+        isPenalty: Bool = false
+    ) {
+        self.id = id
+        self.athleteID = athleteID
+        self.name = name
+        self.minute = minute
+        self.countryName = countryName
+        self.isOwnGoal = isOwnGoal
+        self.isPenalty = isPenalty
+    }
 }
 
 struct FootballMatchGoalScorers: Hashable {

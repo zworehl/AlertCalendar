@@ -211,23 +211,90 @@ extension CalendarMonitor {
         let trimmed = rawStatusText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
 
-        let pattern = #"(\d{1,3})\s*['’]?(?:\s*\+\s*(\d{1,2}))?\s*['’]"#
-        guard let regex = try? NSRegularExpression(pattern: pattern),
-              let match = regex.firstMatch(
-                  in: trimmed,
-                  range: NSRange(trimmed.startIndex..., in: trimmed)
-              ) else {
-            return nil
+        let characters = Array(trimmed)
+        for index in characters.indices where characters[index].wholeNumberValue != nil {
+            if let parsed = footballParsedMinuteComponents(in: characters, startingAt: index) {
+                return parsed
+            }
         }
 
-        let baseMinute = footballRegexInt(match, in: trimmed, at: 1) ?? 0
-        let extraMinute = footballRegexInt(match, in: trimmed, at: 2) ?? 0
+        return nil
+    }
+
+    nonisolated private static func footballParsedMinuteComponents(
+        in characters: [Character],
+        startingAt startIndex: Int
+    ) -> FootballStatusMinuteComponents? {
+        var index = startIndex
+        var baseMinuteText = ""
+
+        while index < characters.endIndex,
+              let digit = characters[index].wholeNumberValue,
+              baseMinuteText.count < 3 {
+            baseMinuteText.append(String(digit))
+            index += 1
+        }
+
+        guard !baseMinuteText.isEmpty else { return nil }
+        guard index == characters.endIndex || characters[index].wholeNumberValue == nil else { return nil }
+        skipFootballMinuteWhitespace(in: characters, index: &index)
+
+        if index < characters.endIndex, isFootballMinuteMark(characters[index]) {
+            let markIndex = index
+            index += 1
+            skipFootballMinuteWhitespace(in: characters, index: &index)
+            if index == characters.endIndex || characters[index] != "+" {
+                guard let baseMinute = Int(baseMinuteText), baseMinute > 0 else { return nil }
+                return FootballStatusMinuteComponents(
+                    baseMinute: baseMinute,
+                    stoppageMinute: 0
+                )
+            }
+
+            index = markIndex + 1
+            skipFootballMinuteWhitespace(in: characters, index: &index)
+        }
+
+        var extraMinuteText = ""
+        if index < characters.endIndex, characters[index] == "+" {
+            index += 1
+            skipFootballMinuteWhitespace(in: characters, index: &index)
+
+            while index < characters.endIndex,
+                  let digit = characters[index].wholeNumberValue,
+                  extraMinuteText.count < 2 {
+                extraMinuteText.append(String(digit))
+                index += 1
+            }
+
+            guard !extraMinuteText.isEmpty else { return nil }
+            guard index == characters.endIndex || characters[index].wholeNumberValue == nil else { return nil }
+            skipFootballMinuteWhitespace(in: characters, index: &index)
+        }
+
+        guard index < characters.endIndex, isFootballMinuteMark(characters[index]) else { return nil }
+
+        let baseMinute = Int(baseMinuteText) ?? 0
+        let extraMinute = Int(extraMinuteText) ?? 0
         guard baseMinute + extraMinute > 0 else { return nil }
 
         return FootballStatusMinuteComponents(
             baseMinute: baseMinute,
             stoppageMinute: extraMinute
         )
+    }
+
+    nonisolated private static func skipFootballMinuteWhitespace(
+        in characters: [Character],
+        index: inout Int
+    ) {
+        while index < characters.endIndex, characters[index].isWhitespace {
+            index += 1
+        }
+    }
+
+    nonisolated private static func isFootballMinuteMark(_ character: Character) -> Bool {
+        character == "'" || character == "’"
     }
 
     nonisolated static func footballInterruptedStatusBadgeText(from normalizedStatus: String) -> String? {

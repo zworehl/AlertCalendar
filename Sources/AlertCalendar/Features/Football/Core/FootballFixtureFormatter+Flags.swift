@@ -124,6 +124,11 @@ extension FootballFixtureFormatter {
             return true
         }
 
+        if team.isNational,
+           isRecognizedNationalTeamName(team.name) {
+            return false
+        }
+
         if isPlaceholderSlotDescription(normalizedName)
             || isPlaceholderSlotDescription(normalizedCountryName) {
             return true
@@ -214,6 +219,10 @@ extension FootballFixtureFormatter {
         }
 
         return normalized.contains("group") && normalized.contains("place")
+    }
+
+    static func isRecognizedNationalTeamName(_ raw: String) -> Bool {
+        flagEmoji(for: raw) != "🏳️"
     }
 
     static func flagEmoji(forRegionCode regionCode: String) -> String {

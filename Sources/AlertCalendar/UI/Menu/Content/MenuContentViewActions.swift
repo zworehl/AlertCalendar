@@ -7,9 +7,10 @@ extension MenuContentView {
     @ViewBuilder
     func contextualActionCard(
         for item: UpcomingItem,
-        showsFootballCompetitionLine: Bool
+        showsFootballCompetitionLine: Bool,
+        snapshot: LayoutSnapshot
     ) -> some View {
-        let previewKind = contextualPreviewKind(for: item)
+        let previewKind = snapshot.contextualPreviewKind(for: item)
         let previewLocationText: String? = {
             if case let .location(locationText)? = previewKind {
                 return locationText
@@ -32,7 +33,7 @@ extension MenuContentView {
         let shouldShowLocationPreview = previewLocationText != nil
             && Self.shouldShowContextualMapPreview(
                 for: item,
-                concurrentFootballMatchCount: footballContextualActionItems.count
+                concurrentFootballMatchCount: snapshot.footballContextualActionItems.count
             )
         let shouldShowAttendeePreview = previewAttendees != nil
         let shouldShowJoinButton = shouldShowAttendeePreview && item.meetingURL != nil
@@ -42,10 +43,11 @@ extension MenuContentView {
             }
             return false
         }()
-        let mapPreviewHeight: CGFloat = shouldUseSplitDropdownLayout ? 96 : 112
-        let attendeePreviewListHeight: CGFloat = shouldUseSplitDropdownLayout ? 148 : 188
-        let footballContentLevel = contextualFootballContentLevel
+        let mapPreviewHeight: CGFloat = snapshot.shouldUseSplitDropdownLayout ? 96 : 112
+        let attendeePreviewListHeight: CGFloat = snapshot.shouldUseSplitDropdownLayout ? 148 : 188
+        let footballContentLevel = snapshot.contextualFootballContentLevel
         let now = displayReferenceDate
+        let concurrentFootballMatchCount = snapshot.displayedContextualActionItems.count
 
         VStack(alignment: .leading, spacing: 6) {
             if let footballMatch = item.footballMatch {
@@ -54,7 +56,8 @@ extension MenuContentView {
                     match: footballMatch,
                     showsFootballCompetitionLine: showsFootballCompetitionLine,
                     previewLocationText: previewLocationText,
-                    now: now
+                    now: now,
+                    concurrentFootballMatchCount: concurrentFootballMatchCount
                 )
             } else {
                 if shouldShowDaylightPreview {
@@ -91,7 +94,6 @@ extension MenuContentView {
             }
 
             if let footballMatch = item.footballMatch {
-                let concurrentFootballMatchCount = displayedContextualActionItems.count
                 let usesExpandedFootballHeader = Self.shouldUseExpandedContextualFootballHeader(
                     for: footballMatch,
                     itemCount: concurrentFootballMatchCount
@@ -145,7 +147,8 @@ extension MenuContentView {
         match footballMatch: FootballFixtureMatch,
         showsFootballCompetitionLine: Bool,
         previewLocationText: String?,
-        now: Date
+        now: Date,
+        concurrentFootballMatchCount: Int
     ) -> some View {
         MenuContentHoverContainer { isHovered in
             contextualFootballHeaderContent(
@@ -154,6 +157,7 @@ extension MenuContentView {
                 showsFootballCompetitionLine: showsFootballCompetitionLine,
                 previewLocationText: previewLocationText,
                 now: now,
+                concurrentFootballMatchCount: concurrentFootballMatchCount,
                 isHovered: isHovered
             )
         }
@@ -165,10 +169,10 @@ extension MenuContentView {
         showsFootballCompetitionLine: Bool,
         previewLocationText: String?,
         now: Date,
+        concurrentFootballMatchCount: Int,
         isHovered: Bool
     ) -> some View {
         HStack(spacing: 8) {
-            let concurrentFootballMatchCount = displayedContextualActionItems.count
             let scheduleText = Self.footballContextualScheduleText(for: footballMatch, now: now)
             let venueName = footballContextualVenueName(for: item, match: footballMatch)
             let usesExpandedFootballHeader = Self.shouldUseExpandedContextualFootballHeader(

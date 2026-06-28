@@ -2,6 +2,93 @@ import XCTest
 @testable import AlertCalendar
 
 final class SlackStatusSyncSchedulingTests: SlackStatusSyncTestCase {
+    func testSlackStatusSyncTaskStartRequiresPendingWorkAndNoRunningTask() {
+        XCTAssertTrue(
+            CalendarMonitor.shouldStartSlackStatusSyncTask(
+                hasRunningTask: false,
+                needsAnotherPass: true
+            )
+        )
+        XCTAssertFalse(
+            CalendarMonitor.shouldStartSlackStatusSyncTask(
+                hasRunningTask: true,
+                needsAnotherPass: true
+            )
+        )
+        XCTAssertFalse(
+            CalendarMonitor.shouldStartSlackStatusSyncTask(
+                hasRunningTask: false,
+                needsAnotherPass: false
+            )
+        )
+    }
+
+    func testSlackStatusSyncTaskTimeoutUsesConfiguredBoundary() {
+        let now = Date(timeIntervalSince1970: 1_777_000_100)
+        XCTAssertFalse(
+            CalendarMonitor.slackStatusSyncTaskTimedOut(
+                startedAt: nil,
+                now: now,
+                timeout: 45
+            )
+        )
+        XCTAssertFalse(
+            CalendarMonitor.slackStatusSyncTaskTimedOut(
+                startedAt: now.addingTimeInterval(-44),
+                now: now,
+                timeout: 45
+            )
+        )
+        XCTAssertTrue(
+            CalendarMonitor.slackStatusSyncTaskTimedOut(
+                startedAt: now.addingTimeInterval(-45),
+                now: now,
+                timeout: 45
+            )
+        )
+    }
+
+    func testSlackStatusSyncTargetEqualityIgnoresConnectionMetadataRefresh() {
+        let baseConnection = makeConnection(
+            id: "T1|U1",
+            workspaceImageURLString: nil,
+            profileImageURLString: nil,
+            lastValidatedAt: Date(timeIntervalSince1970: 100)
+        )
+        let refreshedConnection = makeConnection(
+            id: "T1|U1",
+            workspaceImageURLString: "https://workspace.example/icon.png",
+            profileImageURLString: "https://workspace.example/profile.png",
+            lastValidatedAt: Date(timeIntervalSince1970: 200)
+        )
+        let snapshot = SlackProfileStatusSnapshot(
+            statusText: "In a meeting",
+            statusEmoji: "🗓️",
+            statusExpiration: 1_777_000_600
+        )
+
+        XCTAssertEqual(
+            CalendarMonitor.SlackStatusSyncTarget(
+                connection: baseConnection,
+                mode: .meeting(snapshot: snapshot)
+            ),
+            CalendarMonitor.SlackStatusSyncTarget(
+                connection: refreshedConnection,
+                mode: .meeting(snapshot: snapshot)
+            )
+        )
+        XCTAssertNotEqual(
+            CalendarMonitor.SlackStatusSyncTarget(
+                connection: baseConnection,
+                mode: .meeting(snapshot: snapshot)
+            ),
+            CalendarMonitor.SlackStatusSyncTarget(
+                connection: makeConnection(id: "T2|U1"),
+                mode: .meeting(snapshot: snapshot)
+            )
+        )
+    }
+
     func testSlackMeetingStatusExpirationUsesLatestEndAcrossSelectedCalendar() {
         let now = Date(timeIntervalSince1970: 1_777_000_000)
         let selectedCalendarID = "work-calendar"
@@ -531,6 +618,31 @@ final class SlackStatusSyncSchedulingTests: SlackStatusSyncTestCase {
                 now: now
             ),
             sharedBoundary
+        )
+    }
+
+    private func makeConnection(
+        id: String,
+        workspaceImageURLString: String? = nil,
+        profileImageURLString: String? = nil,
+        lastValidatedAt: Date = Date(timeIntervalSince1970: 100)
+    ) -> SlackConnection {
+        let ids = id.split(separator: "|", maxSplits: 1).map(String.init)
+        let teamID = ids.first ?? "T1"
+        let userID = ids.dropFirst().first ?? "U1"
+        return SlackConnection(
+            id: id,
+            teamID: teamID,
+            teamName: "Workspace",
+            workspaceURLString: "https://workspace.example/",
+            workspaceImageURLString: workspaceImageURLString,
+            userID: userID,
+            userName: "sam",
+            userDisplayName: "Sam",
+            emailAddress: "sam@example.com",
+            profileImageURLString: profileImageURLString,
+            connectedAt: Date(timeIntervalSince1970: 50),
+            lastValidatedAt: lastValidatedAt
         )
     }
 }

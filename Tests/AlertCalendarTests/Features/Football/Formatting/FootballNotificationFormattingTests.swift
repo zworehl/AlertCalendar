@@ -75,6 +75,36 @@ final class FootballNotificationFormattingTests: FootballFixtureFormatterTestCas
         XCTAssertEqual(message.body, "\(match.homeTeam.name) 3-1 \(match.awayTeam.name).")
     }
 
+    func testAutoAddNotificationSummarizesAddedMatch() {
+        let match = makeMatch(
+            id: "auto-add-message",
+            startDate: startDate.addingTimeInterval(3_600),
+            statusState: .scheduled
+        )
+
+        let message = CalendarMonitor.footballAutoAddNotificationMessage(
+            for: match,
+            now: startDate
+        )
+
+        XCTAssertEqual(message.title, "Match added to Calendar")
+        XCTAssertTrue(message.body.contains(match.competitionName))
+        XCTAssertTrue(message.body.contains("\(match.homeTeam.name) vs \(match.awayTeam.name)"))
+    }
+
+    func testAutoAddNotificationKeyUsesMatchID() {
+        let match = makeMatch(
+            id: "auto-add-key",
+            startDate: startDate,
+            statusState: .scheduled
+        )
+
+        XCTAssertEqual(
+            CalendarMonitor.footballAutoAddNotificationKey(for: match),
+            "football.autoAdd.auto-add-key"
+        )
+    }
+
     func testFinalNotificationRequiresTransitionIntoFinished() {
         let previous = makeMatch(
             id: "final-transition",

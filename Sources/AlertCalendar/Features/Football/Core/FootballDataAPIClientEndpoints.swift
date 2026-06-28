@@ -46,6 +46,12 @@ extension FootballDataAPIClient {
         return urls
     }
 
+    static func athleteURL(athleteID: String) -> URL? {
+        let trimmedID = athleteID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedID.isEmpty else { return nil }
+        return URL(string: "https://sports.core.api.espn.com/v2/sports/soccer/athletes/\(trimmedID)?lang=en&region=us")
+    }
+
     static func scoreboardURL(
         slug: String,
         dateRange: (Date, Date)?

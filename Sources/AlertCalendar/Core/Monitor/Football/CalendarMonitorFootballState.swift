@@ -10,6 +10,7 @@ struct CalendarMonitorFootballState {
     var lastManagedCleanupDate: Date?
     var lastManagedRecoveryDate: Date?
     var lastLegacyMigrationDate: Date?
+    var lastAutoAddRefreshDate: Date?
     var activeGoalHighlight: FootballGoalHighlight?
     var deliveredNotificationKeys: Set<String> = []
     var cachedManagedSnapshots: [ManagedFootballEventSnapshot] = []
@@ -61,6 +62,11 @@ extension CalendarMonitor {
     var lastFootballLegacyMigrationDate: Date? {
         get { footballState.lastLegacyMigrationDate }
         set { footballState.lastLegacyMigrationDate = newValue }
+    }
+
+    var lastFootballAutoAddRefreshDate: Date? {
+        get { footballState.lastAutoAddRefreshDate }
+        set { footballState.lastAutoAddRefreshDate = newValue }
     }
 
     var activeFootballGoalHighlight: FootballGoalHighlight? {

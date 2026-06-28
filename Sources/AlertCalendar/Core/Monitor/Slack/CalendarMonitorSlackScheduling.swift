@@ -394,15 +394,71 @@ extension CalendarMonitor {
             "schedule rules=\(enabledRules.count) items=\(items.count) active=\(activeSlackItemTitles(from: items, now: now)) next=\(formattedSlackTransitionDate(nextTransitionDate))"
         )
         scheduleNextSlackStatusSyncTransition(at: nextTransitionDate, now: now)
-        guard targets != slackQueuedTargets || slackStatusSyncTask == nil else { return }
 
-        slackQueuedTargets = targets
+        let targetsChanged = targets != slackQueuedTargets
+        if targetsChanged {
+            slackQueuedTargets = targets
+            slackStatusSyncNeedsAnotherPass = true
+        }
+
+        cancelStaleSlackStatusSyncTaskIfNeeded(now: now)
+
+        if slackStatusSyncErrorDescription != nil {
+            slackStatusSyncNeedsAnotherPass = true
+        }
+
+        guard Self.shouldStartSlackStatusSyncTask(
+            hasRunningTask: slackStatusSyncTask != nil,
+            needsAnotherPass: slackStatusSyncNeedsAnotherPass
+        ) else { return }
+
+        startSlackStatusSyncTask(now: now)
+    }
+
+    nonisolated static func shouldStartSlackStatusSyncTask(
+        hasRunningTask: Bool,
+        needsAnotherPass: Bool
+    ) -> Bool {
+        !hasRunningTask && needsAnotherPass
+    }
+
+    nonisolated static func slackStatusSyncTaskTimedOut(
+        startedAt: Date?,
+        now: Date,
+        timeout: TimeInterval = CalendarMonitorCadence.slackStatusSyncTaskTimeoutInterval
+    ) -> Bool {
+        guard startedAt != nil else { return false }
+        return CalendarMonitorTime.hasElapsed(since: startedAt, now: now, interval: timeout)
+    }
+
+    func cancelStaleSlackStatusSyncTaskIfNeeded(now: Date) {
+        guard slackStatusSyncTask != nil else { return }
+        guard Self.slackStatusSyncTaskTimedOut(
+            startedAt: slackStatusSyncTaskStartedAt,
+            now: now,
+            timeout: Self.slackStatusSyncTaskTimeoutInterval
+        ) else { return }
+
+        appendSlackDiagnosticsLog(
+            "apply-timeout started=\(formattedSlackTransitionDate(slackStatusSyncTaskStartedAt)) timeout=\(Self.slackStatusSyncTaskTimeoutInterval)s"
+        )
+        slackStatusSyncTask?.cancel()
+        slackStatusSyncTask = nil
+        slackStatusSyncTaskStartedAt = nil
+        slackStatusSyncRunID = nil
         slackStatusSyncNeedsAnotherPass = true
+        slackStatusSyncErrorDescription = "Slack sync timed out. AlertCalendar will retry."
+    }
+
+    func startSlackStatusSyncTask(now: Date) {
         guard slackStatusSyncTask == nil else { return }
 
+        let runID = UUID()
+        slackStatusSyncRunID = runID
+        slackStatusSyncTaskStartedAt = now
         slackStatusSyncTask = Task { [weak self] in
             guard let self else { return }
-            await self.processSlackStatusSyncQueue()
+            await self.processSlackStatusSyncQueue(runID: runID)
         }
     }
 

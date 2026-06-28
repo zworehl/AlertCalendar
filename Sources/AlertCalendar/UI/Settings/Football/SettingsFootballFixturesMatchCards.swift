@@ -220,40 +220,47 @@ extension SettingsFootballFixturesSectionView {
         }
     }
 
-    func competitionBulkActionButton(for matches: [FootballFixtureMatch]) -> some View {
-        let shouldRemoveAll = matches.allSatisfy { managedFootballMatchIDs.contains($0.id) }
-        let title = shouldRemoveAll ? "Remove All" : "Add All"
-        let systemImage = shouldRemoveAll ? "minus.circle" : "plus.circle"
-
-        return Button {
-            Task {
-                await applyCompetitionBulkAction(to: matches, shouldRemoveAll: shouldRemoveAll)
-            }
-        } label: {
-            Label(title, systemImage: systemImage)
-        }
-        .buttonStyle(.bordered)
+    func competitionAutoAddToggle(for section: FootballMenuCompetitionSection) -> some View {
+        Toggle(
+            "Auto-add",
+            isOn: Binding(
+                get: {
+                    autoAddFootballCompetitionSlugs.contains(section.competition.slug)
+                },
+                set: { isEnabled in
+                    setFootballAutoAdd(isEnabled, for: section)
+                }
+            )
+        )
+        .toggleStyle(.checkbox)
         .controlSize(.small)
-        .disabled(!shouldRemoveAll && footballTargetCalendarID.isEmpty)
+        .font(.subheadline.weight(.medium))
+        .help("Automatically add new fixtures from this competition to Apple Calendar.")
+        .disabled(footballTargetCalendarID.isEmpty)
     }
 
-    func applyCompetitionBulkAction(
-        to matches: [FootballFixtureMatch],
-        shouldRemoveAll: Bool
-    ) async {
-        if shouldRemoveAll {
-            for match in matches {
-                monitor.removeFootballMatchFromCalendar(match)
-            }
+    func setFootballAutoAdd(_ isEnabled: Bool, for section: FootballMenuCompetitionSection) {
+        var slugs = autoAddFootballCompetitionSlugs
+        if isEnabled {
+            slugs.insert(section.competition.slug)
         } else {
-            for match in matches where !managedFootballMatchIDs.contains(match.id) {
-                await monitor.addFootballMatchToCalendar(match)
-            }
+            slugs.remove(section.competition.slug)
         }
 
-        let now = Self.minuteReferenceDate(for: AlertCalendarClock.nowRoundedToSecond())
-        visibleNow = now
-        await refreshManagedMatchesPanel(now: now, force: true)
+        autoAddFootballCompetitionSlugs = slugs
+        monitor.setFootballAutoAddEnabled(isEnabled, for: section.competition)
+
+        guard isEnabled else { return }
+        Task {
+            let now = Self.minuteReferenceDate(for: AlertCalendarClock.nowRoundedToSecond())
+            await monitor.autoAddFootballMatches(section.matches, now: now)
+            await monitor.loadFootballCompetitionSection(section.competition, force: true)
+            await MainActor.run {
+                visibleNow = now
+                synchronizeViewStateFromMonitor()
+            }
+            await refreshManagedMatchesPanel(now: now, force: true)
+        }
     }
 
     func footballCardShowsMetadataLine(_ match: FootballFixtureMatch, showsCompetitionName: Bool) -> Bool {

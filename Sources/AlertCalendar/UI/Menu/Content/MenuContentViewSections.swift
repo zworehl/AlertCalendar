@@ -5,8 +5,12 @@ import SwiftUI
 
 extension MenuContentView {
     var alertBannerSection: some View {
+        alertBannerSection(alertDescriptions: filteredAlertDescriptions)
+    }
+
+    func alertBannerSection(alertDescriptions: [String]) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            ForEach(filteredAlertDescriptions, id: \.self) { alertText in
+            ForEach(alertDescriptions, id: \.self) { alertText in
                 HStack(alignment: .center, spacing: 8) {
                     Image(systemName: "exclamationmark.circle.fill")
                         .font(.system(size: 13, weight: .semibold))
@@ -172,6 +176,13 @@ extension MenuContentView {
         return min(splitDropdownColumnHeightLimit, measuredHeight)
     }
 
+    func splitSharedPanelHeight(snapshot: LayoutSnapshot) -> CGFloat? {
+        guard snapshot.shouldUseSplitDropdownLayout else { return nil }
+        let measuredHeight = max(splitContextualPanelHeight, splitUpcomingPanelHeight)
+        guard measuredHeight > 0 else { return nil }
+        return min(splitDropdownColumnHeightLimit, measuredHeight)
+    }
+
     var shouldScrollContextualSplitPanel: Bool {
         guard shouldUseSplitDropdownLayout,
               let splitSharedPanelHeight else {
@@ -181,9 +192,27 @@ extension MenuContentView {
         return splitContextualPanelHeight > splitSharedPanelHeight + 0.5
     }
 
+    func shouldScrollContextualSplitPanel(snapshot: LayoutSnapshot) -> Bool {
+        guard snapshot.shouldUseSplitDropdownLayout,
+              let splitSharedPanelHeight = splitSharedPanelHeight(snapshot: snapshot) else {
+            return false
+        }
+
+        return splitContextualPanelHeight > splitSharedPanelHeight + 0.5
+    }
+
     var shouldScrollUpcomingSplitPanel: Bool {
         guard shouldUseSplitDropdownLayout,
               let splitSharedPanelHeight else {
+            return false
+        }
+
+        return splitUpcomingPanelHeight > splitSharedPanelHeight + 0.5
+    }
+
+    func shouldScrollUpcomingSplitPanel(snapshot: LayoutSnapshot) -> Bool {
+        guard snapshot.shouldUseSplitDropdownLayout,
+              let splitSharedPanelHeight = splitSharedPanelHeight(snapshot: snapshot) else {
             return false
         }
 
@@ -223,14 +252,34 @@ extension MenuContentView {
     }
 
     var contextualSharedCompetitionHeader: some View {
+        contextualSharedCompetitionHeader(
+            title: sharedContextualFootballCompetitionTitle ?? "",
+            localPath: sharedContextualFootballCompetitionLogoPath,
+            remoteURL: sharedContextualFootballCompetitionLogoURL
+        )
+    }
+
+    func contextualSharedCompetitionHeader(snapshot: LayoutSnapshot) -> some View {
+        contextualSharedCompetitionHeader(
+            title: snapshot.sharedContextualFootballCompetitionTitle ?? "",
+            localPath: snapshot.sharedContextualFootballCompetitionLogoPath,
+            remoteURL: snapshot.sharedContextualFootballCompetitionLogoURL
+        )
+    }
+
+    private func contextualSharedCompetitionHeader(
+        title: String,
+        localPath: String?,
+        remoteURL: URL?
+    ) -> some View {
         HStack(spacing: 6) {
             FootballCompetitionLogoView(
-                localPath: sharedContextualFootballCompetitionLogoPath,
-                remoteURL: sharedContextualFootballCompetitionLogoURL,
+                localPath: localPath,
+                remoteURL: remoteURL,
                 placeholderSymbolSize: 11
             )
 
-            Text("All listed matches are from \(sharedContextualFootballCompetitionTitle ?? "")")
+            Text("All listed matches are from \(title)")
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
@@ -276,7 +325,7 @@ extension MenuContentView {
         Self.contextualFootballContentLevel(for: displayedContextualActionItems.count)
     }
 
-    nonisolated private static func contextualFootballContentLevel(for itemCount: Int) -> FootballContextualContentLevel {
+    nonisolated static func contextualFootballContentLevel(for itemCount: Int) -> FootballContextualContentLevel {
         switch max(1, itemCount) {
         case 1:
             return .statsAndGoals

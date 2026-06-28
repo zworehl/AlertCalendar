@@ -34,6 +34,7 @@ struct AppSettings: Equatable {
     var enableFootballGoalNotifications: Bool
     var includeFootballGoalScorerInNotifications: Bool
     var enableFootballFinalNotifications: Bool
+    var enableFootballAutoAddNotifications: Bool
     var showFinishedFootballMatches: Bool
     var finishedFootballMatchLookbackDays: Int
     var footballMatchLookaheadDays: Int
@@ -101,6 +102,7 @@ struct AppSettings: Equatable {
         enableFootballGoalNotifications: true,
         includeFootballGoalScorerInNotifications: true,
         enableFootballFinalNotifications: true,
+        enableFootballAutoAddNotifications: true,
         showFinishedFootballMatches: true,
         finishedFootballMatchLookbackDays: 7,
         footballMatchLookaheadDays: 14,

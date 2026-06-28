@@ -174,6 +174,37 @@ final class MenuBarStateTests: XCTestCase {
         )
     }
 
+    func testMenuBarAccessorySymbolsCanHideRecurrenceForBirthdays() throws {
+        let startDate = Date(timeIntervalSince1970: 1_800_000_000)
+        let event = UpcomingItem(
+            id: "birthday-1",
+            title: "Birthday",
+            date: startDate,
+            endDate: startDate.addingTimeInterval(24 * 60 * 60),
+            isAllDay: true,
+            showsMutedBackground: false,
+            travelTimeMinutes: nil,
+            locationText: nil,
+            meetingURL: nil,
+            isRecurring: true,
+            hasDocumentIndicator: false,
+            calendarID: "birthdays",
+            calendarName: "Birthdays",
+            calendarColor: .systemPink,
+            kind: .event,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
+        )
+
+        XCTAssertEqual(
+            CalendarMonitor.menuBarAccessorySymbolNames(
+                for: event,
+                includesRecurrenceIndicator: false
+            ),
+            []
+        )
+    }
+
     func testDocumentIndicatorURLDetectsDocumentsButIgnoresMeetingLinks() throws {
         XCTAssertTrue(
             CalendarMonitor.isDocumentIndicatorURL(

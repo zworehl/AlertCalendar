@@ -4,15 +4,16 @@ import EventKit
 import Foundation
 
 extension CalendarMonitor {
-    func addFootballMatchToCalendar(_ match: FootballFixtureMatch) async {
+    @discardableResult
+    func addFootballMatchToCalendar(_ match: FootballFixtureMatch) async -> Bool {
         guard hasEventsAccess else {
             calendarAccessDescription = "Calendar access is required to add fixtures."
-            return
+            return false
         }
 
         guard let calendar = resolvedFootballTargetCalendar() else {
             calendarAccessDescription = "Choose a writable event calendar before adding fixtures."
-            return
+            return false
         }
 
         let match = await resolvedFootballMatchForCalendarAdd(match)
@@ -26,7 +27,7 @@ extension CalendarMonitor {
             managedFootballMatchIDs.insert(match.id)
             updateManagedFootballMatches(using: trackedFootballEvents(now: now), now: now)
             refreshNow(reason: .footballCalendarAction)
-            return
+            return false
         }
 
         let event = EKEvent(eventStore: eventStore)
@@ -36,6 +37,7 @@ extension CalendarMonitor {
         await applyFootballTimeZone(to: event, locationText: match.locationText)
         event.startDate = Self.footballEffectiveStartDate(for: match)
         event.endDate = approximateEndDate(for: match)
+        event.notes = await footballCalendarNotes(for: match)
         applyFootballAlertConfiguration(to: event)
 
         do {
@@ -47,8 +49,10 @@ extension CalendarMonitor {
             managedFootballMatchIDs.insert(match.id)
             updateManagedFootballMatches(using: trackedFootballEvents(now: now), now: now)
             refreshNow(reason: .footballCalendarAction)
+            return true
         } catch {
             calendarAccessDescription = "Could not save the selected fixture."
+            return false
         }
     }
 
@@ -255,6 +259,27 @@ extension CalendarMonitor {
         } else {
             event.alarms = nil
         }
+    }
+
+    func footballCalendarNotes(for match: FootballFixtureMatch) async -> String? {
+        guard match.totalGoals > 0 else { return nil }
+        let goalScorers = try? await footballClient.fetchGoalScorers(for: match)
+        return FootballFixtureFormatter.calendarNotes(
+            for: match,
+            goalScorers: goalScorers
+        )
+    }
+
+    func footballCalendarNotesUpdate(for match: FootballFixtureMatch) async -> (didResolve: Bool, notes: String?) {
+        guard match.totalGoals > 0 else {
+            return (true, nil)
+        }
+
+        guard let notes = await footballCalendarNotes(for: match) else {
+            return (false, nil)
+        }
+
+        return (true, notes)
     }
 
     @discardableResult

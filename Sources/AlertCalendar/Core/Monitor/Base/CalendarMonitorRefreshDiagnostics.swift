@@ -51,6 +51,15 @@ enum CalendarMonitorRefreshReason: String, CaseIterable, Hashable {
             return false
         }
     }
+
+    var triggersFootballAutoAddSync: Bool {
+        switch self {
+        case .launch, .manual, .settingsChanged, .workspaceResumed, .periodic, .footballHeartbeat:
+            return true
+        case .eventStoreChanged, .locationChanged, .calendarSelectionChanged, .itemAction, .footballCalendarAction, .slackConnectionChanged:
+            return false
+        }
+    }
 }
 
 struct CalendarMonitorRefreshDiagnostics: Equatable {

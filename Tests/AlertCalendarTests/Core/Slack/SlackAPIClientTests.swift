@@ -140,4 +140,56 @@ final class SlackAPIClientTests: SlackStatusSyncTestCase {
 
         try? tokenStore.removeToken(for: connection.id)
     }
+
+    func testSlackProfileSetReusesCachedTokenAfterInitialKeychainRead() async throws {
+        let expectedSnapshot = SlackProfileStatusSnapshot(
+            statusText: "Rotating status",
+            statusEmoji: "📺",
+            statusExpiration: 1_782_507_300
+        )
+        let session = makeMockSession { request in
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer xoxp-cached-token")
+            switch request.url?.path {
+            case "/api/users.profile.set":
+                return try self.jsonResponse(
+                    for: request,
+                    body: [
+                        "ok": true,
+                        "profile": [
+                            "status_text": expectedSnapshot.statusText,
+                            "status_emoji": expectedSnapshot.statusEmoji,
+                            "status_expiration": expectedSnapshot.statusExpiration,
+                        ],
+                    ]
+                )
+            default:
+                throw URLError(.badURL)
+            }
+        }
+
+        let tokenStore = SlackTokenKeychainStore(
+            service: "com.zworehl.alertcalendar.tests.slack.\(UUID().uuidString)"
+        )
+        let connection = SlackConnection(
+            id: "T1|U1",
+            teamID: "T1",
+            teamName: "Workspace",
+            workspaceURLString: "https://workspace.slack.com/",
+            userID: "U1",
+            userName: "sam",
+            userDisplayName: "Sam",
+            emailAddress: "sam@example.com",
+            connectedAt: Date(timeIntervalSince1970: 100),
+            lastValidatedAt: Date(timeIntervalSince1970: 200)
+        )
+        try tokenStore.saveToken("xoxp-cached-token", for: connection.id)
+
+        let client = SlackAPIClient(session: session, tokenStore: tokenStore)
+        let firstSnapshot = try await client.setStatus(expectedSnapshot, for: connection)
+        try tokenStore.removeToken(for: connection.id)
+        let secondSnapshot = try await client.setStatus(expectedSnapshot, for: connection)
+
+        XCTAssertEqual(firstSnapshot, expectedSnapshot)
+        XCTAssertEqual(secondSnapshot, expectedSnapshot)
+    }
 }

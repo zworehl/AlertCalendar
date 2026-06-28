@@ -7,7 +7,9 @@ struct FootballNotificationMessage: Equatable {
 
 extension CalendarMonitor {
     func prepareFootballNotificationAuthorizationIfNeeded(settings: AppSettings) {
-        guard settings.enableFootballGoalNotifications || settings.enableFootballFinalNotifications else { return }
+        guard settings.enableFootballGoalNotifications
+            || settings.enableFootballFinalNotifications
+            || settings.enableFootballAutoAddNotifications else { return }
 
         Task {
             await AlertCalendarUserNotifier.requestAuthorizationIfNeeded()
@@ -49,6 +51,20 @@ extension CalendarMonitor {
         )
     }
 
+    nonisolated static func footballAutoAddNotificationMessage(
+        for match: FootballFixtureMatch,
+        now: Date = AlertCalendarClock.nowRoundedToSecond()
+    ) -> FootballNotificationMessage {
+        let matchup = "\(match.homeTeam.name) vs \(match.awayTeam.name)"
+        let competition = FootballFixtureFormatter.competitionDetailText(for: match)
+        let schedule = footballScheduleText(for: match, now: now)
+
+        return FootballNotificationMessage(
+            title: "Match added to Calendar",
+            body: "\(competition): \(matchup), \(schedule)."
+        )
+    }
+
     nonisolated static func footballNotificationScoreLine(
         for match: FootballFixtureMatch
     ) -> String {
@@ -79,6 +95,12 @@ extension CalendarMonitor {
         for match: FootballFixtureMatch
     ) -> String {
         "football.final.\(match.id)"
+    }
+
+    nonisolated static func footballAutoAddNotificationKey(
+        for match: FootballFixtureMatch
+    ) -> String {
+        "football.autoAdd.\(match.id)"
     }
 
     nonisolated static func footballFinishedTransition(
@@ -183,6 +205,22 @@ extension CalendarMonitor {
         guard deliveredFootballNotificationKeys.insert(notificationKey).inserted else { return }
 
         let message = Self.footballFinalNotificationMessage(for: currentMatch)
+        Task {
+            await AlertCalendarUserNotifier.deliver(
+                identifier: notificationKey,
+                title: message.title,
+                body: message.body
+            )
+        }
+    }
+
+    func queueFootballAutoAddNotification(for match: FootballFixtureMatch, now: Date) {
+        guard snapshotSettings().enableFootballAutoAddNotifications else { return }
+
+        let notificationKey = Self.footballAutoAddNotificationKey(for: match)
+        guard deliveredFootballNotificationKeys.insert(notificationKey).inserted else { return }
+
+        let message = Self.footballAutoAddNotificationMessage(for: match, now: now)
         Task {
             await AlertCalendarUserNotifier.deliver(
                 identifier: notificationKey,

@@ -22,6 +22,7 @@ extension SettingsFootballFixturesSectionView {
         footballLiveAndNextDaySection = monitor.footballLiveAndNextDaySection
         managedFootballMatchIDs = monitor.managedFootballMatchIDs
         managedFootballMatches = monitor.managedFootballMatches
+        autoAddFootballCompetitionSlugs = monitor.footballAutoAddCompetitionSlugs()
         refreshCompetitionSectionsDerivedState()
         refreshLiveAndNextDayDerivedState()
         refreshManagedMatchesDerivedState(now: visibleNow)

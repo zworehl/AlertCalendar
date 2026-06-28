@@ -48,6 +48,7 @@ enum SlackAPIError: LocalizedError, Equatable {
 actor SlackAPIClient {
     let session: URLSession
     let tokenStore: SlackTokenKeychainStore
+    var authorizedTokensByConnectionID: [String: String] = [:]
 
     init(
         session: URLSession? = nil,

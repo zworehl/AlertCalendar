@@ -6,6 +6,7 @@ enum FootballStatusText {
         ("SUSP.", ["SUSP", "SUSPENDED"]),
         ("POSTP.", ["POSTP", "POSTPONED"]),
         ("DELAY", ["DELAY", "DELAYED"]),
+        ("HYD.", ["HYDRATION", "COOLING", "WATER BREAK", "DRINKS BREAK", "DRINK BREAK"]),
         ("CANC.", ["CANCELED", "CANCELLED"]),
     ]
 

@@ -38,8 +38,12 @@ extension FootballDataAPIClient {
             guard seenEventSignatures.insert(signature).inserted else { continue }
             let scorer = FootballMatchGoalScorer(
                 id: "\(teamID ?? "unknown")-\(minute ?? "n/a")-\(index)",
+                athleteID: goalScorerAthleteID(from: event),
                 name: scorerName,
-                minute: minute
+                minute: minute,
+                countryName: goalScorerCountryName(from: event),
+                isOwnGoal: isOwnGoalEvent(event),
+                isPenalty: isPenaltyGoalEvent(event)
             )
 
             if let teamID, teamID == homeTeamID {
@@ -213,6 +217,30 @@ extension FootballDataAPIClient {
             || typeText.contains("penalty scored")
     }
 
+    static func isOwnGoalEvent(_ event: [String: Any]) -> Bool {
+        let type = event["type"] as? [String: Any]
+        let typeText = normalizedEventTypeToken(stringValue(type?["text"]) ?? "")
+        let typeValue = normalizedEventTypeToken(stringValue(type?["type"]) ?? "")
+        let text = normalizedEventTypeToken(stringValue(event["text"]) ?? "")
+
+        return typeText.contains("OWN GOAL")
+            || typeValue.contains("OWN GOAL")
+            || text.contains("OWN GOAL")
+    }
+
+    static func isPenaltyGoalEvent(_ event: [String: Any]) -> Bool {
+        let type = event["type"] as? [String: Any]
+        let typeText = normalizedEventTypeToken(stringValue(type?["text"]) ?? "")
+        let typeValue = normalizedEventTypeToken(stringValue(type?["type"]) ?? "")
+        let text = normalizedEventTypeToken(stringValue(event["text"]) ?? "")
+        let shortText = normalizedEventTypeToken(stringValue(event["shortText"]) ?? "")
+
+        return [typeText, typeValue, text, shortText].contains { value in
+            value.contains("PENALTY")
+                && (value.contains("SCORED") || value.contains("GOAL") || value.contains("CONVERT"))
+        }
+    }
+
     static func goalEventMinute(from event: [String: Any]) -> String? {
         let clock = (event["clock"] as? [String: Any])?["displayValue"]
         guard let minute = stringValue(clock)?.trimmingCharacters(in: .whitespacesAndNewlines), !minute.isEmpty else {
@@ -225,6 +253,12 @@ extension FootballDataAPIClient {
         if let text = stringValue(event["text"]),
            let ownGoalScorer = ownGoalScorerName(from: text) {
             return "\(ownGoalScorer) (OG)"
+        }
+
+        if let athlete = primaryGoalAthlete(from: event),
+           let displayName = stringValue(athlete["displayName"]),
+           !displayName.isEmpty {
+            return displayName
         }
 
         if let athletes = event["athletesInvolved"] as? [[String: Any]],
@@ -255,6 +289,59 @@ extension FootballDataAPIClient {
         }
 
         return nil
+    }
+
+    static func goalScorerAthleteID(from event: [String: Any]) -> String? {
+        guard !isOwnGoalEvent(event) else { return nil }
+        return primaryGoalAthlete(from: event).flatMap { stringValue($0["id"]) }
+    }
+
+    static func goalScorerCountryName(from event: [String: Any]) -> String? {
+        primaryGoalAthlete(from: event).flatMap(athleteCountryName)
+    }
+
+    static func primaryGoalAthlete(from event: [String: Any]) -> [String: Any]? {
+        if let participants = event["participants"] as? [[String: Any]] {
+            for participant in participants {
+                if let athlete = participant["athlete"] as? [String: Any],
+                   stringValue(athlete["displayName"]) != nil || stringValue(athlete["id"]) != nil {
+                    return athlete
+                }
+            }
+        }
+
+        if let athletes = event["athletesInvolved"] as? [[String: Any]] {
+            return athletes.first
+        }
+
+        return nil
+    }
+
+    static func athleteCountryName(_ athlete: [String: Any]) -> String? {
+        for key in ["citizenship", "countryName", "nationality"] {
+            if let value = normalizedNonEmptyString(athlete[key]) {
+                return value
+            }
+        }
+
+        for key in ["flag", "country", "citizenshipCountry", "nationalityCountry", "birthPlace"] {
+            guard let nested = athlete[key] as? [String: Any] else { continue }
+            for nestedKey in ["alt", "displayName", "name", "country", "abbreviation"] {
+                if let value = normalizedNonEmptyString(nested[nestedKey]) {
+                    return value
+                }
+            }
+        }
+
+        return nil
+    }
+
+    static func normalizedNonEmptyString(_ raw: Any?) -> String? {
+        guard let value = stringValue(raw)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty else {
+            return nil
+        }
+        return value
     }
 
     static func ownGoalScorerName(from text: String) -> String? {

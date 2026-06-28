@@ -43,13 +43,16 @@ extension CalendarMonitor {
         reason: CalendarMonitorRefreshReason = .manual
     ) async {
         let shouldSyncManagedEvents = force || reason.triggersManagedFootballSync
-        guard shouldSyncManagedEvents else {
+        if shouldSyncManagedEvents {
+            CalendarMonitorLog.football.debug("Checking managed football sync for refresh reason: \(reason.rawValue, privacy: .public)")
+            await syncManagedFootballEventsIfNeeded(now: now, force: force)
+        } else {
             CalendarMonitorLog.football.debug("Skipped managed football sync for refresh reason: \(reason.rawValue, privacy: .public)")
-            return
         }
 
-        CalendarMonitorLog.football.debug("Checking managed football sync for refresh reason: \(reason.rawValue, privacy: .public)")
-        await syncManagedFootballEventsIfNeeded(now: now, force: force)
+        if force || reason.triggersFootballAutoAddSync {
+            await syncAutoAddedFootballMatchesIfNeeded(now: now, force: force)
+        }
     }
 
     func invalidateManagedFootballSnapshotCache(markEventStoreChanged: Bool = false) {
@@ -123,6 +126,7 @@ extension CalendarMonitor {
                     hasLoaded: true
                 )
             }
+            await autoAddFootballMatches(matches, now: now)
         } catch {
             updateFootballCompetitionSection(competition.id) { currentSection in
                 FootballMenuCompetitionSection(
@@ -198,6 +202,7 @@ extension CalendarMonitor {
             if footballLiveAndNextDaySection != loadedSection {
                 footballLiveAndNextDaySection = loadedSection
             }
+            await autoAddFootballMatches(resolvedMatches, now: now)
         } catch {
             let failedSection = FootballMatchesOverviewSection(
                 title: footballLiveAndNextDaySection.title,

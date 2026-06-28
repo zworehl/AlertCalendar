@@ -16,6 +16,7 @@ extension CalendarMonitor {
             let updatedLocation = match.locationText
             let updatedStartDate = Self.footballEffectiveStartDate(for: match)
             let updatedEndDate = approximateEndDate(for: match)
+            let notesUpdate = await footballCalendarNotesUpdate(for: match)
             let needsStructuredLocationUpdate = await footballStructuredLocationNeedsUpdate(
                 for: snapshot.event,
                 locationText: updatedLocation
@@ -37,6 +38,7 @@ extension CalendarMonitor {
                 || needsStructuredLocationUpdate
                 || needsTimeZoneUpdate
                 || needsAlertUpdate
+                || (notesUpdate.didResolve && snapshot.event.notes != notesUpdate.notes)
 
             guard needsUpdate else { continue }
 
@@ -46,6 +48,9 @@ extension CalendarMonitor {
             snapshot.event.startDate = updatedStartDate
             snapshot.event.endDate = updatedEndDate
             snapshot.event.url = nil
+            if notesUpdate.didResolve {
+                snapshot.event.notes = notesUpdate.notes
+            }
             applyFootballAlertConfiguration(to: snapshot.event)
 
             do {

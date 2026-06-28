@@ -1,13 +1,18 @@
 import Foundation
 
 extension CalendarMonitor {
-    func processSlackStatusSyncQueue() async {
-        while slackStatusSyncNeedsAnotherPass {
+    func processSlackStatusSyncQueue(runID: UUID) async {
+        while slackStatusSyncNeedsAnotherPass,
+              slackStatusSyncRunID == runID,
+              !Task.isCancelled {
             slackStatusSyncNeedsAnotherPass = false
             await applySlackStatusSyncTargets(slackQueuedTargets)
         }
 
+        guard slackStatusSyncRunID == runID else { return }
         slackStatusSyncTask = nil
+        slackStatusSyncTaskStartedAt = nil
+        slackStatusSyncRunID = nil
     }
 
     func applySlackStatusSyncTargets(_ targets: [SlackStatusSyncTarget]) async {

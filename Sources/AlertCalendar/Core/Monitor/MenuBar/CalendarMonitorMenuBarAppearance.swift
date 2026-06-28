@@ -74,17 +74,23 @@ extension CalendarMonitor {
     }
 
     func menuBarAccessorySymbolNames(for item: UpcomingItem) -> [String] {
-        Self.menuBarAccessorySymbolNames(for: item)
+        Self.menuBarAccessorySymbolNames(
+            for: item,
+            includesRecurrenceIndicator: !isBirthdayItem(item)
+        )
     }
 
-    nonisolated static func menuBarAccessorySymbolNames(for item: UpcomingItem) -> [String] {
+    nonisolated static func menuBarAccessorySymbolNames(
+        for item: UpcomingItem,
+        includesRecurrenceIndicator: Bool = true
+    ) -> [String] {
         guard item.kind == .event else { return [] }
 
         var symbolNames: [String] = []
         if item.hasDocumentIndicator {
             symbolNames.append("paperclip")
         }
-        if item.isRecurring {
+        if item.isRecurring, includesRecurrenceIndicator {
             symbolNames.append("repeat")
         }
 

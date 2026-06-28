@@ -4,61 +4,193 @@ import MapKit
 import SwiftUI
 
 extension MenuContentView {
-    var contextualActionSection: some View {
+    struct LayoutSnapshot {
+        let filteredAlertDescriptions: [String]
+        let contextualActionCandidates: [UpcomingItem]
+        let contextualPreviewActionItems: [UpcomingItem]
+        let footballContextualActionItems: [UpcomingItem]
+        let displayedContextualActionItems: [UpcomingItem]
+        let contextualPreviewKindsByKey: [String: ContextualPreviewKind]
+        let queueItemsSource: [UpcomingItem]
+        let queueItemsForSingleColumnLayout: [UpcomingItem]
+        let queueItemsForSplitLayout: [UpcomingItem]
+        let queueItemsForActions: [UpcomingItem]
+        let shouldUseSplitDropdownLayout: Bool
+        let dropdownMinimumWidth: CGFloat
+        let sharedContextualFootballMatches: [FootballFixtureMatch]?
+        let sharedContextualFootballCompetitionTitle: String?
+        let sharedContextualFootballCompetitionLogoPath: String?
+        let sharedContextualFootballCompetitionLogoURL: URL?
+        let contextualFootballContentLevel: FootballContextualContentLevel
+
+        var contextualSharedCompetitionIsActive: Bool {
+            sharedContextualFootballCompetitionTitle != nil
+        }
+
+        func contextualPreviewKind(for item: UpcomingItem) -> ContextualPreviewKind? {
+            contextualPreviewKindsByKey[item.notificationKey]
+        }
+    }
+
+    var layoutSnapshot: LayoutSnapshot {
+        let now = displayReferenceDate
+        let futureWindowEnd = dropdownFutureWindowEnd(now: now)
+        let allDayItems = monitor.allDayEventItems
+        let eventWindowItems = monitor.upcomingItems.filter {
+            $0.kind == .event && Self.shouldIncludeInDropdownTimeWindow(
+                $0,
+                now: now,
+                futureWindowEnd: futureWindowEnd
+            )
+        }
+        let allEventItems = deduplicatedItems((allDayItems + eventWindowItems).sorted { $0.date < $1.date })
+        var contextualPreviewKindsByKey: [String: ContextualPreviewKind] = [:]
+        let contextualCandidates = allEventItems.filter { item in
+            guard shouldShowContextualPreview(for: item, now: now),
+                  let previewKind = contextualPreviewKind(for: item) else {
+                return false
+            }
+
+            contextualPreviewKindsByKey[item.notificationKey] = previewKind
+            return true
+        }
+        let contextualPreviewItems = Self.contextualActionItems(
+            from: contextualCandidates,
+            now: now
+        )
+        let footballContextualItems = Self.footballContextualActionItems(
+            from: contextualCandidates,
+            now: now
+        )
+
+        let queueWindowItems = monitor.upcomingItems.filter {
+            ($0.kind == .event || $0.kind == .reminder) && Self.shouldIncludeInDropdownTimeWindow(
+                $0,
+                now: now,
+                futureWindowEnd: futureWindowEnd
+            )
+        }
+        let queueSource = deduplicatedItems((allDayItems + queueWindowItems).sorted { $0.date < $1.date })
+        let singleColumnQueueItems = Self.queueItemsForActions(
+            from: queueSource,
+            contextualItems: contextualPreviewItems,
+            now: now,
+            futureWindowEnd: futureWindowEnd,
+            maxItems: max(1, settings.maxListItems)
+        )
+        let splitQueueItems = Self.queueItemsForActions(
+            from: queueSource,
+            contextualItems: footballContextualItems,
+            now: now,
+            futureWindowEnd: futureWindowEnd,
+            maxItems: max(1, settings.maxListItems)
+        )
+        let usesSplitLayout = !footballContextualItems.isEmpty && !splitQueueItems.isEmpty
+        let displayedContextualItems = usesSplitLayout ? footballContextualItems : contextualPreviewItems
+        let displayedQueueItems = usesSplitLayout ? splitQueueItems : singleColumnQueueItems
+        let dropdownMinimumWidth: CGFloat = {
+            guard !usesSplitLayout else { return dropdownPreferredWidth }
+            let contextualWidth = displayedContextualItems.reduce(minimumSingleColumnDropdownWidth) { partialResult, item in
+                max(
+                    partialResult,
+                    contextualCardMinimumWidth(
+                        for: item,
+                        previewKind: contextualPreviewKindsByKey[item.notificationKey]
+                    )
+                )
+            }
+            let queueWidth = displayedQueueItems.reduce(minimumSingleColumnDropdownWidth) { partialResult, item in
+                max(partialResult, queueItemMinimumWidth(for: item))
+            }
+            return max(minimumSingleColumnDropdownWidth, contextualWidth, queueWidth)
+        }()
+        let footballMatches: [FootballFixtureMatch]? = {
+            guard !displayedContextualItems.isEmpty else { return nil }
+            let matches = displayedContextualItems.compactMap(\.footballMatch)
+            guard matches.count == displayedContextualItems.count else { return nil }
+            return matches
+        }()
+        let sharedCompetitionTitle = footballMatches.flatMap {
+            FootballFixtureFormatter.sharedCompetitionTitle(for: $0)
+        }
+
+        return LayoutSnapshot(
+            filteredAlertDescriptions: filteredAlertDescriptions,
+            contextualActionCandidates: contextualCandidates,
+            contextualPreviewActionItems: contextualPreviewItems,
+            footballContextualActionItems: footballContextualItems,
+            displayedContextualActionItems: displayedContextualItems,
+            contextualPreviewKindsByKey: contextualPreviewKindsByKey,
+            queueItemsSource: queueSource,
+            queueItemsForSingleColumnLayout: singleColumnQueueItems,
+            queueItemsForSplitLayout: splitQueueItems,
+            queueItemsForActions: displayedQueueItems,
+            shouldUseSplitDropdownLayout: usesSplitLayout,
+            dropdownMinimumWidth: dropdownMinimumWidth,
+            sharedContextualFootballMatches: footballMatches,
+            sharedContextualFootballCompetitionTitle: sharedCompetitionTitle,
+            sharedContextualFootballCompetitionLogoPath: sharedCompetitionTitle == nil ? nil : displayedContextualItems.first?.footballMenuBarDisplay?.competitionLocalLogoPath,
+            sharedContextualFootballCompetitionLogoURL: sharedCompetitionTitle == nil ? nil : footballMatches?.first?.competitionLogoURL,
+            contextualFootballContentLevel: Self.contextualFootballContentLevel(for: displayedContextualItems.count)
+        )
+    }
+
+    func contextualActionSection(snapshot: LayoutSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             calendarSectionContainer(
-                height: shouldUseSplitDropdownLayout ? splitSharedPanelHeight : nil,
-                bottomPadding: shouldUseSplitDropdownLayout ? splitPanelBottomPadding : nil
+                height: snapshot.shouldUseSplitDropdownLayout ? splitSharedPanelHeight(snapshot: snapshot) : nil,
+                bottomPadding: snapshot.shouldUseSplitDropdownLayout ? splitPanelBottomPadding : nil
             ) {
-                if shouldScrollContextualSplitPanel {
+                if shouldScrollContextualSplitPanel(snapshot: snapshot) {
                     ScrollView(.vertical, showsIndicators: true) {
-                        contextualActionPanelContent
+                        contextualActionPanelContent(snapshot: snapshot)
                     }
                     .frame(maxHeight: .infinity, alignment: .top)
                 } else {
-                    contextualActionPanelContent
+                    contextualActionPanelContent(snapshot: snapshot)
                 }
             }
         }
     }
 
-    var upcomingSection: some View {
+    func upcomingSection(snapshot: LayoutSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             calendarSectionContainer(
-                height: shouldUseSplitDropdownLayout ? splitSharedPanelHeight : nil,
-                bottomPadding: shouldUseSplitDropdownLayout ? splitPanelBottomPadding : nil
+                height: snapshot.shouldUseSplitDropdownLayout ? splitSharedPanelHeight(snapshot: snapshot) : nil,
+                bottomPadding: snapshot.shouldUseSplitDropdownLayout ? splitPanelBottomPadding : nil
             ) {
-                if queueItemsForActions.isEmpty {
-                    upcomingQueueRows
-                } else if shouldScrollUpcomingSplitPanel || !shouldUseSplitDropdownLayout {
+                if snapshot.queueItemsForActions.isEmpty {
+                    upcomingQueueRows(snapshot: snapshot)
+                } else if shouldScrollUpcomingSplitPanel(snapshot: snapshot) || !snapshot.shouldUseSplitDropdownLayout {
                     ScrollView(.vertical, showsIndicators: true) {
-                        upcomingQueueRows
+                        upcomingQueueRows(snapshot: snapshot)
                     }
                     .frame(
-                        maxHeight: shouldUseSplitDropdownLayout ? .infinity : upcomingListMaxHeight,
+                        maxHeight: snapshot.shouldUseSplitDropdownLayout ? .infinity : upcomingListMaxHeight,
                         alignment: .top
                     )
                 } else {
-                    upcomingQueueRows
+                    upcomingQueueRows(snapshot: snapshot)
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
-    var contextualActionPanelContent: some View {
+    func contextualActionPanelContent(snapshot: LayoutSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            if contextualSharedCompetitionIsActive {
-                contextualSharedCompetitionHeader
+            if snapshot.contextualSharedCompetitionIsActive {
+                contextualSharedCompetitionHeader(snapshot: snapshot)
             }
 
-            ForEach(Array(displayedContextualActionItems.enumerated()), id: \.element.notificationKey) { index, item in
+            ForEach(Array(snapshot.displayedContextualActionItems.enumerated()), id: \.element.notificationKey) { index, item in
                 contextualActionCard(
                     for: item,
-                    showsFootballCompetitionLine: !contextualSharedCompetitionIsActive
+                    showsFootballCompetitionLine: !snapshot.contextualSharedCompetitionIsActive,
+                    snapshot: snapshot
                 )
 
-                if index < displayedContextualActionItems.count - 1 {
+                if index < snapshot.displayedContextualActionItems.count - 1 {
                     Divider()
                 }
             }
@@ -67,18 +199,18 @@ extension MenuContentView {
             GeometryReader { proxy in
                 Color.clear.preference(
                     key: SplitContextualPanelHeightPreferenceKey.self,
-                    value: proxy.size.height + panelTopPadding + (shouldUseSplitDropdownLayout ? splitPanelBottomPadding : panelBottomPadding)
+                    value: proxy.size.height + panelTopPadding + (snapshot.shouldUseSplitDropdownLayout ? splitPanelBottomPadding : panelBottomPadding)
                 )
             }
         )
     }
 
-    var upcomingQueueRows: some View {
+    func upcomingQueueRows(snapshot: LayoutSnapshot) -> some View {
         VStack(spacing: 0) {
-            if queueItemsForActions.isEmpty {
+            if snapshot.queueItemsForActions.isEmpty {
                 emptySectionRow("No upcoming items")
             } else {
-                ForEach(Array(queueItemsForActions.enumerated()), id: \.element.notificationKey) { index, item in
+                ForEach(Array(snapshot.queueItemsForActions.enumerated()), id: \.element.notificationKey) { index, item in
                     if index > 0 {
                         Divider()
                     }
@@ -90,7 +222,7 @@ extension MenuContentView {
             GeometryReader { proxy in
                 Color.clear.preference(
                     key: SplitUpcomingPanelHeightPreferenceKey.self,
-                    value: proxy.size.height + panelTopPadding + (shouldUseSplitDropdownLayout ? splitPanelBottomPadding : panelBottomPadding)
+                    value: proxy.size.height + panelTopPadding + (snapshot.shouldUseSplitDropdownLayout ? splitPanelBottomPadding : panelBottomPadding)
                 )
             }
         )

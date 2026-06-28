@@ -22,6 +22,17 @@ final class FootballDataAPIClientStatusParsingTests: FootballDataAPIClientTestCa
 
         XCTAssertEqual(text, "Delay")
     }
+
+    func testPreferredStatusTextUsesHydrationDetailOverMinuteShortDetail() {
+        let text = FootballDataAPIClient.preferredStatusText(
+            shortDetail: "27'",
+            detail: "Hydration break",
+            displayClock: "27:00"
+        )
+
+        XCTAssertEqual(text, "Hydration break")
+    }
+
     func testSupplementalStatusTextPreservesMinuteWhenInterruptedShortDetailWins() {
         let text = FootballDataAPIClient.supplementalStatusText(
             preferredStatusText: "Delay",
@@ -31,6 +42,17 @@ final class FootballDataAPIClientStatusParsingTests: FootballDataAPIClientTestCa
 
         XCTAssertEqual(text, "11'")
     }
+
+    func testSupplementalStatusTextPreservesMinuteWhenHydrationDetailWins() {
+        let text = FootballDataAPIClient.supplementalStatusText(
+            preferredStatusText: "Hydration break",
+            detail: "Hydration break",
+            displayClock: "27'"
+        )
+
+        XCTAssertEqual(text, "27'")
+    }
+
     func testSupplementalStatusTextUsesDisplayClockWhenInterruptedDetailRepeatsDelay() {
         let text = FootballDataAPIClient.supplementalStatusText(
             preferredStatusText: "Delay",

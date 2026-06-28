@@ -295,6 +295,27 @@ final class FootballFixtureTitleFormattingTests: FootballFixtureFormatterTestCas
             XCTAssertEqual(FootballFixtureFormatter.teamDisplayIdentifier(for: team), "TBD")
         }
     }
+    func testResolvedNationalTeamsAreNotMistakenForKnockoutSlotsWithoutCachedCountry() {
+        for (name, abbreviation, expectedIdentifier) in [
+            ("Canada", "CAN", "CAN"),
+            ("South Africa", "RSA", "RSA"),
+            ("Portugal", "POR", "POR"),
+            ("Romania", "ROU", "ROU"),
+            ("Poland", "POL", "POL"),
+        ] {
+            let team = FootballTeamSummary(
+                id: abbreviation.lowercased(),
+                name: name,
+                abbreviation: abbreviation,
+                logoURL: nil,
+                countryName: nil,
+                isNational: true
+            )
+
+            XCTAssertFalse(FootballFixtureFormatter.isUnknownTeam(team), "\(name) should be treated as a resolved national team")
+            XCTAssertEqual(FootballFixtureFormatter.teamDisplayIdentifier(for: team), expectedIdentifier)
+        }
+    }
     func testClubIdentifiersAreTrimmedToThreeLetters() {
         let team = FootballTeamSummary(
             id: "1",

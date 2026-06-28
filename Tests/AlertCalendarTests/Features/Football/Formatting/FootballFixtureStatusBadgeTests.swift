@@ -188,6 +188,35 @@ final class FootballFixtureStatusBadgeTests: FootballFixtureFormatterTestCase {
         XCTAssertEqual(CalendarMonitor.footballStatusBadgeText(for: delayedMatch, now: now), "DELAY")
         XCTAssertEqual(CalendarMonitor.footballStatusBadgeText(for: abandonedMatch, now: now), "ABN")
     }
+
+    func testFootballStatusBadgeShowsHydrationBreakWhenReported() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let match = makeMatch(
+            id: "hydration-break",
+            startDate: now.addingTimeInterval(-27 * 60),
+            statusState: .inProgress,
+            statusText: "Cooling break",
+            statusDetailText: "27'",
+            statusReliability: .reported
+        )
+
+        XCTAssertEqual(CalendarMonitor.footballStatusBadgeText(for: match, now: now), "HYD.")
+    }
+
+    func testFootballStatusBadgeShowsDrinksBreakWhenReported() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let match = makeMatch(
+            id: "drinks-break",
+            startDate: now.addingTimeInterval(-27 * 60),
+            statusState: .inProgress,
+            statusText: "Drinks break",
+            statusDetailText: "27'",
+            statusReliability: .reported
+        )
+
+        XCTAssertEqual(CalendarMonitor.footballStatusBadgeText(for: match, now: now), "HYD.")
+    }
+
     func testInterruptedAbandonedMatchUsesReportedMinuteForCalendarDuration() {
         let match = makeMatch(
             id: "abandoned-duration",

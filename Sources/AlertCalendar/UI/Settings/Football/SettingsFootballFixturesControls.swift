@@ -251,6 +251,9 @@ extension SettingsFootballFixturesSectionView {
 
                 Toggle("Final score", isOn: $enableFootballFinalNotifications)
                     .toggleStyle(.checkbox)
+
+                Toggle("Added matches", isOn: $enableFootballAutoAddNotifications)
+                    .toggleStyle(.checkbox)
             }
             .font(.subheadline)
         }

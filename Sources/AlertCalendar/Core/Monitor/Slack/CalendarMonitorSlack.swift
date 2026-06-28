@@ -3,6 +3,7 @@ import Foundation
 
 extension CalendarMonitor {
     static let slackStatusSyncHeartbeatEvaluationInterval = CalendarMonitorCadence.slackStatusHeartbeatInterval
+    static let slackStatusSyncTaskTimeoutInterval = CalendarMonitorCadence.slackStatusSyncTaskTimeoutInterval
     static let slackDynamicStatusRotationInterval = CalendarMonitorCadence.slackDynamicStatusRotationInterval
     static let slackConnectionMetadataRefreshInterval = CalendarMonitorCadence.slackConnectionMetadataRefreshInterval
     static let slackDiagnosticsLogSizeLimit = CalendarMonitorCadence.slackDiagnosticsLogSizeLimit
@@ -33,6 +34,11 @@ extension CalendarMonitor {
 
         let connection: SlackConnection
         let mode: Mode
+
+        static func == (lhs: SlackStatusSyncTarget, rhs: SlackStatusSyncTarget) -> Bool {
+            lhs.connection.id == rhs.connection.id &&
+                lhs.mode == rhs.mode
+        }
     }
 
     func connectSlackUserToken(_ token: String) async throws -> SlackConnection {

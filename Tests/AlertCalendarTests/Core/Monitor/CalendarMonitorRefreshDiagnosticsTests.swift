@@ -37,4 +37,13 @@ final class CalendarMonitorRefreshDiagnosticsTests: XCTestCase {
         XCTAssertFalse(CalendarMonitorRefreshReason.itemAction.triggersManagedFootballSync)
         XCTAssertFalse(CalendarMonitorRefreshReason.slackConnectionChanged.triggersManagedFootballSync)
     }
+
+    func testFootballAutoAddSyncPolicySkipsInternalCalendarActions() {
+        XCTAssertTrue(CalendarMonitorRefreshReason.launch.triggersFootballAutoAddSync)
+        XCTAssertTrue(CalendarMonitorRefreshReason.periodic.triggersFootballAutoAddSync)
+        XCTAssertTrue(CalendarMonitorRefreshReason.settingsChanged.triggersFootballAutoAddSync)
+        XCTAssertFalse(CalendarMonitorRefreshReason.footballCalendarAction.triggersFootballAutoAddSync)
+        XCTAssertFalse(CalendarMonitorRefreshReason.eventStoreChanged.triggersFootballAutoAddSync)
+        XCTAssertFalse(CalendarMonitorRefreshReason.itemAction.triggersFootballAutoAddSync)
+    }
 }

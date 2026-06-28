@@ -16,7 +16,7 @@ extension SlackAPIClient {
         let teamInfoResponse = try await bestEffortTeamInfo(token: token)
         let now = Date()
 
-        return try buildConnection(
+        let validatedConnection = try buildConnection(
             authResponse: authResponse,
             profileResponse: profileResponse,
             teamInfoResponse: teamInfoResponse,
@@ -24,6 +24,11 @@ extension SlackAPIClient {
             lastValidatedAt: now,
             existingConnection: connection
         )
+        authorizedTokensByConnectionID[validatedConnection.id] = token
+        if validatedConnection.id != connection.id {
+            authorizedTokensByConnectionID[connection.id] = nil
+        }
+        return validatedConnection
     }
 
     func currentProfileStatus(for connection: SlackConnection) async throws -> SlackProfileStatusSnapshot {
@@ -41,6 +46,7 @@ extension SlackAPIClient {
     }
 
     func removeStoredToken(for connectionID: String) throws {
+        authorizedTokensByConnectionID[connectionID] = nil
         try tokenStore.removeToken(for: connectionID)
     }
 
@@ -62,6 +68,7 @@ extension SlackAPIClient {
             lastValidatedAt: now
         )
         try tokenStore.saveCredential(credential, for: connection.id)
+        authorizedTokensByConnectionID[connection.id] = token
         return connection
     }
 
@@ -99,15 +106,22 @@ extension SlackAPIClient {
     }
 
     func authorizedToken(for connection: SlackConnection) async throws -> String {
+        if let cachedToken = authorizedTokensByConnectionID[connection.id] {
+            return cachedToken
+        }
+
         guard let storedCredential = try tokenStore.storedCredential(for: connection.id) else {
             throw SlackAPIError.missingStoredToken
         }
 
+        let token: String
         switch storedCredential {
-        case let .legacyToken(token):
-            return try normalizedUserToken(token)
+        case let .legacyToken(storedToken):
+            token = try normalizedUserToken(storedToken)
         case let .credential(credential):
-            return try normalizedUserToken(credential.accessToken)
+            token = try normalizedUserToken(credential.accessToken)
         }
+        authorizedTokensByConnectionID[connection.id] = token
+        return token
     }
 }
