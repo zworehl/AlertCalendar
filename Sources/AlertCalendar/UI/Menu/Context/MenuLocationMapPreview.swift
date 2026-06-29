@@ -3,6 +3,10 @@ import CoreLocation
 import MapKit
 import SwiftUI
 
+private enum MiniLocationMapPreviewTiming {
+    static let loadingTimeoutNanoseconds: UInt64 = 8_000_000_000
+}
+
 struct MiniLocationMapView: View {
     let locationText: String
     let preferredHeight: CGFloat
@@ -13,6 +17,9 @@ struct MiniLocationMapView: View {
     )
     @State private var marker: MapMarkerItem?
     @State private var isLoading = false
+    @State private var requestedLocationText: String?
+    @State private var resolveTask: Task<Void, Never>?
+    @State private var loadingTimeoutTask: Task<Void, Never>?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -46,23 +53,61 @@ struct MiniLocationMapView: View {
         .onChange(of: locationText) { _ in
             resolveLocation()
         }
+        .onDisappear {
+            resolveTask?.cancel()
+            resolveTask = nil
+            loadingTimeoutTask?.cancel()
+            loadingTimeoutTask = nil
+        }
     }
 
     private func resolveLocation() {
         let requestedLocation = locationText
         let trimmed = requestedLocation.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
+            resolveTask?.cancel()
+            resolveTask = nil
+            loadingTimeoutTask?.cancel()
+            loadingTimeoutTask = nil
+            requestedLocationText = nil
             isLoading = false
             marker = nil
             return
         }
+        if requestedLocationText == requestedLocation,
+           isLoading || marker != nil {
+            return
+        }
 
+        requestedLocationText = requestedLocation
         isLoading = true
-        Task {
-            let coordinate = await LocationCoordinateResolver.shared.coordinate(for: requestedLocation)
+        marker = nil
+        resolveTask?.cancel()
+        loadingTimeoutTask?.cancel()
+        loadingTimeoutTask = Task {
+            try? await Task.sleep(nanoseconds: MiniLocationMapPreviewTiming.loadingTimeoutNanoseconds)
+            guard !Task.isCancelled else { return }
+
             await MainActor.run {
-                guard requestedLocation == locationText else { return }
+                guard requestedLocationText == requestedLocation,
+                      isLoading else { return }
                 isLoading = false
+                marker = nil
+                resolveTask?.cancel()
+                resolveTask = nil
+                loadingTimeoutTask = nil
+            }
+        }
+        resolveTask = Task {
+            let coordinate = await LocationCoordinateResolver.shared.coordinate(for: requestedLocation)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                guard requestedLocation == locationText,
+                      requestedLocationText == requestedLocation else { return }
+                loadingTimeoutTask?.cancel()
+                loadingTimeoutTask = nil
+                isLoading = false
+                resolveTask = nil
                 guard let coordinate else {
                     marker = nil
                     return

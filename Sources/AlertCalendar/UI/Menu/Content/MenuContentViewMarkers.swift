@@ -276,7 +276,7 @@ extension MenuContentView {
     }
 
     var displayedContextualActionItems: [UpcomingItem] {
-        shouldUseSplitDropdownLayout ? footballContextualActionItems : contextualPreviewActionItems
+        shouldUseSplitDropdownLayout ? splitContextualActionItemsForSplitLayout : contextualPreviewActionItems
     }
 
     nonisolated static func contextualActionItems(

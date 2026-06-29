@@ -18,8 +18,10 @@ enum FootballNationalLogoResolver {
         "CHE": "SUI",
         "MGL": "MNG",
         "PSE": "PLE",
+        "SOUTHAFRICA": "RSA",
         "SWITZERLAND": "SUI",
         "USVI": "VIR",
+        "ZAF": "RSA",
     ]
 
     static func resolvedLogoURL(
@@ -156,6 +158,7 @@ enum FootballNationalLogoResolver {
         "2642": "USA",
         "2650": "ESP",
         "2677": "CRC",
+        "467": "RSA",
         "2751": "CPV",
     ]
 }

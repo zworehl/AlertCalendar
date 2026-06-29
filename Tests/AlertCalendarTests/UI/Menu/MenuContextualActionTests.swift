@@ -79,6 +79,129 @@ final class MenuContextualActionTests: AlertCalendarModelTestCase {
             ["match-1", "match-2"]
         )
     }
+    func testSplitContextualActionItemsIncludeActiveMeetingWithAttendeesBeforeFootballMatch() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let activeMatch = makeFootballUpcomingItem(
+            makeFootballMatch(
+                id: "match-1",
+                startDate: now.addingTimeInterval(-900),
+                actualStartDate: now.addingTimeInterval(-840),
+                statusState: .inProgress,
+                statusText: "14'"
+            )
+        )
+        let activeMeeting = UpcomingItem(
+            id: "meeting-1",
+            title: "Design review",
+            date: now.addingTimeInterval(-600),
+            endDate: now.addingTimeInterval(1800),
+            isAllDay: false,
+            showsMutedBackground: false,
+            travelTimeMinutes: nil,
+            locationText: nil,
+            meetingURL: URL(string: "https://meet.google.com/abc-defg-hij"),
+            organizer: MeetingOrganizer(displayText: "Ari", emailAddress: "ari@example.com"),
+            attendees: [
+                MeetingAttendee(
+                    id: "sam@example.com",
+                    displayText: "Sam",
+                    emailAddress: "sam@example.com",
+                    response: .accepted
+                )
+            ],
+            calendarID: "calendar-1",
+            calendarName: "Work",
+            calendarColor: .systemBlue,
+            kind: .event,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
+        )
+        let previewKindsByKey: [String: MenuContentView.ContextualPreviewKind] = [
+            activeMeeting.notificationKey: .attendees(activeMeeting.organizer, activeMeeting.attendees),
+            activeMatch.notificationKey: .location("Mercedes-Benz Stadium, Atlanta, Georgia, USA"),
+        ]
+
+        let items = MenuContentView.splitContextualActionItems(
+            contextualItems: [activeMatch, activeMeeting],
+            footballItems: [activeMatch],
+            previewKindsByKey: previewKindsByKey
+        )
+
+        XCTAssertEqual(items.map(\.id), ["meeting-1", "match-1"])
+    }
+    func testSplitContextualActionItemsKeepUpcomingEventWhenFootballMatchIsActive() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let activeMatch = makeFootballUpcomingItem(
+            makeFootballMatch(
+                id: "match-1",
+                startDate: now.addingTimeInterval(-900),
+                actualStartDate: now.addingTimeInterval(-840),
+                statusState: .inProgress,
+                statusText: "14'"
+            )
+        )
+        let elevenOClockEvent = makeUpcomingItem(
+            id: "event-11",
+            title: "Design review",
+            startDate: now.addingTimeInterval(30 * 60),
+            endDate: now.addingTimeInterval(60 * 60)
+        )
+        let previewKindsByKey: [String: MenuContentView.ContextualPreviewKind] = [
+            activeMatch.notificationKey: .location("Mercedes-Benz Stadium, Atlanta, Georgia, USA"),
+            elevenOClockEvent.notificationKey: .location("Somewhere"),
+        ]
+        let contextualPreviewItems = MenuContentView.contextualActionItems(
+            from: [activeMatch, elevenOClockEvent],
+            now: now
+        )
+        let upcomingNonFootballItems = MenuContentView.contextualActionItems(
+            from: [elevenOClockEvent],
+            now: now
+        )
+        let footballItems = MenuContentView.footballContextualActionItems(
+            from: [activeMatch, elevenOClockEvent],
+            now: now
+        )
+
+        let items = MenuContentView.splitContextualActionItems(
+            contextualItems: contextualPreviewItems + upcomingNonFootballItems,
+            footballItems: footballItems,
+            previewKindsByKey: previewKindsByKey
+        )
+
+        XCTAssertEqual(contextualPreviewItems.map(\.id), ["match-1"])
+        XCTAssertEqual(items.map(\.id), ["match-1", "event-11"])
+    }
+    func testSplitContextualActionItemsDeduplicateMergedContextualItems() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let activeMatch = makeFootballUpcomingItem(
+            makeFootballMatch(
+                id: "match-1",
+                startDate: now.addingTimeInterval(-900),
+                actualStartDate: now.addingTimeInterval(-840),
+                statusState: .inProgress,
+                statusText: "14'"
+            )
+        )
+        let activeRestriction = makeUpcomingItem(
+            id: "vehicle-restriction",
+            title: "Vehicle restriction",
+            startDate: now.addingTimeInterval(-60 * 60),
+            endDate: now.addingTimeInterval(10 * 60 * 60)
+        )
+        let previewKindsByKey: [String: MenuContentView.ContextualPreviewKind] = [
+            activeMatch.notificationKey: .location("NRG Stadium"),
+            activeRestriction.notificationKey: .location("San Jose"),
+        ]
+
+        let items = MenuContentView.splitContextualActionItems(
+            contextualItems: [activeMatch, activeRestriction, activeRestriction],
+            footballItems: [activeMatch],
+            previewKindsByKey: previewKindsByKey
+        )
+
+        XCTAssertEqual(items.map(\.id), ["match-1", "vehicle-restriction"])
+    }
     func testShouldShowContextualMapPreviewHidesFootballPreviewWhenThreeMatchesAreConcurrent() {
         let footballItem = makeFootballUpcomingItem(
             makeFootballMatch(

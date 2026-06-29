@@ -47,7 +47,9 @@ extension MenuContentView {
         let attendeePreviewListHeight: CGFloat = snapshot.shouldUseSplitDropdownLayout ? 148 : 188
         let footballContentLevel = snapshot.contextualFootballContentLevel
         let now = displayReferenceDate
-        let concurrentFootballMatchCount = snapshot.displayedContextualActionItems.count
+        let concurrentFootballMatchCount = snapshot.displayedContextualActionItems.filter {
+            $0.footballMatch != nil
+        }.count
 
         VStack(alignment: .leading, spacing: 6) {
             if let footballMatch = item.footballMatch {
@@ -285,6 +287,7 @@ extension MenuContentView {
         isHovered: Bool
     ) -> some View {
         let now = displayReferenceDate
+        let headerHeight = contextualProgressHeaderHeight(for: item)
         let reservedTrailingWidth = isHovered ? contextualActionRowWidth(
             for: item,
             locationText: locationText,
@@ -299,6 +302,8 @@ extension MenuContentView {
                 hideTimeDetails: isHovered,
                 reservedTrailingWidth: reservedTrailingWidth
             )
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(height: headerHeight, alignment: .topLeading)
 
             if isHovered {
                 contextualActionButtons(
@@ -309,7 +314,32 @@ extension MenuContentView {
                 .padding(.trailing, 6)
             }
         }
+        .frame(height: headerHeight, alignment: .topLeading)
+        .fixedSize(horizontal: false, vertical: true)
         .contentShape(Rectangle())
+    }
+
+    func contextualProgressHeaderHeight(for item: UpcomingItem) -> CGFloat {
+        let hasVirtualLocation = monitor.isVirtualLocationText(item.locationText)
+        let showsTravelTime = item.kind == .event
+            && !item.isAllDay
+            && item.meetingURL == nil
+            && !hasVirtualLocation
+            && (item.travelTimeMinutes ?? 0) > 0
+        let showsLocation = item.kind == .event
+            && !item.isAllDay
+            && item.locationText.map {
+                shouldShowLocationRow(
+                    locationName: displayLocationName(from: $0),
+                    meetingURL: item.meetingURL
+                )
+            } == true
+        let showsMeetingLink = item.meetingURL != nil
+        let lineCount = 1
+            + (showsTravelTime ? 1 : 0)
+            + ((showsLocation || showsMeetingLink) ? 1 : 0)
+
+        return max(34, CGFloat(lineCount * 16) + 12)
     }
 
 }

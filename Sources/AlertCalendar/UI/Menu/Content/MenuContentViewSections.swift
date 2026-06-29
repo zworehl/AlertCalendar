@@ -166,57 +166,39 @@ extension MenuContentView {
 
     var splitDropdownColumnHeightLimit: CGFloat {
         let screenHeight = NSScreen.main?.visibleFrame.height ?? 960
-        return min(splitDropdownMaxColumnHeight, max(420, screenHeight * 0.72))
+        return min(splitDropdownMaxColumnHeight, max(360, screenHeight * 0.62))
     }
 
-    var splitSharedPanelHeight: CGFloat? {
-        guard shouldUseSplitDropdownLayout else { return nil }
-        let measuredHeight = max(splitContextualPanelHeight, splitUpcomingPanelHeight)
-        guard measuredHeight > 0 else { return nil }
-        return min(splitDropdownColumnHeightLimit, measuredHeight)
-    }
-
-    func splitSharedPanelHeight(snapshot: LayoutSnapshot) -> CGFloat? {
+    func splitPanelHeight(measuredHeight: CGFloat, snapshot: LayoutSnapshot) -> CGFloat? {
         guard snapshot.shouldUseSplitDropdownLayout else { return nil }
-        let measuredHeight = max(splitContextualPanelHeight, splitUpcomingPanelHeight)
         guard measuredHeight > 0 else { return nil }
         return min(splitDropdownColumnHeightLimit, measuredHeight)
     }
 
-    var shouldScrollContextualSplitPanel: Bool {
-        guard shouldUseSplitDropdownLayout,
-              let splitSharedPanelHeight else {
-            return false
-        }
+    func contextualSplitPanelHeight(snapshot: LayoutSnapshot) -> CGFloat? {
+        splitPanelHeight(measuredHeight: splitContextualPanelHeight, snapshot: snapshot)
+    }
 
-        return splitContextualPanelHeight > splitSharedPanelHeight + 0.5
+    func upcomingSplitPanelHeight(snapshot: LayoutSnapshot) -> CGFloat? {
+        splitPanelHeight(measuredHeight: splitUpcomingPanelHeight, snapshot: snapshot)
     }
 
     func shouldScrollContextualSplitPanel(snapshot: LayoutSnapshot) -> Bool {
         guard snapshot.shouldUseSplitDropdownLayout,
-              let splitSharedPanelHeight = splitSharedPanelHeight(snapshot: snapshot) else {
+              let contextualSplitPanelHeight = contextualSplitPanelHeight(snapshot: snapshot) else {
             return false
         }
 
-        return splitContextualPanelHeight > splitSharedPanelHeight + 0.5
-    }
-
-    var shouldScrollUpcomingSplitPanel: Bool {
-        guard shouldUseSplitDropdownLayout,
-              let splitSharedPanelHeight else {
-            return false
-        }
-
-        return splitUpcomingPanelHeight > splitSharedPanelHeight + 0.5
+        return splitContextualPanelHeight > contextualSplitPanelHeight + 0.5
     }
 
     func shouldScrollUpcomingSplitPanel(snapshot: LayoutSnapshot) -> Bool {
         guard snapshot.shouldUseSplitDropdownLayout,
-              let splitSharedPanelHeight = splitSharedPanelHeight(snapshot: snapshot) else {
+              let upcomingSplitPanelHeight = upcomingSplitPanelHeight(snapshot: snapshot) else {
             return false
         }
 
-        return splitUpcomingPanelHeight > splitSharedPanelHeight + 0.5
+        return splitUpcomingPanelHeight > upcomingSplitPanelHeight + 0.5
     }
 
     var shouldUseSplitDropdownLayout: Bool {

@@ -58,9 +58,18 @@ extension MenuContentView {
             from: contextualCandidates,
             now: now
         )
+        let nonFootballContextualItems = Self.contextualActionItems(
+            from: contextualCandidates.filter { $0.footballMatch == nil },
+            now: now
+        )
         let footballContextualItems = Self.footballContextualActionItems(
             from: contextualCandidates,
             now: now
+        )
+        let splitContextualItems = Self.splitContextualActionItems(
+            contextualItems: contextualPreviewItems + nonFootballContextualItems,
+            footballItems: footballContextualItems,
+            previewKindsByKey: contextualPreviewKindsByKey
         )
 
         let queueWindowItems = monitor.upcomingItems.filter {
@@ -80,13 +89,13 @@ extension MenuContentView {
         )
         let splitQueueItems = Self.queueItemsForActions(
             from: queueSource,
-            contextualItems: footballContextualItems,
+            contextualItems: splitContextualItems,
             now: now,
             futureWindowEnd: futureWindowEnd,
             maxItems: max(1, settings.maxListItems)
         )
         let usesSplitLayout = !footballContextualItems.isEmpty && !splitQueueItems.isEmpty
-        let displayedContextualItems = usesSplitLayout ? footballContextualItems : contextualPreviewItems
+        let displayedContextualItems = usesSplitLayout ? splitContextualItems : contextualPreviewItems
         let displayedQueueItems = usesSplitLayout ? splitQueueItems : singleColumnQueueItems
         let dropdownMinimumWidth: CGFloat = {
             guard !usesSplitLayout else { return dropdownPreferredWidth }
@@ -131,14 +140,16 @@ extension MenuContentView {
             sharedContextualFootballCompetitionTitle: sharedCompetitionTitle,
             sharedContextualFootballCompetitionLogoPath: sharedCompetitionTitle == nil ? nil : displayedContextualItems.first?.footballMenuBarDisplay?.competitionLocalLogoPath,
             sharedContextualFootballCompetitionLogoURL: sharedCompetitionTitle == nil ? nil : footballMatches?.first?.competitionLogoURL,
-            contextualFootballContentLevel: Self.contextualFootballContentLevel(for: displayedContextualItems.count)
+            contextualFootballContentLevel: Self.contextualFootballContentLevel(
+                for: displayedContextualItems.filter { $0.footballMatch != nil }.count
+            )
         )
     }
 
     func contextualActionSection(snapshot: LayoutSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             calendarSectionContainer(
-                height: snapshot.shouldUseSplitDropdownLayout ? splitSharedPanelHeight(snapshot: snapshot) : nil,
+                height: contextualSplitPanelHeight(snapshot: snapshot),
                 bottomPadding: snapshot.shouldUseSplitDropdownLayout ? splitPanelBottomPadding : nil
             ) {
                 if shouldScrollContextualSplitPanel(snapshot: snapshot) {
@@ -156,7 +167,7 @@ extension MenuContentView {
     func upcomingSection(snapshot: LayoutSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             calendarSectionContainer(
-                height: snapshot.shouldUseSplitDropdownLayout ? splitSharedPanelHeight(snapshot: snapshot) : nil,
+                height: upcomingSplitPanelHeight(snapshot: snapshot),
                 bottomPadding: snapshot.shouldUseSplitDropdownLayout ? splitPanelBottomPadding : nil
             ) {
                 if snapshot.queueItemsForActions.isEmpty {
@@ -295,10 +306,33 @@ extension MenuContentView {
         let now = displayReferenceDate
         return Self.queueItemsForActions(
             from: queueItemsSource,
-            contextualItems: footballContextualActionItems,
+            contextualItems: splitContextualActionItemsForSplitLayout,
             now: now,
             futureWindowEnd: dropdownFutureWindowEnd(now: now),
             maxItems: max(1, settings.maxListItems)
+        )
+    }
+
+    var contextualPreviewKindsByKey: [String: ContextualPreviewKind] {
+        Dictionary(
+            uniqueKeysWithValues: contextualActionCandidates.compactMap { item in
+                contextualPreviewKind(for: item).map { (item.notificationKey, $0) }
+            }
+        )
+    }
+
+    var nonFootballContextualActionItems: [UpcomingItem] {
+        Self.contextualActionItems(
+            from: contextualActionCandidates.filter { $0.footballMatch == nil },
+            now: displayReferenceDate
+        )
+    }
+
+    var splitContextualActionItemsForSplitLayout: [UpcomingItem] {
+        Self.splitContextualActionItems(
+            contextualItems: contextualPreviewActionItems + nonFootballContextualActionItems,
+            footballItems: footballContextualActionItems,
+            previewKindsByKey: contextualPreviewKindsByKey
         )
     }
 
@@ -332,6 +366,55 @@ extension MenuContentView {
             )
         }
         return Array(filtered.prefix(max(1, maxItems)))
+    }
+
+    nonisolated static func splitContextualActionItems(
+        contextualItems: [UpcomingItem],
+        footballItems: [UpcomingItem],
+        previewKindsByKey: [String: ContextualPreviewKind]
+    ) -> [UpcomingItem] {
+        var mergedItems: [UpcomingItem] = []
+        var seenKeys: Set<String> = []
+
+        for item in contextualItems + footballItems where seenKeys.insert(item.notificationKey).inserted {
+            mergedItems.append(item)
+        }
+
+        return mergedItems.sorted { left, right in
+            let leftPriority = splitContextualPriority(for: left, previewKindsByKey: previewKindsByKey)
+            let rightPriority = splitContextualPriority(for: right, previewKindsByKey: previewKindsByKey)
+            if leftPriority != rightPriority {
+                return leftPriority < rightPriority
+            }
+            return contextualItemSortPrecedes(left, right)
+        }
+    }
+
+    nonisolated private static func splitContextualPriority(
+        for item: UpcomingItem,
+        previewKindsByKey: [String: ContextualPreviewKind]
+    ) -> Int {
+        if case .attendees = previewKindsByKey[item.notificationKey] {
+            return 0
+        }
+        if item.footballMatch != nil {
+            return 1
+        }
+        return 2
+    }
+
+    nonisolated private static func contextualItemSortPrecedes(_ left: UpcomingItem, _ right: UpcomingItem) -> Bool {
+        if left.date != right.date {
+            return left.date < right.date
+        }
+        if left.kind != right.kind {
+            return left.kind.rawValue < right.kind.rawValue
+        }
+        let titleOrder = left.title.localizedCaseInsensitiveCompare(right.title)
+        if titleOrder != .orderedSame {
+            return titleOrder == .orderedAscending
+        }
+        return left.notificationKey < right.notificationKey
     }
 
     nonisolated static func shouldIncludeInDropdownTimeWindow(

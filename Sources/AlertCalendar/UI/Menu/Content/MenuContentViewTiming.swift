@@ -2,6 +2,12 @@ import Foundation
 
 extension MenuContentView {
     var displayReferenceDate: Date {
-        AlertCalendarClock.nowRoundedToSecond()
+        dropdownReferenceDate
+    }
+
+    func prepareDropdownPresentation() {
+        dropdownReferenceDate = AlertCalendarClock.nowRoundedToSecond()
+        splitContextualPanelHeight = 0
+        splitUpcomingPanelHeight = 0
     }
 }

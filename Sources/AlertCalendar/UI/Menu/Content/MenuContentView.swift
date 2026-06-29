@@ -9,11 +9,12 @@ struct MenuContentView: View {
     let kindFilter: CalendarItemKind?
     let headerTitle: String
 
+    @State var dropdownReferenceDate = AlertCalendarClock.nowRoundedToSecond()
     @State var splitContextualPanelHeight: CGFloat = 0
     @State var splitUpcomingPanelHeight: CGFloat = 0
     let dropdownOuterPadding: CGFloat = 12
     let upcomingListMaxHeight: CGFloat = 360
-    let splitDropdownMaxColumnHeight: CGFloat = 760
+    let splitDropdownMaxColumnHeight: CGFloat = 520
     let minimumSingleColumnDropdownWidth: CGFloat = 260
     let splitColumnSpacing: CGFloat = 12
     let splitActionsColumnWidth: CGFloat = 468
@@ -97,7 +98,9 @@ struct MenuContentView: View {
             maxWidth: snapshot.shouldUseSplitDropdownLayout ? dropdownPreferredWidth : snapshot.dropdownMinimumWidth,
             alignment: .leading
         )
-        .id(snapshot.shouldUseSplitDropdownLayout ? "split-dropdown" : "single-dropdown")
+        .onAppear {
+            prepareDropdownPresentation()
+        }
         .onPreferenceChange(SplitContextualPanelHeightPreferenceKey.self) { height in
             guard abs(splitContextualPanelHeight - height) > 0.5 else { return }
             splitContextualPanelHeight = height

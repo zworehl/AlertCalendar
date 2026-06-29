@@ -35,6 +35,26 @@ final class FootballNationalLogoResolverTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: localURL.path))
     }
 
+    func testGeneratedLocalFlagImageURLUsesBundledAssetForSouthAfricaAliases() throws {
+        let cases: [(teamID: String?, name: String?, abbreviation: String?, countryName: String?)] = [
+            ("467", nil, nil, nil),
+            (nil, "South Africa", nil, nil),
+            (nil, "South Africa", "ZAF", nil),
+        ]
+
+        for (teamID, name, abbreviation, countryName) in cases {
+            let localURL = try XCTUnwrap(FootballNationalLogoResolver.localFlagImageURL(
+                teamID: teamID,
+                name: name,
+                abbreviation: abbreviation,
+                countryName: countryName
+            ))
+
+            XCTAssertTrue(localURL.path.hasSuffix("/football-flag-rsa.png"))
+            XCTAssertTrue(FileManager.default.fileExists(atPath: localURL.path))
+        }
+    }
+
     func testGeneratedLocalFlagImageURLFallsBackWhenBundledAssetIsUnavailable() {
         XCTAssertNil(FootballNationalLogoResolver.localFlagImageURL(
             name: "Unknown",
@@ -59,6 +79,8 @@ final class FootballNationalLogoResolverTests: XCTestCase {
         XCTAssertEqual(FootballNationalLogoResolver.normalizedAssociationCode(from: "Switzerland"), "SUI")
         XCTAssertEqual(FootballNationalLogoResolver.normalizedAssociationCode(from: "USVI"), "VIR")
         XCTAssertEqual(FootballNationalLogoResolver.normalizedAssociationCode(from: "PSE"), "PLE")
+        XCTAssertEqual(FootballNationalLogoResolver.normalizedAssociationCode(from: "ZAF"), "RSA")
+        XCTAssertEqual(FootballNationalLogoResolver.normalizedAssociationCode(from: "South Africa"), "RSA")
     }
 
     func testNationalTeamKeepsExistingCountryFlagURL() throws {
