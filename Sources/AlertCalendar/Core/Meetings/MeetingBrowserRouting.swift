@@ -1,6 +1,6 @@
 import Foundation
 
-enum MeetingBrowserKind: String, CaseIterable, Codable, Identifiable {
+enum MeetingBrowserKind: String, CaseIterable, Codable, Identifiable, Sendable {
     case chrome
     case edge
     case brave
@@ -201,13 +201,13 @@ enum MeetingBrowserKind: String, CaseIterable, Codable, Identifiable {
     }
 }
 
-enum MeetingBrowserProfileFamily {
+enum MeetingBrowserProfileFamily: Sendable {
     case chromium
     case firefox
     case none
 }
 
-struct MeetingBrowserRoute: Codable, Equatable, Hashable {
+struct MeetingBrowserRoute: Codable, Equatable, Hashable, Sendable {
     static let automaticProfileID = "automatic"
     static let defaultChromeProfileID = "Default"
     static let defaultFirefoxProfileID = "default-release"

@@ -174,6 +174,33 @@ final class MenuBarStateTests: XCTestCase {
         )
     }
 
+    func testMenuBarAccessorySymbolsShowRecurrenceForReminders() {
+        let dueDate = Date(timeIntervalSince1970: 1_800_000_000)
+        let reminder = UpcomingItem(
+            id: "reminder-1",
+            title: "Submit report",
+            date: dueDate,
+            endDate: nil,
+            isAllDay: false,
+            showsMutedBackground: false,
+            travelTimeMinutes: nil,
+            locationText: nil,
+            meetingURL: nil,
+            isRecurring: true,
+            calendarID: "reminders-1",
+            calendarName: "Reminders",
+            calendarColor: .systemOrange,
+            kind: .reminder,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
+        )
+
+        XCTAssertEqual(
+            CalendarMonitor.menuBarAccessorySymbolNames(for: reminder),
+            ["repeat"]
+        )
+    }
+
     func testMenuBarAccessorySymbolsCanHideRecurrenceForBirthdays() throws {
         let startDate = Date(timeIntervalSince1970: 1_800_000_000)
         let event = UpcomingItem(
@@ -214,6 +241,16 @@ final class MenuBarStateTests: XCTestCase {
         XCTAssertTrue(
             CalendarMonitor.isDocumentIndicatorURL(
                 try XCTUnwrap(URL(string: "https://docs.google.com/document/d/doc-id/edit"))
+            )
+        )
+        XCTAssertTrue(
+            CalendarMonitor.isDocumentIndicatorURL(
+                try XCTUnwrap(URL(string: "https://docs.google.com/spreadsheets/d/sheet-id/edit"))
+            )
+        )
+        XCTAssertTrue(
+            CalendarMonitor.isDocumentIndicatorURL(
+                try XCTUnwrap(URL(string: "https://docs.google.com/presentation/d/deck-id/edit"))
             )
         )
         XCTAssertFalse(
@@ -438,6 +475,34 @@ final class MenuBarStateTests: XCTestCase {
         )
     }
 
+    func testActiveEventProgressSkipsConfiguredNonWorkingWeekday() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let startDate = calendar.date(from: DateComponents(year: 2026, month: 7, day: 6, hour: 9))!
+        let endDate = calendar.date(from: DateComponents(year: 2026, month: 7, day: 8, hour: 9))!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 7, day: 8, hour: 6))!
+        let rules = WorkingDayRules(nonWorkingDateKeys: ["2026-07-07"], calendar: calendar)
+        let event = makeTimedEvent(
+            title: "Design review",
+            startDate: startDate,
+            endDate: endDate,
+            meetingURL: nil
+        )
+
+        XCTAssertEqual(
+            CalendarMonitor.activeItemProgress(
+                for: event,
+                now: now,
+                weekdayOnlyEventCalendarIDs: ["calendar-1"],
+                weekdayOnlyDuration: { start, end in
+                    rules.workingDuration(from: start, to: end)
+                }
+            ) ?? -1,
+            0.875,
+            accuracy: 0.001
+        )
+    }
+
     func testAlertForItemIncludesAnyTimedEventFirstMinute() throws {
         let startDate = Date(timeIntervalSince1970: 1_800_000_000)
         let event = makeTimedEvent(
@@ -459,6 +524,117 @@ final class MenuBarStateTests: XCTestCase {
             CalendarMonitor.alertDescription(for: event, now: now),
             "Design review starts now."
         )
+    }
+
+    func testFootballMenuBarDetailsShowWhenMatchHasNoConcurrentEvent() {
+        let startDate = Date(timeIntervalSince1970: 1_800_000_000)
+        let match = FootballTestData.friendlyMatch(
+            id: "match-1",
+            startDate: startDate,
+            statusState: .scheduled
+        )
+        let footballItem = makeFootballMenuBarItem(match)
+        let laterEvent = makeTimedEvent(
+            id: "later-event",
+            title: "Later review",
+            startDate: startDate.addingTimeInterval(2 * 60 * 60),
+            endDate: startDate.addingTimeInterval(3 * 60 * 60),
+            meetingURL: nil
+        )
+
+        XCTAssertTrue(
+            CalendarMonitor.shouldShowFootballMenuBarDetails(
+                for: footballItem,
+                in: [footballItem, laterEvent]
+            )
+        )
+    }
+
+    func testFootballMenuBarDetailsShowWhenCalendarEventOverlapsMatch() {
+        let startDate = Date(timeIntervalSince1970: 1_800_000_000)
+        let match = FootballTestData.friendlyMatch(
+            id: "match-1",
+            startDate: startDate,
+            statusState: .scheduled
+        )
+        let footballItem = makeFootballMenuBarItem(match)
+        let overlappingEvent = makeTimedEvent(
+            id: "overlapping-event",
+            title: "Design review",
+            startDate: startDate.addingTimeInterval(30 * 60),
+            endDate: startDate.addingTimeInterval(60 * 60),
+            meetingURL: nil
+        )
+
+        XCTAssertTrue(
+            CalendarMonitor.shouldShowFootballMenuBarDetails(
+                for: footballItem,
+                in: [footballItem, overlappingEvent]
+            )
+        )
+    }
+
+    func testFootballMenuBarDetailsShowWhenAnotherMatchOverlaps() {
+        let startDate = Date(timeIntervalSince1970: 1_800_000_000)
+        let firstMatch = FootballTestData.friendlyMatch(
+            id: "match-1",
+            startDate: startDate,
+            statusState: .scheduled
+        )
+        let secondMatch = FootballTestData.friendlyMatch(
+            id: "match-2",
+            startDate: startDate.addingTimeInterval(45 * 60),
+            statusState: .scheduled
+        )
+        let firstFootballItem = makeFootballMenuBarItem(firstMatch)
+        let secondFootballItem = makeFootballMenuBarItem(secondMatch)
+
+        XCTAssertTrue(
+            CalendarMonitor.shouldShowFootballMenuBarDetails(
+                for: firstFootballItem,
+                in: [firstFootballItem, secondFootballItem]
+            )
+        )
+    }
+
+    func testFootballMenuBarStatusKeepsLiveMinuteWhenDetailsShowForOverlap() {
+        let startDate = Date(timeIntervalSince1970: 1_800_000_000)
+        let now = startDate.addingTimeInterval(88 * 60)
+        let match = FootballTestData.friendlyMatch(
+            id: "match-1",
+            startDate: startDate,
+            statusState: .inProgress,
+            statusText: "88'",
+            homeScore: "2",
+            awayScore: "1"
+        )
+        let footballItem = makeFootballMenuBarItem(match)
+        let overlappingEvent = makeTimedEvent(
+            id: "overlapping-event",
+            title: "Design review",
+            startDate: startDate.addingTimeInterval(30 * 60),
+            endDate: startDate.addingTimeInterval(90 * 60),
+            meetingURL: nil
+        )
+
+        XCTAssertTrue(
+            CalendarMonitor.shouldShowFootballMenuBarDetails(
+                for: footballItem,
+                in: [footballItem, overlappingEvent]
+            )
+        )
+        XCTAssertTrue(CalendarMonitor.shouldShowFootballMenuBarStatus(for: footballItem))
+        XCTAssertEqual(
+            CalendarMonitor.resolvedFootballMenuBarStatusText(for: match, now: now),
+            "88'"
+        )
+    }
+
+    func testFootballMenuBarStatusTextOmitsExtraTimePrefixWhenMinuteAlreadyShowsIt() {
+        XCTAssertEqual(CalendarMonitor.compactFootballMenuBarStatusText("ET 105'"), "105'")
+        XCTAssertEqual(CalendarMonitor.compactFootballMenuBarStatusText("ET 120'+2'"), "120'+2'")
+        XCTAssertEqual(CalendarMonitor.compactFootballMenuBarStatusText("ET"), "ET")
+        XCTAssertEqual(CalendarMonitor.compactFootballMenuBarStatusText("ET 90'+2'"), "ET 90'+2'")
     }
 
     private func makeTimedEvent(
@@ -486,6 +662,31 @@ final class MenuBarStateTests: XCTestCase {
             kind: .event,
             footballMatch: nil,
             footballMenuBarDisplay: nil
+        )
+    }
+
+    private func makeFootballMenuBarItem(_ match: FootballFixtureMatch) -> UpcomingItem {
+        UpcomingItem(
+            id: match.id,
+            title: FootballFixtureFormatter.calendarTitle(for: match),
+            date: match.startDate,
+            endDate: match.startDate.addingTimeInterval(2 * 60 * 60),
+            isAllDay: false,
+            showsMutedBackground: false,
+            travelTimeMinutes: nil,
+            locationText: match.locationText,
+            meetingURL: nil,
+            calendarID: "football-calendar",
+            calendarName: "Football",
+            calendarColor: .systemOrange,
+            kind: .event,
+            footballMatch: match,
+            footballMenuBarDisplay: FootballFixtureFormatter.menuBarDisplay(
+                for: match,
+                competitionLocalLogoURL: nil,
+                homeLocalLogoURL: nil,
+                awayLocalLogoURL: nil
+            )
         )
     }
 

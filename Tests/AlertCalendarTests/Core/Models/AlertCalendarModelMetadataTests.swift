@@ -130,6 +130,7 @@ final class AlertCalendarModelMetadataTests: AlertCalendarModelTestCase {
             DefaultsKeys.selectedReminderCalendarIDs,
             DefaultsKeys.weekdayOnlyEventCalendarIDs,
             DefaultsKeys.weekdayOnlyReminderCalendarIDs,
+            DefaultsKeys.nonWorkingDateKeys,
             DefaultsKeys.lookAheadHours,
             DefaultsKeys.contextualPreviewLeadMinutes,
             DefaultsKeys.menuBarRotationWindowMinutes,
@@ -154,13 +155,14 @@ final class AlertCalendarModelMetadataTests: AlertCalendarModelTestCase {
             DefaultsKeys.managedFootballEventRecords,
         ]
 
-        XCTAssertEqual(keys.count, 38)
+        XCTAssertEqual(keys.count, 39)
         XCTAssertEqual(Set(keys).count, keys.count)
         XCTAssertTrue(keys.contains("activeEventDisplayMode"))
         XCTAssertTrue(keys.contains("contextualPreviewLeadMinutes"))
         XCTAssertTrue(keys.contains("menuBarRotationWindowMinutes"))
         XCTAssertTrue(keys.contains("menuBarFontSize"))
         XCTAssertTrue(keys.contains("meetingBrowserRouting"))
+        XCTAssertTrue(keys.contains("nonWorkingDateKeys"))
         XCTAssertTrue(keys.contains("footballAutoAddCompetitionSlugs"))
         XCTAssertTrue(keys.contains("enableFootballAutoAddNotifications"))
     }

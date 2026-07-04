@@ -175,19 +175,38 @@ extension SettingsFootballFixturesSectionView {
     var footballTopControlsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             footballPrimaryControlsSection
+            Text(footballCalendarAlertSummaryText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             footballNotificationControlsSection
         }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(panelChrome)
     }
 
     var footballPrimaryControlsSection: some View {
-        HStack(alignment: .top, spacing: 16) {
-            addToControlField
-                .frame(maxWidth: Self.topMenuControlWidth, alignment: .leading)
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 16) {
+                addToControlField
+                    .frame(maxWidth: Self.topMenuControlWidth, alignment: .leading)
 
-            Spacer(minLength: 0)
+                calendarAlertControlField
+                    .frame(maxWidth: Self.topMenuControlWidth, alignment: .leading)
 
-            showControlField
-                .frame(maxWidth: Self.topShowControlWidth, alignment: .trailing)
+                Spacer(minLength: 0)
+
+                showControlField
+                    .frame(maxWidth: Self.topShowControlWidth, alignment: .trailing)
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                addToControlField
+                calendarAlertControlField
+                showControlField
+                    .frame(maxWidth: Self.topShowControlWidth, alignment: .leading)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -235,12 +254,35 @@ extension SettingsFootballFixturesSectionView {
     }
 
     var footballNotificationControlsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            footballControlTitle(
-                title: "Notifications",
-                helpText: "Applies to football fixtures managed by Alert Calendar."
-            )
+        VStack(alignment: .leading, spacing: 10) {
+            Divider()
 
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .center, spacing: 18) {
+                    footballControlTitle(
+                        title: "Notifications",
+                        helpText: "Applies to football fixtures managed by Alert Calendar."
+                    )
+                    .frame(width: Self.inlineFieldLabelWidth, alignment: .leading)
+
+                    footballNotificationToggles
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    footballControlTitle(
+                        title: "Notifications",
+                        helpText: "Applies to football fixtures managed by Alert Calendar."
+                    )
+
+                    footballNotificationToggles
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    var footballNotificationToggles: some View {
+        ViewThatFits(in: .horizontal) {
             HStack(alignment: .center, spacing: 18) {
                 Toggle("Goals", isOn: $enableFootballGoalNotifications)
                     .toggleStyle(.checkbox)
@@ -256,8 +298,29 @@ extension SettingsFootballFixturesSectionView {
                     .toggleStyle(.checkbox)
             }
             .font(.subheadline)
+
+            LazyVGrid(
+                columns: [
+                    GridItem(.adaptive(minimum: 150, maximum: 220), alignment: .leading),
+                ],
+                alignment: .leading,
+                spacing: 8
+            ) {
+                Toggle("Goals", isOn: $enableFootballGoalNotifications)
+                    .toggleStyle(.checkbox)
+
+                Toggle("Scorer names", isOn: $includeFootballGoalScorerInNotifications)
+                    .toggleStyle(.checkbox)
+                    .disabled(!enableFootballGoalNotifications)
+
+                Toggle("Final score", isOn: $enableFootballFinalNotifications)
+                    .toggleStyle(.checkbox)
+
+                Toggle("Added matches", isOn: $enableFootballAutoAddNotifications)
+                    .toggleStyle(.checkbox)
+            }
+            .font(.subheadline)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     func footballControlField<Control: View>(

@@ -29,6 +29,36 @@ final class CalendarMonitorRefreshDiagnosticsTests: XCTestCase {
         XCTAssertEqual(diagnostics.pendingSummary, "Location changed, Manual")
     }
 
+    func testIsInProgressTracksPendingAndRunningRefreshes() {
+        XCTAssertFalse(CalendarMonitorRefreshDiagnostics().isInProgress)
+
+        XCTAssertTrue(
+            CalendarMonitorRefreshDiagnostics(
+                pendingReasons: [.manual]
+            ).isInProgress
+        )
+
+        XCTAssertTrue(
+            CalendarMonitorRefreshDiagnostics(
+                lastReason: .manual,
+                lastStartedAt: Date(timeIntervalSince1970: 1_720_000_000),
+                lastFinishedAt: nil,
+                lastDuration: nil,
+                pendingReasons: []
+            ).isInProgress
+        )
+
+        XCTAssertFalse(
+            CalendarMonitorRefreshDiagnostics(
+                lastReason: .manual,
+                lastStartedAt: Date(timeIntervalSince1970: 1_720_000_000),
+                lastFinishedAt: Date(timeIntervalSince1970: 1_720_000_001),
+                lastDuration: 1,
+                pendingReasons: []
+            ).isInProgress
+        )
+    }
+
     func testManagedFootballSyncPolicySkipsUnrelatedRefreshReasons() {
         XCTAssertTrue(CalendarMonitorRefreshReason.manual.triggersManagedFootballSync)
         XCTAssertTrue(CalendarMonitorRefreshReason.workspaceResumed.triggersManagedFootballSync)

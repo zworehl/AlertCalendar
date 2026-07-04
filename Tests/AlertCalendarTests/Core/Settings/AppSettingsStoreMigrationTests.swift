@@ -49,4 +49,31 @@ final class AppSettingsStoreMigrationTests: XCTestCase {
         XCTAssertEqual(loaded.rules.first?.calendarIDs, Set(["cal-a", "cal-b"]))
         XCTAssertEqual(loaded.rules.first?.route.profileID, "Profile 3")
     }
+
+    func testNonWorkingDatesPruneExpiredAndOutOfRangeConfiguration() {
+        let suiteName = "AppSettingsStoreMigrationTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 7, day: 6, hour: 10))!
+        defaults.set(
+            [
+                "2026-07-05",
+                "2026-07-06",
+                "2026-07-11",
+                "2026-08-03",
+                "not-a-date",
+            ],
+            forKey: DefaultsKeys.nonWorkingDateKeys
+        )
+
+        let store = AppSettingsStore(defaults: defaults)
+
+        XCTAssertEqual(store.nonWorkingDateKeys(now: now), ["2026-07-06"])
+        XCTAssertEqual(defaults.stringArray(forKey: DefaultsKeys.nonWorkingDateKeys), ["2026-07-06"])
+    }
 }

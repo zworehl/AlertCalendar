@@ -15,16 +15,6 @@ extension SettingsFootballFixturesSectionView {
                     .foregroundStyle(.secondary)
             }
 
-            HStack(alignment: .center, spacing: 16) {
-                calendarAlertControlField
-                    .frame(maxWidth: 360, alignment: .leading)
-
-                Text(footballCalendarAlertSummaryText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
             if let sharedAddedMatchesCompetitionTitle {
                 sharedCompetitionHeader(
                     text: "All added matches are from \(sharedAddedMatchesCompetitionTitle)",
@@ -160,10 +150,10 @@ extension SettingsFootballFixturesSectionView {
     }
 
     var panelChrome: some View {
-        RoundedRectangle(cornerRadius: 14, style: .continuous)
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
             .fill(Color.clear)
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(Color.primary.opacity(0.06), lineWidth: 1)
             )
     }

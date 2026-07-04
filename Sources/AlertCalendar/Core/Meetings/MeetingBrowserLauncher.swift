@@ -2,25 +2,23 @@ import AppKit
 import Foundation
 
 enum MeetingBrowserLauncher {
-    @MainActor
     @discardableResult
-    static func open(_ url: URL, route rawRoute: MeetingBrowserRoute) -> Bool {
+    static func open(_ url: URL, route rawRoute: MeetingBrowserRoute) async -> Bool {
         let route = rawRoute.normalized
 
         switch route.browser.profileFamily {
         case .chromium:
-            return openChromiumBrowser(url, browser: route.browser, profileID: route.profileID)
+            return await openChromiumBrowser(url, browser: route.browser, profileID: route.profileID)
         case .firefox:
-            return openFirefoxBrowser(url, browser: route.browser, profileID: route.profileID)
+            return await openFirefoxBrowser(url, browser: route.browser, profileID: route.profileID)
         case .none:
-            return open(url, with: route.browser)
+            return await open(url, with: route.browser)
         }
     }
 
-    @MainActor
-    private static func openChromiumBrowser(_ url: URL, browser: MeetingBrowserKind, profileID: String) -> Bool {
-        guard let applicationURL = applicationURL(for: browser) else {
-            return AlertCalendarWorkspace.open(url)
+    private static func openChromiumBrowser(_ url: URL, browser: MeetingBrowserKind, profileID: String) async -> Bool {
+        guard let applicationURL = await applicationURL(for: browser) else {
+            return await openWithDefaultApplication(url)
         }
 
         let executableURL = applicationURL
@@ -39,16 +37,15 @@ enum MeetingBrowserLauncher {
                 return true
             }
 
-            return open(url, with: browser)
+            return await open(url, with: browser)
         }
 
-        return open(url, with: browser)
+        return await open(url, with: browser)
     }
 
-    @MainActor
-    private static func openFirefoxBrowser(_ url: URL, browser: MeetingBrowserKind, profileID: String) -> Bool {
-        guard let applicationURL = applicationURL(for: browser) else {
-            return AlertCalendarWorkspace.open(url)
+    private static func openFirefoxBrowser(_ url: URL, browser: MeetingBrowserKind, profileID: String) async -> Bool {
+        guard let applicationURL = await applicationURL(for: browser) else {
+            return await openWithDefaultApplication(url)
         }
 
         let executableURL = applicationURL
@@ -69,18 +66,27 @@ enum MeetingBrowserLauncher {
                 return true
             }
 
-            return open(url, with: browser)
+            return await open(url, with: browser)
         }
 
-        return open(url, with: browser)
+        return await open(url, with: browser)
+    }
+
+    private static func open(_ url: URL, with browser: MeetingBrowserKind) async -> Bool {
+        guard let applicationURL = await applicationURL(for: browser) else {
+            return await openWithDefaultApplication(url)
+        }
+
+        return await open(url, withApplicationAt: applicationURL)
     }
 
     @MainActor
-    private static func open(_ url: URL, with browser: MeetingBrowserKind) -> Bool {
-        guard let applicationURL = applicationURL(for: browser) else {
-            return AlertCalendarWorkspace.open(url)
-        }
+    private static func openWithDefaultApplication(_ url: URL) -> Bool {
+        AlertCalendarWorkspace.open(url)
+    }
 
+    @MainActor
+    private static func open(_ url: URL, withApplicationAt applicationURL: URL) -> Bool {
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
         AlertCalendarWorkspace.open(

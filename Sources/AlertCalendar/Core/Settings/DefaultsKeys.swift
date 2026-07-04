@@ -17,6 +17,7 @@ enum DefaultsKeys {
     static let selectedReminderCalendarIDs = "selectedReminderCalendarIDs"
     static let weekdayOnlyEventCalendarIDs = "weekdayOnlyEventCalendarIDs"
     static let weekdayOnlyReminderCalendarIDs = "weekdayOnlyReminderCalendarIDs"
+    static let nonWorkingDateKeys = "nonWorkingDateKeys"
     static let lookAheadHours = "lookAheadHours"
     static let contextualPreviewLeadMinutes = "contextualPreviewLeadMinutes"
     static let menuBarRotationWindowMinutes = "menuBarRotationWindowMinutes"

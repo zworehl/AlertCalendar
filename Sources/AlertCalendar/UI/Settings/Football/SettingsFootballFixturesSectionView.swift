@@ -54,26 +54,20 @@ struct SettingsFootballFixturesSectionView: View {
     @State var upcomingManagedMatchesCache: [FootballFixtureMatch] = []
 
     var body: some View {
-        GroupBox("Football Fixtures") {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Add supported football matches to an Apple Calendar managed by Alert Calendar.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 14) {
+            footballIntroSection
 
-                Text("Suggestions only include matches from the \(FootballCompetitionPreset.suggestionWindowDescription). If a managed fixture falls outside that window, Alert Calendar removes it automatically from Apple Calendar.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                if !hasEventsAccess {
-                    emptyState("Grant Calendar access to add football fixtures.")
-                } else if writableCalendars.isEmpty {
-                    emptyState("No writable event calendars are available.")
-                } else {
-                    footballContentSection
-                }
+            if !hasEventsAccess {
+                emptyState("Grant Calendar access to add football fixtures.")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else if writableCalendars.isEmpty {
+                emptyState("No writable event calendars are available.")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                footballContentSection
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
             visibleNow = Self.minuteReferenceDate(for: AlertCalendarClock.nowRoundedToSecond())
             finishedFootballMatchLookbackDays = Self.normalizedFootballWindowDays(finishedFootballMatchLookbackDays)
@@ -181,5 +175,37 @@ struct SettingsFootballFixturesSectionView: View {
             managedFootballMatches = matches
             refreshManagedMatchesDerivedState(now: visibleNow)
         }
+    }
+
+    private var footballIntroSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .center, spacing: 10) {
+                Image(systemName: FootballFixtureFormatter.footballLocationSymbolName)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.secondary)
+
+                Text("Football Fixtures")
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+            }
+
+            Text("Add supported football matches to an Apple Calendar managed by Alert Calendar.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Text("Suggestions include matches from the \(FootballCompetitionPreset.suggestionWindowDescription). Managed fixtures outside that window are removed automatically.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                )
+        )
     }
 }

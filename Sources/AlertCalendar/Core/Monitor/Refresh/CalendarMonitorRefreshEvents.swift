@@ -175,6 +175,7 @@ extension CalendarMonitor {
                 meetingURL: nil,
                 organizer: nil,
                 attendees: [],
+                isRecurring: isRecurringReminder(reminder),
                 calendarID: reminder.calendar.calendarIdentifier,
                 calendarName: reminder.calendar.title,
                 calendarColor: color(from: reminder.calendar),
@@ -243,6 +244,10 @@ extension CalendarMonitor {
 
     func isRecurringEvent(_ event: EKEvent) -> Bool {
         event.hasRecurrenceRules || event.isDetached
+    }
+
+    func isRecurringReminder(_ reminder: EKReminder) -> Bool {
+        reminder.hasRecurrenceRules
     }
 
     func hasDocumentIndicator(for event: EKEvent, meetingURL: URL?) -> Bool {

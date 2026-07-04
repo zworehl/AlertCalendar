@@ -222,20 +222,77 @@ final class MenuContextualActionTests: AlertCalendarModelTestCase {
         XCTAssertFalse(
             MenuContentView.shouldShowContextualMapPreview(
                 for: footballItem,
-                concurrentFootballMatchCount: 3
+                contextualItemCount: 3
             )
         )
         XCTAssertTrue(
             MenuContentView.shouldShowContextualMapPreview(
                 for: footballItem,
-                concurrentFootballMatchCount: 2
+                contextualItemCount: 2
             )
         )
         XCTAssertTrue(
             MenuContentView.shouldShowContextualMapPreview(
                 for: regularItem,
-                concurrentFootballMatchCount: 4
+                contextualItemCount: 4
             )
+        )
+    }
+
+    func testContainsOnlyAstronomyItemsDetectsTransientAstronomyOnlyQueue() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let astronomyItems = [
+            makeUpcomingItem(id: "sunset", title: "Sunset", startDate: now, endDate: now.addingTimeInterval(60)),
+            makeUpcomingItem(id: "solar-midnight", title: "Solar Midnight", startDate: now, endDate: now.addingTimeInterval(60)),
+            makeUpcomingItem(id: "sunrise", title: "Sunrise", startDate: now, endDate: now.addingTimeInterval(60)),
+            makeUpcomingItem(id: "solar-noon", title: "Solar Noon", startDate: now, endDate: now.addingTimeInterval(60)),
+        ]
+        let meeting = makeUpcomingItem(
+            id: "meeting",
+            title: "Replatform QA Check In",
+            startDate: now,
+            endDate: now.addingTimeInterval(30 * 60)
+        )
+
+        XCTAssertTrue(MenuContentView.containsOnlyAstronomyItems(astronomyItems))
+        XCTAssertFalse(MenuContentView.containsOnlyAstronomyItems(astronomyItems + [meeting]))
+        XCTAssertFalse(MenuContentView.containsOnlyAstronomyItems([]))
+    }
+
+    func testFootballContextualContentLevelCountsRegularConcurrentEvents() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let footballItem = makeFootballUpcomingItem(
+            makeFootballMatch(
+                id: "match-with-event",
+                startDate: now.addingTimeInterval(-900),
+                actualStartDate: now.addingTimeInterval(-840),
+                statusState: .inProgress,
+                statusText: "14'",
+                homeScore: "1",
+                awayScore: "0"
+            )
+        )
+        let regularItem = makeUpcomingItem(
+            id: "concurrent-event",
+            title: "Design review",
+            startDate: now.addingTimeInterval(-600),
+            endDate: now.addingTimeInterval(1800)
+        )
+
+        let itemCount = MenuContentView.contextualFootballLayoutItemCount(
+            from: [footballItem, regularItem]
+        )
+        let contentLevel = MenuContentView.contextualFootballContentLevel(for: itemCount)
+
+        XCTAssertEqual(itemCount, 2)
+        XCTAssertFalse(contentLevel.showsStats)
+        XCTAssertTrue(contentLevel.showsGoalScorers)
+        XCTAssertEqual(
+            MenuContentView.footballContextualScorePlacement(
+                for: try! XCTUnwrap(footballItem.footballMatch),
+                itemCount: itemCount
+            ),
+            .goalScorers
         )
     }
     func testShouldShowContextualFootballGoalScorersIncludesUpToThreeMatchLayouts() {
@@ -250,6 +307,50 @@ final class MenuContextualActionTests: AlertCalendarModelTestCase {
         )
         XCTAssertFalse(
             MenuContentView.shouldShowContextualFootballGoalScorers(for: 4)
+        )
+    }
+    func testStandaloneContextualFootballOutcomeProbabilitiesShowForTwoPreviewLayouts() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let liveMatch = makeFootballMatch(
+            id: "live-outcome-probabilities",
+            startDate: now.addingTimeInterval(-900),
+            actualStartDate: now.addingTimeInterval(-840),
+            statusState: .inProgress,
+            statusText: "14'",
+            homeScore: "1",
+            awayScore: "0"
+        )
+        let scheduledMatch = makeFootballMatch(
+            id: "scheduled-outcome-probabilities",
+            startDate: now.addingTimeInterval(60 * 60),
+            actualStartDate: nil,
+            statusState: .scheduled,
+            statusText: "7:00 PM"
+        )
+
+        XCTAssertFalse(
+            MenuContentView.shouldShowStandaloneContextualFootballOutcomeProbabilities(
+                for: liveMatch,
+                itemCount: 1
+            )
+        )
+        XCTAssertTrue(
+            MenuContentView.shouldShowStandaloneContextualFootballOutcomeProbabilities(
+                for: liveMatch,
+                itemCount: 2
+            )
+        )
+        XCTAssertTrue(
+            MenuContentView.shouldShowStandaloneContextualFootballOutcomeProbabilities(
+                for: scheduledMatch,
+                itemCount: 1
+            )
+        )
+        XCTAssertFalse(
+            MenuContentView.shouldShowStandaloneContextualFootballOutcomeProbabilities(
+                for: liveMatch,
+                itemCount: 3
+            )
         )
     }
     func testFootballContextualScorePlacementMovesScoreToExpectedSection() {
@@ -566,6 +667,17 @@ final class MenuContextualActionTests: AlertCalendarModelTestCase {
         XCTAssertEqual(
             MeetingAttendeesPreview.resolvedListHeight(attendeeCount: 14, maximumHeight: 188),
             188
+        )
+    }
+
+    func testAttendeePreviewListHeightSupportsSingleColumnSplitLayout() {
+        XCTAssertEqual(
+            MeetingAttendeesPreview.resolvedListHeight(attendeeCount: 2, maximumHeight: 148, columnCount: 1),
+            60
+        )
+        XCTAssertEqual(
+            MeetingAttendeesPreview.resolvedListHeight(attendeeCount: 10, maximumHeight: 148, columnCount: 1),
+            148
         )
     }
 }

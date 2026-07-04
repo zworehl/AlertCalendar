@@ -132,11 +132,11 @@ extension CalendarMonitor {
         let normalizedDetail = footballNormalizedStatusText(match.statusDetailText ?? "")
         let normalizedNote = footballNormalizedStatusText(match.competitionNote ?? "")
 
-        if normalizedStatus.contains("PEN") || normalizedStatus == "PK" || normalizedStatus.contains("PENALTY") {
+        if FootballStatusText.indicatesPenaltyShootout(normalizedStatus) {
             return true
         }
 
-        if normalizedDetail.contains("PEN") || normalizedDetail == "PK" || normalizedDetail.contains("PENALTY") {
+        if FootballStatusText.indicatesPenaltyShootout(normalizedDetail) {
             return true
         }
 
@@ -144,7 +144,7 @@ extension CalendarMonitor {
             return true
         }
 
-        return normalizedNote.contains("PENALTY") || normalizedNote.contains("PENALTIES")
+        return FootballStatusText.indicatesPenaltyShootout(normalizedNote)
     }
 
     nonisolated static func footballCanReachExtraTime(_ match: FootballFixtureMatch) -> Bool {

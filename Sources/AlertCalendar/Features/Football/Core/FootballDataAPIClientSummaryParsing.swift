@@ -490,8 +490,8 @@ extension FootballDataAPIClient {
             homeYellowCards: 0,
             awayYellowCards: 0,
             homeRedCards: 0,
-            awayRedCards: 0
+            awayRedCards: 0,
+            outcomeProbabilities: matchOutcomeProbabilities(from: event, competition: competition)
         )
     }
-
 }

@@ -352,6 +352,7 @@ extension CalendarMonitor {
             isNational: previousMatch.awayTeam.isNational,
             logoURL: previousMatch.awayTeam.logoURL
         )
+        let outcomeProbabilities = match.outcomeProbabilities ?? previousMatch.outcomeProbabilities
 
         guard actualStartDate != match.actualStartDate
             || actualEndDate != match.actualEndDate
@@ -359,7 +360,8 @@ extension CalendarMonitor {
             || statusDetailText != match.statusDetailText
             || statusPeriod != match.statusPeriod
             || homeTeam != match.homeTeam
-            || awayTeam != match.awayTeam else {
+            || awayTeam != match.awayTeam
+            || outcomeProbabilities != match.outcomeProbabilities else {
             return match
         }
 
@@ -388,7 +390,8 @@ extension CalendarMonitor {
             homeYellowCards: match.homeYellowCards,
             awayYellowCards: match.awayYellowCards,
             homeRedCards: match.homeRedCards,
-            awayRedCards: match.awayRedCards
+            awayRedCards: match.awayRedCards,
+            outcomeProbabilities: outcomeProbabilities
         )
     }
 

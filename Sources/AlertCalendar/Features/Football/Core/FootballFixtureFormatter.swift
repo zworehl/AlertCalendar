@@ -24,6 +24,14 @@ enum FootballFixtureFormatter {
     ) -> FootballMenuBarDisplay {
         let homeCode = teamDisplayIdentifier(for: match.homeTeam)
         let awayCode = teamDisplayIdentifier(for: match.awayTeam)
+        let resolvedHomeLocalLogoURL = resolvedMenuBarTeamLogoURL(
+            providedURL: homeLocalLogoURL,
+            team: match.homeTeam
+        )
+        let resolvedAwayLocalLogoURL = resolvedMenuBarTeamLogoURL(
+            providedURL: awayLocalLogoURL,
+            team: match.awayTeam
+        )
 
         return FootballMenuBarDisplay(
             accessibilityText: calendarTitle(for: match),
@@ -35,10 +43,27 @@ enum FootballFixtureFormatter {
             homeScore: scoreText(match.homeScore),
             awayScore: scoreText(match.awayScore),
             competitionLocalLogoPath: competitionLocalLogoURL?.path,
-            homeLocalLogoPath: isUnknownTeam(match.homeTeam) ? nil : homeLocalLogoURL?.path,
-            awayLocalLogoPath: isUnknownTeam(match.awayTeam) ? nil : awayLocalLogoURL?.path,
+            homeLocalLogoPath: isUnknownTeam(match.homeTeam) ? nil : resolvedHomeLocalLogoURL?.path,
+            awayLocalLogoPath: isUnknownTeam(match.awayTeam) ? nil : resolvedAwayLocalLogoURL?.path,
             homeLogoUsesCircularOutline: match.homeTeam.isNational,
             awayLogoUsesCircularOutline: match.awayTeam.isNational
+        )
+    }
+
+    static func resolvedMenuBarTeamLogoURL(
+        providedURL: URL?,
+        team: FootballTeamSummary
+    ) -> URL? {
+        if let providedURL {
+            return providedURL
+        }
+
+        guard team.isNational else { return nil }
+        return FootballNationalLogoResolver.localFlagImageURL(
+            teamID: team.id,
+            name: team.name,
+            abbreviation: team.abbreviation,
+            countryName: team.countryName
         )
     }
 

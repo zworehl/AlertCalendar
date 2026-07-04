@@ -49,10 +49,10 @@ extension SettingsView {
         .padding(14)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Color(nsColor: .controlBackgroundColor))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .stroke(permissionBorderColor(for: grantState), lineWidth: 1)
                 )
         )
@@ -163,10 +163,10 @@ extension SettingsView {
             .padding(14)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(Color(nsColor: .controlBackgroundColor))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .stroke(badgeState.tint.opacity(0.24), lineWidth: 1)
                     )
             )
@@ -221,18 +221,31 @@ extension SettingsView {
         grantState: PermissionGrantState,
         isRequesting: Bool
     ) -> some View {
-        HStack(spacing: 10) {
-            Spacer(minLength: 0)
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) {
+                Spacer(minLength: 0)
 
-            permissionPrimaryButton(
-                for: permission,
-                grantState: grantState,
-                isRequesting: isRequesting
-            )
+                permissionPrimaryButton(
+                    for: permission,
+                    grantState: grantState,
+                    isRequesting: isRequesting
+                )
 
-            permissionSettingsButton(for: permission)
+                permissionSettingsButton(for: permission)
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+
+            VStack(alignment: .leading, spacing: 8) {
+                permissionPrimaryButton(
+                    for: permission,
+                    grantState: grantState,
+                    isRequesting: isRequesting
+                )
+
+                permissionSettingsButton(for: permission)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .trailing)
     }
 
     @ViewBuilder
@@ -282,54 +295,4 @@ extension SettingsView {
         slackConnections.isEmpty ? "Connect Token" : "Reconnect Token"
     }
 
-    func updatePermissionButtonsLayout(windowWidth: CGFloat) {
-        let spacing: CGFloat = 12
-        let horizontalPadding: CGFloat = 40
-        let availableWidth = max(windowWidth - horizontalPadding, 0)
-        let fourAcrossMinimumWidth: CGFloat = 270
-        let itemCount = compactActionCards.count
-        let nextRowCounts: [Int]
-
-        if availableWidth >= (fourAcrossMinimumWidth * 4) + (spacing * 3) {
-            nextRowCounts = [itemCount]
-        } else {
-            nextRowCounts = stride(from: 0, to: itemCount, by: 2).map { startIndex in
-                min(2, itemCount - startIndex)
-            }
-        }
-
-        if nextRowCounts != compactActionRowCounts {
-            compactActionRowCounts = nextRowCounts
-        }
-    }
-
-    var compactActionCards: [SettingsActionCardKind] {
-        SettingsPermissionKind.allCases.map(SettingsActionCardKind.permission)
-    }
-
-    var compactActionCardRows: [[SettingsActionCardKind]] {
-        let items = compactActionCards
-        var rows: [[SettingsActionCardKind]] = []
-        var startIndex = 0
-
-        for rowCount in compactActionRowCounts where startIndex < items.count {
-            let endIndex = min(startIndex + rowCount, items.count)
-            rows.append(Array(items[startIndex ..< endIndex]))
-            startIndex = endIndex
-        }
-
-        if startIndex < items.count {
-            rows.append(Array(items[startIndex...]))
-        }
-
-        return rows
-    }
-
-    @ViewBuilder
-    func compactActionCard(for card: SettingsActionCardKind) -> some View {
-        switch card {
-        case let .permission(permission):
-            permissionActionCard(for: permission)
-        }
-    }
 }

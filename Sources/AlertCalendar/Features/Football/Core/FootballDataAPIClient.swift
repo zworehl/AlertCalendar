@@ -46,6 +46,7 @@ actor FootballDataAPIClient {
         let awayYellowCards: Int
         let homeRedCards: Int
         let awayRedCards: Int
+        let outcomeProbabilities: FootballMatchOutcomeProbabilities?
     }
 
     let session: URLSession
@@ -391,6 +392,7 @@ actor FootballDataAPIClient {
             )
             let refreshedActualStartDate = snapshot.actualStartDate ?? match.actualStartDate
             let refreshedActualEndDate = snapshot.actualEndDate ?? match.actualEndDate
+            let refreshedOutcomeProbabilities = snapshot.outcomeProbabilities ?? match.outcomeProbabilities
             guard snapshot.statusState != match.statusState
                 || snapshot.statusText != match.statusText
                 || snapshot.statusDetailText != match.statusDetailText
@@ -406,7 +408,8 @@ actor FootballDataAPIClient {
                 || snapshot.homeYellowCards != match.homeYellowCards
                 || snapshot.awayYellowCards != match.awayYellowCards
                 || snapshot.homeRedCards != match.homeRedCards
-                || snapshot.awayRedCards != match.awayRedCards else {
+                || snapshot.awayRedCards != match.awayRedCards
+                || refreshedOutcomeProbabilities != match.outcomeProbabilities else {
                 return match
             }
 
@@ -435,7 +438,8 @@ actor FootballDataAPIClient {
                 homeYellowCards: snapshot.homeYellowCards,
                 awayYellowCards: snapshot.awayYellowCards,
                 homeRedCards: snapshot.homeRedCards,
-                awayRedCards: snapshot.awayRedCards
+                awayRedCards: snapshot.awayRedCards,
+                outcomeProbabilities: refreshedOutcomeProbabilities
             )
         }
     }

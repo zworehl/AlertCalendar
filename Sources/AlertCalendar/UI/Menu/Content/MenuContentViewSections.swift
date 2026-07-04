@@ -91,6 +91,31 @@ extension MenuContentView {
         }
     }
 
+    func shouldShowTransientRefreshLoading(snapshot: LayoutSnapshot) -> Bool {
+        guard !monitor.isInitialLoadInProgress,
+              monitor.refreshDiagnostics.isInProgress,
+              shouldExpectCalendarBackedItemsDuringRefresh,
+              snapshot.displayedContextualActionItems.isEmpty,
+              snapshot.queueItemsForActions.isEmpty || Self.containsOnlyAstronomyItems(snapshot.queueItemsForActions) else {
+            return false
+        }
+
+        return true
+    }
+
+    var shouldExpectCalendarBackedItemsDuringRefresh: Bool {
+        (settings.includeEvents && monitor.hasEventsAccess)
+            || (settings.includeReminders && monitor.hasRemindersAccess)
+            || !monitor.managedFootballMatchIDs.isEmpty
+            || !monitor.managedFootballMatches.isEmpty
+            || monitor.footballLiveAndNextDaySection.isLoading
+            || monitor.footballMenuSections.contains { $0.isLoading }
+    }
+
+    nonisolated static func containsOnlyAstronomyItems(_ items: [UpcomingItem]) -> Bool {
+        !items.isEmpty && items.allSatisfy { AstronomyMoment(eventTitle: $0.title) != nil }
+    }
+
     func calendarSectionContainer<Content: View>(
         height: CGFloat? = nil,
         bottomPadding: CGFloat? = nil,
@@ -104,6 +129,8 @@ extension MenuContentView {
         .padding(.horizontal, panelHorizontalPadding)
         .padding(.top, panelTopPadding)
         .padding(.bottom, resolvedBottomPadding)
+        .frame(height: height, alignment: .topLeading)
+        .clipped()
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(Color(nsColor: .controlBackgroundColor))
@@ -112,7 +139,6 @@ extension MenuContentView {
                         .stroke(Color.primary.opacity(0.10), lineWidth: 1)
                 )
         )
-        .frame(height: height, alignment: .topLeading)
     }
 
     func openSettingsWindowFromDropdown() {
@@ -133,144 +159,6 @@ extension MenuContentView {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
             openWindow(id: WindowMetadata.preferencesID)
         }
-    }
-
-    var dropdownMinimumWidth: CGFloat {
-        if shouldUseSplitDropdownLayout {
-            return dropdownPreferredWidth
-        }
-
-        return max(
-            minimumSingleColumnDropdownWidth,
-            singleColumnContextualMinimumWidth,
-            singleColumnQueueMinimumWidth
-        )
-    }
-
-    var dropdownPreferredWidth: CGFloat {
-        let contentWidth = splitActionsColumnWidth + splitQueueColumnWidth + splitColumnSpacing
-        return contentWidth + (dropdownOuterPadding * 2)
-    }
-
-    var singleColumnContextualMinimumWidth: CGFloat {
-        displayedContextualActionItems.reduce(minimumSingleColumnDropdownWidth) { partialResult, item in
-            max(partialResult, contextualCardMinimumWidth(for: item))
-        }
-    }
-
-    var singleColumnQueueMinimumWidth: CGFloat {
-        queueItemsForActions.reduce(minimumSingleColumnDropdownWidth) { partialResult, item in
-            max(partialResult, queueItemMinimumWidth(for: item))
-        }
-    }
-
-    var splitDropdownColumnHeightLimit: CGFloat {
-        let screenHeight = NSScreen.main?.visibleFrame.height ?? 960
-        return min(splitDropdownMaxColumnHeight, max(360, screenHeight * 0.62))
-    }
-
-    func splitPanelHeight(measuredHeight: CGFloat, snapshot: LayoutSnapshot) -> CGFloat? {
-        guard snapshot.shouldUseSplitDropdownLayout else { return nil }
-        guard measuredHeight > 0 else { return nil }
-        return min(splitDropdownColumnHeightLimit, measuredHeight)
-    }
-
-    func contextualSplitPanelHeight(snapshot: LayoutSnapshot) -> CGFloat? {
-        splitPanelHeight(measuredHeight: splitContextualPanelHeight, snapshot: snapshot)
-    }
-
-    func upcomingSplitPanelHeight(snapshot: LayoutSnapshot) -> CGFloat? {
-        splitPanelHeight(measuredHeight: splitUpcomingPanelHeight, snapshot: snapshot)
-    }
-
-    func shouldScrollContextualSplitPanel(snapshot: LayoutSnapshot) -> Bool {
-        guard snapshot.shouldUseSplitDropdownLayout,
-              let contextualSplitPanelHeight = contextualSplitPanelHeight(snapshot: snapshot) else {
-            return false
-        }
-
-        return splitContextualPanelHeight > contextualSplitPanelHeight + 0.5
-    }
-
-    func shouldScrollUpcomingSplitPanel(snapshot: LayoutSnapshot) -> Bool {
-        guard snapshot.shouldUseSplitDropdownLayout,
-              let upcomingSplitPanelHeight = upcomingSplitPanelHeight(snapshot: snapshot) else {
-            return false
-        }
-
-        return splitUpcomingPanelHeight > upcomingSplitPanelHeight + 0.5
-    }
-
-    var shouldUseSplitDropdownLayout: Bool {
-        !footballContextualActionItems.isEmpty && !queueItemsForSplitLayout.isEmpty
-    }
-
-    var sharedContextualFootballMatches: [FootballFixtureMatch]? {
-        guard !displayedContextualActionItems.isEmpty else { return nil }
-
-        let footballMatches = displayedContextualActionItems.compactMap(\.footballMatch)
-        guard footballMatches.count == displayedContextualActionItems.count else { return nil }
-
-        return footballMatches
-    }
-
-    var sharedContextualFootballCompetitionTitle: String? {
-        guard let sharedContextualFootballMatches else { return nil }
-        return FootballFixtureFormatter.sharedCompetitionTitle(for: sharedContextualFootballMatches)
-    }
-
-    var sharedContextualFootballCompetitionLogoPath: String? {
-        guard sharedContextualFootballCompetitionTitle != nil else { return nil }
-        return displayedContextualActionItems.first?.footballMenuBarDisplay?.competitionLocalLogoPath
-    }
-
-    var sharedContextualFootballCompetitionLogoURL: URL? {
-        guard let sharedContextualFootballMatches,
-              sharedContextualFootballCompetitionTitle != nil else {
-            return nil
-        }
-
-        return sharedContextualFootballMatches.first?.competitionLogoURL
-    }
-
-    var contextualSharedCompetitionHeader: some View {
-        contextualSharedCompetitionHeader(
-            title: sharedContextualFootballCompetitionTitle ?? "",
-            localPath: sharedContextualFootballCompetitionLogoPath,
-            remoteURL: sharedContextualFootballCompetitionLogoURL
-        )
-    }
-
-    func contextualSharedCompetitionHeader(snapshot: LayoutSnapshot) -> some View {
-        contextualSharedCompetitionHeader(
-            title: snapshot.sharedContextualFootballCompetitionTitle ?? "",
-            localPath: snapshot.sharedContextualFootballCompetitionLogoPath,
-            remoteURL: snapshot.sharedContextualFootballCompetitionLogoURL
-        )
-    }
-
-    private func contextualSharedCompetitionHeader(
-        title: String,
-        localPath: String?,
-        remoteURL: URL?
-    ) -> some View {
-        HStack(spacing: 6) {
-            FootballCompetitionLogoView(
-                localPath: localPath,
-                remoteURL: remoteURL,
-                placeholderSymbolSize: 11
-            )
-
-            Text("All listed matches are from \(title)")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-        }
-    }
-
-    var contextualSharedCompetitionIsActive: Bool {
-        sharedContextualFootballCompetitionTitle != nil
     }
 
     enum FootballContextualContentLevel {
@@ -320,6 +208,17 @@ extension MenuContentView {
 
     nonisolated static func shouldShowContextualFootballGoalScorers(for itemCount: Int) -> Bool {
         contextualFootballContentLevel(for: itemCount).showsGoalScorers
+    }
+
+    nonisolated static func shouldShowStandaloneContextualFootballOutcomeProbabilities(
+        for match: FootballFixtureMatch,
+        itemCount: Int
+    ) -> Bool {
+        let contentLevel = contextualFootballContentLevel(for: itemCount)
+        if contentLevel.showsStats && match.statusState != .scheduled {
+            return false
+        }
+        return itemCount <= 2
     }
 
     nonisolated static func footballContextualScorePlacement(

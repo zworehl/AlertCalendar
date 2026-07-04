@@ -42,12 +42,12 @@ extension CalendarMonitor {
             .sink { [weak self] _ in
                 guard let self else { return }
                 self.scheduleAutomaticAstronomyLocationRefresh(trigger: .appActivation)
-            }
+        }
 
         workspaceResumeObserver = Publishers.Merge3(
-            NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification),
-            NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.screensDidWakeNotification),
-            NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.sessionDidBecomeActiveNotification)
+            AlertCalendarWorkspace.notificationPublisher(for: NSWorkspace.didWakeNotification),
+            AlertCalendarWorkspace.notificationPublisher(for: NSWorkspace.screensDidWakeNotification),
+            AlertCalendarWorkspace.notificationPublisher(for: NSWorkspace.sessionDidBecomeActiveNotification)
         )
         .debounce(for: .milliseconds(750), scheduler: RunLoop.main)
         .receive(on: RunLoop.main)

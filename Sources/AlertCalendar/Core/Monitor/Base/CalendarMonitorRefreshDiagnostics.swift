@@ -69,6 +69,10 @@ struct CalendarMonitorRefreshDiagnostics: Equatable {
     var lastDuration: TimeInterval?
     var pendingReasons: Set<CalendarMonitorRefreshReason> = []
 
+    var isInProgress: Bool {
+        !pendingReasons.isEmpty || (lastStartedAt != nil && lastFinishedAt == nil)
+    }
+
     var summary: String {
         guard let lastReason else { return "Waiting for first refresh..." }
         let durationText = lastDuration.map { String(format: "%.2fs", $0) } ?? "running"

@@ -10,14 +10,13 @@ struct MenuContentView: View {
     let headerTitle: String
 
     @State var dropdownReferenceDate = AlertCalendarClock.nowRoundedToSecond()
-    @State var splitContextualPanelHeight: CGFloat = 0
     @State var splitUpcomingPanelHeight: CGFloat = 0
     let dropdownOuterPadding: CGFloat = 12
     let upcomingListMaxHeight: CGFloat = 360
     let splitDropdownMaxColumnHeight: CGFloat = 520
     let minimumSingleColumnDropdownWidth: CGFloat = 260
+    let minimumContextualPanelDropdownWidth: CGFloat = 360
     let splitColumnSpacing: CGFloat = 12
-    let splitActionsColumnWidth: CGFloat = 468
     let splitQueueColumnWidth: CGFloat = 336
     let panelHorizontalPadding: CGFloat = 8
     let panelTopPadding: CGFloat = 8
@@ -30,11 +29,14 @@ struct MenuContentView: View {
 
     var body: some View {
         let snapshot = layoutSnapshot
+        let resolvedDropdownWidth = snapshot.dropdownMinimumWidth
+        let shouldShowLoading = monitor.isInitialLoadInProgress
+            || shouldShowTransientRefreshLoading(snapshot: snapshot)
 
         VStack(alignment: .leading, spacing: 12) {
             headerView
 
-            if monitor.isInitialLoadInProgress {
+            if shouldShowLoading {
                 initialLoadingSection
             } else {
                 if !snapshot.shouldUseSplitDropdownLayout && !snapshot.filteredAlertDescriptions.isEmpty {
@@ -44,7 +46,6 @@ struct MenuContentView: View {
                 if snapshot.shouldUseSplitDropdownLayout {
                     HStack(alignment: .top, spacing: splitColumnSpacing) {
                         contextualActionSection(snapshot: snapshot)
-                            .frame(width: splitActionsColumnWidth, alignment: .topLeading)
 
                         VStack(alignment: .leading, spacing: 8) {
                             if !snapshot.filteredAlertDescriptions.isEmpty {
@@ -53,7 +54,8 @@ struct MenuContentView: View {
 
                             upcomingSection(snapshot: snapshot)
                         }
-                        .frame(width: splitQueueColumnWidth, alignment: .topLeading)
+                        .frame(width: upcomingPanelOuterWidth(snapshot: snapshot), alignment: .topLeading)
+                        .clipped()
                     }
                 } else {
                     if !snapshot.displayedContextualActionItems.isEmpty {
@@ -91,19 +93,11 @@ struct MenuContentView: View {
         }
         .padding(dropdownOuterPadding)
         .background(Color(nsColor: .windowBackgroundColor))
-        .fixedSize(horizontal: false, vertical: true)
-        .frame(
-            minWidth: snapshot.dropdownMinimumWidth,
-            idealWidth: snapshot.shouldUseSplitDropdownLayout ? dropdownPreferredWidth : nil,
-            maxWidth: snapshot.shouldUseSplitDropdownLayout ? dropdownPreferredWidth : snapshot.dropdownMinimumWidth,
-            alignment: .leading
-        )
+        .fixedSize(horizontal: false, vertical: !snapshot.shouldUseSplitDropdownLayout)
+        .frame(width: resolvedDropdownWidth, alignment: .leading)
+        .clipped()
         .onAppear {
             prepareDropdownPresentation()
-        }
-        .onPreferenceChange(SplitContextualPanelHeightPreferenceKey.self) { height in
-            guard abs(splitContextualPanelHeight - height) > 0.5 else { return }
-            splitContextualPanelHeight = height
         }
         .onPreferenceChange(SplitUpcomingPanelHeightPreferenceKey.self) { height in
             guard abs(splitUpcomingPanelHeight - height) > 0.5 else { return }

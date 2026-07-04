@@ -154,15 +154,38 @@ struct MenuBarStatusLabel: View {
                 let shouldHighlightFootballScore = index == 0
                     && footballGoalHighlightSide != nil
                     && footballGoalHighlightTextOpacity > 0
+                let baseAttributedSegment: NSAttributedString
                 if shouldHighlightFootballScore {
-                    attributedSegment = footballHighlightedSegment(
+                    baseAttributedSegment = footballHighlightedSegment(
                         text: segment,
                         side: footballGoalHighlightSide,
                         opacity: footballGoalHighlightTextOpacity,
                         baseAttributes: segmentTextAttributes
                     )
                 } else {
-                    attributedSegment = NSAttributedString(string: segment, attributes: segmentTextAttributes)
+                    baseAttributedSegment = NSAttributedString(string: segment, attributes: segmentTextAttributes)
+                }
+
+                if index == 0,
+                   let footballStatusText,
+                   !footballStatusText.isEmpty {
+                    let resolvedStatusColor = alertedTextOpacity.map {
+                        alertTextColor(opacity: $0, baseColor: baseSegmentTextColor)
+                    } ?? footballStatusColor
+                    let mutableSegment = NSMutableAttributedString(attributedString: baseAttributedSegment)
+                    mutableSegment.append(NSAttributedString(string: " ", attributes: segmentTextAttributes))
+                    mutableSegment.append(
+                        NSAttributedString(
+                            string: footballStatusText,
+                            attributes: [
+                                .font: font,
+                                .foregroundColor: resolvedStatusColor,
+                            ]
+                        )
+                    )
+                    attributedSegment = mutableSegment
+                } else {
+                    attributedSegment = baseAttributedSegment
                 }
             }
 

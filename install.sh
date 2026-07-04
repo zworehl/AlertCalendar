@@ -35,6 +35,10 @@ BINARY_PATH="$PRODUCTS_DIR/$BINARY_NAME"
 
 APP_BUNDLE="$APP_DIR/${APP_NAME}.app"
 
+check_duplicate_source_copies() {
+  "$ROOT/scripts/check_duplicate_sources.sh"
+}
+
 running_app_pids() {
   pgrep -x "$BINARY_NAME" 2>/dev/null || true
 }
@@ -150,6 +154,8 @@ remove_duplicate_installs() {
     done < <(find "$search_dir" -maxdepth 2 -iname "${APP_NAME}.app" -print 2>/dev/null)
   done
 }
+
+check_duplicate_source_copies
 
 echo "[1/4] Building ${APP_NAME} (${BUILD_CONFIGURATION})..."
 rm -rf "$DERIVED_DATA"

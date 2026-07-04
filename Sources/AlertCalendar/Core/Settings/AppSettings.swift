@@ -17,6 +17,7 @@ struct AppSettings: Equatable {
     var selectedReminderCalendarIDs: Set<String>
     var weekdayOnlyEventCalendarIDs: Set<String>
     var weekdayOnlyReminderCalendarIDs: Set<String>
+    var nonWorkingDateKeys: Set<String>
     var lookAheadHours: Int
     var contextualPreviewLeadMinutes: Int
     var menuBarRotationWindowMinutes: Int
@@ -85,6 +86,7 @@ struct AppSettings: Equatable {
         selectedReminderCalendarIDs: [],
         weekdayOnlyEventCalendarIDs: [],
         weekdayOnlyReminderCalendarIDs: [],
+        nonWorkingDateKeys: [],
         lookAheadHours: 24,
         contextualPreviewLeadMinutes: 120,
         menuBarRotationWindowMinutes: 60,

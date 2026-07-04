@@ -120,6 +120,13 @@ extension CalendarMonitor {
         return shouldShowTimedEventNowState(for: item, now: now)
     }
 
+    nonisolated static func shouldAlertForItem(_ item: UpcomingItem, now: Date, settings: AppSettings) -> Bool {
+        guard AstronomyMoment(eventTitle: item.title) == nil else { return false }
+
+        let leadSeconds = TimeInterval(max(1, settings.alertLeadMinutes) * 60)
+        return shouldAlertForItem(item, now: now, leadSeconds: leadSeconds)
+    }
+
     nonisolated static func alertDescription(for item: UpcomingItem, now: Date) -> String {
         if shouldShowTimedEventNowState(for: item, now: now) {
             return "\(item.title) starts now."
@@ -133,10 +140,8 @@ extension CalendarMonitor {
     }
 
     func evaluateAlert(now: Date, settings: AppSettings) {
-        let leadSeconds = TimeInterval(max(1, settings.alertLeadMinutes) * 60)
         guard let candidate = upcomingItems.first(where: {
-            guard AstronomyMoment(eventTitle: $0.title) == nil else { return false }
-            return Self.shouldAlertForItem($0, now: now, leadSeconds: leadSeconds)
+            Self.shouldAlertForItem($0, now: now, settings: settings)
         }) else {
             setIfChanged(\.activeAlertItem, to: nil)
             return
@@ -172,10 +177,8 @@ extension CalendarMonitor {
         }
 
         let previewItems = displayedItemsForMenuBar(now: now, settings: settings)
-        let queueMatchIDs = Set(
-            unifiedMenuBarQueue(now: now, settings: settings)
-                .compactMap { $0.footballMatch?.id }
-        )
+        let menuBarQueue = unifiedMenuBarQueue(now: now, settings: settings)
+        let queueMatchIDs = Set(menuBarQueue.compactMap { $0.footballMatch?.id })
         activeFootballGoalHighlight = Self.updatedFootballGoalHighlight(
             activeFootballGoalHighlight,
             queueMatchIDs: queueMatchIDs,
@@ -210,13 +213,21 @@ extension CalendarMonitor {
                 alertedSegmentIndex = nil
                 alertTextOpacity = 0
             }
-            let footballStatusText = previewItems.first.flatMap { footballMenuBarStatusText(for: $0, now: now) }
+            let selectedItem = previewItems.first
+            let showsFootballMenuBarDetails = Self.shouldShowFootballMenuBarDetails(
+                for: selectedItem,
+                in: menuBarQueue
+            )
+            let footballStatusText = Self.shouldShowFootballMenuBarStatus(for: selectedItem)
+                ? selectedItem.flatMap { footballMenuBarStatusText(for: $0, now: now) }
+                : nil
             let footballStatusColor = footballStatusText.map(Self.footballStatusTintColor(for:)) ?? .systemGreen
 
             let footballGoalHighlightSide: FootballScoreSide?
             let footballGoalHighlightTextOpacity: CGFloat
-            if let highlight = activeFootballGoalHighlight,
-               previewItems.first?.footballMatch?.id == highlight.matchID {
+            if showsFootballMenuBarDetails,
+               let highlight = activeFootballGoalHighlight,
+               selectedItem?.footballMatch?.id == highlight.matchID {
                 footballGoalHighlightSide = highlight.scoringSide
                 footballGoalHighlightTextOpacity = tickCount.isMultiple(of: 2) ? 1.0 : 0.0
             } else {
@@ -237,14 +248,16 @@ extension CalendarMonitor {
                     segmentBackgroundProgresses: segmentBackgrounds.map(\.progress),
                     segmentParticipationStatuses: previewItems.map(\.eventParticipationStatus),
                     segmentAccessorySymbolNames: previewItems.map(menuBarAccessorySymbolNames(for:)),
-                    footballDisplay: previewItems.first?.footballMenuBarDisplay,
-                    footballTrailingText: previewItems.first.flatMap {
-                        footballMenuBarTrailingText(
-                            for: $0,
-                            now: now,
-                            simplified: settings.useSimplifiedCountdown
-                        )
-                    },
+                    footballDisplay: showsFootballMenuBarDetails ? selectedItem?.footballMenuBarDisplay : nil,
+                    footballTrailingText: showsFootballMenuBarDetails
+                        ? selectedItem.flatMap {
+                            footballMenuBarTrailingText(
+                                for: $0,
+                                now: now,
+                                simplified: settings.useSimplifiedCountdown
+                            )
+                        }
+                        : nil,
                     footballStatusText: footballStatusText,
                     footballStatusColor: footballStatusColor,
                     footballGoalHighlightSide: footballGoalHighlightSide,

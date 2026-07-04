@@ -360,6 +360,10 @@ extension FootballDataAPIClient {
         )
         let locationText = summaryVenueLocationText(from: root, competition: competition)
         let actualStartDate = actualKickoffDate(from: root, fallbackStartDate: fallbackStartDate)
+        let outcomeProbabilities = matchOutcomeProbabilities(
+            from: root,
+            competition: competition
+        )
 
         let inferred = inferredKickoffStatusIfNeeded(
             from: rawState,
@@ -392,7 +396,8 @@ extension FootballDataAPIClient {
             homeYellowCards: cards.homeYellowCards,
             awayYellowCards: cards.awayYellowCards,
             homeRedCards: cards.homeRedCards,
-            awayRedCards: cards.awayRedCards
+            awayRedCards: cards.awayRedCards,
+            outcomeProbabilities: outcomeProbabilities
         )
     }
 

@@ -156,11 +156,11 @@ extension CalendarMonitor {
         }
 
         if match.statusState == .finished {
-            if normalized.contains("AET") {
-                return "AET"
-            }
-            if normalized.contains("PEN") || normalized == "PK" || normalized.contains("PENALTY") {
+            if footballStatusConfirmsPenaltyShootout(match) {
                 return "PEN"
+            }
+            if footballStatusConfirmsExtraTime(match) {
+                return "AET"
             }
             return "FT"
         }
@@ -192,7 +192,7 @@ extension CalendarMonitor {
             return "AET"
         }
 
-        if normalized.contains("PEN") || normalized == "PK" || normalized.contains("PENALTY") {
+        if FootballStatusText.indicatesPenaltyShootout(normalized) {
             return "PEN"
         }
 
@@ -255,6 +255,34 @@ extension CalendarMonitor {
         return "\(parsedMinute.baseMinute)'"
     }
 
+    nonisolated static func compactFootballStatusBadgeText(
+        _ badgeText: String,
+        for match: FootballFixtureMatch? = nil,
+        now: Date = AlertCalendarClock.nowRoundedToSecond()
+    ) -> String {
+        let trimmed = badgeText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = trimmed.uppercased()
+
+        guard normalized == "ET" || normalized.hasPrefix("ET ") else {
+            return badgeText
+        }
+
+        if normalized.hasPrefix("ET ") {
+            let minuteText = String(trimmed.dropFirst(2)).trimmingCharacters(in: .whitespacesAndNewlines)
+            if let parsedMinute = footballParsedMinuteComponents(from: minuteText) {
+                return parsedMinute.baseMinute > 90 ? minuteText : badgeText
+            }
+        }
+
+        if let match,
+           let liveMinute = footballLiveMinute(for: match, now: now),
+           liveMinute > 90 {
+            return "\(liveMinute)'"
+        }
+
+        return badgeText
+    }
+
     nonisolated static func footballStatusTintColor(for text: String) -> NSColor {
         let normalized = text.uppercased()
         if normalized == "ABN" {
@@ -272,13 +300,17 @@ extension CalendarMonitor {
         if normalized.contains("AET") {
             return .systemPurple
         }
-        if normalized.contains("PEN") || normalized == "PK" {
+        if FootballStatusText.indicatesPenaltyShootout(normalized) {
             return .systemRed
         }
         if normalized == "HT" {
             return .systemOrange
         }
         if normalized == "ET" || normalized.hasPrefix("ET ") {
+            return .systemIndigo
+        }
+        if let parsedMinute = footballParsedMinuteComponents(from: normalized),
+           parsedMinute.baseMinute > 90 {
             return .systemIndigo
         }
         if normalized == "SOON" {

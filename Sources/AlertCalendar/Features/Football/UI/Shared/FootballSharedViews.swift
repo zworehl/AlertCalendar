@@ -2,6 +2,30 @@ import AppKit
 import ImageIO
 import SwiftUI
 
+private struct FootballConstrainedWidthModifier: ViewModifier {
+    let width: CGFloat?
+    let alignment: Alignment
+
+    func body(content: Content) -> some View {
+        Group {
+            if let width {
+                content
+                    .frame(width: width, alignment: alignment)
+            } else {
+                content
+                    .frame(maxWidth: .infinity, alignment: alignment)
+            }
+        }
+        .clipped()
+    }
+}
+
+extension View {
+    func footballConstrainedWidth(_ width: CGFloat?, alignment: Alignment = .leading) -> some View {
+        modifier(FootballConstrainedWidthModifier(width: width, alignment: alignment))
+    }
+}
+
 struct FootballStatusAccessoriesData {
     let badgeText: String?
     let warningText: String?
@@ -11,8 +35,11 @@ struct FootballStatusAccessoriesData {
     }
 
     static func resolved(for match: FootballFixtureMatch, now: Date = AlertCalendarClock.nowRoundedToSecond()) -> FootballStatusAccessoriesData {
-        FootballStatusAccessoriesData(
-            badgeText: CalendarMonitor.footballStatusBadgeText(for: match, now: now),
+        let badgeText = CalendarMonitor.footballStatusBadgeText(for: match, now: now).map {
+            CalendarMonitor.compactFootballStatusBadgeText($0, for: match, now: now)
+        }
+        return FootballStatusAccessoriesData(
+            badgeText: badgeText,
             warningText: CalendarMonitor.footballStatusWarningText(for: match)
         )
     }

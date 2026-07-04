@@ -163,13 +163,66 @@ extension CalendarMonitor {
         now: Date
     ) -> String? {
         guard let footballMatch = item.footballMatch else { return nil }
+        return Self.resolvedFootballMenuBarStatusText(for: footballMatch, now: now)
+    }
+
+    nonisolated static func resolvedFootballMenuBarStatusText(
+        for footballMatch: FootballFixtureMatch,
+        now: Date
+    ) -> String? {
         guard let badgeText = Self.footballStatusBadgeText(for: footballMatch, now: now) else { return nil }
 
         if footballMatch.statusState != .scheduled || footballMatch.statusReliability != .reported {
-            return badgeText
+            return Self.compactFootballStatusBadgeText(badgeText, for: footballMatch, now: now)
         }
 
         return nil
+    }
+
+    nonisolated static func shouldShowFootballMenuBarStatus(for item: UpcomingItem?) -> Bool {
+        item?.footballMatch != nil
+    }
+
+    nonisolated static func compactFootballMenuBarStatusText(_ badgeText: String) -> String {
+        compactFootballStatusBadgeText(badgeText)
+    }
+
+    nonisolated static func shouldShowFootballMenuBarDetails(
+        for item: UpcomingItem?,
+        in _: [UpcomingItem],
+        calendar _: Calendar = .current
+    ) -> Bool {
+        guard let item,
+              item.footballMenuBarDisplay != nil
+        else {
+            return false
+        }
+
+        return true
+    }
+
+    nonisolated static func menuBarItemsAreConcurrentEvents(
+        _ left: UpcomingItem,
+        _ right: UpcomingItem,
+        calendar: Calendar = .current
+    ) -> Bool {
+        guard left.kind == .event,
+              right.kind == .event,
+              !left.isAllDay,
+              !right.isAllDay
+        else {
+            return false
+        }
+
+        guard let leftEndDate = left.endDate,
+              let rightEndDate = right.endDate,
+              leftEndDate > left.date,
+              rightEndDate > right.date
+        else {
+            return calendar.isDate(left.date, equalTo: right.date, toGranularity: .minute)
+        }
+
+        return left.date < rightEndDate && right.date < leftEndDate
     }
 
     func isBirthdayItem(_ item: UpcomingItem) -> Bool {

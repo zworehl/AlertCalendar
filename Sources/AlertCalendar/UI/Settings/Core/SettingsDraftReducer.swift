@@ -41,6 +41,7 @@ extension SettingsDraft {
         settings.selectedReminderCalendarIDs = selectedReminderCalendarIDs
         settings.weekdayOnlyEventCalendarIDs = weekdayOnlyEventCalendarIDs
         settings.weekdayOnlyReminderCalendarIDs = weekdayOnlyReminderCalendarIDs
+        settings.nonWorkingDateKeys = WorkingDayRules.normalizedNonWorkingDateKeys(nonWorkingDateKeys)
         settings.slackMeetingStatusText = SlackMeetingStatus.normalizedText(slackMeetingStatusText)
         settings.slackMeetingStatusEmoji = SlackMeetingStatus.normalizedEmoji(slackMeetingStatusEmoji)
         settings.slackStatusSyncRules = SlackStatusSyncRule.normalized(

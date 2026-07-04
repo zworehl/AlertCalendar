@@ -3,7 +3,11 @@ import SwiftUI
 extension SettingsView {
     @ViewBuilder
     var meetingBrowserRoutingSettingsContent: some View {
-        GroupBox("Meeting Links") {
+        settingsSection(
+            title: "Meeting Links",
+            subtitle: "Choose the fallback browser and profile for video meeting links.",
+            systemImage: "link"
+        ) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Fallback Browser")
                     .font(.caption.weight(.semibold))

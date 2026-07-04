@@ -57,6 +57,7 @@ struct AppSettingsStore {
             selectedReminderCalendarIDs: selectedCalendarIDs(for: .reminder),
             weekdayOnlyEventCalendarIDs: weekdayOnlyCalendarIDs(for: .event),
             weekdayOnlyReminderCalendarIDs: weekdayOnlyCalendarIDs(for: .reminder),
+            nonWorkingDateKeys: nonWorkingDateKeys(),
             lookAheadHours: lookAheadHours,
             contextualPreviewLeadMinutes: AppSettingsRules.normalizedContextualPreviewLeadMinutes(
                 defaults.integer(forKey: DefaultsKeys.contextualPreviewLeadMinutes),
@@ -123,6 +124,10 @@ struct AppSettingsStore {
         defaults.set(Array(settings.selectedReminderCalendarIDs).sorted(), forKey: DefaultsKeys.selectedReminderCalendarIDs)
         defaults.set(Array(settings.weekdayOnlyEventCalendarIDs).sorted(), forKey: DefaultsKeys.weekdayOnlyEventCalendarIDs)
         defaults.set(Array(settings.weekdayOnlyReminderCalendarIDs).sorted(), forKey: DefaultsKeys.weekdayOnlyReminderCalendarIDs)
+        defaults.set(
+            Array(WorkingDayRules.normalizedNonWorkingDateKeys(settings.nonWorkingDateKeys)).sorted(),
+            forKey: DefaultsKeys.nonWorkingDateKeys
+        )
         defaults.set(AppSettingsRules.normalizedDropdownWindowHours(settings.lookAheadHours), forKey: DefaultsKeys.lookAheadHours)
         defaults.set(
             AppSettingsRules.normalizedContextualPreviewLeadMinutes(
@@ -211,6 +216,16 @@ struct AppSettingsStore {
         return Set(defaults.stringArray(forKey: key) ?? [])
     }
 
+    func nonWorkingDateKeys(now: Date = Date()) -> Set<String> {
+        let stored = defaults.stringArray(forKey: DefaultsKeys.nonWorkingDateKeys) ?? []
+        let normalized = WorkingDayRules.normalizedNonWorkingDateKeys(Set(stored), now: now)
+        let sortedNormalized = Array(normalized).sorted()
+        if sortedNormalized != stored.sorted() {
+            defaults.set(sortedNormalized, forKey: DefaultsKeys.nonWorkingDateKeys)
+        }
+        return normalized
+    }
+
     func slackConnections() -> [SlackConnection] {
         guard let data = defaults.data(forKey: DefaultsKeys.slackConnections) else { return [] }
         let decoded = (try? JSONDecoder().decode([SlackConnection].self, from: data)) ?? []
@@ -259,6 +274,7 @@ struct AppSettingsStore {
             DefaultsKeys.astronomyLongitude: defaultSettings.astronomyLongitude,
             DefaultsKeys.weekdayOnlyEventCalendarIDs: [],
             DefaultsKeys.weekdayOnlyReminderCalendarIDs: [],
+            DefaultsKeys.nonWorkingDateKeys: [],
             DefaultsKeys.lookAheadHours: defaultSettings.lookAheadHours,
             DefaultsKeys.contextualPreviewLeadMinutes: defaultSettings.contextualPreviewLeadMinutes,
             DefaultsKeys.menuBarRotationWindowMinutes: defaultSettings.menuBarRotationWindowMinutes,

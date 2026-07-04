@@ -4,7 +4,7 @@ import MapKit
 import SwiftUI
 
 private enum MeetingAttendeesPreviewLayout {
-    static let attendeeColumnCount = 2
+    static let maximumAttendeeColumnCount = 2
     static let attendeeRowHeight: CGFloat = 18
     static let attendeeRowSpacing: CGFloat = 8
     static let attendeeListVerticalPadding: CGFloat = 8
@@ -14,15 +14,22 @@ struct MeetingAttendeesPreview: View {
     let organizer: MeetingOrganizer?
     let attendees: [MeetingAttendee]
     let listHeight: CGFloat
+    let columnCount: Int
 
     @State private var presentedOrganizer: MeetingOrganizer?
     @State private var presentedAttendees: [MeetingAttendee] = []
     @State private var resolveTask: Task<Void, Never>?
 
-    let columns = [
-        GridItem(.flexible(minimum: 0, maximum: .infinity), spacing: 12, alignment: .leading),
-        GridItem(.flexible(minimum: 0, maximum: .infinity), spacing: 12, alignment: .leading),
-    ]
+    var resolvedColumnCount: Int {
+        min(max(1, columnCount), MeetingAttendeesPreviewLayout.maximumAttendeeColumnCount)
+    }
+
+    var columns: [GridItem] {
+        Array(
+            repeating: GridItem(.flexible(minimum: 0, maximum: .infinity), spacing: 12, alignment: .leading),
+            count: resolvedColumnCount
+        )
+    }
 
     var displayedOrganizer: MeetingOrganizer? {
         presentedOrganizer ?? organizer
@@ -56,10 +63,14 @@ struct MeetingAttendeesPreview: View {
     var body: some View {
         let resolvedListHeight = Self.resolvedListHeight(
             attendeeCount: displayedAttendees.count,
-            maximumHeight: listHeight
+            maximumHeight: listHeight,
+            columnCount: resolvedColumnCount
         )
         let shouldScrollAttendees =
-            Self.attendeeListContentHeight(for: displayedAttendees.count) > listHeight + 0.5
+            Self.attendeeListContentHeight(
+                for: displayedAttendees.count,
+                columnCount: resolvedColumnCount
+            ) > listHeight + 0.5
 
         VStack(alignment: .leading, spacing: 10) {
             if let displayedOrganizer {
@@ -156,16 +167,24 @@ struct MeetingAttendeesPreview: View {
         }
     }
 
-    nonisolated static func resolvedListHeight(attendeeCount: Int, maximumHeight: CGFloat) -> CGFloat {
-        min(maximumHeight, attendeeListContentHeight(for: attendeeCount))
+    nonisolated static func resolvedListHeight(
+        attendeeCount: Int,
+        maximumHeight: CGFloat,
+        columnCount: Int = MeetingAttendeesPreviewLayout.maximumAttendeeColumnCount
+    ) -> CGFloat {
+        min(maximumHeight, attendeeListContentHeight(for: attendeeCount, columnCount: columnCount))
     }
 
-    nonisolated static func attendeeListContentHeight(for attendeeCount: Int) -> CGFloat {
+    nonisolated static func attendeeListContentHeight(
+        for attendeeCount: Int,
+        columnCount: Int = MeetingAttendeesPreviewLayout.maximumAttendeeColumnCount
+    ) -> CGFloat {
         guard attendeeCount > 0 else { return 0 }
 
+        let resolvedColumnCount = min(max(1, columnCount), MeetingAttendeesPreviewLayout.maximumAttendeeColumnCount)
         let rowCount = CGFloat(
-            (attendeeCount + MeetingAttendeesPreviewLayout.attendeeColumnCount - 1)
-                / MeetingAttendeesPreviewLayout.attendeeColumnCount
+            (attendeeCount + resolvedColumnCount - 1)
+                / resolvedColumnCount
         )
         return (rowCount * MeetingAttendeesPreviewLayout.attendeeRowHeight)
             + (max(0, rowCount - 1) * MeetingAttendeesPreviewLayout.attendeeRowSpacing)

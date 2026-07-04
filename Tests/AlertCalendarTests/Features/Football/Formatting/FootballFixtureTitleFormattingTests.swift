@@ -194,6 +194,40 @@ final class FootballFixtureTitleFormattingTests: FootballFixtureFormatterTestCas
         XCTAssertTrue(display.homeLogoUsesCircularOutline)
         XCTAssertTrue(display.awayLogoUsesCircularOutline)
     }
+    func testMenuBarDisplayUsesBundledFlagsForNationalTeamsWithoutProvidedLogoPaths() throws {
+        let match = FootballTestData.friendlyMatch(
+            id: "colombia-ghana",
+            statusState: .scheduled,
+            homeTeam: FootballTestData.nationalTeam(
+                id: "208",
+                name: "Colombia",
+                abbreviation: "COL",
+                countryName: "Colombia"
+            ),
+            awayTeam: FootballTestData.nationalTeam(
+                id: "4469",
+                name: "Ghana",
+                abbreviation: "GHA",
+                countryName: "Ghana"
+            )
+        )
+
+        let display = FootballFixtureFormatter.menuBarDisplay(
+            for: match,
+            competitionLocalLogoURL: nil,
+            homeLocalLogoURL: nil,
+            awayLocalLogoURL: nil
+        )
+
+        let homeLocalLogoPath = try XCTUnwrap(display.homeLocalLogoPath)
+        let awayLocalLogoPath = try XCTUnwrap(display.awayLocalLogoPath)
+        XCTAssertTrue(homeLocalLogoPath.hasSuffix("/football-flag-col.png"))
+        XCTAssertTrue(awayLocalLogoPath.hasSuffix("/football-flag-gha.png"))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: homeLocalLogoPath))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: awayLocalLogoPath))
+        XCTAssertTrue(display.homeLogoUsesCircularOutline)
+        XCTAssertTrue(display.awayLogoUsesCircularOutline)
+    }
     func testCalendarTitleUsesBlackFlagAndTBDForUnknownKnockoutSlots() {
         let match = FootballFixtureMatch(
             id: "match-3",

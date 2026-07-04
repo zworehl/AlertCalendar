@@ -153,7 +153,7 @@ extension MenuContentView {
             let iconAllowance: CGFloat = 22
             let columnWidth = min(max(148, widestAttendeeWidth + iconAllowance), 190)
             let popupChromeWidth = (dropdownOuterPadding * 2) + 16
-            return ceil(max(392, (columnWidth * 2) + 12 + popupChromeWidth))
+            return ceil(max(320, columnWidth + popupChromeWidth))
         case .location:
             return minimumSingleColumnDropdownWidth
         }
@@ -162,7 +162,12 @@ extension MenuContentView {
     func queueItemMinimumWidth(for item: UpcomingItem) -> CGFloat {
         let titleFont = NSFont.systemFont(ofSize: 12, weight: .semibold)
         let detailFont = NSFont.systemFont(ofSize: 11, weight: .medium)
-        let titleWidth = Self.measuredTextWidth(item.title, font: titleFont)
+        let accessoryWidth = MenuBarStatusLabel.accessorySymbolsWidth(
+            symbolNames: monitor.menuBarAccessorySymbolNames(for: item),
+            font: titleFont
+        )
+        let measuredTitleWidth = Self.measuredTextWidth(item.title, font: titleFont) + accessoryWidth
+        let titleWidth = measuredTitleWidth
         let markerColumnWidth: CGFloat = 20
         let spacingAfterMarker: CGFloat = 8
         let contentSpacing: CGFloat = 6
@@ -178,10 +183,10 @@ extension MenuContentView {
         )
         let showRightTimeColumn = usesEventStyleLayout && (!item.isAllDay || allDayRightLabel != nil)
         if showRightTimeColumn {
-            let startWidth = Self.measuredTextWidth(timeText(item.date), font: detailFont)
+            let startWidth = Self.measuredTextWidth(timedEventClockText(item.date, for: item), font: detailFont)
             let endWidth: CGFloat
             if let endDate = item.endDate, endDate > item.date {
-                endWidth = Self.measuredTextWidth(timeText(endDate), font: detailFont)
+                endWidth = Self.measuredTextWidth(timedEventClockText(endDate, for: item), font: detailFont)
             } else if let allDayRightLabel {
                 endWidth = Self.measuredTextWidth(allDayRightLabel, font: detailFont)
             } else {
@@ -325,12 +330,16 @@ extension MenuContentView {
         )
     }
 
+    nonisolated static func contextualFootballLayoutItemCount(from displayedContextualItems: [UpcomingItem]) -> Int {
+        displayedContextualItems.contains { $0.footballMatch != nil } ? displayedContextualItems.count : 0
+    }
+
     nonisolated static func shouldShowContextualMapPreview(
         for item: UpcomingItem,
-        concurrentFootballMatchCount: Int
+        contextualItemCount: Int
     ) -> Bool {
         guard item.footballMatch != nil else { return true }
-        return concurrentFootballMatchCount < 3
+        return contextualItemCount < 3
     }
 
 }

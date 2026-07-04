@@ -164,3 +164,111 @@ final class SettingsWindowObserverView: NSView {
         onResize(window.frame.width)
     }
 }
+
+extension SettingsView {
+    var settingsUsesTwoColumnLayout: Bool {
+        settingsWindowWidth >= 1120
+    }
+
+    var settingsUsesPreviewColumnLayout: Bool {
+        settingsWindowWidth >= 1240
+    }
+
+    var settingsControlColumnWidth: CGFloat {
+        let availableWidth = max(settingsWindowWidth - 40, 0)
+        return min(max(availableWidth * 0.34, 340), 460)
+    }
+
+    @ViewBuilder
+    func settingsSection<Content: View>(
+        title: String,
+        subtitle: String? = nil,
+        systemImage: String? = nil,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            settingsSectionHeader(title: title, subtitle: subtitle, systemImage: systemImage)
+            content()
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                )
+        )
+    }
+
+    @ViewBuilder
+    func settingsSectionHeader(title: String, subtitle: String? = nil, systemImage: String? = nil) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            if let systemImage {
+                Image(systemName: systemImage)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20, height: 20)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    func settingsControlRow<Control: View>(
+        title: String,
+        detail: String,
+        @ViewBuilder control: () -> Control
+    ) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: 16) {
+                settingsControlCopy(title: title, detail: detail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                control()
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                settingsControlCopy(title: title, detail: detail)
+                control()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    @ViewBuilder
+    func settingsControlCopy(title: String, detail: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+
+            Text(detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    @ViewBuilder
+    func settingsDivider() -> some View {
+        Divider()
+            .overlay(Color.primary.opacity(0.04))
+    }
+}

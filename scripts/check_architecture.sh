@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 failures=0
+
+cd "$ROOT_DIR"
+
+./scripts/check_duplicate_sources.sh
 
 check_forbidden_imports() {
   local path="$1"

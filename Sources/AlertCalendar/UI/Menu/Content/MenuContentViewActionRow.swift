@@ -195,9 +195,10 @@ extension MenuContentView {
 
                         VStack(alignment: .trailing, spacing: 0) {
                             if showTravelTime, let travelStart = eventTravelStartDate(for: item) {
-                                Text(timeText(travelStart))
+                                Text(timedEventClockText(travelStart, for: item))
                                     .font(detailFont)
                                     .foregroundStyle(tertiaryTextColor)
+                                    .lineLimit(1)
                             }
 
                             if item.isAllDay {
@@ -205,17 +206,20 @@ extension MenuContentView {
                                     Text(allDayRightLabel)
                                         .font(detailFont)
                                         .foregroundStyle(detailTextColor.opacity(participationTextOpacity))
+                                        .lineLimit(1)
                                 }
                             } else {
-                                Text(timeText(item.date))
+                                Text(timedEventClockText(item.date, for: item))
                                     .font(detailFont)
                                     .foregroundStyle(detailTextColor.opacity(participationTextOpacity))
+                                    .lineLimit(1)
                             }
 
                             if !item.isAllDay, let endDate = item.endDate, endDate > item.date {
-                                Text(timeText(endDate))
+                                Text(timedEventClockText(endDate, for: item))
                                     .font(detailFont)
                                     .foregroundStyle(tertiaryTextColor.opacity(participationTextOpacity))
+                                    .lineLimit(1)
                             }
                         }
                     }
@@ -224,9 +228,14 @@ extension MenuContentView {
                 if item.kind == .reminder {
                     HStack(alignment: .top, spacing: 6) {
                         VStack(alignment: .leading, spacing: 0) {
-                            Text(item.title)
-                                .font(titleFont)
-                                .foregroundStyle(titleColor)
+                            titleLine(
+                                title: item.title,
+                                symbolNames: accessorySymbolNames,
+                                titleFont: titleFont,
+                                iconFont: detailIconFont,
+                                titleColor: titleColor,
+                                iconColor: detailTextColor
+                            )
 
                             if !item.isAllDay, let locationText = item.locationText {
                                 let locationName = displayLocationName(from: locationText)

@@ -84,10 +84,8 @@ extension CalendarMonitor {
         for item: UpcomingItem,
         includesRecurrenceIndicator: Bool = true
     ) -> [String] {
-        guard item.kind == .event else { return [] }
-
         var symbolNames: [String] = []
-        if item.hasDocumentIndicator {
+        if item.kind == .event, item.hasDocumentIndicator {
             symbolNames.append("paperclip")
         }
         if item.isRecurring, includesRecurrenceIndicator {
@@ -103,7 +101,7 @@ extension CalendarMonitor {
             now: now,
             weekdayOnlyEventCalendarIDs: settings.weekdayOnlyEventCalendarIDs,
             weekdayOnlyDuration: { start, end in
-                weekdayOnlyDuration(from: start, to: end)
+                weekdayOnlyDuration(from: start, to: end, nonWorkingDateKeys: settings.nonWorkingDateKeys)
             }
         )
     }
@@ -173,23 +171,12 @@ extension CalendarMonitor {
         return min(max(CGFloat(elapsed / totalDuration), 0), 1)
     }
 
-    func weekdayOnlyDuration(from start: Date, to end: Date) -> TimeInterval {
-        guard end > start else { return 0 }
-        let calendar = Calendar.current
-        var cursor = start
-        var total: TimeInterval = 0
-
-        while cursor < end {
-            let dayStart = calendar.startOfDay(for: cursor)
-            guard let nextDayStart = calendar.date(byAdding: .day, value: 1, to: dayStart) else { break }
-            let segmentEnd = min(end, nextDayStart)
-            if isWeekday(dayStart) {
-                total += segmentEnd.timeIntervalSince(cursor)
-            }
-            cursor = segmentEnd
-        }
-
-        return total
+    func weekdayOnlyDuration(
+        from start: Date,
+        to end: Date,
+        nonWorkingDateKeys: Set<String> = []
+    ) -> TimeInterval {
+        WorkingDayRules(nonWorkingDateKeys: nonWorkingDateKeys).workingDuration(from: start, to: end)
     }
     func allDayLabel(for item: UpcomingItem, now: Date, simplified: Bool) -> String? {
         guard item.kind == .event, item.isAllDay else { return nil }

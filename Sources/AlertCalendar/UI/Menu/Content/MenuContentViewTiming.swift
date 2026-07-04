@@ -7,7 +7,6 @@ extension MenuContentView {
 
     func prepareDropdownPresentation() {
         dropdownReferenceDate = AlertCalendarClock.nowRoundedToSecond()
-        splitContextualPanelHeight = 0
         splitUpcomingPanelHeight = 0
     }
 }

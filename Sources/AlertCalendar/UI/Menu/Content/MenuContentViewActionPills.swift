@@ -24,13 +24,11 @@ extension MenuContentView {
     }
 
     func timeRangeText(for item: UpcomingItem) -> String? {
-        guard !item.isAllDay else { return nil }
-        let startText = Self.menuTimeFormatter.string(from: item.date)
-        guard let endDate = item.endDate, endDate > item.date else {
-            return startText
-        }
-        let endText = Self.menuTimeFormatter.string(from: endDate)
-        return "\(startText)-\(endText)"
+        Self.timeRangeText(
+            startDate: item.date,
+            endDate: item.endDate,
+            isAllDay: item.isAllDay
+        )
     }
 
     @ViewBuilder
@@ -51,7 +49,7 @@ extension MenuContentView {
     @ViewBuilder
     func joinActionButton(for item: UpcomingItem) -> some View {
         Button {
-            monitor.openMeeting(item)
+            openMeetingFromDropdown(item)
         } label: {
             actionPill {
                 Text("Join")
@@ -61,6 +59,13 @@ extension MenuContentView {
         .buttonStyle(.borderless)
         .controlSize(.small)
         .help("Join")
+    }
+
+    func openMeetingFromDropdown(_ item: UpcomingItem) {
+        NSApp.keyWindow?.orderOut(nil)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            monitor.openMeeting(item)
+        }
     }
 
     @ViewBuilder
@@ -121,13 +126,96 @@ extension MenuContentView {
         return formatter
     }()
 
+    static let menuDateTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = .autoupdatingCurrent
+        formatter.dateFormat = "MMM d HH:mm"
+        return formatter
+    }()
+
     nonisolated static func measuredTextWidth(_ text: String, font: NSFont) -> CGFloat {
         let attributes: [NSAttributedString.Key: Any] = [.font: font]
         return ceil((text as NSString).size(withAttributes: attributes).width)
     }
 
+    static func timeRangeText(
+        startDate: Date,
+        endDate: Date?,
+        isAllDay: Bool,
+        calendar: Calendar = .current,
+        timeText: @MainActor (Date) -> String = Self.timeText,
+        dateTimeText: @MainActor (Date) -> String = Self.dateTimeText
+    ) -> String? {
+        guard !isAllDay else { return nil }
+        let startText = timedEventClockText(
+            date: startDate,
+            startDate: startDate,
+            endDate: endDate,
+            calendar: calendar,
+            timeText: timeText,
+            dateTimeText: dateTimeText
+        )
+        guard let endDate, endDate > startDate else {
+            return startText
+        }
+
+        let endText = timedEventClockText(
+            date: endDate,
+            startDate: startDate,
+            endDate: endDate,
+            calendar: calendar,
+            timeText: timeText,
+            dateTimeText: dateTimeText
+        )
+        return "\(startText)-\(endText)"
+    }
+
+    static func timedEventClockText(
+        date: Date,
+        startDate: Date,
+        endDate: Date?,
+        calendar: Calendar = .current,
+        timeText: @MainActor (Date) -> String = Self.timeText,
+        dateTimeText: @MainActor (Date) -> String = Self.dateTimeText
+    ) -> String {
+        if timedRangeSpansMultipleDays(
+            startDate: startDate,
+            endDate: endDate,
+            calendar: calendar
+        ) {
+            return dateTimeText(date)
+        }
+
+        return timeText(date)
+    }
+
+    static func timedRangeSpansMultipleDays(
+        startDate: Date,
+        endDate: Date?,
+        calendar: Calendar = .current
+    ) -> Bool {
+        guard let endDate, endDate > startDate else { return false }
+        return !calendar.isDate(startDate, inSameDayAs: endDate)
+    }
+
+    static func timeText(_ date: Date) -> String {
+        menuTimeFormatter.string(from: date)
+    }
+
+    static func dateTimeText(_ date: Date) -> String {
+        menuDateTimeFormatter.string(from: date)
+    }
+
     func timeText(_ date: Date) -> String {
-        Self.menuTimeFormatter.string(from: date)
+        Self.timeText(date)
+    }
+
+    func timedEventClockText(_ date: Date, for item: UpcomingItem) -> String {
+        Self.timedEventClockText(
+            date: date,
+            startDate: item.date,
+            endDate: item.endDate
+        )
     }
 
     func eventTravelStartDate(for item: UpcomingItem) -> Date? {

@@ -22,7 +22,11 @@ struct SettingsAstronomySectionView: View {
     }
 
     var body: some View {
-        GroupBox(title) {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.headline)
+                .foregroundStyle(.primary)
+
             if showsCalculatedTimes {
                 VStack(alignment: .leading, spacing: 12) {
                     ViewThatFits(in: .horizontal) {
@@ -51,10 +55,11 @@ struct SettingsAstronomySectionView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     private var astronomyTimesSection: some View {
-        GroupBox("Calculated Sun Times") {
+        previewPanel("Calculated Sun Times") {
             VStack(alignment: .leading, spacing: 10) {
                 AstronomyArtworkCard(
                     title: "Daylight Map",
@@ -90,7 +95,7 @@ struct SettingsAstronomySectionView: View {
     }
 
     private var lunarPhasesSection: some View {
-        GroupBox("Calculated Moon Phases") {
+        previewPanel("Calculated Moon Phases") {
             VStack(alignment: .leading, spacing: 8) {
                 if showsMoonPhases {
                     astronomyPreviewLayout(preview: nextLunarPhases(), maximumColumns: 8)
@@ -110,7 +115,7 @@ struct SettingsAstronomySectionView: View {
     private var orbitalHighlightsSection: some View {
         let preview = nextOrbitalHighlights()
 
-        return GroupBox("Orbital Highlights") {
+        return previewPanel("Orbital Highlights") {
             VStack(alignment: .leading, spacing: 10) {
                 AstronomyArtworkCard(
                     title: "Orbital Storyboard",
@@ -137,6 +142,29 @@ struct SettingsAstronomySectionView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    private func previewPanel<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+
+            content()
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                )
+        )
     }
 
     @ViewBuilder

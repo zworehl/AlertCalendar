@@ -19,7 +19,7 @@ extension CalendarMonitor {
             return 45
         }
 
-        if normalizedStatus.contains("PEN") || normalizedStatus == "PK" {
+        if FootballStatusText.indicatesPenaltyShootout(normalizedStatus) {
             return 121
         }
 

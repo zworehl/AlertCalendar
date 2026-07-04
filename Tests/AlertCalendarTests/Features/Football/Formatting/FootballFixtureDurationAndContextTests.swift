@@ -435,6 +435,27 @@ final class FootballFixtureDurationAndContextTests: FootballFixtureFormatterTest
 
         XCTAssertEqual(CalendarMonitor.approximateFootballMatchDuration(for: match), 150 * 60)
     }
+    func testShootoutStatusDetailUsesPenaltyCalendarDuration() {
+        let startDate = Date(timeIntervalSince1970: 1_720_000_000)
+        let match = makeMatch(
+            id: "shootout-duration",
+            startDate: startDate,
+            statusState: .finished,
+            statusText: "FT",
+            statusDetailText: "Shootout",
+            competitionSlug: "uefa.super_cup",
+            seasonSlug: "final",
+            competitionNote: "Final",
+            homeScore: "5",
+            awayScore: "4"
+        )
+
+        XCTAssertEqual(CalendarMonitor.approximateFootballMatchDuration(for: match), 150 * 60)
+        XCTAssertEqual(
+            CalendarMonitor.approximateFootballMatchEndDate(for: match, now: startDate),
+            startDate.addingTimeInterval((150 + 5) * 60)
+        )
+    }
     func testFootballRefreshIntervalTracksMatchUrgency() {
         let now = Date(timeIntervalSince1970: 1_720_000_000)
         let live = makeMatch(

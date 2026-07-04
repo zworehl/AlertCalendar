@@ -123,7 +123,8 @@ extension FootballDataAPIClient {
             homeYellowCards: match.homeYellowCards,
             awayYellowCards: match.awayYellowCards,
             homeRedCards: match.homeRedCards,
-            awayRedCards: match.awayRedCards
+            awayRedCards: match.awayRedCards,
+            outcomeProbabilities: match.outcomeProbabilities
         )
     }
 

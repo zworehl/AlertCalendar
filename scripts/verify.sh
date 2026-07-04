@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 cd "$ROOT_DIR"
 
+./scripts/check_duplicate_sources.sh
 swift test
 ./scripts/check_architecture.sh
 ./scripts/check_coverage.sh

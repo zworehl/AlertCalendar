@@ -96,9 +96,10 @@ extension CalendarMonitor {
         kind: CalendarItemKind,
         selectedIDs: Set<String>,
         weekdayOnlyIDs: Set<String> = [],
+        nonWorkingDateKeys: Set<String> = [],
         now: Date = AlertCalendarClock.nowRoundedToSecond()
     ) -> [EKCalendar] {
-        let includeWeekdayOnlyToday = isWeekday(now)
+        let includeWeekdayOnlyToday = WorkingDayRules(nonWorkingDateKeys: nonWorkingDateKeys).isWorkingDay(now)
         let entityType: EKEntityType = kind == .event ? .event : .reminder
 
         return eventStore.calendars(for: entityType)
@@ -168,8 +169,7 @@ extension CalendarMonitor {
     }
 
     func isWeekday(_ date: Date) -> Bool {
-        let weekday = Calendar.current.component(.weekday, from: date)
-        return (2 ... 6).contains(weekday)
+        WorkingDayRules.isWeekday(date)
     }
 
     func normalizedAccountTitle(for calendar: EKCalendar) -> String {

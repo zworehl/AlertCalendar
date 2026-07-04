@@ -9,8 +9,8 @@ extension CalendarMonitor {
 
     func refreshUpcomingItemsImpl(reason: CalendarMonitorRefreshReason) async {
         refreshAvailableCalendars()
-        let settings = snapshotSettings()
         let now = fixedSecondNow()
+        let settings = pruneNonWorkingDateKeysIfNeeded(now: now, settings: snapshotSettings())
         await refreshFootballDataIfNeeded(now: now, reason: reason)
         let fetchedLookAheadHours = max(
             settings.lookAheadHours,
@@ -26,6 +26,7 @@ extension CalendarMonitor {
                 kind: .event,
                 selectedIDs: settings.selectedEventCalendarIDs,
                 weekdayOnlyIDs: settings.weekdayOnlyEventCalendarIDs,
+                nonWorkingDateKeys: settings.nonWorkingDateKeys,
                 now: now
             )
             let lookBackHours = max(24, fetchedLookAheadHours)
@@ -42,6 +43,7 @@ extension CalendarMonitor {
                 kind: .reminder,
                 selectedIDs: settings.selectedReminderCalendarIDs,
                 weekdayOnlyIDs: settings.weekdayOnlyReminderCalendarIDs,
+                nonWorkingDateKeys: settings.nonWorkingDateKeys,
                 now: now
             )
             let reminders = await loadReminders(from: nil, to: endDate, calendars: selectedCalendars)
@@ -81,6 +83,15 @@ extension CalendarMonitor {
         if skippedItemKeys != previous {
             persistSkippedItemKeys()
         }
+    }
+
+    func pruneNonWorkingDateKeysIfNeeded(now: Date, settings: AppSettings) -> AppSettings {
+        let normalized = WorkingDayRules.normalizedNonWorkingDateKeys(settings.nonWorkingDateKeys, now: now)
+        guard normalized != settings.nonWorkingDateKeys else { return settings }
+
+        defaults.set(Array(normalized).sorted(), forKey: DefaultsKeys.nonWorkingDateKeys)
+        reloadCurrentSettings()
+        return snapshotSettings()
     }
 
     func deduplicatedItemsByNotificationKey(_ items: [UpcomingItem]) -> [UpcomingItem] {

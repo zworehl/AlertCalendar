@@ -111,6 +111,8 @@ extension MenuContentView {
                                     .foregroundStyle(.secondary)
                             }
                         }
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                     } else {
                         HStack(spacing: 4) {
                             Text("-")
@@ -123,6 +125,8 @@ extension MenuContentView {
                                     .foregroundStyle(.secondary)
                             }
                         }
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                     }
                 }
 
@@ -140,17 +144,18 @@ extension MenuContentView {
                     titleColor: titleColor
                 )
             }
-            .fixedSize(horizontal: true, vertical: false)
+            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
 
             if showsStatusAccessories && accessories.hasAccessories {
                 FootballStatusAccessoriesView(data: accessories)
-                    .fixedSize(horizontal: true, vertical: false)
+                    .layoutPriority(1)
             }
         }
         .font(font)
         .foregroundStyle(titleColor)
         .frame(maxWidth: .infinity, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
+        .clipped()
     }
 
     @ViewBuilder
@@ -182,9 +187,15 @@ extension MenuContentView {
                 )
                 Text(abbreviation)
                     .font(font)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .truncationMode(.tail)
             } else {
                 Text(abbreviation)
                     .font(font)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .truncationMode(.tail)
                 FootballTeamLogoView(
                     localPath: localLogoPath,
                     remoteURL: remoteLogoURL,
@@ -198,6 +209,7 @@ extension MenuContentView {
                 footballCardBadges(yellowCards: yellowCards, redCards: redCards)
             }
         }
+        .frame(minWidth: 0, alignment: .center)
     }
 
     @ViewBuilder

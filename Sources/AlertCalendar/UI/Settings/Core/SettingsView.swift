@@ -29,7 +29,7 @@ struct SettingsView: View {
     }
 
     enum FeedsSubsection: String, CaseIterable, Identifiable {
-        case atmosphere = "Astronomy"
+        case atmosphere = "Atmosphere"
         case football = "Football"
 
         var id: String { rawValue }
@@ -37,7 +37,7 @@ struct SettingsView: View {
         var title: String {
             switch self {
             case .atmosphere:
-                return "Sun, Moon & Orbit"
+                return "Atmosphere"
             case .football:
                 return "Football Fixtures"
             }
@@ -291,17 +291,6 @@ struct SettingsView: View {
         }
     }
 
-    enum SettingsActionCardKind: Identifiable, Hashable {
-        case permission(SettingsPermissionKind)
-
-        var id: String {
-            switch self {
-            case let .permission(permission):
-                return "permission:\(permission.id)"
-            }
-        }
-    }
-
     let monitor: CalendarMonitor
 
     @State var draft = SettingsDraft.empty
@@ -322,7 +311,6 @@ struct SettingsView: View {
     @State var lastRefreshDate: Date?
     @State var refreshDiagnostics = CalendarMonitorRefreshDiagnostics()
     @State var isShowingPermissionDiagnostics = false
-    @State var compactActionRowCounts: [Int] = [4]
     @State var slackUserTokenDraft = ""
     @State var slackConnections: [SlackConnection] = []
     @State var slackConnectErrorMessage: String?
@@ -418,7 +406,6 @@ struct SettingsView: View {
                 },
                 onResize: { width in
                     settingsWindowWidth = width
-                    updatePermissionButtonsLayout(windowWidth: width)
                 }
             )
         )

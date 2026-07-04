@@ -29,6 +29,7 @@ struct SettingsDraft: Equatable {
     var selectedReminderCalendarIDs: Set<String>
     var weekdayOnlyEventCalendarIDs: Set<String>
     var weekdayOnlyReminderCalendarIDs: Set<String>
+    var nonWorkingDateKeys: Set<String>
     var slackStatusSyncRules: [SlackStatusSyncRule]
     var slackMeetingStatusText: String
     var slackMeetingStatusEmoji: String
@@ -63,6 +64,7 @@ struct SettingsDraft: Equatable {
         selectedReminderCalendarIDs = settings.selectedReminderCalendarIDs
         weekdayOnlyEventCalendarIDs = settings.weekdayOnlyEventCalendarIDs
         weekdayOnlyReminderCalendarIDs = settings.weekdayOnlyReminderCalendarIDs
+        nonWorkingDateKeys = settings.nonWorkingDateKeys
         slackStatusSyncRules = settings.slackStatusSyncRules
         slackMeetingStatusText = settings.slackMeetingStatusText
         slackMeetingStatusEmoji = settings.slackMeetingStatusEmoji

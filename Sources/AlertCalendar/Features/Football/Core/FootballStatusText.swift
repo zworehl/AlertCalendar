@@ -9,6 +9,17 @@ enum FootballStatusText {
         ("HYD.", ["HYDRATION", "COOLING", "WATER BREAK", "DRINKS BREAK", "DRINK BREAK"]),
         ("CANC.", ["CANCELED", "CANCELLED"]),
     ]
+    private static let penaltyShootoutTokens: Set<String> = [
+        "KFTM",
+        "PEN",
+        "PENALTY",
+        "PENALTIES",
+        "PENS",
+        "PK",
+        "PKS",
+        "PSO",
+        "SHOOTOUT",
+    ]
 
     static func normalized(_ text: String) -> String {
         text
@@ -25,5 +36,27 @@ enum FootballStatusText {
 
     static func indicatesInterruptedPlay(_ normalizedStatus: String) -> Bool {
         interruptedBadge(for: normalizedStatus) != nil
+    }
+
+    static func indicatesPenaltyShootout(_ normalizedStatus: String) -> Bool {
+        let tokens = normalizedStatus
+            .split { !$0.isLetter && !$0.isNumber }
+            .map(String.init)
+
+        if tokens.contains(where: { penaltyShootoutTokens.contains($0) }) {
+            return true
+        }
+
+        let compact = normalizedStatus
+            .replacingOccurrences(of: #"[^A-Z0-9]+"#, with: "", options: .regularExpression)
+
+        guard !compact.isEmpty else { return false }
+        if penaltyShootoutTokens.contains(compact) {
+            return true
+        }
+
+        return compact.contains("PENALTY")
+            || compact.contains("PENALTIES")
+            || compact.contains("SHOOTOUT")
     }
 }
