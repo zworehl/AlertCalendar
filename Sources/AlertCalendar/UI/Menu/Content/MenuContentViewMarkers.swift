@@ -166,8 +166,9 @@ extension MenuContentView {
             symbolNames: monitor.menuBarAccessorySymbolNames(for: item),
             font: titleFont
         )
-        let measuredTitleWidth = Self.measuredTextWidth(item.title, font: titleFont) + accessoryWidth
-        let titleWidth = measuredTitleWidth
+        let measuredTitleWidth = Self.measuredTextWidth(item.title, font: titleFont)
+        let titleWidth = measuredTitleWidth + accessoryWidth
+        let hoveredTitleWidth = measuredTitleWidth
         let markerColumnWidth: CGFloat = 20
         let spacingAfterMarker: CGFloat = 8
         let contentSpacing: CGFloat = 6
@@ -196,11 +197,14 @@ extension MenuContentView {
         }
 
         let headerWidth = markerColumnWidth + spacingAfterMarker + titleWidth + (showRightTimeColumn ? (contentSpacing + rightColumnWidth) : 0)
-        let hoveredWidth = markerColumnWidth + spacingAfterMarker + titleWidth + contentSpacing + hoverActionRowWidth(for: item)
+        let hoveredWidth = markerColumnWidth + spacingAfterMarker + hoveredTitleWidth + contentSpacing + hoverActionRowWidth(for: item)
         return ceil(max(headerWidth, hoveredWidth) + popupChromeWidth)
     }
 
-    func hoverActionRowWidth(for item: UpcomingItem) -> CGFloat {
+    func hoverActionRowWidth(
+        for item: UpcomingItem,
+        trailingInset: CGFloat = 0
+    ) -> CGFloat {
         var widths: [CGFloat] = []
 
         if item.meetingURL != nil {
@@ -209,7 +213,10 @@ extension MenuContentView {
 
         widths.append(skipActionPillWidth())
 
-        return actionButtonOverlayWidth(for: widths, trailingPadding: 2)
+        return actionButtonOverlayWidth(
+            for: widths,
+            trailingPadding: 2 + max(0, trailingInset)
+        )
     }
 
     func contextualActionRowWidth(

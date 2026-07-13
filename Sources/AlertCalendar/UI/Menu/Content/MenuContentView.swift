@@ -11,6 +11,9 @@ struct MenuContentView: View {
 
     @State var dropdownReferenceDate = AlertCalendarClock.nowRoundedToSecond()
     @State var splitUpcomingPanelHeight: CGFloat = 0
+    @State var splitRightColumnHeight: CGFloat = 0
+    @State var splitContextualCompactPanelHeight: CGFloat = 0
+    @State var splitContextualPanelMeasurementKey = ""
     let dropdownOuterPadding: CGFloat = 12
     let upcomingListMaxHeight: CGFloat = 360
     let splitDropdownMaxColumnHeight: CGFloat = 520
@@ -56,6 +59,14 @@ struct MenuContentView: View {
                         }
                         .frame(width: upcomingPanelOuterWidth(snapshot: snapshot), alignment: .topLeading)
                         .clipped()
+                        .background(
+                            GeometryReader { proxy in
+                                Color.clear.preference(
+                                    key: SplitRightColumnHeightPreferenceKey.self,
+                                    value: splitUpcomingPanelHeight > 0 ? proxy.size.height : 0
+                                )
+                            }
+                        )
                     }
                 } else {
                     if !snapshot.displayedContextualActionItems.isEmpty {
@@ -102,6 +113,26 @@ struct MenuContentView: View {
         .onPreferenceChange(SplitUpcomingPanelHeightPreferenceKey.self) { height in
             guard abs(splitUpcomingPanelHeight - height) > 0.5 else { return }
             splitUpcomingPanelHeight = height
+        }
+        .onPreferenceChange(SplitRightColumnHeightPreferenceKey.self) { height in
+            guard snapshot.shouldUseSplitDropdownLayout,
+                  height > 0,
+                  abs(splitRightColumnHeight - height) > 0.5 else {
+                return
+            }
+            splitRightColumnHeight = height
+        }
+        .onPreferenceChange(SplitContextualPanelMeasurementPreferenceKey.self) { measurement in
+            let measurementKey = snapshot.contextualPanelMeasurementKey
+            guard snapshot.shouldUseSplitDropdownLayout,
+                  measurement.key == measurementKey,
+                  measurement.height > 0,
+                  (splitContextualPanelMeasurementKey != measurementKey
+                      || splitContextualCompactPanelHeight <= 0) else {
+                return
+            }
+            splitContextualPanelMeasurementKey = measurementKey
+            splitContextualCompactPanelHeight = measurement.height
         }
     }
 }

@@ -96,7 +96,12 @@ struct MiniLocationMapView: View {
             return
         }
         if requestedSnapshotRequest == request,
-           (isLoading || snapshotData != nil) {
+           snapshotData != nil {
+            return
+        }
+        if requestedSnapshotRequest == request,
+           isLoading,
+           (resolveTask != nil || loadingTimeoutTask != nil) {
             return
         }
 
@@ -121,12 +126,16 @@ struct MiniLocationMapView: View {
         }
         resolveTask = Task {
             let coordinate = await LocationCoordinateResolver.shared.coordinate(for: request.locationText)
-            guard !Task.isCancelled else { return }
-            let imageData = await MiniLocationMapSnapshotRenderer.snapshotData(
-                for: coordinate?.clCoordinate,
-                size: request.size
-            )
-            guard !Task.isCancelled else { return }
+            let imageData: Data?
+            if Task.isCancelled {
+                imageData = nil
+            } else {
+                imageData = await MiniLocationMapSnapshotRenderer.snapshotData(
+                    for: coordinate?.clCoordinate,
+                    size: request.size
+                )
+            }
+            let wasCancelled = Task.isCancelled
             await MainActor.run {
                 guard request.locationText == locationText,
                       requestedSnapshotRequest == request else { return }
@@ -134,13 +143,18 @@ struct MiniLocationMapView: View {
                 loadingTimeoutTask = nil
                 isLoading = false
                 resolveTask = nil
-                snapshotData = imageData
+                snapshotData = wasCancelled ? nil : imageData
             }
         }
     }
 }
 
 private enum MiniLocationMapSnapshotRenderer {
+    private static let snapshotQueue = DispatchQueue(
+        label: "AlertCalendar.MiniLocationMapSnapshot",
+        qos: .userInitiated
+    )
+
     static func snapshotData(for coordinate: CLLocationCoordinate2D?, size: CGSize) async -> Data? {
         guard let coordinate else { return nil }
 
@@ -163,12 +177,12 @@ private enum MiniLocationMapSnapshotRenderer {
                 box.resume(returning: nil)
             }
 
-            DispatchQueue.main.asyncAfter(
+            snapshotQueue.asyncAfter(
                 deadline: .now() + MiniLocationMapPreviewTiming.snapshotTimeoutSeconds,
                 execute: timeout.workItem
             )
 
-            snapshotter.start(with: .main) { snapshot, _ in
+            snapshotter.start(with: snapshotQueue) { snapshot, _ in
                 timeout.cancel()
                 guard let snapshot else {
                     box.resume(returning: nil)
@@ -180,32 +194,52 @@ private enum MiniLocationMapSnapshotRenderer {
     }
 
     private static func annotatedImageData(from snapshot: MKMapSnapshotter.Snapshot) -> Data? {
-        let image = NSImage(size: snapshot.image.size)
-        image.lockFocus()
-        defer { image.unlockFocus() }
+        var proposedRect = CGRect(origin: .zero, size: snapshot.image.size)
+        guard let sourceImage = snapshot.image.cgImage(
+            forProposedRect: &proposedRect,
+            context: nil,
+            hints: nil
+        ) else {
+            return snapshot.image.tiffRepresentation
+        }
 
-        snapshot.image.draw(
-            in: NSRect(origin: .zero, size: snapshot.image.size),
-            from: NSRect(origin: .zero, size: snapshot.image.size),
-            operation: .copy,
-            fraction: 1
+        let width = sourceImage.width
+        let height = sourceImage.height
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let context = CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            return nil
+        }
+
+        let imageRect = CGRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height))
+        context.draw(sourceImage, in: imageRect)
+
+        let pointScale = min(
+            CGFloat(width) / max(snapshot.image.size.width, 1),
+            CGFloat(height) / max(snapshot.image.size.height, 1)
         )
-
-        let markerDiameter: CGFloat = 12
-        let markerRect = NSRect(
-            x: (snapshot.image.size.width - markerDiameter) / 2,
-            y: (snapshot.image.size.height - markerDiameter) / 2,
+        let markerDiameter = 12 * pointScale
+        let markerRect = CGRect(
+            x: (CGFloat(width) - markerDiameter) / 2,
+            y: (CGFloat(height) - markerDiameter) / 2,
             width: markerDiameter,
             height: markerDiameter
         )
-        let marker = NSBezierPath(ovalIn: markerRect)
-        NSColor.systemRed.setFill()
-        marker.fill()
-        NSColor.white.withAlphaComponent(0.95).setStroke()
-        marker.lineWidth = 2
-        marker.stroke()
+        context.setFillColor(NSColor.systemRed.cgColor)
+        context.fillEllipse(in: markerRect)
+        context.setStrokeColor(NSColor.white.withAlphaComponent(0.95).cgColor)
+        context.setLineWidth(2 * pointScale)
+        context.strokeEllipse(in: markerRect)
 
-        return image.tiffRepresentation
+        guard let annotatedImage = context.makeImage() else { return nil }
+        return NSBitmapImageRep(cgImage: annotatedImage).representation(using: .png, properties: [:])
     }
 }
 

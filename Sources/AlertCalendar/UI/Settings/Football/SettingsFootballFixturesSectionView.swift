@@ -27,6 +27,7 @@ struct SettingsFootballFixturesSectionView: View {
     @AppStorage(DefaultsKeys.footballTargetCalendarID) var footballTargetCalendarID = ""
     @AppStorage(DefaultsKeys.footballCalendarAlertOption) var footballCalendarAlertOptionRaw = FootballCalendarAlertOption.none.rawValue
     @AppStorage(DefaultsKeys.enableFootballGoalNotifications) var enableFootballGoalNotifications = true
+    @AppStorage(DefaultsKeys.enableFootballDisallowedGoalNotifications) var enableFootballDisallowedGoalNotifications = true
     @AppStorage(DefaultsKeys.includeFootballGoalScorerInNotifications) var includeFootballGoalScorerInNotifications = true
     @AppStorage(DefaultsKeys.enableFootballFinalNotifications) var enableFootballFinalNotifications = true
     @AppStorage(DefaultsKeys.enableFootballAutoAddNotifications) var enableFootballAutoAddNotifications = true

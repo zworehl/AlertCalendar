@@ -8,6 +8,7 @@ struct FootballNotificationMessage: Equatable {
 extension CalendarMonitor {
     func prepareFootballNotificationAuthorizationIfNeeded(settings: AppSettings) {
         guard settings.enableFootballGoalNotifications
+            || settings.enableFootballDisallowedGoalNotifications
             || settings.enableFootballFinalNotifications
             || settings.enableFootballAutoAddNotifications else { return }
 
@@ -51,6 +52,18 @@ extension CalendarMonitor {
         )
     }
 
+    nonisolated static func footballDisallowedGoalNotificationMessage(
+        for match: FootballFixtureMatch,
+        disallowedSide: FootballScoreSide
+    ) -> FootballNotificationMessage {
+        let affectedTeam = footballNotificationTeamName(for: match, side: disallowedSide)
+
+        return FootballNotificationMessage(
+            title: "\(affectedTeam) goal disallowed",
+            body: "\(affectedTeam) had a goal ruled out. \(footballNotificationScoreLine(for: match))."
+        )
+    }
+
     nonisolated static func footballAutoAddNotificationMessage(
         for match: FootballFixtureMatch,
         now: Date = AlertCalendarClock.nowRoundedToSecond()
@@ -91,6 +104,17 @@ extension CalendarMonitor {
         return "football.goal.\(match.id).\(scoringSide.rawValue).\(goalNumber).\(match.homeScore)-\(match.awayScore)"
     }
 
+    nonisolated static func footballDisallowedGoalNotificationKey(
+        from previousMatch: FootballFixtureMatch,
+        to currentMatch: FootballFixtureMatch,
+        disallowedSide: FootballScoreSide
+    ) -> String {
+        let removedGoalNumber = footballGoalCount(for: previousMatch, side: disallowedSide)
+        let previousScore = "\(previousMatch.homeScore)-\(previousMatch.awayScore)"
+        let currentScore = "\(currentMatch.homeScore)-\(currentMatch.awayScore)"
+        return "football.disallowedGoal.\(currentMatch.id).\(disallowedSide.rawValue).\(removedGoalNumber).\(previousScore).to.\(currentScore)"
+    }
+
     nonisolated static func footballFinalNotificationKey(
         for match: FootballFixtureMatch
     ) -> String {
@@ -110,6 +134,31 @@ extension CalendarMonitor {
         currentMatch.statusReliability == .reported
             && previousMatch.statusState != .finished
             && currentMatch.statusState == .finished
+    }
+
+    nonisolated static func footballDisallowedGoalSide(
+        from previousMatch: FootballFixtureMatch,
+        to currentMatch: FootballFixtureMatch
+    ) -> FootballScoreSide? {
+        guard currentMatch.statusReliability == .reported else { return nil }
+        guard currentMatch.statusState == .inProgress
+            || currentMatch.statusState == .finished else { return nil }
+
+        let previousHomeScore = footballGoalValue(previousMatch.homeScore)
+        let previousAwayScore = footballGoalValue(previousMatch.awayScore)
+        let currentHomeScore = footballGoalValue(currentMatch.homeScore)
+        let currentAwayScore = footballGoalValue(currentMatch.awayScore)
+
+        let homeDelta = currentHomeScore - previousHomeScore
+        let awayDelta = currentAwayScore - previousAwayScore
+
+        if homeDelta == -1 && awayDelta == 0 {
+            return .home
+        }
+        if awayDelta == -1 && homeDelta == 0 {
+            return .away
+        }
+        return nil
     }
 
     nonisolated static func footballGoalCount(
@@ -184,6 +233,47 @@ extension CalendarMonitor {
                 scorer: scorer,
                 includeScorerName: includeScorerName
             )
+            await AlertCalendarUserNotifier.deliver(
+                identifier: notificationKey,
+                title: message.title,
+                body: message.body
+            )
+        }
+    }
+
+    func queueFootballDisallowedGoalNotificationIfNeeded(
+        from previousMatch: FootballFixtureMatch,
+        to currentMatch: FootballFixtureMatch,
+        settings: AppSettings
+    ) {
+        guard let disallowedSide = Self.footballDisallowedGoalSide(
+            from: previousMatch,
+            to: currentMatch
+        ) else {
+            return
+        }
+        guard isManagedFootballMatch(currentMatch) else { return }
+
+        deliveredFootballNotificationKeys.remove(
+            Self.footballGoalNotificationKey(
+                for: previousMatch,
+                scoringSide: disallowedSide
+            )
+        )
+        guard settings.enableFootballDisallowedGoalNotifications else { return }
+
+        let notificationKey = Self.footballDisallowedGoalNotificationKey(
+            from: previousMatch,
+            to: currentMatch,
+            disallowedSide: disallowedSide
+        )
+        guard deliveredFootballNotificationKeys.insert(notificationKey).inserted else { return }
+
+        let message = Self.footballDisallowedGoalNotificationMessage(
+            for: currentMatch,
+            disallowedSide: disallowedSide
+        )
+        Task {
             await AlertCalendarUserNotifier.deliver(
                 identifier: notificationKey,
                 title: message.title,

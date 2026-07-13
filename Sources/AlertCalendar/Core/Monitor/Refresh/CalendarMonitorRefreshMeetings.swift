@@ -83,11 +83,23 @@ extension CalendarMonitor {
     }
 
     func invitees(for event: EKEvent) -> [MeetingAttendee] {
-        let rawInvitees = (event.attendees ?? []).compactMap { participant -> MeetingAttendee? in
-            guard !participant.isCurrentUser else { return nil }
+        let organizerEmailAddress = event.organizer.flatMap { attendeeEmailAddress(for: $0) }
+        let organizerDisplayText = event.organizer.flatMap { organizer in
+            participantDisplayText(name: organizer.name, emailAddress: organizerEmailAddress)
+        }
 
+        let rawInvitees = (event.attendees ?? []).compactMap { participant -> MeetingAttendee? in
             let emailAddress = attendeeEmailAddress(for: participant)
             guard let displayText = participantDisplayText(name: participant.name, emailAddress: emailAddress) else {
+                return nil
+            }
+            guard Self.shouldIncludeInvitee(
+                isCurrentUser: participant.isCurrentUser,
+                participantEmailAddress: emailAddress,
+                participantDisplayText: displayText,
+                organizerEmailAddress: organizerEmailAddress,
+                organizerDisplayText: organizerDisplayText
+            ) else {
                 return nil
             }
 
@@ -103,6 +115,58 @@ extension CalendarMonitor {
         }
 
         return MeetingAttendee.normalized(rawInvitees)
+    }
+
+    nonisolated static func shouldIncludeInvitee(
+        isCurrentUser _: Bool,
+        participantEmailAddress: String?,
+        participantDisplayText: String?,
+        organizerEmailAddress: String?,
+        organizerDisplayText: String?
+    ) -> Bool {
+        !participantMatchesOrganizer(
+            participantEmailAddress: participantEmailAddress,
+            participantDisplayText: participantDisplayText,
+            organizerEmailAddress: organizerEmailAddress,
+            organizerDisplayText: organizerDisplayText
+        )
+    }
+
+    nonisolated static func participantMatchesOrganizer(
+        participantEmailAddress: String?,
+        participantDisplayText: String?,
+        organizerEmailAddress: String?,
+        organizerDisplayText: String?
+    ) -> Bool {
+        let participantEmailAddress = MeetingAttendee.normalizedEmailAddress(participantEmailAddress)
+        let organizerEmailAddress = MeetingAttendee.normalizedEmailAddress(organizerEmailAddress)
+        if let participantEmailAddress,
+           let organizerEmailAddress {
+            return participantEmailAddress == organizerEmailAddress
+        }
+
+        let participantDisplayText = MeetingAttendee.normalizedIdentity(participantDisplayText)
+        let organizerDisplayText = MeetingAttendee.normalizedIdentity(organizerDisplayText)
+
+        if let participantDisplayText,
+           let organizerEmailAddress,
+           participantDisplayText == organizerEmailAddress {
+            return true
+        }
+
+        if let participantEmailAddress,
+           let organizerDisplayText,
+           participantEmailAddress == organizerDisplayText {
+            return true
+        }
+
+        if let participantDisplayText,
+           let organizerDisplayText,
+           participantDisplayText == organizerDisplayText {
+            return true
+        }
+
+        return false
     }
 
     private func attendeeResponse(for participant: EKParticipant) -> MeetingAttendeeResponse {

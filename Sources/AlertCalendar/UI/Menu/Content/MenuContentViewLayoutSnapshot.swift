@@ -28,6 +28,40 @@ extension MenuContentView {
             sharedContextualFootballCompetitionTitle != nil
         }
 
+        var contextualPanelMeasurementKey: String {
+            let itemKeys = displayedContextualActionItems.map { item in
+                let previewKey: String
+                switch contextualPreviewKind(for: item) {
+                case let .location(locationText):
+                    previewKey = "location|\(locationText)"
+                case let .attendees(organizer, attendees):
+                    let organizerKey = [
+                        organizer?.displayText ?? "",
+                        organizer?.emailAddress ?? "",
+                    ].joined(separator: "|")
+                    let attendeesKey = attendees.map {
+                        "\($0.id)|\($0.displayText)|\($0.emailAddress ?? "")|\($0.response.rawValue)"
+                    }.joined(separator: "|")
+                    previewKey = "attendees|\(organizerKey)|\(attendeesKey)"
+                case let .daylight(moment):
+                    previewKey = "daylight|\(moment.rawValue)"
+                case nil:
+                    previewKey = "none"
+                }
+
+                return [
+                    item.notificationKey,
+                    item.title,
+                    String(item.endDate?.timeIntervalSince1970 ?? 0),
+                    previewKey,
+                    String(item.footballMatch?.hashValue ?? 0),
+                ].joined(separator: "#")
+            }
+
+            return ([sharedContextualFootballCompetitionTitle ?? ""] + itemKeys)
+                .joined(separator: "||")
+        }
+
         func contextualPreviewKind(for item: UpcomingItem) -> ContextualPreviewKind? {
             contextualPreviewKindsByKey[item.notificationKey]
         }

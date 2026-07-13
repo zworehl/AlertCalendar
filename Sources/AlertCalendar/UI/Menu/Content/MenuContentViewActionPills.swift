@@ -189,7 +189,7 @@ extension MenuContentView {
         return timeText(date)
     }
 
-    static func timedRangeSpansMultipleDays(
+    nonisolated static func timedRangeSpansMultipleDays(
         startDate: Date,
         endDate: Date?,
         calendar: Calendar = .current

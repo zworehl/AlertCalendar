@@ -240,6 +240,11 @@ extension CalendarMonitor {
                 )
             }
             if let previousMatch = footballMatchesByID[match.id] {
+                queueFootballDisallowedGoalNotificationIfNeeded(
+                    from: previousMatch,
+                    to: match,
+                    settings: settings
+                )
                 queueFootballFinalNotificationIfNeeded(
                     from: previousMatch,
                     to: match,

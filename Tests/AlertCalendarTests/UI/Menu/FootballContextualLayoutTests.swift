@@ -204,7 +204,21 @@ final class FootballContextualLayoutTests: AlertCalendarModelTestCase {
 
     func testMenuPanelContentWidthTracksSingleColumnDropdownWidth() {
         let menu = MenuContentView(kindFilter: nil, headerTitle: "Alert Calendar")
-        let snapshot = MenuContentView.LayoutSnapshot(
+        let minimumWidthSnapshot = layoutSnapshot(dropdownMinimumWidth: 260)
+        let measuredWidthSnapshot = layoutSnapshot(dropdownMinimumWidth: 360)
+
+        XCTAssertEqual(menu.contextualPanelOuterWidth(snapshot: minimumWidthSnapshot), 236)
+        XCTAssertEqual(menu.contextualPanelContentWidth(snapshot: minimumWidthSnapshot), 220)
+        XCTAssertEqual(menu.upcomingPanelOuterWidth(snapshot: minimumWidthSnapshot), 236)
+        XCTAssertEqual(menu.upcomingPanelContentWidth(snapshot: minimumWidthSnapshot), 220)
+        XCTAssertEqual(menu.contextualPanelOuterWidth(snapshot: measuredWidthSnapshot), 336)
+        XCTAssertEqual(menu.contextualPanelContentWidth(snapshot: measuredWidthSnapshot), 320)
+        XCTAssertEqual(menu.upcomingPanelOuterWidth(snapshot: measuredWidthSnapshot), 336)
+        XCTAssertEqual(menu.upcomingPanelContentWidth(snapshot: measuredWidthSnapshot), 320)
+    }
+
+    private func layoutSnapshot(dropdownMinimumWidth: CGFloat) -> MenuContentView.LayoutSnapshot {
+        MenuContentView.LayoutSnapshot(
             filteredAlertDescriptions: [],
             contextualActionCandidates: [],
             contextualPreviewActionItems: [],
@@ -216,7 +230,7 @@ final class FootballContextualLayoutTests: AlertCalendarModelTestCase {
             queueItemsForSplitLayout: [],
             queueItemsForActions: [],
             shouldUseSplitDropdownLayout: false,
-            dropdownMinimumWidth: 360,
+            dropdownMinimumWidth: dropdownMinimumWidth,
             sharedContextualFootballMatches: nil,
             sharedContextualFootballCompetitionTitle: nil,
             sharedContextualFootballCompetitionLogoPath: nil,
@@ -224,11 +238,6 @@ final class FootballContextualLayoutTests: AlertCalendarModelTestCase {
             contextualFootballLayoutItemCount: 0,
             contextualFootballContentLevel: .compact
         )
-
-        XCTAssertEqual(menu.contextualPanelOuterWidth(snapshot: snapshot), 336)
-        XCTAssertEqual(menu.contextualPanelContentWidth(snapshot: snapshot), 320)
-        XCTAssertEqual(menu.upcomingPanelOuterWidth(snapshot: snapshot), 336)
-        XCTAssertEqual(menu.upcomingPanelContentWidth(snapshot: snapshot), 320)
     }
 
     func testSingleColumnDropdownWidthFollowsMeasuredContent() {
@@ -241,6 +250,89 @@ final class FootballContextualLayoutTests: AlertCalendarModelTestCase {
         XCTAssertEqual(
             menu.resolvedSingleColumnDropdownWidth(contextualWidth: 460, queueWidth: 500),
             500
+        )
+    }
+
+    func testScrollableUpcomingActionsReserveScrollbarHitArea() {
+        let menu = MenuContentView(kindFilter: nil, headerTitle: "Alert Calendar")
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let item = dropdownHeightItem(
+            startDate: now,
+            endDate: now.addingTimeInterval(30 * 60),
+            isAllDay: false
+        )
+        let scrollbarInset = MenuContentView.actionTrailingInset(
+            showsVerticalScrollIndicator: true,
+            scrollerWidth: 17
+        )
+        let rowWidth: CGFloat = 320
+        let baseTrailingPadding: CGFloat = 2
+        let actionRightEdge = rowWidth - baseTrailingPadding - scrollbarInset
+        let scrollbarLeftEdge = rowWidth - 17
+
+        XCTAssertEqual(scrollbarInset, 17)
+        XCTAssertLessThan(actionRightEdge, scrollbarLeftEdge)
+        XCTAssertEqual(scrollbarLeftEdge - actionRightEdge, baseTrailingPadding)
+        XCTAssertEqual(
+            MenuContentView.actionTrailingInset(
+                showsVerticalScrollIndicator: false,
+                scrollerWidth: 17
+            ),
+            0
+        )
+        XCTAssertEqual(
+            menu.hoverActionRowWidth(for: item, trailingInset: scrollbarInset),
+            menu.hoverActionRowWidth(for: item) + scrollbarInset
+        )
+    }
+
+    func testDropdownHoverHeightPreservationOnlyAppliesToTimedEventsCrossingDays() {
+        let menu = MenuContentView(kindFilter: nil, headerTitle: "Alert Calendar")
+        let calendar = Calendar(identifier: .gregorian)
+        let startDate = calendar.date(from: DateComponents(year: 2026, month: 7, day: 2, hour: 23, minute: 25))!
+        let sameDayEndDate = calendar.date(from: DateComponents(year: 2026, month: 7, day: 2, hour: 23, minute: 55))!
+        let nextDayEndDate = calendar.date(from: DateComponents(year: 2026, month: 7, day: 3, hour: 0, minute: 25))!
+        let timedSameDay = dropdownHeightItem(
+            startDate: startDate,
+            endDate: sameDayEndDate,
+            isAllDay: false
+        )
+        let timedCrossDay = dropdownHeightItem(
+            startDate: startDate,
+            endDate: nextDayEndDate,
+            isAllDay: false
+        )
+        let allDayCrossDay = dropdownHeightItem(
+            startDate: calendar.startOfDay(for: startDate),
+            endDate: calendar.startOfDay(for: nextDayEndDate),
+            isAllDay: true
+        )
+
+        XCTAssertFalse(MenuContentView.shouldPreserveDropdownHoverHeight(for: timedSameDay))
+        XCTAssertTrue(MenuContentView.shouldPreserveDropdownHoverHeight(for: timedCrossDay))
+        XCTAssertFalse(MenuContentView.shouldPreserveDropdownHoverHeight(for: allDayCrossDay))
+
+        XCTAssertNil(
+            menu.rowPrimaryContentMinimumHeight(
+                for: timedSameDay,
+                showsTravelTime: false,
+                showRightTimeColumn: true
+            )
+        )
+        XCTAssertEqual(
+            menu.rowPrimaryContentMinimumHeight(
+                for: timedCrossDay,
+                showsTravelTime: false,
+                showRightTimeColumn: true
+            ),
+            44
+        )
+        XCTAssertNil(
+            menu.rowPrimaryContentMinimumHeight(
+                for: allDayCrossDay,
+                showsTravelTime: false,
+                showRightTimeColumn: true
+            )
         )
     }
 
@@ -258,6 +350,7 @@ final class FootballContextualLayoutTests: AlertCalendarModelTestCase {
     }
 
     func testSplitUpcomingPanelHeightTracksMeasuredContentBelowLimit() {
+        _ = NSApplication.shared
         let menu = MenuContentView(kindFilter: nil, headerTitle: "Alert Calendar")
         let snapshot = MenuContentView.LayoutSnapshot(
             filteredAlertDescriptions: [],
@@ -285,6 +378,121 @@ final class FootballContextualLayoutTests: AlertCalendarModelTestCase {
             menu.splitPanelHeight(measuredHeight: 10_000, snapshot: snapshot),
             menu.splitDropdownColumnHeightLimit
         )
+        XCTAssertEqual(
+            menu.splitContextualPanelMinimumHeight(
+                snapshot: snapshot,
+                measuredRightColumnHeight: 564
+            ),
+            564
+        )
+        XCTAssertNil(
+            menu.splitContextualPanelMinimumHeight(
+                snapshot: snapshot,
+                measuredRightColumnHeight: 0
+            )
+        )
+
+        let stretchedPanelSize = fittingSize(
+            of: menu.calendarSectionContainer(minimumHeight: 564) {
+                Color.clear.frame(height: 20)
+            },
+            width: 336
+        )
+        XCTAssertEqual(stretchedPanelSize.height, 564, accuracy: 1)
+    }
+
+    func testSplitAttendeePreviewUsesRemainingHeightAlongsideLocationPreview() {
+        let menu = MenuContentView(kindFilter: nil, headerTitle: "Alert Calendar")
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let organizer = MeetingOrganizer(
+            displayText: "Madison",
+            emailAddress: "madison@getzilker.com"
+        )
+        let attendees = (0..<31).map { index in
+            MeetingAttendee(
+                id: "attendee-\(index)",
+                displayText: "Invitee \(index)",
+                emailAddress: "invitee\(index)@example.com",
+                response: .accepted
+            )
+        }
+        let firstItem = UpcomingItem(
+            id: "standup",
+            title: "Replatform Team Stand up",
+            date: now,
+            endDate: now.addingTimeInterval(30 * 60),
+            isAllDay: false,
+            showsMutedBackground: false,
+            travelTimeMinutes: nil,
+            locationText: nil,
+            meetingURL: URL(string: "https://meet.google.com/example"),
+            organizer: organizer,
+            attendees: attendees,
+            calendarID: "work",
+            calendarName: "Work",
+            calendarColor: .systemGreen,
+            kind: .event,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
+        )
+        let secondItem = UpcomingItem(
+            id: "outage",
+            title: "Electricity Outage",
+            date: now.addingTimeInterval(60 * 60),
+            endDate: now.addingTimeInterval(10 * 60 * 60),
+            isAllDay: false,
+            showsMutedBackground: false,
+            travelTimeMinutes: nil,
+            locationText: "Calle 90, San José",
+            meetingURL: nil,
+            calendarID: "utilities",
+            calendarName: "Utilities",
+            calendarColor: .systemRed,
+            kind: .event,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
+        )
+        let snapshot = MenuContentView.LayoutSnapshot(
+            filteredAlertDescriptions: [],
+            contextualActionCandidates: [firstItem, secondItem],
+            contextualPreviewActionItems: [firstItem, secondItem],
+            footballContextualActionItems: [],
+            displayedContextualActionItems: [firstItem, secondItem],
+            contextualPreviewKindsByKey: [
+                firstItem.notificationKey: .attendees(organizer, attendees),
+                secondItem.notificationKey: .location("Calle 90, San José"),
+            ],
+            queueItemsSource: [],
+            queueItemsForSingleColumnLayout: [],
+            queueItemsForSplitLayout: [],
+            queueItemsForActions: [],
+            shouldUseSplitDropdownLayout: true,
+            dropdownMinimumWidth: 708,
+            sharedContextualFootballMatches: nil,
+            sharedContextualFootballCompetitionTitle: nil,
+            sharedContextualFootballCompetitionLogoPath: nil,
+            sharedContextualFootballCompetitionLogoURL: nil,
+            contextualFootballLayoutItemCount: 0,
+            contextualFootballContentLevel: .compact
+        )
+
+        let expandedListHeight = menu.attendeePreviewMaximumListHeight(
+            for: firstItem,
+            snapshot: snapshot,
+            targetPanelHeight: 564,
+            compactPanelHeight: 480
+        )
+
+        XCTAssertEqual(expandedListHeight, 232)
+        XCTAssertGreaterThan(expandedListHeight, 148)
+        XCTAssertEqual(
+            MeetingAttendeesPreview.resolvedListHeight(
+                attendeeCount: attendees.count,
+                maximumHeight: expandedListHeight,
+                columnCount: 1
+            ),
+            expandedListHeight
+        )
     }
 
     private func fittingSize<Content: View>(
@@ -295,5 +503,29 @@ final class FootballContextualLayoutTests: AlertCalendarModelTestCase {
         hostingView.frame = NSRect(x: 0, y: 0, width: width, height: 1_000)
         hostingView.layoutSubtreeIfNeeded()
         return hostingView.fittingSize
+    }
+
+    private func dropdownHeightItem(
+        startDate: Date,
+        endDate: Date,
+        isAllDay: Bool
+    ) -> UpcomingItem {
+        UpcomingItem(
+            id: UUID().uuidString,
+            title: "School break",
+            date: startDate,
+            endDate: endDate,
+            isAllDay: isAllDay,
+            showsMutedBackground: false,
+            travelTimeMinutes: nil,
+            locationText: nil,
+            meetingURL: nil,
+            calendarID: "school",
+            calendarName: "School",
+            calendarColor: .systemBlue,
+            kind: .event,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
+        )
     }
 }

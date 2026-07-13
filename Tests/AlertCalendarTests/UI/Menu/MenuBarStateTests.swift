@@ -174,6 +174,66 @@ final class MenuBarStateTests: XCTestCase {
         )
     }
 
+    func testDocumentIndicatorOnlyUsesDocumentURLs() throws {
+        let meetingURL = try XCTUnwrap(URL(string: "https://meet.google.com/abc-defg-hij"))
+
+        XCTAssertTrue(
+            CalendarMonitor.hasDocumentIndicator(
+                eventURL: try XCTUnwrap(URL(string: "https://example.com/agenda.pdf")),
+                notes: nil,
+                meetingURL: nil
+            )
+        )
+        XCTAssertTrue(
+            CalendarMonitor.hasDocumentIndicator(
+                eventURL: nil,
+                notes: "Prep: https://docs.google.com/document/d/doc-id/edit",
+                meetingURL: nil
+            )
+        )
+        XCTAssertFalse(
+            CalendarMonitor.hasDocumentIndicator(
+                eventURL: try XCTUnwrap(URL(string: "https://example.com/agenda")),
+                notes: nil,
+                meetingURL: nil
+            )
+        )
+        XCTAssertFalse(
+            CalendarMonitor.hasDocumentIndicator(
+                eventURL: nil,
+                notes: "Agenda and prep notes",
+                meetingURL: nil
+            )
+        )
+        XCTAssertFalse(
+            CalendarMonitor.hasDocumentIndicator(
+                eventURL: meetingURL,
+                notes: "Join the call at https://meet.google.com/abc-defg-hij",
+                meetingURL: meetingURL
+            )
+        )
+        XCTAssertFalse(
+            CalendarMonitor.hasDocumentIndicator(
+                eventURL: try XCTUnwrap(URL(string: "alertcalendar-football://fixture?matchID=1&competition=crc.1")),
+                notes: nil,
+                meetingURL: nil
+            )
+        )
+    }
+
+    func testDropdownAccessorySymbolsHideWhileHovered() {
+        let symbolNames = ["paperclip", "repeat"]
+
+        XCTAssertEqual(
+            MenuContentView.dropdownAccessorySymbolNames(symbolNames, isHovered: false),
+            symbolNames
+        )
+        XCTAssertEqual(
+            MenuContentView.dropdownAccessorySymbolNames(symbolNames, isHovered: true),
+            []
+        )
+    }
+
     func testMenuBarAccessorySymbolsShowRecurrenceForReminders() {
         let dueDate = Date(timeIntervalSince1970: 1_800_000_000)
         let reminder = UpcomingItem(
@@ -201,7 +261,7 @@ final class MenuBarStateTests: XCTestCase {
         )
     }
 
-    func testMenuBarAccessorySymbolsCanHideRecurrenceForBirthdays() throws {
+    func testMenuBarAccessorySymbolsCanHideDocumentAndRecurrenceForBirthdays() throws {
         let startDate = Date(timeIntervalSince1970: 1_800_000_000)
         let event = UpcomingItem(
             id: "birthday-1",
@@ -214,7 +274,7 @@ final class MenuBarStateTests: XCTestCase {
             locationText: nil,
             meetingURL: nil,
             isRecurring: true,
-            hasDocumentIndicator: false,
+            hasDocumentIndicator: true,
             calendarID: "birthdays",
             calendarName: "Birthdays",
             calendarColor: .systemPink,
@@ -226,6 +286,7 @@ final class MenuBarStateTests: XCTestCase {
         XCTAssertEqual(
             CalendarMonitor.menuBarAccessorySymbolNames(
                 for: event,
+                includesDocumentIndicator: false,
                 includesRecurrenceIndicator: false
             ),
             []

@@ -75,6 +75,27 @@ final class FootballNotificationFormattingTests: FootballFixtureFormatterTestCas
         XCTAssertEqual(message.body, "\(match.homeTeam.name) 3-1 \(match.awayTeam.name).")
     }
 
+    func testDisallowedGoalNotificationUsesAdjustedScore() {
+        let match = makeMatch(
+            id: "disallowed-goal-message",
+            startDate: startDate,
+            statusState: .inProgress,
+            homeScore: "1",
+            awayScore: "1"
+        )
+
+        let message = CalendarMonitor.footballDisallowedGoalNotificationMessage(
+            for: match,
+            disallowedSide: .home
+        )
+
+        XCTAssertEqual(message.title, "\(match.homeTeam.name) goal disallowed")
+        XCTAssertEqual(
+            message.body,
+            "\(match.homeTeam.name) had a goal ruled out. \(match.homeTeam.name) 1-1 \(match.awayTeam.name)."
+        )
+    }
+
     func testAutoAddNotificationSummarizesAddedMatch() {
         let match = makeMatch(
             id: "auto-add-message",
@@ -105,6 +126,32 @@ final class FootballNotificationFormattingTests: FootballFixtureFormatterTestCas
         )
     }
 
+    func testDisallowedGoalNotificationKeyIncludesScoreCorrection() {
+        let previous = makeMatch(
+            id: "disallowed-goal-key",
+            startDate: startDate,
+            statusState: .inProgress,
+            homeScore: "2",
+            awayScore: "1"
+        )
+        let current = makeMatch(
+            id: "disallowed-goal-key",
+            startDate: startDate,
+            statusState: .inProgress,
+            homeScore: "1",
+            awayScore: "1"
+        )
+
+        XCTAssertEqual(
+            CalendarMonitor.footballDisallowedGoalNotificationKey(
+                from: previous,
+                to: current,
+                disallowedSide: .home
+            ),
+            "football.disallowedGoal.disallowed-goal-key.home.2.2-1.to.1-1"
+        )
+    }
+
     func testFinalNotificationRequiresTransitionIntoFinished() {
         let previous = makeMatch(
             id: "final-transition",
@@ -130,5 +177,65 @@ final class FootballNotificationFormattingTests: FootballFixtureFormatterTestCas
 
         XCTAssertTrue(CalendarMonitor.footballFinishedTransition(from: previous, to: current))
         XCTAssertFalse(CalendarMonitor.footballFinishedTransition(from: current, to: alreadyFinished))
+    }
+
+    func testDisallowedGoalTransitionDetectsSingleSideScoreDecrease() {
+        let previous = makeMatch(
+            id: "disallowed-goal-transition",
+            startDate: startDate,
+            statusState: .inProgress,
+            homeScore: "1",
+            awayScore: "2"
+        )
+        let current = makeMatch(
+            id: "disallowed-goal-transition",
+            startDate: startDate,
+            statusState: .inProgress,
+            homeScore: "1",
+            awayScore: "1"
+        )
+
+        XCTAssertEqual(
+            CalendarMonitor.footballDisallowedGoalSide(from: previous, to: current),
+            .away
+        )
+    }
+
+    func testDisallowedGoalTransitionIgnoresMultiSideCorrections() {
+        let previous = makeMatch(
+            id: "multi-correction",
+            startDate: startDate,
+            statusState: .inProgress,
+            homeScore: "2",
+            awayScore: "2"
+        )
+        let current = makeMatch(
+            id: "multi-correction",
+            startDate: startDate,
+            statusState: .inProgress,
+            homeScore: "1",
+            awayScore: "1"
+        )
+
+        XCTAssertNil(CalendarMonitor.footballDisallowedGoalSide(from: previous, to: current))
+    }
+
+    func testDisallowedGoalTransitionIgnoresMultiGoalCorrections() {
+        let previous = makeMatch(
+            id: "multi-goal-correction",
+            startDate: startDate,
+            statusState: .inProgress,
+            homeScore: "3",
+            awayScore: "0"
+        )
+        let current = makeMatch(
+            id: "multi-goal-correction",
+            startDate: startDate,
+            statusState: .inProgress,
+            homeScore: "1",
+            awayScore: "0"
+        )
+
+        XCTAssertNil(CalendarMonitor.footballDisallowedGoalSide(from: previous, to: current))
     }
 }

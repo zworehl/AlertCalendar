@@ -7,10 +7,26 @@ extension MenuContentView {
     func contextualActionSection(snapshot: LayoutSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             calendarSectionContainer(
+                minimumHeight: splitContextualPanelMinimumHeight(snapshot: snapshot),
                 bottomPadding: snapshot.shouldUseSplitDropdownLayout ? splitPanelBottomPadding : nil
             ) {
                 contextualActionPanelContent(snapshot: snapshot)
                     .frame(width: contextualPanelContentWidth(snapshot: snapshot), alignment: .topLeading)
+                    .background(
+                        GeometryReader { proxy in
+                            Color.clear.preference(
+                                key: SplitContextualPanelMeasurementPreferenceKey.self,
+                                value: SplitContextualPanelMeasurement(
+                                    key: snapshot.contextualPanelMeasurementKey,
+                                    height: proxy.size.height
+                                        + panelTopPadding
+                                        + (snapshot.shouldUseSplitDropdownLayout
+                                            ? splitPanelBottomPadding
+                                            : panelBottomPadding)
+                                )
+                            )
+                        }
+                    )
             }
         }
         .frame(width: contextualPanelOuterWidth(snapshot: snapshot), alignment: .topLeading)
@@ -75,7 +91,9 @@ extension MenuContentView {
     }
 
     func upcomingQueueRows(snapshot: LayoutSnapshot) -> some View {
-        VStack(spacing: 0) {
+        let trailingActionInset = upcomingActionTrailingInset(snapshot: snapshot)
+
+        return VStack(spacing: 0) {
             if snapshot.queueItemsForActions.isEmpty {
                 emptySectionRow("No upcoming items")
             } else {
@@ -83,7 +101,11 @@ extension MenuContentView {
                     if index > 0 {
                         Divider()
                     }
-                    actionRow(item: item, actions: [.skip])
+                    actionRow(
+                        item: item,
+                        actions: [.skip],
+                        trailingActionInset: trailingActionInset
+                    )
                 }
             }
         }

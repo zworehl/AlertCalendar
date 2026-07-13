@@ -287,6 +287,9 @@ extension SettingsFootballFixturesSectionView {
                 Toggle("Goals", isOn: $enableFootballGoalNotifications)
                     .toggleStyle(.checkbox)
 
+                Toggle("Disallowed goals", isOn: $enableFootballDisallowedGoalNotifications)
+                    .toggleStyle(.checkbox)
+
                 Toggle("Scorer names", isOn: $includeFootballGoalScorerInNotifications)
                     .toggleStyle(.checkbox)
                     .disabled(!enableFootballGoalNotifications)
@@ -307,6 +310,9 @@ extension SettingsFootballFixturesSectionView {
                 spacing: 8
             ) {
                 Toggle("Goals", isOn: $enableFootballGoalNotifications)
+                    .toggleStyle(.checkbox)
+
+                Toggle("Disallowed goals", isOn: $enableFootballDisallowedGoalNotifications)
                     .toggleStyle(.checkbox)
 
                 Toggle("Scorer names", isOn: $includeFootballGoalScorerInNotifications)

@@ -5,15 +5,32 @@ import SwiftUI
 
 extension MenuContentView {
     @ViewBuilder
-    func actionRow(item: UpcomingItem, actions: [MenuAction]) -> some View {
+    func actionRow(
+        item: UpcomingItem,
+        actions: [MenuAction],
+        trailingActionInset: CGFloat = 0
+    ) -> some View {
         MenuContentHoverContainer { isHovered in
-            actionRowContent(item: item, actions: actions, isHovered: isHovered)
+            actionRowContent(
+                item: item,
+                actions: actions,
+                isHovered: isHovered,
+                trailingActionInset: trailingActionInset
+            )
         }
     }
 
     @ViewBuilder
-    func actionRowContent(item: UpcomingItem, actions: [MenuAction], isHovered: Bool) -> some View {
-        let reservedTrailingWidth = isHovered ? hoverActionRowWidth(for: item) : 0
+    func actionRowContent(
+        item: UpcomingItem,
+        actions: [MenuAction],
+        isHovered: Bool,
+        trailingActionInset: CGFloat = 0
+    ) -> some View {
+        let resolvedTrailingActionInset = max(0, trailingActionInset)
+        let reservedTrailingWidth = isHovered
+            ? hoverActionRowWidth(for: item, trailingInset: resolvedTrailingActionInset)
+            : 0
         let now = displayReferenceDate
 
         ZStack(alignment: .trailing) {
@@ -63,7 +80,7 @@ extension MenuContentView {
                     }
                 }
                 .frame(minWidth: 30, alignment: .trailing)
-                .padding(.trailing, 2)
+                .padding(.trailing, 2 + resolvedTrailingActionInset)
             }
         }
         .font(.caption)
@@ -88,7 +105,10 @@ extension MenuContentView {
         let titleFont = Font.system(size: 12, weight: .semibold)
         let detailFont = Font.system(size: 11, weight: .medium)
         let detailIconFont = Font.system(size: 12, weight: .regular)
-        let accessorySymbolNames = monitor.menuBarAccessorySymbolNames(for: item)
+        let accessorySymbolNames = Self.dropdownAccessorySymbolNames(
+            monitor.menuBarAccessorySymbolNames(for: item),
+            isHovered: isHovered
+        )
         let hasVirtualLocation = monitor.isVirtualLocationText(item.locationText)
         let usesEventStyleLayout = item.kind == .event
         let showTravelTime = item.kind == .event
@@ -102,6 +122,11 @@ extension MenuContentView {
             simplified: settings.useSimplifiedCountdown
         )
         let showRightTimeColumn = usesEventStyleLayout && (!item.isAllDay || allDayRightLabel != nil)
+        let minimumRowHeight = rowPrimaryContentMinimumHeight(
+            for: item,
+            showsTravelTime: showTravelTime,
+            showRightTimeColumn: showRightTimeColumn
+        )
         let textBlock = HStack(alignment: .top, spacing: 8) {
             if let markerSymbol = markerSymbolName(for: item) {
                 Image(systemName: markerSymbol)
@@ -315,7 +340,7 @@ extension MenuContentView {
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
         .padding(.trailing, reservedTrailingWidth)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: minimumRowHeight, alignment: .leading)
         .background(alignment: .leading) {
             let visual = monitor.segmentBackgroundVisual(for: item, now: now, settings: settings)
 

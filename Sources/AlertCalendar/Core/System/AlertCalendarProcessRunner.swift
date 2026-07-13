@@ -20,9 +20,13 @@ enum AlertCalendarProcessRunner {
 
         do {
             try process.run()
-            if waitUntilExit {
-                process.waitUntilExit()
+            guard waitUntilExit else {
+                // A running process has no termination status yet. Preserve the
+                // existing non-nil success contract for fire-and-forget callers.
+                return 0
             }
+
+            process.waitUntilExit()
             return process.terminationStatus
         } catch {
             return nil

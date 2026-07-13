@@ -47,7 +47,7 @@ extension MenuContentView {
 
     private func singleColumnPanelOuterWidth(snapshot: LayoutSnapshot) -> CGFloat {
         max(
-            minimumSingleColumnDropdownWidth,
+            minimumSingleColumnDropdownWidth - (dropdownOuterPadding * 2),
             snapshot.dropdownMinimumWidth - (dropdownOuterPadding * 2)
         )
     }
@@ -307,6 +307,16 @@ extension MenuContentView {
         return min(splitDropdownColumnHeightLimit, measuredHeight)
     }
 
+    func splitContextualPanelMinimumHeight(
+        snapshot: LayoutSnapshot,
+        measuredRightColumnHeight: CGFloat? = nil
+    ) -> CGFloat? {
+        guard snapshot.shouldUseSplitDropdownLayout else { return nil }
+        let measuredHeight = measuredRightColumnHeight ?? splitRightColumnHeight
+        guard measuredHeight > 0 else { return nil }
+        return measuredHeight
+    }
+
     func upcomingSplitPanelHeight(snapshot: LayoutSnapshot) -> CGFloat? {
         splitPanelHeight(measuredHeight: splitUpcomingPanelHeight, snapshot: snapshot)
     }
@@ -326,6 +336,35 @@ extension MenuContentView {
         }
 
         return splitUpcomingPanelHeight > upcomingSplitPanelHeight + 0.5
+    }
+
+    func shouldShowUpcomingScrollIndicator(snapshot: LayoutSnapshot) -> Bool {
+        guard !snapshot.queueItemsForActions.isEmpty else { return false }
+
+        if snapshot.shouldUseSplitDropdownLayout {
+            return shouldScrollUpcomingSplitPanel(snapshot: snapshot)
+        }
+
+        let contentHeight = max(
+            0,
+            splitUpcomingPanelHeight - panelTopPadding - panelBottomPadding
+        )
+        return contentHeight > upcomingListMaxHeight + 0.5
+    }
+
+    func upcomingActionTrailingInset(snapshot: LayoutSnapshot) -> CGFloat {
+        Self.actionTrailingInset(
+            showsVerticalScrollIndicator: shouldShowUpcomingScrollIndicator(snapshot: snapshot),
+            scrollerWidth: NSScroller.scrollerWidth(for: .regular, scrollerStyle: .overlay)
+        )
+    }
+
+    nonisolated static func actionTrailingInset(
+        showsVerticalScrollIndicator: Bool,
+        scrollerWidth: CGFloat
+    ) -> CGFloat {
+        guard showsVerticalScrollIndicator else { return 0 }
+        return ceil(max(0, scrollerWidth))
     }
 
     var shouldUseSplitDropdownLayout: Bool {

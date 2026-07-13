@@ -89,6 +89,7 @@ struct AppSettingsStore {
                 rawValue: defaults.string(forKey: DefaultsKeys.footballCalendarAlertOption) ?? ""
             ) ?? defaultSettings.footballCalendarAlertOption,
             enableFootballGoalNotifications: defaults.bool(forKey: DefaultsKeys.enableFootballGoalNotifications),
+            enableFootballDisallowedGoalNotifications: defaults.bool(forKey: DefaultsKeys.enableFootballDisallowedGoalNotifications),
             includeFootballGoalScorerInNotifications: defaults.bool(forKey: DefaultsKeys.includeFootballGoalScorerInNotifications),
             enableFootballFinalNotifications: defaults.bool(forKey: DefaultsKeys.enableFootballFinalNotifications),
             enableFootballAutoAddNotifications: defaults.bool(forKey: DefaultsKeys.enableFootballAutoAddNotifications),
@@ -161,6 +162,7 @@ struct AppSettingsStore {
         defaults.set(settings.footballTargetCalendarID, forKey: DefaultsKeys.footballTargetCalendarID)
         defaults.set(settings.footballCalendarAlertOption.rawValue, forKey: DefaultsKeys.footballCalendarAlertOption)
         defaults.set(settings.enableFootballGoalNotifications, forKey: DefaultsKeys.enableFootballGoalNotifications)
+        defaults.set(settings.enableFootballDisallowedGoalNotifications, forKey: DefaultsKeys.enableFootballDisallowedGoalNotifications)
         defaults.set(settings.includeFootballGoalScorerInNotifications, forKey: DefaultsKeys.includeFootballGoalScorerInNotifications)
         defaults.set(settings.enableFootballFinalNotifications, forKey: DefaultsKeys.enableFootballFinalNotifications)
         defaults.set(settings.enableFootballAutoAddNotifications, forKey: DefaultsKeys.enableFootballAutoAddNotifications)
@@ -292,6 +294,7 @@ struct AppSettingsStore {
             DefaultsKeys.footballAutoAddCompetitionSlugs: [],
             DefaultsKeys.footballCalendarAlertOption: defaultSettings.footballCalendarAlertOption.rawValue,
             DefaultsKeys.enableFootballGoalNotifications: defaultSettings.enableFootballGoalNotifications,
+            DefaultsKeys.enableFootballDisallowedGoalNotifications: defaultSettings.enableFootballDisallowedGoalNotifications,
             DefaultsKeys.includeFootballGoalScorerInNotifications: defaultSettings.includeFootballGoalScorerInNotifications,
             DefaultsKeys.enableFootballFinalNotifications: defaultSettings.enableFootballFinalNotifications,
             DefaultsKeys.enableFootballAutoAddNotifications: defaultSettings.enableFootballAutoAddNotifications,

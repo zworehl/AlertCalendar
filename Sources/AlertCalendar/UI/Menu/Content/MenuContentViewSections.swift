@@ -118,6 +118,7 @@ extension MenuContentView {
 
     func calendarSectionContainer<Content: View>(
         height: CGFloat? = nil,
+        minimumHeight: CGFloat? = nil,
         bottomPadding: CGFloat? = nil,
         @ViewBuilder content: () -> Content
     ) -> some View {
@@ -130,6 +131,7 @@ extension MenuContentView {
         .padding(.top, panelTopPadding)
         .padding(.bottom, resolvedBottomPadding)
         .frame(height: height, alignment: .topLeading)
+        .frame(minHeight: minimumHeight, alignment: .topLeading)
         .clipped()
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)

@@ -49,7 +49,14 @@ extension CalendarMonitor {
             let title = normalizedTitle(event.title)
             let calendarName = event.calendar.title
             let calendarColor = color(from: event.calendar)
-            let showsMutedBackground = requiresMutedParticipationStyle(for: event)
+            let eventParticipationStatus = eventParticipationStatus(for: event)
+            guard Self.shouldIncludeEvent(
+                status: event.status,
+                participationStatus: eventParticipationStatus
+            ) else {
+                continue
+            }
+            let showsMutedBackground = eventParticipationStatus?.usesTexturedFill == true
             let meetingURL = meetingURL(for: event)
             let locationText = Self.preferredLocationText(
                 eventLocation: event.location,
@@ -58,7 +65,6 @@ extension CalendarMonitor {
             let footballMenuBarDisplay = footballMatch.map(footballMenuBarDisplay(for:))
             let organizer = organizer(for: event)
             let attendees = invitees(for: event)
-            let eventParticipationStatus = eventParticipationStatus(for: event)
             let isRecurring = isRecurringEvent(event)
             let hasDocumentIndicator = hasDocumentIndicator(for: event, meetingURL: meetingURL)
             let travelTimeMinutes = normalizedTravelTimeMinutes(
@@ -211,8 +217,20 @@ extension CalendarMonitor {
         }
     }
 
-    func requiresMutedParticipationStyle(for event: EKEvent) -> Bool {
-        eventParticipationStatus(for: event)?.usesTexturedFill == true
+    nonisolated static func shouldIncludeEvent(
+        status: EKEventStatus,
+        participationStatus: EventParticipationStatus?
+    ) -> Bool {
+        switch status {
+        case .canceled:
+            return false
+        case .none, .confirmed, .tentative:
+            break
+        @unknown default:
+            break
+        }
+
+        return participationStatus != .declined
     }
 
     func eventParticipationStatus(for event: EKEvent) -> EventParticipationStatus? {
@@ -251,20 +269,32 @@ extension CalendarMonitor {
     }
 
     func hasDocumentIndicator(for event: EKEvent, meetingURL: URL?) -> Bool {
-        var candidates = [URL]()
+        Self.hasDocumentIndicator(
+            eventURL: event.url,
+            notes: event.notes,
+            meetingURL: meetingURL
+        )
+    }
 
-        if let eventURL = event.url {
+    nonisolated static func hasDocumentIndicator(
+        eventURL: URL?,
+        notes: String?,
+        meetingURL: URL?
+    ) -> Bool {
+        var candidates: [URL] = []
+
+        if let eventURL {
             candidates.append(eventURL)
         }
 
-        if let notes = AlertCalendarString.trimmedNonEmpty(event.notes) {
-            candidates.append(contentsOf: allURLs(in: notes))
+        if let notes = AlertCalendarString.trimmedNonEmpty(notes) {
+            candidates.append(contentsOf: MeetingURLResolver.allURLs(in: notes))
         }
 
         return candidates.contains { candidate in
-            guard !Self.urlsMatch(candidate, meetingURL) else { return false }
-            guard !isKnownMeetingURL(candidate) else { return false }
-            return Self.isDocumentIndicatorURL(candidate)
+            guard !urlsMatch(candidate, meetingURL) else { return false }
+            guard !MeetingURLResolver.isKnownMeetingURL(candidate) else { return false }
+            return isDocumentIndicatorURL(candidate)
         }
     }
 

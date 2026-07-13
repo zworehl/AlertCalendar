@@ -45,7 +45,10 @@ extension MenuContentView {
             return false
         }()
         let mapPreviewHeight: CGFloat = snapshot.shouldUseSplitDropdownLayout ? 96 : 112
-        let attendeePreviewListHeight: CGFloat = snapshot.shouldUseSplitDropdownLayout ? 148 : 188
+        let attendeePreviewListHeight = attendeePreviewMaximumListHeight(
+            for: item,
+            snapshot: snapshot
+        )
         let footballContentLevel = snapshot.contextualFootballContentLevel
         let now = displayReferenceDate
         let cardContentWidth = contextualPanelContentWidth(snapshot: snapshot)
@@ -361,6 +364,21 @@ extension MenuContentView {
             && item.meetingURL == nil
             && !hasVirtualLocation
             && (item.travelTimeMinutes ?? 0) > 0
+        let allDayRightLabel = monitor.allDayLabel(
+            for: item,
+            now: displayReferenceDate,
+            simplified: settings.useSimplifiedCountdown
+        )
+        let showRightTimeColumn = item.kind == .event && (!item.isAllDay || allDayRightLabel != nil)
+
+        if let preservedHeight = rowPrimaryContentMinimumHeight(
+            for: item,
+            showsTravelTime: showsTravelTime,
+            showRightTimeColumn: showRightTimeColumn
+        ) {
+            return preservedHeight
+        }
+
         let showsLocation = item.kind == .event
             && !item.isAllDay
             && item.locationText.map {

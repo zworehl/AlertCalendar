@@ -50,6 +50,25 @@ final class AppSettingsStoreMigrationTests: XCTestCase {
         XCTAssertEqual(loaded.rules.first?.route.profileID, "Profile 3")
     }
 
+    func testFootballDisallowedGoalNotificationPreferencePersists() {
+        let suiteName = "AppSettingsStoreMigrationTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let store = AppSettingsStore(defaults: defaults)
+        store.registerDefaults()
+
+        var settings = store.load()
+        XCTAssertTrue(settings.enableFootballDisallowedGoalNotifications)
+
+        settings.enableFootballDisallowedGoalNotifications = false
+        store.save(settings)
+
+        XCTAssertFalse(store.load().enableFootballDisallowedGoalNotifications)
+    }
+
     func testNonWorkingDatesPruneExpiredAndOutOfRangeConfiguration() {
         let suiteName = "AppSettingsStoreMigrationTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
