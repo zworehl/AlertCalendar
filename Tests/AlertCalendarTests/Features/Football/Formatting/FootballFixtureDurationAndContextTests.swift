@@ -357,6 +357,122 @@ final class FootballFixtureDurationAndContextTests: FootballFixtureFormatterTest
 
         XCTAssertEqual(CalendarMonitor.footballStatusBadgeText(for: match, now: now), "90'+2'")
     }
+
+    func testLiveClockPreservesBaseAndStoppageMinutes() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let match = makeMatch(
+            id: "stoppage-clock-components",
+            startDate: now.addingTimeInterval(-110 * 60),
+            statusState: .inProgress,
+            statusText: "90'+6'",
+            competitionSlug: "eng.1"
+        )
+
+        let clock = CalendarMonitor.footballLiveMinuteComponents(for: match, now: now)
+
+        XCTAssertEqual(clock?.baseMinute, 90)
+        XCTAssertEqual(clock?.stoppageMinute, 6)
+        XCTAssertEqual(clock?.combinedMinute, 96)
+    }
+
+    func testDetailedLivePhaseUsesBaseMinuteAtStoppageBoundaries() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let firstHalfStoppage = makeMatch(
+            id: "first-half-stoppage-phase",
+            startDate: now.addingTimeInterval(-50 * 60),
+            statusState: .inProgress,
+            statusText: "45'+3'",
+            competitionSlug: "eng.1"
+        )
+        let secondHalfStoppage = makeMatch(
+            id: "second-half-stoppage-phase",
+            startDate: now.addingTimeInterval(-110 * 60),
+            statusState: .inProgress,
+            statusText: "90'+6'",
+            competitionSlug: "uefa.super_cup",
+            seasonSlug: "final",
+            competitionNote: "Final",
+            homeScore: "1",
+            awayScore: "1"
+        )
+        let firstExtraTimeStoppage = makeMatch(
+            id: "first-extra-time-stoppage-phase",
+            startDate: now.addingTimeInterval(-120 * 60),
+            statusState: .inProgress,
+            statusText: "105'+2'",
+            competitionSlug: "uefa.super_cup",
+            seasonSlug: "final",
+            competitionNote: "Final",
+            homeScore: "1",
+            awayScore: "1"
+        )
+
+        XCTAssertEqual(
+            CalendarMonitor.footballDetailedLiveMatchPhase(for: firstHalfStoppage, now: now),
+            .firstHalf
+        )
+        XCTAssertEqual(
+            CalendarMonitor.footballDetailedLiveMatchPhase(for: secondHalfStoppage, now: now),
+            .secondHalf
+        )
+        XCTAssertFalse(CalendarMonitor.footballStatusIndicatesExtraTime(for: secondHalfStoppage, now: now))
+        XCTAssertEqual(
+            CalendarMonitor.footballDetailedLiveMatchPhase(for: firstExtraTimeStoppage, now: now),
+            .extraTimeFirstHalf
+        )
+    }
+
+    func testESPNStatusPeriodsMapToDetailedMatchPhases() {
+        XCTAssertEqual(CalendarMonitor.footballStatusPeriodPhase(1), .firstHalf)
+        XCTAssertEqual(CalendarMonitor.footballStatusPeriodPhase(2), .secondHalf)
+        XCTAssertEqual(CalendarMonitor.footballStatusPeriodPhase(3), .extraTimeFirstHalf)
+        XCTAssertEqual(CalendarMonitor.footballStatusPeriodPhase(4), .extraTimeSecondHalf)
+        XCTAssertEqual(CalendarMonitor.footballStatusPeriodPhase(5), .penalties)
+        XCTAssertEqual(CalendarMonitor.footballStatusPeriodPhase(6), .penalties)
+        XCTAssertEqual(CalendarMonitor.footballStatusPeriodPhase(nil), .unknown)
+        XCTAssertTrue(CalendarMonitor.footballStatusPeriodIndicatesExtraTime(3))
+        XCTAssertTrue(CalendarMonitor.footballStatusPeriodIndicatesExtraTimeFirstHalf(3))
+        XCTAssertTrue(CalendarMonitor.footballStatusPeriodIndicatesExtraTimeSecondHalf(4))
+        XCTAssertTrue(CalendarMonitor.footballStatusPeriodIndicatesPenaltyShootout(5))
+    }
+
+    func testPeriodThreeConfirmsExtraTimeForFinishedMatchDuration() {
+        let match = makeMatch(
+            id: "finished-first-extra-time-period",
+            startDate: Date(timeIntervalSince1970: 1_720_000_000),
+            statusState: .finished,
+            statusText: "FT",
+            statusPeriod: 3,
+            competitionSlug: "uefa.super_cup",
+            seasonSlug: "final",
+            competitionNote: "Final",
+            homeScore: "2",
+            awayScore: "1"
+        )
+
+        XCTAssertTrue(CalendarMonitor.footballStatusConfirmsExtraTime(match))
+        XCTAssertEqual(CalendarMonitor.approximateFootballMatchDuration(for: match), 140 * 60)
+    }
+
+    func testInterruptedDurationUsesBaseMinuteToPlaceStoppageInCorrectHalf() {
+        let firstHalf = makeMatch(
+            id: "abandoned-first-half-stoppage",
+            startDate: Date(timeIntervalSince1970: 1_720_000_000),
+            statusState: .finished,
+            statusText: "Abandoned",
+            statusDetailText: "45'+3'"
+        )
+        let secondHalf = makeMatch(
+            id: "abandoned-second-half-stoppage",
+            startDate: Date(timeIntervalSince1970: 1_720_000_000),
+            statusState: .finished,
+            statusText: "Abandoned",
+            statusDetailText: "90'+6'"
+        )
+
+        XCTAssertEqual(CalendarMonitor.approximateFootballMatchDuration(for: firstHalf), 48 * 60)
+        XCTAssertEqual(CalendarMonitor.approximateFootballMatchDuration(for: secondHalf), 111 * 60)
+    }
     func testFixtureContextTextPrefersStructuredSeriesSummary() {
         let match = makeMatch(
             id: "fixture-context",

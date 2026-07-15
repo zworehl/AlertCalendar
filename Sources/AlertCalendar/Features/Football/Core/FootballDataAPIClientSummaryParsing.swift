@@ -106,7 +106,6 @@ extension FootballDataAPIClient {
             guard let wallclock = stringValue(event["wallclock"]) else { return nil }
             return parseEventDate(wallclock)
         }
-
         guard let actualKickoff = kickoffDates.min() else { return nil }
 
         let earliestAllowed = fallbackStartDate.addingTimeInterval(-15 * 60)
@@ -114,10 +113,8 @@ extension FootballDataAPIClient {
         guard actualKickoff >= earliestAllowed, actualKickoff <= latestAllowed else {
             return nil
         }
-
         return actualKickoff
     }
-
     static func actualEndDate(
         from root: [String: Any],
         fallbackStartDate: Date,
@@ -127,7 +124,7 @@ extension FootballDataAPIClient {
         let keyEvents = root["keyEvents"] as? [[String: Any]] ?? []
         let matchStartDate = actualStartDate ?? fallbackStartDate
         let terminalEndDates = keyEvents.compactMap { event -> (date: Date, kind: MatchTerminalEndKind)? in
-            guard let kind = matchTerminalEndKind(from: event),
+            guard let kind = matchTerminalEndKind(from: event, statusPeriod: statusPeriod),
                   let wallclock = stringValue(event["wallclock"]),
                   let date = parseEventDate(wallclock),
                   isReasonableMatchEndDate(date, startDate: matchStartDate) else {
@@ -135,37 +132,39 @@ extension FootballDataAPIClient {
             }
             return (date, kind)
         }
-
         guard !terminalEndDates.isEmpty else { return nil }
-
         if let statusPeriod {
             if statusPeriod >= 5 {
                 return terminalEndDates.filter({ $0.kind == .penalties }).map(\.date).max()
             }
-
             if statusPeriod >= 3 {
                 return terminalEndDates.filter({ $0.kind == .extraTime }).map(\.date).max()
             }
-
             return terminalEndDates.filter({ $0.kind == .regularTime }).map(\.date).max()
         }
-
         return terminalEndDates
             .filter { $0.kind == .penalties || $0.kind == .extraTime || $0.kind == .regularTime }
             .map(\.date)
             .max()
     }
-
     private enum MatchTerminalEndKind {
         case regularTime
         case extraTime
         case penalties
     }
-
-    private static func matchTerminalEndKind(from event: [String: Any]) -> MatchTerminalEndKind? {
+    private static func matchTerminalEndKind(
+        from event: [String: Any],
+        statusPeriod: Int?
+    ) -> MatchTerminalEndKind? {
         let type = event["type"] as? [String: Any]
         let typeText = normalizedEventTypeToken(stringValue(type?["text"]) ?? "")
         let typeValue = normalizedEventTypeToken(stringValue(type?["type"]) ?? "")
+
+        if typeValue == "END MATCH" || typeText == "END MATCH" {
+            if (statusPeriod ?? 0) >= 5 { return .penalties }
+            if (statusPeriod ?? 0) >= 3 { return .extraTime }
+            return .regularTime
+        }
 
         if typeValue == "END REGULAR TIME" || typeText == "END REGULAR TIME" {
             return .regularTime
@@ -491,6 +490,10 @@ extension FootballDataAPIClient {
             awayYellowCards: 0,
             homeRedCards: 0,
             awayRedCards: 0,
+            officialWinner: officialWinnerSide(homeCompetitor: home, awayCompetitor: away),
+            homeShootoutScore: shootoutScore(from: home),
+            awayShootoutScore: shootoutScore(from: away),
+            pregameOutcomeProbabilities: pregameOutcomeProbabilities(from: event, competition: competition),
             outcomeProbabilities: matchOutcomeProbabilities(from: event, competition: competition)
         )
     }

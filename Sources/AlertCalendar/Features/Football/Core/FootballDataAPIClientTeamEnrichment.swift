@@ -124,6 +124,10 @@ extension FootballDataAPIClient {
             awayYellowCards: match.awayYellowCards,
             homeRedCards: match.homeRedCards,
             awayRedCards: match.awayRedCards,
+            officialWinner: match.officialWinner,
+            homeShootoutScore: match.homeShootoutScore,
+            awayShootoutScore: match.awayShootoutScore,
+            pregameOutcomeProbabilities: match.pregameOutcomeProbabilities,
             outcomeProbabilities: match.outcomeProbabilities
         )
     }

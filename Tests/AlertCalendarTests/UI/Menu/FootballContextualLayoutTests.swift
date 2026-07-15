@@ -381,14 +381,24 @@ final class FootballContextualLayoutTests: AlertCalendarModelTestCase {
         XCTAssertEqual(
             menu.splitContextualPanelMinimumHeight(
                 snapshot: snapshot,
-                measuredRightColumnHeight: 564
+                measuredRightColumnHeight: 480,
+                measuredContextualPanelHeight: 500
             ),
-            564
+            500
+        )
+        XCTAssertEqual(
+            menu.splitContextualPanelMinimumHeight(
+                snapshot: snapshot,
+                measuredRightColumnHeight: 480,
+                measuredContextualPanelHeight: 10_000
+            ),
+            10_000
         )
         XCTAssertNil(
             menu.splitContextualPanelMinimumHeight(
                 snapshot: snapshot,
-                measuredRightColumnHeight: 0
+                measuredRightColumnHeight: 0,
+                measuredContextualPanelHeight: 0
             )
         )
 

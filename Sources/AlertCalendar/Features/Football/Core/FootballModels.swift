@@ -12,65 +12,6 @@ enum FootballFixtureStatusReliability: String, Hashable {
     case awaitingLiveData
     case delayedLiveData
 }
-
-enum FootballMatchOutcomeProbabilitySource: String, Hashable {
-    case marketOdds
-    case liveMarketOdds
-    case heuristic
-    case finalResult
-}
-
-enum FootballMatchOutcomeProbabilityScope: String, Hashable {
-    case regulationTime
-    case extraTimePossible
-    case decisiveResult
-}
-
-struct FootballMatchOutcomeProbabilities: Hashable {
-    let homeWin: Double
-    let draw: Double
-    let awayWin: Double
-    let source: FootballMatchOutcomeProbabilitySource
-    let scope: FootballMatchOutcomeProbabilityScope
-    let providerName: String?
-
-    init?(
-        homeWin: Double,
-        draw: Double,
-        awayWin: Double,
-        source: FootballMatchOutcomeProbabilitySource,
-        scope: FootballMatchOutcomeProbabilityScope,
-        providerName: String? = nil
-    ) {
-        let values = [homeWin, draw, awayWin]
-        guard values.allSatisfy({ $0.isFinite && $0 >= 0 }) else { return nil }
-
-        let total = values.reduce(0, +)
-        guard total > 0 else { return nil }
-
-        self.homeWin = homeWin / total
-        self.draw = draw / total
-        self.awayWin = awayWin / total
-        self.source = source
-        self.scope = scope
-        self.providerName = providerName
-    }
-
-    func replacing(
-        source: FootballMatchOutcomeProbabilitySource? = nil,
-        scope: FootballMatchOutcomeProbabilityScope? = nil
-    ) -> FootballMatchOutcomeProbabilities {
-        FootballMatchOutcomeProbabilities(
-            homeWin: homeWin,
-            draw: draw,
-            awayWin: awayWin,
-            source: source ?? self.source,
-            scope: scope ?? self.scope,
-            providerName: providerName
-        ) ?? self
-    }
-}
-
 struct FootballTeamSummary: Identifiable, Hashable {
     let id: String
     let name: String
@@ -162,6 +103,10 @@ struct FootballFixtureMatch: Identifiable, Hashable {
     let awayYellowCards: Int
     let homeRedCards: Int
     let awayRedCards: Int
+    let officialWinner: FootballScoreSide?
+    let homeShootoutScore: Int?
+    let awayShootoutScore: Int?
+    let pregameOutcomeProbabilities: FootballMatchOutcomeProbabilities?
     let outcomeProbabilities: FootballMatchOutcomeProbabilities?
 
     init(
@@ -190,6 +135,10 @@ struct FootballFixtureMatch: Identifiable, Hashable {
         awayYellowCards: Int = 0,
         homeRedCards: Int = 0,
         awayRedCards: Int = 0,
+        officialWinner: FootballScoreSide? = nil,
+        homeShootoutScore: Int? = nil,
+        awayShootoutScore: Int? = nil,
+        pregameOutcomeProbabilities: FootballMatchOutcomeProbabilities? = nil,
         outcomeProbabilities: FootballMatchOutcomeProbabilities? = nil
     ) {
         self.id = id
@@ -217,6 +166,10 @@ struct FootballFixtureMatch: Identifiable, Hashable {
         self.awayYellowCards = awayYellowCards
         self.homeRedCards = homeRedCards
         self.awayRedCards = awayRedCards
+        self.officialWinner = officialWinner
+        self.homeShootoutScore = homeShootoutScore
+        self.awayShootoutScore = awayShootoutScore
+        self.pregameOutcomeProbabilities = pregameOutcomeProbabilities
         self.outcomeProbabilities = outcomeProbabilities
     }
 

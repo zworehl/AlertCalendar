@@ -357,7 +357,21 @@ extension CalendarMonitor {
             isNational: previousMatch.awayTeam.isNational,
             logoURL: previousMatch.awayTeam.logoURL
         )
-        let outcomeProbabilities = match.outcomeProbabilities ?? previousMatch.outcomeProbabilities
+        let officialWinner = match.officialWinner ?? previousMatch.officialWinner
+        let homeShootoutScore = match.homeShootoutScore ?? previousMatch.homeShootoutScore
+        let awayShootoutScore = match.awayShootoutScore ?? previousMatch.awayShootoutScore
+        let pregameOutcomeProbabilities = match.pregameOutcomeProbabilities
+            ?? previousMatch.pregameOutcomeProbabilities
+        let outcomeProbabilities: FootballMatchOutcomeProbabilities?
+        if let probabilities = match.outcomeProbabilities {
+            outcomeProbabilities = probabilities
+        } else if previousMatch.outcomeProbabilities?.source == .liveMarketOdds {
+            // The current scoreboard response succeeded but no longer exposes the
+            // in-play market, so an older live quote must not survive the merge.
+            outcomeProbabilities = nil
+        } else {
+            outcomeProbabilities = previousMatch.outcomeProbabilities
+        }
 
         guard actualStartDate != match.actualStartDate
             || actualEndDate != match.actualEndDate
@@ -366,6 +380,10 @@ extension CalendarMonitor {
             || statusPeriod != match.statusPeriod
             || homeTeam != match.homeTeam
             || awayTeam != match.awayTeam
+            || officialWinner != match.officialWinner
+            || homeShootoutScore != match.homeShootoutScore
+            || awayShootoutScore != match.awayShootoutScore
+            || pregameOutcomeProbabilities != match.pregameOutcomeProbabilities
             || outcomeProbabilities != match.outcomeProbabilities else {
             return match
         }
@@ -396,6 +414,10 @@ extension CalendarMonitor {
             awayYellowCards: match.awayYellowCards,
             homeRedCards: match.homeRedCards,
             awayRedCards: match.awayRedCards,
+            officialWinner: officialWinner,
+            homeShootoutScore: homeShootoutScore,
+            awayShootoutScore: awayShootoutScore,
+            pregameOutcomeProbabilities: pregameOutcomeProbabilities,
             outcomeProbabilities: outcomeProbabilities
         )
     }

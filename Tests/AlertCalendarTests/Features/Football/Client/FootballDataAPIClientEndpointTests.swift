@@ -79,7 +79,10 @@ final class FootballDataAPIClientEndpointTests: XCTestCase {
             statusDetailText: "Second Half",
             statusPeriod: 2,
             homeScore: "2",
-            awayScore: "1"
+            awayScore: "1",
+            officialWinner: .home,
+            homeShootoutScore: 4,
+            awayShootoutScore: 2
         )
 
         XCTAssertEqual(
@@ -92,7 +95,36 @@ final class FootballDataAPIClientEndpointTests: XCTestCase {
         )
         XCTAssertEqual(
             FootballDataAPIClient.summaryRootCacheKey(url: summaryURL, match: match),
-            "https://example.test/summary?event=cache-key|cache-key|2|1|62'|inProgress|Second Half|2"
+            "https://example.test/summary?event=cache-key|cache-key|2|1|62'|inProgress|Second Half|2|home|4-2"
+        )
+    }
+
+    func testSummaryCacheKeyChangesWithShootoutState() throws {
+        let summaryURL = try XCTUnwrap(URL(string: "https://example.test/summary?event=shootout"))
+        let earlier = FootballTestData.match(
+            id: "shootout",
+            statusState: .inProgress,
+            statusText: "PEN",
+            statusPeriod: 5,
+            homeScore: "1",
+            awayScore: "1",
+            homeShootoutScore: 2,
+            awayShootoutScore: 2
+        )
+        let later = FootballTestData.match(
+            id: "shootout",
+            statusState: .inProgress,
+            statusText: "PEN",
+            statusPeriod: 5,
+            homeScore: "1",
+            awayScore: "1",
+            homeShootoutScore: 3,
+            awayShootoutScore: 2
+        )
+
+        XCTAssertNotEqual(
+            FootballDataAPIClient.summaryRootCacheKey(url: summaryURL, match: earlier),
+            FootballDataAPIClient.summaryRootCacheKey(url: summaryURL, match: later)
         )
     }
 }

@@ -15,7 +15,9 @@ extension FootballDataAPIClient {
     static func summaryRootCacheKey(url: URL, match: FootballFixtureMatch) -> String {
         let statusDetail = match.statusDetailText ?? ""
         let statusPeriod = match.statusPeriod.map(String.init) ?? "n/a"
-        return "\(url.absoluteString)|\(match.id)|\(match.homeScore)|\(match.awayScore)|\(match.statusText)|\(match.statusState.rawValue)|\(statusDetail)|\(statusPeriod)"
+        let winner = match.officialWinner?.rawValue ?? "n/a"
+        let shootout = "\(match.homeShootoutScore.map(String.init) ?? "n/a")-\(match.awayShootoutScore.map(String.init) ?? "n/a")"
+        return "\(url.absoluteString)|\(match.id)|\(match.homeScore)|\(match.awayScore)|\(match.statusText)|\(match.statusState.rawValue)|\(statusDetail)|\(statusPeriod)|\(winner)|\(shootout)"
     }
 
     static func summaryURLs(for match: FootballFixtureMatch) -> [URL] {

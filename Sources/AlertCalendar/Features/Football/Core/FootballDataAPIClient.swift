@@ -46,6 +46,10 @@ actor FootballDataAPIClient {
         let awayYellowCards: Int
         let homeRedCards: Int
         let awayRedCards: Int
+        let officialWinner: FootballScoreSide?
+        let homeShootoutScore: Int?
+        let awayShootoutScore: Int?
+        let pregameOutcomeProbabilities: FootballMatchOutcomeProbabilities?
         let outcomeProbabilities: FootballMatchOutcomeProbabilities?
     }
 
@@ -392,7 +396,21 @@ actor FootballDataAPIClient {
             )
             let refreshedActualStartDate = snapshot.actualStartDate ?? match.actualStartDate
             let refreshedActualEndDate = snapshot.actualEndDate ?? match.actualEndDate
-            let refreshedOutcomeProbabilities = snapshot.outcomeProbabilities ?? match.outcomeProbabilities
+            let refreshedOfficialWinner = snapshot.officialWinner ?? match.officialWinner
+            let refreshedHomeShootoutScore = snapshot.homeShootoutScore ?? match.homeShootoutScore
+            let refreshedAwayShootoutScore = snapshot.awayShootoutScore ?? match.awayShootoutScore
+            let refreshedPregameProbabilities = snapshot.pregameOutcomeProbabilities
+                ?? match.pregameOutcomeProbabilities
+            let refreshedOutcomeProbabilities: FootballMatchOutcomeProbabilities?
+            if let probabilities = snapshot.outcomeProbabilities {
+                refreshedOutcomeProbabilities = probabilities
+            } else if match.outcomeProbabilities?.source == .liveMarketOdds {
+                // A successfully parsed snapshot with no active market invalidates
+                // the prior in-play quote. Transport failures never reach this merge.
+                refreshedOutcomeProbabilities = nil
+            } else {
+                refreshedOutcomeProbabilities = match.outcomeProbabilities
+            }
             guard snapshot.statusState != match.statusState
                 || snapshot.statusText != match.statusText
                 || snapshot.statusDetailText != match.statusDetailText
@@ -409,6 +427,10 @@ actor FootballDataAPIClient {
                 || snapshot.awayYellowCards != match.awayYellowCards
                 || snapshot.homeRedCards != match.homeRedCards
                 || snapshot.awayRedCards != match.awayRedCards
+                || refreshedOfficialWinner != match.officialWinner
+                || refreshedHomeShootoutScore != match.homeShootoutScore
+                || refreshedAwayShootoutScore != match.awayShootoutScore
+                || refreshedPregameProbabilities != match.pregameOutcomeProbabilities
                 || refreshedOutcomeProbabilities != match.outcomeProbabilities else {
                 return match
             }
@@ -439,6 +461,10 @@ actor FootballDataAPIClient {
                 awayYellowCards: snapshot.awayYellowCards,
                 homeRedCards: snapshot.homeRedCards,
                 awayRedCards: snapshot.awayRedCards,
+                officialWinner: refreshedOfficialWinner,
+                homeShootoutScore: refreshedHomeShootoutScore,
+                awayShootoutScore: refreshedAwayShootoutScore,
+                pregameOutcomeProbabilities: refreshedPregameProbabilities,
                 outcomeProbabilities: refreshedOutcomeProbabilities
             )
         }

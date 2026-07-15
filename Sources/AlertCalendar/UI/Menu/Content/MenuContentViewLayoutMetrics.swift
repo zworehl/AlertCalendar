@@ -175,7 +175,6 @@ extension MenuContentView {
         alertCount: Int
     ) -> CGFloat {
         let headerHeight: CGFloat = 28
-        let footerHeight: CGFloat = 26
         var sectionHeights: [CGFloat] = []
 
         if alertCount > 0 {
@@ -188,11 +187,10 @@ extension MenuContentView {
 
         sectionHeights.append(estimatedUpcomingPanelHeight(for: queueItems))
 
-        let childCount = 2 + sectionHeights.count
+        let childCount = 1 + sectionHeights.count
         let verticalGaps = CGFloat(max(0, childCount - 1)) * 12
         return (dropdownOuterPadding * 2)
             + headerHeight
-            + footerHeight
             + sectionHeights.reduce(0, +)
             + verticalGaps
     }
@@ -241,13 +239,23 @@ extension MenuContentView {
         }
 
         if let footballMatch = item.footballMatch {
+            let hasOutcomeProbabilities = CalendarMonitor.footballOutcomeProbabilities(
+                for: footballMatch,
+                now: displayReferenceDate
+            ) != nil
             if footballContentLevel.showsStats && footballMatch.statusState != .scheduled {
-                height += estimatedFootballStatsHeight(for: footballMatch)
+                height += estimatedFootballStatsHeight(
+                    for: footballMatch,
+                    showsOutcomeProbabilities: hasOutcomeProbabilities
+                )
             } else if Self.shouldShowStandaloneContextualFootballOutcomeProbabilities(
                 for: footballMatch,
                 itemCount: footballItemCount
-            ) {
-                height += 18
+            ), hasOutcomeProbabilities {
+                let probabilityStyle: FootballOutcomeProbabilityBar.Style = footballItemCount <= 1
+                    ? .contextual
+                    : .compact
+                height += probabilityStyle.estimatedHeight + 6
             }
             if footballContentLevel.showsGoalScorers,
                footballMatch.totalGoals > 0 {
@@ -258,12 +266,17 @@ extension MenuContentView {
         return height
     }
 
-    func estimatedFootballStatsHeight(for match: FootballFixtureMatch) -> CGFloat {
+    func estimatedFootballStatsHeight(
+        for match: FootballFixtureMatch,
+        showsOutcomeProbabilities: Bool
+    ) -> CGFloat {
         let headerHeight: CGFloat = Self.footballContextualScorePlacement(
             for: match,
             itemCount: 1
         ) == .stats ? 72 : 0
-        let probabilityHeight: CGFloat = 19
+        let probabilityHeight = showsOutcomeProbabilities
+            ? FootballOutcomeProbabilityBar.Style.contextual.estimatedHeight
+            : 0
         let rowHeight: CGFloat = 28
         let rowSpacing: CGFloat = 6
         let estimatedRows: CGFloat = 10
@@ -309,12 +322,15 @@ extension MenuContentView {
 
     func splitContextualPanelMinimumHeight(
         snapshot: LayoutSnapshot,
-        measuredRightColumnHeight: CGFloat? = nil
+        measuredRightColumnHeight: CGFloat? = nil,
+        measuredContextualPanelHeight: CGFloat? = nil
     ) -> CGFloat? {
         guard snapshot.shouldUseSplitDropdownLayout else { return nil }
-        let measuredHeight = measuredRightColumnHeight ?? splitRightColumnHeight
-        guard measuredHeight > 0 else { return nil }
-        return measuredHeight
+        let rightColumnHeight = measuredRightColumnHeight ?? splitRightColumnHeight
+        let contextualPanelHeight = measuredContextualPanelHeight ?? splitContextualCompactPanelHeight
+        let requiredHeight = max(rightColumnHeight, contextualPanelHeight)
+        guard requiredHeight > 0 else { return nil }
+        return requiredHeight
     }
 
     func upcomingSplitPanelHeight(snapshot: LayoutSnapshot) -> CGFloat? {

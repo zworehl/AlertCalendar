@@ -314,7 +314,11 @@ extension FootballDataAPIClient {
         for url in Self.summaryURLs(for: match) {
             do {
                 guard let root = try await summaryRoot(url: url, match: match),
-                      let snapshot = Self.summarySnapshot(from: root, fallbackStartDate: match.startDate) else {
+                      let snapshot = Self.summarySnapshot(
+                        from: root,
+                        fallbackStartDate: match.startDate,
+                        fallbackStatusPeriod: match.statusPeriod
+                      ) else {
                     continue
                 }
                 return snapshot
@@ -328,7 +332,8 @@ extension FootballDataAPIClient {
 
     static func summarySnapshot(
         from root: [String: Any],
-        fallbackStartDate: Date
+        fallbackStartDate: Date,
+        fallbackStatusPeriod: Int? = nil
     ) -> SummarySnapshot? {
         guard let header = root["header"] as? [String: Any],
               let competition = (header["competitions"] as? [[String: Any]])?.first else {
@@ -348,7 +353,9 @@ extension FootballDataAPIClient {
             detail: stringValue(statusType?["detail"]),
             displayClock: stringValue(status?["displayClock"])
         )
-        let statusPeriod = intValue(statusType?["period"]) ?? intValue(status?["period"])
+        let statusPeriod = intValue(statusType?["period"])
+            ?? intValue(status?["period"])
+            ?? fallbackStatusPeriod
         let competitors = competition["competitors"] as? [[String: Any]] ?? []
         let home = competitors.first(where: { stringValue($0["homeAway"])?.lowercased() == "home" })
         let away = competitors.first(where: { stringValue($0["homeAway"])?.lowercased() == "away" })
@@ -397,6 +404,10 @@ extension FootballDataAPIClient {
             awayYellowCards: cards.awayYellowCards,
             homeRedCards: cards.homeRedCards,
             awayRedCards: cards.awayRedCards,
+            officialWinner: officialWinnerSide(homeCompetitor: home, awayCompetitor: away),
+            homeShootoutScore: shootoutScore(from: home),
+            awayShootoutScore: shootoutScore(from: away),
+            pregameOutcomeProbabilities: pregameOutcomeProbabilities(from: root, competition: competition),
             outcomeProbabilities: outcomeProbabilities
         )
     }

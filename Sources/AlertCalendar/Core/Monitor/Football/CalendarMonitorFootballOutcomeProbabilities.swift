@@ -1,6 +1,8 @@
 import Foundation
 
 extension CalendarMonitor {
+    nonisolated static let footballLiveOddsMaximumAge: TimeInterval = 75
+
     nonisolated static func footballOutcomeProbabilities(
         for match: FootballFixtureMatch,
         now: Date = AlertCalendarClock.nowRoundedToSecond()
@@ -9,44 +11,107 @@ extension CalendarMonitor {
             return nil
         }
 
+        guard !match.hasInterruptedStatus else {
+            return nil
+        }
+
         if match.statusState == .finished {
             return footballFinishedOutcomeProbabilities(for: match)
         }
 
+        if footballEffectiveStartDate(for: match) <= now,
+           match.statusReliability != .reported {
+            return nil
+        }
+
         let scope = footballOutcomeProbabilityScope(for: match, now: now)
-        let base = (match.outcomeProbabilities ?? footballPregameHeuristicOutcomeProbabilities(for: match))
+        let suppliedProbabilities = footballUsableOutcomeProbabilities(
+            match.outcomeProbabilities,
+            for: match,
+            now: now
+        )
+        let pregamePrior = match.pregameOutcomeProbabilities?.source == .marketOdds
+            ? match.pregameOutcomeProbabilities
+            : nil
+        let displayBase = (suppliedProbabilities
+            ?? pregamePrior
+            ?? footballPregameHeuristicOutcomeProbabilities(for: match))
             .replacing(scope: scope)
 
-        guard match.statusState == .inProgress
-            || (match.statusState == .unknown && footballEffectiveStartDate(for: match) <= now) else {
-            return base
+        let isLiveState = match.statusState == .inProgress
+            || (match.statusState == .unknown && footballEffectiveStartDate(for: match) <= now)
+        guard isLiveState else {
+            return displayBase.source == .liveMarketOdds
+                ? footballPregameHeuristicOutcomeProbabilities(for: match).replacing(scope: scope)
+                : displayBase
         }
 
-        if base.source == .liveMarketOdds,
-           scope != .decisiveResult {
-            return base
+        guard footballParsedGoalValue(match.homeScore) != nil,
+              footballParsedGoalValue(match.awayScore) != nil else {
+            return nil
         }
+        let modelBase = suppliedProbabilities?.source == .liveMarketOdds
+            ? (pregamePrior ?? footballPregameHeuristicOutcomeProbabilities(for: match)).replacing(scope: scope)
+            : displayBase
 
         if footballStatusConfirmsPenaltyShootout(match) {
             return footballPenaltyShootoutOutcomeProbabilities(
-                base: base,
+                base: modelBase,
                 match: match
             )
         }
 
         if footballStatusConfirmsExtraTime(match) {
             return footballExtraTimeOutcomeProbabilities(
-                base: base,
+                base: modelBase,
                 match: match,
                 now: now
             )
         }
 
-        return footballRegulationOutcomeProbabilities(
-            base: base,
+        let projected = footballRegulationOutcomeProbabilities(
+            base: modelBase,
             match: match,
             now: now
         )
+        guard let liveProbabilities = suppliedProbabilities,
+              liveProbabilities.source == .liveMarketOdds else {
+            return projected
+        }
+        return footballReconciledLiveRegulationProbabilities(
+            live: liveProbabilities.replacing(scope: scope),
+            projected: projected,
+            match: match,
+            now: now
+        )
+    }
+
+    nonisolated static func footballUsableOutcomeProbabilities(
+        _ probabilities: FootballMatchOutcomeProbabilities?,
+        for match: FootballFixtureMatch,
+        now: Date
+    ) -> FootballMatchOutcomeProbabilities? {
+        guard let probabilities else { return nil }
+        guard probabilities.source == .liveMarketOdds else { return probabilities }
+
+        guard let observedAt = probabilities.observedAt else { return nil }
+        let age = now.timeIntervalSince(observedAt)
+        guard age >= -5, age <= footballLiveOddsMaximumAge else { return nil }
+
+        guard let observedHomeScore = probabilities.observedHomeScore,
+              let observedAwayScore = probabilities.observedAwayScore,
+              observedHomeScore == footballParsedGoalValue(match.homeScore),
+              observedAwayScore == footballParsedGoalValue(match.awayScore) else {
+            return nil
+        }
+
+        if let observedStatusPeriod = probabilities.observedStatusPeriod,
+           let currentStatusPeriod = match.statusPeriod,
+           observedStatusPeriod != currentStatusPeriod {
+            return nil
+        }
+
+        return probabilities
     }
 
     nonisolated static func footballOutcomeProbabilityScope(
@@ -64,34 +129,71 @@ extension CalendarMonitor {
         return .regulationTime
     }
 
+    nonisolated static func footballReconciledLiveRegulationProbabilities(
+        live: FootballMatchOutcomeProbabilities,
+        projected: FootballMatchOutcomeProbabilities,
+        match: FootballFixtureMatch,
+        now: Date
+    ) -> FootballMatchOutcomeProbabilities {
+        let minute = footballProbabilityClock(for: match, now: now, fallbackBaseMinute: 0).baseMinute
+        let maximumTotalVariation: Double
+        switch minute {
+        case 90...:
+            maximumTotalVariation = 0.20
+        case 75...:
+            maximumTotalVariation = 0.30
+        case 45...:
+            maximumTotalVariation = 0.38
+        default:
+            maximumTotalVariation = 0.48
+        }
+        let totalVariation = 0.5 * (
+            abs(live.homeWin - projected.homeWin)
+                + abs(live.draw - projected.draw)
+                + abs(live.awayWin - projected.awayWin)
+        )
+        return totalVariation <= maximumTotalVariation ? live : projected
+    }
+
     nonisolated static func footballFinishedOutcomeProbabilities(
         for match: FootballFixtureMatch
     ) -> FootballMatchOutcomeProbabilities? {
-        let homeScore = footballGoalValue(match.homeScore)
-        let awayScore = footballGoalValue(match.awayScore)
         let scope: FootballMatchOutcomeProbabilityScope = footballStatusConfirmsPenaltyShootout(match)
             || footballStatusConfirmsExtraTime(match)
             ? .decisiveResult
             : .regulationTime
 
-        if homeScore > awayScore {
-            return FootballMatchOutcomeProbabilities(
-                homeWin: 1,
-                draw: 0,
-                awayWin: 0,
-                source: .finalResult,
-                scope: scope
+        if let officialWinner = match.officialWinner {
+            return footballCertainFinalOutcome(winner: officialWinner, scope: scope)
+        }
+
+        if footballStatusConfirmsPenaltyShootout(match),
+           let homeShootoutScore = match.homeShootoutScore,
+           let awayShootoutScore = match.awayShootoutScore,
+           homeShootoutScore != awayShootoutScore {
+            return footballCertainFinalOutcome(
+                winner: homeShootoutScore > awayShootoutScore ? .home : .away,
+                scope: .decisiveResult
             )
         }
 
+        guard let homeScore = footballParsedGoalValue(match.homeScore),
+              let awayScore = footballParsedGoalValue(match.awayScore) else {
+            return nil
+        }
+
+        if homeScore > awayScore {
+            return footballCertainFinalOutcome(winner: .home, scope: scope)
+        }
+
         if awayScore > homeScore {
-            return FootballMatchOutcomeProbabilities(
-                homeWin: 0,
-                draw: 0,
-                awayWin: 1,
-                source: .finalResult,
-                scope: scope
-            )
+            return footballCertainFinalOutcome(winner: .away, scope: scope)
+        }
+
+        // A level visible score does not identify a decisive winner. Until the
+        // provider reports one, failing closed is safer than claiming a draw.
+        if scope == .decisiveResult {
+            return nil
         }
 
         return FootballMatchOutcomeProbabilities(
@@ -100,6 +202,19 @@ extension CalendarMonitor {
             awayWin: 0,
             source: .finalResult,
             scope: .regulationTime
+        )
+    }
+
+    nonisolated static func footballCertainFinalOutcome(
+        winner: FootballScoreSide,
+        scope: FootballMatchOutcomeProbabilityScope
+    ) -> FootballMatchOutcomeProbabilities? {
+        FootballMatchOutcomeProbabilities(
+            homeWin: winner == .home ? 1 : 0,
+            draw: 0,
+            awayWin: winner == .away ? 1 : 0,
+            source: .finalResult,
+            scope: scope
         )
     }
 
@@ -120,7 +235,7 @@ extension CalendarMonitor {
 
         let homeAdvantage: Double
         if neutralContext {
-            homeAdvantage = nationalFixture ? 0.015 : 0.025
+            homeAdvantage = 0
         } else if nationalFixture {
             homeAdvantage = 0.055
         } else {
@@ -164,11 +279,13 @@ extension CalendarMonitor {
         match: FootballFixtureMatch,
         now: Date
     ) -> FootballMatchOutcomeProbabilities {
-        let minute = min(max(footballLiveMinute(for: match, now: now) ?? 0, 0), 90)
+        let clock = footballProbabilityClock(for: match, now: now, fallbackBaseMinute: 0)
+        let minute = min(max(clock.baseMinute, 0), 90)
         let scoreDifference = footballGoalValue(match.homeScore) - footballGoalValue(match.awayScore)
         let totalExpectedGoals = footballExpectedRegulationGoalsRemaining(
             match: match,
-            minute: minute,
+            baseMinute: minute,
+            stoppageMinute: clock.stoppageMinute,
             scoreDifference: scoreDifference
         )
         let homeShare = footballExpectedHomeGoalShare(
@@ -178,12 +295,18 @@ extension CalendarMonitor {
             phaseUpperBoundMinute: 90
         )
 
+        let expectedGoals = footballExpectedGoalsAdjustedForRedCards(
+            home: totalExpectedGoals * homeShare,
+            away: totalExpectedGoals * (1 - homeShare),
+            match: match
+        )
+
         return footballProjectedOutcomeProbabilities(
             base: base,
             match: match,
             scoreDifference: scoreDifference,
-            homeExpectedGoals: totalExpectedGoals * homeShare,
-            awayExpectedGoals: totalExpectedGoals * (1 - homeShare),
+            homeExpectedGoals: expectedGoals.home,
+            awayExpectedGoals: expectedGoals.away,
             tiedOutcome: .draw
         )
     }
@@ -193,10 +316,16 @@ extension CalendarMonitor {
         match: FootballFixtureMatch,
         now: Date
     ) -> FootballMatchOutcomeProbabilities {
-        let minute = min(max(footballLiveMinute(for: match, now: now) ?? 91, 91), 120)
-        let scoreDifference = footballGoalValue(match.homeScore) - footballGoalValue(match.awayScore)
-        let remainingMinutes = max(0, 120 - minute)
-        let totalExpectedGoals = max(0.04, 0.75 * Double(remainingMinutes) / 30)
+        let clock = footballProbabilityClock(for: match, now: now, fallbackBaseMinute: 91)
+        let minute = min(max(clock.baseMinute, 91), 120)
+        let relevantScores = footballRelevantScores(for: match)
+        let scoreDifference = relevantScores.home - relevantScores.away
+        let remainingMinutes = footballExpectedExtraTimeMinutesRemaining(
+            match: match,
+            baseMinute: minute,
+            stoppageMinute: clock.stoppageMinute
+        )
+        let totalExpectedGoals = max(0.001, 0.75 * remainingMinutes / 30)
         let homeShare = footballExpectedHomeGoalShare(
             base: base,
             scoreDifference: scoreDifference,
@@ -204,29 +333,29 @@ extension CalendarMonitor {
             phaseUpperBoundMinute: 120
         )
 
+        let expectedGoals = footballExpectedGoalsAdjustedForRedCards(
+            home: totalExpectedGoals * homeShare,
+            away: totalExpectedGoals * (1 - homeShare),
+            match: match
+        )
+
         return footballProjectedOutcomeProbabilities(
             base: base.replacing(scope: .decisiveResult),
             match: match,
             scoreDifference: scoreDifference,
-            homeExpectedGoals: totalExpectedGoals * homeShare,
-            awayExpectedGoals: totalExpectedGoals * (1 - homeShare),
+            homeExpectedGoals: expectedGoals.home,
+            awayExpectedGoals: expectedGoals.away,
             tiedOutcome: .penalties
         )
     }
 
     nonisolated static func footballPenaltyShootoutOutcomeProbabilities(
-        base: FootballMatchOutcomeProbabilities,
+        base _: FootballMatchOutcomeProbabilities,
         match _: FootballFixtureMatch
-    ) -> FootballMatchOutcomeProbabilities {
-        let homePenaltyWin = footballPenaltyHomeWinProbability(base: base)
-        return FootballMatchOutcomeProbabilities(
-            homeWin: homePenaltyWin,
-            draw: 0,
-            awayWin: 1 - homePenaltyWin,
-            source: .heuristic,
-            scope: .decisiveResult,
-            providerName: base.providerName
-        ) ?? base.replacing(source: .heuristic, scope: .decisiveResult)
+    ) -> FootballMatchOutcomeProbabilities? {
+        // A shootout score alone does not reveal attempts taken or whose kick is
+        // next. Hide the estimate until the provider supplies that state.
+        nil
     }
 
     private enum FootballTiedProjectionOutcome {
@@ -279,33 +408,6 @@ extension CalendarMonitor {
             scope: base.scope,
             providerName: base.providerName
         ) ?? base
-    }
-
-    nonisolated static func footballExpectedRegulationGoalsRemaining(
-        match: FootballFixtureMatch,
-        minute: Int,
-        scoreDifference: Int
-    ) -> Double {
-        let boundedMinute = min(max(minute, 0), 90)
-        let remainingMinutes = max(0, 90 - boundedMinute)
-        let baseGoalsPerMatch: Double = match.competitionCategory == .nationalTeams ? 2.45 : 2.65
-        let stoppageReserve: Double
-        if boundedMinute >= 88 {
-            stoppageReserve = 0.10
-        } else if boundedMinute >= 80 {
-            stoppageReserve = 0.16
-        } else {
-            stoppageReserve = 0.22
-        }
-
-        let urgencyMultiplier: Double
-        if scoreDifference == 0 {
-            urgencyMultiplier = footballCanReachExtraTime(match) && boundedMinute >= 75 ? 0.88 : 1.0
-        } else {
-            urgencyMultiplier = 1.08
-        }
-
-        return max(0.02, ((baseGoalsPerMatch * Double(remainingMinutes) / 90) + stoppageReserve) * urgencyMultiplier)
     }
 
     nonisolated static func footballExpectedHomeGoalShare(

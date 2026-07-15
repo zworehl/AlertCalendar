@@ -9,6 +9,101 @@ enum FootballLiveMatchPhase: Equatable, Sendable {
     case unknown
 }
 
+enum FootballDetailedLiveMatchPhase: Equatable, Sendable {
+    case firstHalf
+    case halfTime
+    case secondHalf
+    case extraTimeFirstHalf
+    case extraTimeHalfTime
+    case extraTimeSecondHalf
+    case penalties
+    case unknown
+
+    var liveMatchPhase: FootballLiveMatchPhase {
+        switch self {
+        case .firstHalf:
+            return .firstHalf
+        case .halfTime:
+            return .halfTime
+        case .secondHalf:
+            return .secondHalf
+        case .extraTimeFirstHalf, .extraTimeHalfTime, .extraTimeSecondHalf:
+            return .extraTime
+        case .penalties:
+            return .penalties
+        case .unknown:
+            return .unknown
+        }
+    }
+
+    var isExtraTime: Bool {
+        switch self {
+        case .extraTimeFirstHalf, .extraTimeHalfTime, .extraTimeSecondHalf:
+            return true
+        case .firstHalf, .halfTime, .secondHalf, .penalties, .unknown:
+            return false
+        }
+    }
+}
+
+enum FootballInterruptedMatchState: Equatable, Sendable {
+    case abandoned
+    case suspended
+    case postponed
+    case delayed
+    case hydrationBreak
+    case cancelled
+
+    init?(statusText: String) {
+        let normalizedStatus = FootballStatusText.normalized(statusText)
+        guard let badgeText = FootballStatusText.interruptedBadge(for: normalizedStatus) else {
+            return nil
+        }
+
+        switch badgeText {
+        case "ABN":
+            self = .abandoned
+        case "SUSP.":
+            self = .suspended
+        case "POSTP.":
+            self = .postponed
+        case "DELAY":
+            self = .delayed
+        case "HYD.":
+            self = .hydrationBreak
+        case "CANC.":
+            self = .cancelled
+        default:
+            return nil
+        }
+    }
+
+    var badgeText: String {
+        switch self {
+        case .abandoned:
+            return "ABN"
+        case .suspended:
+            return "SUSP."
+        case .postponed:
+            return "POSTP."
+        case .delayed:
+            return "DELAY"
+        case .hydrationBreak:
+            return "HYD."
+        case .cancelled:
+            return "CANC."
+        }
+    }
+
+    var isTerminal: Bool {
+        self == .abandoned || self == .cancelled
+    }
+
+    var isTemporaryPause: Bool {
+        self == .suspended || self == .delayed || self == .hydrationBreak
+    }
+}
+
 struct FootballStatusMinuteComponents: Equatable, Sendable {
     let baseMinute: Int
     let stoppageMinute: Int
@@ -60,8 +155,6 @@ extension CalendarMonitor {
         for match: FootballFixtureMatch,
         now: Date
     ) -> Bool {
-        let minute = footballLiveMinute(for: match, now: now)
-
         if footballStatusConfirmsExtraTime(match) {
             return true
         }
@@ -69,11 +162,11 @@ extension CalendarMonitor {
         guard footballCanReachExtraTime(match) else { return false }
         guard footballScoresAreLevel(match) else { return false }
 
-        if let minute, minute >= 90 {
-            return true
+        if let reportedComponents = footballReportedStatusMinuteComponents(for: match) {
+            return reportedComponents.baseMinute > 90
         }
 
-        return false
+        return (footballLiveMinuteComponents(for: match, now: now)?.baseMinute ?? 0) > 90
     }
 
     nonisolated static func footballStatusConfirmsExtraTime(_ match: FootballFixtureMatch) -> Bool {
@@ -165,13 +258,38 @@ extension CalendarMonitor {
     }
 
     nonisolated static func footballStatusPeriodIndicatesExtraTime(_ statusPeriod: Int?) -> Bool {
-        guard let statusPeriod else { return false }
-        return statusPeriod >= 4
+        footballStatusPeriodPhase(statusPeriod).isExtraTime
+    }
+
+    nonisolated static func footballStatusPeriodIndicatesExtraTimeFirstHalf(_ statusPeriod: Int?) -> Bool {
+        footballStatusPeriodPhase(statusPeriod) == .extraTimeFirstHalf
+    }
+
+    nonisolated static func footballStatusPeriodIndicatesExtraTimeSecondHalf(_ statusPeriod: Int?) -> Bool {
+        footballStatusPeriodPhase(statusPeriod) == .extraTimeSecondHalf
     }
 
     nonisolated static func footballStatusPeriodIndicatesPenaltyShootout(_ statusPeriod: Int?) -> Bool {
-        guard let statusPeriod else { return false }
-        return statusPeriod >= 5
+        footballStatusPeriodPhase(statusPeriod) == .penalties
+    }
+
+    nonisolated static func footballStatusPeriodPhase(
+        _ statusPeriod: Int?
+    ) -> FootballDetailedLiveMatchPhase {
+        switch statusPeriod {
+        case 1:
+            return .firstHalf
+        case 2:
+            return .secondHalf
+        case 3:
+            return .extraTimeFirstHalf
+        case 4:
+            return .extraTimeSecondHalf
+        case let period? where period >= 5:
+            return .penalties
+        default:
+            return .unknown
+        }
     }
 
     nonisolated static func footballIsSingleMatchKnockoutContext(_ match: FootballFixtureMatch) -> Bool {
@@ -283,6 +401,18 @@ extension CalendarMonitor {
             footballGoalValue(match.homeScore),
             footballGoalValue(match.awayScore)
         )
+    }
+
+    nonisolated static func footballInterruptedMatchState(
+        for match: FootballFixtureMatch
+    ) -> FootballInterruptedMatchState? {
+        footballInterruptedMatchState(from: match.statusText)
+    }
+
+    nonisolated static func footballInterruptedMatchState(
+        from rawStatusText: String
+    ) -> FootballInterruptedMatchState? {
+        FootballInterruptedMatchState(statusText: rawStatusText)
     }
 
 }

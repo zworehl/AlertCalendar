@@ -1,5 +1,28 @@
 import SwiftUI
 
+enum FootballMatchStatsPresentationState: Equatable {
+    case hidden
+    case loading
+    case loaded
+    case summary
+
+    static func resolve(
+        statusState: FootballFixtureStatusState,
+        statisticCount: Int,
+        hasAttemptedLoad: Bool,
+        isLoading: Bool
+    ) -> FootballMatchStatsPresentationState {
+        guard statusState != .scheduled else { return .hidden }
+        if statisticCount > 0 {
+            return .loaded
+        }
+        if !hasAttemptedLoad || isLoading {
+            return .loading
+        }
+        return .summary
+    }
+}
+
 struct FootballMatchStatsSection: View {
     @EnvironmentObject private var monitor: CalendarMonitor
     let match: FootballFixtureMatch
@@ -20,9 +43,15 @@ struct FootballMatchStatsSection: View {
 
     var body: some View {
         Group {
-            if match.statusState == .scheduled {
+            switch FootballMatchStatsPresentationState.resolve(
+                statusState: match.statusState,
+                statisticCount: statistics.count,
+                hasAttemptedLoad: hasAttemptedLoad,
+                isLoading: isLoading
+            ) {
+            case .hidden:
                 EmptyView()
-            } else if statistics.isEmpty && (!hasAttemptedLoad || isLoading) {
+            case .loading:
                 FootballMatchStatsLoadingView(
                     match: match,
                     display: display,
@@ -30,11 +59,19 @@ struct FootballMatchStatsSection: View {
                     outcomeProbabilities: outcomeProbabilities,
                     availableWidth: availableWidth
                 )
-            } else if !statistics.isEmpty {
+            case .loaded:
                 FootballMatchStatsView(
                     match: match,
                     display: display,
                     stats: statistics,
+                    showsScore: showsScoreHeader,
+                    outcomeProbabilities: outcomeProbabilities,
+                    availableWidth: availableWidth
+                )
+            case .summary:
+                FootballMatchStatsSummaryView(
+                    match: match,
+                    display: display,
                     showsScore: showsScoreHeader,
                     outcomeProbabilities: outcomeProbabilities,
                     availableWidth: availableWidth
@@ -88,6 +125,38 @@ struct FootballMatchStatsSection: View {
                 }
             }
         }
+    }
+}
+
+struct FootballMatchStatsSummaryView: View {
+    let match: FootballFixtureMatch
+    let display: FootballMenuBarDisplay?
+    let showsScore: Bool
+    let outcomeProbabilities: FootballMatchOutcomeProbabilities?
+    var availableWidth: CGFloat? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            FootballMatchSectionHeaderView(
+                match: match,
+                display: display,
+                showsScore: showsScore,
+                showsTeamNames: true,
+                showsTeamLogos: true,
+                availableWidth: availableWidth
+            )
+
+            if let outcomeProbabilities {
+                FootballOutcomeProbabilityBar(
+                    match: match,
+                    display: display,
+                    probabilities: outcomeProbabilities,
+                    style: .contextual,
+                    availableWidth: availableWidth
+                )
+            }
+        }
+        .footballConstrainedWidth(availableWidth)
     }
 }
 
