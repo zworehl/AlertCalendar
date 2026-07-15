@@ -7,30 +7,57 @@ extension MenuContentView {
     func contextualActionSection(snapshot: LayoutSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             calendarSectionContainer(
-                minimumHeight: splitContextualPanelMinimumHeight(snapshot: snapshot),
+                height: splitContextualPanelMinimumHeight(snapshot: snapshot),
                 bottomPadding: snapshot.shouldUseSplitDropdownLayout ? splitPanelBottomPadding : nil
             ) {
-                contextualActionPanelContent(snapshot: snapshot)
-                    .frame(width: contextualPanelContentWidth(snapshot: snapshot), alignment: .topLeading)
-                    .background(
-                        GeometryReader { proxy in
-                            Color.clear.preference(
-                                key: SplitContextualPanelMeasurementPreferenceKey.self,
-                                value: SplitContextualPanelMeasurement(
-                                    key: snapshot.contextualPanelMeasurementKey,
-                                    height: proxy.size.height
-                                        + panelTopPadding
-                                        + (snapshot.shouldUseSplitDropdownLayout
-                                            ? splitPanelBottomPadding
-                                            : panelBottomPadding)
-                                )
+                if snapshot.shouldUseSplitDropdownLayout {
+                    ScrollView(.vertical, showsIndicators: true) {
+                        contextualActionPanelContent(snapshot: snapshot)
+                            .frame(width: contextualPanelContentWidth(snapshot: snapshot), alignment: .topLeading)
+                            .background(
+                                GeometryReader { proxy in
+                                    contextualPanelMeasurementBackground(
+                                        proxy: proxy,
+                                        snapshot: snapshot
+                                    )
+                                }
                             )
-                        }
-                    )
+                    }
+                    .frame(width: contextualPanelContentWidth(snapshot: snapshot), alignment: .topLeading)
+                    .clipped()
+                } else {
+                    contextualActionPanelContent(snapshot: snapshot)
+                        .frame(width: contextualPanelContentWidth(snapshot: snapshot), alignment: .topLeading)
+                        .background(
+                            GeometryReader { proxy in
+                                contextualPanelMeasurementBackground(
+                                    proxy: proxy,
+                                    snapshot: snapshot
+                                )
+                            }
+                        )
+                }
             }
         }
         .frame(width: contextualPanelOuterWidth(snapshot: snapshot), alignment: .topLeading)
         .clipped()
+    }
+
+    func contextualPanelMeasurementBackground(
+        proxy: GeometryProxy,
+        snapshot: LayoutSnapshot
+    ) -> some View {
+        Color.clear.preference(
+            key: SplitContextualPanelMeasurementPreferenceKey.self,
+            value: SplitContextualPanelMeasurement(
+                key: snapshot.contextualPanelMeasurementKey,
+                height: proxy.size.height
+                    + panelTopPadding
+                    + (snapshot.shouldUseSplitDropdownLayout
+                        ? splitPanelBottomPadding
+                        : panelBottomPadding)
+            )
+        )
     }
 
     func upcomingSection(snapshot: LayoutSnapshot) -> some View {

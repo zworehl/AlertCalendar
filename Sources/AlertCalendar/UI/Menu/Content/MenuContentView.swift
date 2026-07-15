@@ -77,30 +77,6 @@ struct MenuContentView: View {
                 }
             }
 
-            HStack {
-                if monitor.hasSkippedItems() {
-                    Button("Restore Skipped") {
-                        monitor.restoreSkippedItems()
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
-
-                if shouldShowSilenceButton {
-                    Button("Silence Alert") {
-                        monitor.silenceCurrentAlert()
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
-
-                Spacer()
-
-                Button("Quit") {
-                    NSApplication.shared.terminate(nil)
-                }
-                .buttonStyle(.link)
-            }
         }
         .padding(dropdownOuterPadding)
         .background(Color(nsColor: .windowBackgroundColor))

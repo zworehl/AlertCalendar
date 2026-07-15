@@ -7,9 +7,7 @@ extension MenuContentView {
 
     func prepareDropdownPresentation() {
         dropdownReferenceDate = AlertCalendarClock.nowRoundedToSecond()
-        splitUpcomingPanelHeight = 0
-        splitRightColumnHeight = 0
-        splitContextualCompactPanelHeight = 0
-        splitContextualPanelMeasurementKey = ""
+        // Preference values can arrive before onAppear. Preserve them so this
+        // presentation does not erase the split-column measurements SwiftUI just resolved.
     }
 }

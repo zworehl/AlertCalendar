@@ -63,6 +63,37 @@ extension MenuContentView {
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
             .help("Settings")
+
+            if monitor.hasSkippedItems() {
+                Button {
+                    monitor.restoreSkippedItems()
+                } label: {
+                    Image(systemName: "arrow.uturn.backward")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help("Restore Skipped")
+            }
+
+            if shouldShowSilenceButton {
+                Button {
+                    monitor.silenceCurrentAlert()
+                } label: {
+                    Image(systemName: "bell.slash")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help("Silence Alert")
+            }
+
+            Button {
+                NSApplication.shared.terminate(nil)
+            } label: {
+                Image(systemName: "power")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help("Quit")
         }
     }
 
