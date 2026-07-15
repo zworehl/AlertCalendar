@@ -12,6 +12,7 @@ extension CalendarMonitor {
         let now = fixedSecondNow()
         let settings = pruneNonWorkingDateKeysIfNeeded(now: now, settings: snapshotSettings())
         await refreshFootballDataIfNeeded(now: now, reason: reason)
+        await refreshGameSales(forceRefresh: reason == .manual)
         let fetchedLookAheadHours = max(
             settings.lookAheadHours,
             Int(ceil(Double(settings.menuBarRotationWindowMinutes) / 60.0))

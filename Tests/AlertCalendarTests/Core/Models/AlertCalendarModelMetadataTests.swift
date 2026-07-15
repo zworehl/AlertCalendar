@@ -155,11 +155,18 @@ final class AlertCalendarModelMetadataTests: AlertCalendarModelTestCase {
             DefaultsKeys.showFinishedFootballMatches,
             DefaultsKeys.finishedFootballMatchLookbackDays,
             DefaultsKeys.footballMatchLookaheadDays,
+            DefaultsKeys.gameSaleTargetCalendarID,
+            DefaultsKeys.gameSaleCalendarAlertOption,
+            DefaultsKeys.gameSaleAutoAddStoreIDs,
+            DefaultsKeys.enableGameSaleAutoAddNotifications,
+            DefaultsKeys.removeEndedGameSalesAutomatically,
+            DefaultsKeys.managedGameSaleEventRecords,
+            DefaultsKeys.dismissedGameSaleEventIDs,
             DefaultsKeys.meetingBrowserRouting,
             DefaultsKeys.managedFootballEventRecords,
         ]
 
-        XCTAssertEqual(keys.count, 43)
+        XCTAssertEqual(keys.count, 50)
         XCTAssertEqual(Set(keys).count, keys.count)
         XCTAssertTrue(keys.contains("activeEventDisplayMode"))
         XCTAssertTrue(keys.contains("contextualPreviewLeadMinutes"))
@@ -170,6 +177,8 @@ final class AlertCalendarModelMetadataTests: AlertCalendarModelTestCase {
         XCTAssertTrue(keys.contains("footballAutoAddCompetitionSlugs"))
         XCTAssertTrue(keys.contains("enableFootballAutoAddNotifications"))
         XCTAssertTrue(keys.contains("enableFootballDisallowedGoalNotifications"))
+        XCTAssertTrue(keys.contains("gameSaleTargetCalendarID"))
+        XCTAssertTrue(keys.contains("removeEndedGameSalesAutomatically"))
     }
     func testUpcomingItemEqualityTracksKindAndMeetingURL() {
         let start = Date(timeIntervalSince1970: 1_700_000_000)

@@ -228,13 +228,13 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
   <key>LSMultipleInstancesProhibited</key>
   <true/>
   <key>NSCalendarsUsageDescription</key>
-  <string>AlertCalendar needs Calendar access to show upcoming events and alerts.</string>
+  <string>AlertCalendar needs Calendar access to show events and manage selected football fixtures and game-sale campaigns.</string>
   <key>NSRemindersUsageDescription</key>
   <string>AlertCalendar needs Reminders access to show your pending reminders.</string>
   <key>NSCalendarsFullAccessUsageDescription</key>
-  <string>AlertCalendar needs full Calendar access to read upcoming events and trigger alerts.</string>
+  <string>AlertCalendar needs full Calendar access to read events and manage selected football fixtures and game-sale campaigns.</string>
   <key>NSAppleEventsUsageDescription</key>
-  <string>AlertCalendar uses Apple Events to open selected fixtures directly in Calendar when you ask it to.</string>
+  <string>AlertCalendar uses Apple Events to reveal selected managed events in Calendar when you ask it to.</string>
   <key>NSRemindersFullAccessUsageDescription</key>
   <string>AlertCalendar needs full Reminders access to show reminder due times.</string>
   <key>NSLocationWhenInUseUsageDescription</key>

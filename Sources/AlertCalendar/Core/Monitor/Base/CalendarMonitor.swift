@@ -43,6 +43,9 @@ final class CalendarMonitor: ObservableObject {
     @Published var footballLiveAndNextDaySection = FootballMatchesOverviewSection.placeholder(title: "Now & Next 24 Hours")
     @Published var managedFootballMatchIDs: Set<String> = []
     @Published var managedFootballMatches: [FootballFixtureMatch] = []
+    @Published var gameSales: [GameSaleEvent] = []
+    @Published var isRefreshingGameSales = false
+    @Published var gameSalesErrorDescription: String?
     @Published var slackStatusSyncErrorDescription: String?
     @Published var lastSlackStatusSyncDate: Date?
     @Published var slackConnectionStatusMessage: String?
@@ -53,6 +56,7 @@ final class CalendarMonitor: ObservableObject {
     let defaults: UserDefaults
     let footballClient: FootballDataAPIClient
     let footballImageStore: FootballImageStore
+    let gameSalesClient: GameSalesFeedClient
     let slackClient: SlackAPIClient
     let clock: AlertCalendarClockProviding
 
@@ -76,6 +80,7 @@ final class CalendarMonitor: ObservableObject {
     var skippedItemKeys: Set<String> = []
     var locationRuntimeState = CalendarMonitorLocationRuntimeState()
     var footballState = CalendarMonitorFootballState()
+    var gameSalesState = CalendarMonitorGameSalesState()
     var menuBarRotationState = MenuBarRotationState()
     var slackRuntimeState = CalendarMonitorSlackRuntimeState()
 
@@ -84,6 +89,7 @@ final class CalendarMonitor: ObservableObject {
         defaults: UserDefaults = .standard,
         footballClient: FootballDataAPIClient = FootballDataAPIClient(),
         footballImageStore: FootballImageStore = FootballImageStore(),
+        gameSalesClient: GameSalesFeedClient = GameSalesFeedClient(),
         slackClient: SlackAPIClient = SlackAPIClient(),
         clock: AlertCalendarClockProviding = SystemAlertCalendarClock()
     ) {
@@ -91,6 +97,7 @@ final class CalendarMonitor: ObservableObject {
         self.defaults = defaults
         self.footballClient = footballClient
         self.footballImageStore = footballImageStore
+        self.gameSalesClient = gameSalesClient
         self.slackClient = slackClient
         self.clock = clock
 
@@ -98,6 +105,9 @@ final class CalendarMonitor: ObservableObject {
         currentSettings = settingsStore.load()
         managedFootballEventRecords = Self.decodeManagedFootballEventRecords(
             from: defaults.data(forKey: DefaultsKeys.managedFootballEventRecords)
+        )
+        managedGameSaleEventRecords = Self.decodeManagedGameSaleEventRecords(
+            from: defaults.data(forKey: DefaultsKeys.managedGameSaleEventRecords)
         )
         skippedItemKeys = Set(defaults.stringArray(forKey: DefaultsKeys.skippedItemKeys) ?? [])
         startObservers()
@@ -111,6 +121,11 @@ final class CalendarMonitor: ObservableObject {
     private static func decodeManagedFootballEventRecords(from data: Data?) -> [ManagedFootballEventRecord] {
         guard let data else { return [] }
         return (try? JSONDecoder().decode([ManagedFootballEventRecord].self, from: data)) ?? []
+    }
+
+    private static func decodeManagedGameSaleEventRecords(from data: Data?) -> [ManagedGameSaleEventRecord] {
+        guard let data else { return [] }
+        return (try? JSONDecoder().decode([ManagedGameSaleEventRecord].self, from: data)) ?? []
     }
 
     func refreshNow(reason: CalendarMonitorRefreshReason = .manual) {
@@ -184,6 +199,7 @@ final class CalendarMonitor: ObservableObject {
         let settings = settingsStore.load()
         currentSettings = settings
         prepareFootballNotificationAuthorizationIfNeeded(settings: settings)
+        prepareGameSaleNotificationAuthorizationIfNeeded()
     }
 
     func persistSettings(_ settings: AppSettings) {

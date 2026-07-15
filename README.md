@@ -20,11 +20,12 @@ It is built as a Swift Package, installs as a lightweight `.app` bundle, and use
 
 ## What It Does
 
-AlertCalendar combines time-sensitive information into a single menu bar surface:
+AlertCalendar combines time-sensitive information into a menu bar workflow, with supporting feed management in Settings:
 
 - Upcoming Calendar events, active events, all-day events, and reminders.
 - Optional astronomy feeds for sunrise, sunset, solar noon, solar midnight, moon phases, and orbital highlights.
 - Optional managed football fixtures backed by ESPN data and written to Apple Calendar.
+- Scheduled game-sale campaigns from official Steam, Xbox, PlayStation, and Nintendo sources, shown as store-aware cards and optionally synchronized into Apple Calendar.
 - Meeting-aware previews, join-link extraction, attendee context, and location previews when enough metadata is available.
 
 The app is meant to make the menu bar behave like a live operational timeline instead of a passive clock or event count.
@@ -113,7 +114,7 @@ Release bundle validation should use the installer because it writes the runtime
 AlertCalendar has four top-level settings tabs:
 
 - `General`: menu bar behavior, alerts, countdowns, rotation, look-ahead windows, font size, and title truncation.
-- `Feeds`: astronomy feeds and football fixture management.
+- `Feeds`: astronomy feeds, football fixture management, and scheduled game-sale campaigns.
 - `Calendars & Reminders`: source inclusion, selected calendars, selected reminder lists, and weekday-only sets.
 - `Permissions`: Calendar, Reminders, Location, and Contacts access cards with actions and System Settings shortcuts.
 
@@ -129,13 +130,25 @@ Football fixture management supports:
 - Automatic updates for status, venue, timing context, and metadata.
 - Automatic cleanup when fixtures fall outside the suggestion window.
 
+Game Sales supports:
+
+- A writable target Apple Calendar, preferring an existing calendar named `Game Sales`.
+- All-day campaign cards with start/end dates, official links, and add/open/remove actions.
+- Independent, opt-in automatic addition for Steam, Xbox, PlayStation, and Nintendo Switch; every store is off by default.
+- Store-aware detection for Steam, Xbox, PlayStation Store, and Nintendo eShop events already present in the selected calendar.
+- One Apple Calendar alert policy, defaulting to 15 minutes before the campaign begins.
+- Optional notifications when AlertCalendar automatically adds a newly announced campaign.
+- Automatic removal of ended sale events from the dedicated target calendar and semantic duplicate prevention.
+
+Steam publishes a structured future campaign schedule. Xbox, PlayStation, and Nintendo do not publish an equivalent complete calendar, so AlertCalendar also checks their official announcement feeds and only imports a console campaign when the announcement states both its start and end. Console coverage is therefore opportunistic and may be incomplete; AlertCalendar never invents missing dates.
+
 Focus Filters were intentionally removed from the app. Do not reintroduce Focus Filter UI, App Intents metadata, or stored focus calendar overrides.
 
 ## Permissions
 
 AlertCalendar may request these macOS permissions:
 
-- `Calendar`: read events, build the event queue, add/update managed football fixtures, and reveal selected fixtures in Calendar.
+- `Calendar`: read events, build the event queue, manage football fixtures and game-sale campaigns, and reveal selected managed events in Calendar.
 - `Reminders`: read reminders with due times and include them in the menu workflow.
 - `Location`: detect astronomy coordinates automatically.
 - `Contacts`: resolve meeting organizer and attendee names/photos.
@@ -156,6 +169,9 @@ Most app behavior is local and uses Apple frameworks:
 Network access is limited to feature-specific flows:
 
 - ESPN endpoints under `site.api.espn.com` and `sports.core.api.espn.com` for football fixtures, summaries, teams, venues, statistics, and logos.
+- Steamworks' public `partner.steamgames.com/doc/marketing/upcoming_events` page for announced seasonal and themed sale dates. No Steam login is required, and AlertCalendar does not store Steam account credentials. The page is HTML rather than a versioned API and may change.
+- The public Xbox Wire Store and PlayStation Store RSS feeds for official sale announcements that include an explicit date range.
+- Nintendo's public US news sitemap and matching official promotion articles for announced eShop campaigns with an explicit date range.
 - Slack API calls when Slack status sync is configured.
 - `https://ipapi.co/json/` as an approximate location fallback when macOS Location permission is granted but Core Location does not return coordinates.
 - Apple-backed geocoding/search via `CLGeocoder` and `MKLocalSearch` for map previews and structured football locations.
@@ -165,6 +181,7 @@ Local storage includes:
 - User settings in `UserDefaults`.
 - Slack connection data and tokens through the app's Slack/Keychain flow.
 - Managed football event records.
+- Managed game-sale event records and dismissed campaign identifiers.
 - Cached football imagery in Application Support.
 
 The UI should not display raw automatic coordinates redundantly. Coordinates are implementation data, not primary user-facing content.
@@ -183,7 +200,8 @@ Sources/AlertCalendar/
 │   ├── Slack/
 │   └── System/
 ├── Features/
-│   └── Football/
+│   ├── Football/
+│   └── GameSales/
 ├── Resources/
 ├── Shared/
 └── UI/
@@ -251,6 +269,14 @@ If football fixtures do not appear:
 - Confirm Calendar access is granted.
 - Confirm a writable target calendar is selected.
 - Confirm the desired competition is supported and inside the suggestion window.
+
+If game-sale campaigns do not appear:
+
+- Open Settings > Feeds > Game Sales and use Refresh.
+- Confirm Calendar access is granted and a writable target calendar is selected.
+- Confirm the Mac is online and enable Auto-add for each desired store; all four switches are off by default.
+- Steam's official schedule is parsed defensively, but its HTML may change.
+- Xbox, PlayStation, and Nintendo campaigns appear only when their official announcement includes both dates, so their lists can be incomplete.
 
 If meeting names, avatars, or maps are sparse:
 

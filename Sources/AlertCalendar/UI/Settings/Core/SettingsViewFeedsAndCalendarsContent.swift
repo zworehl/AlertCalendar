@@ -14,6 +14,8 @@ extension SettingsView {
                 atmosphereFeedsSubsection
             case .football:
                 footballFeedsSubsection
+            case .gameSales:
+                gameSalesSubsection
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -142,6 +144,11 @@ extension SettingsView {
     @ViewBuilder
     var footballFeedsSubsection: some View {
         SettingsFootballFixturesSectionView(monitor: monitor)
+    }
+
+    @ViewBuilder
+    var gameSalesSubsection: some View {
+        SettingsGameSalesSectionView(monitor: monitor)
     }
 
     @ViewBuilder

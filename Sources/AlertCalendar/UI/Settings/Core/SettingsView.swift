@@ -31,6 +31,7 @@ struct SettingsView: View {
     enum FeedsSubsection: String, CaseIterable, Identifiable {
         case atmosphere = "Atmosphere"
         case football = "Football"
+        case gameSales = "Game Sales"
 
         var id: String { rawValue }
 
@@ -40,6 +41,19 @@ struct SettingsView: View {
                 return "Atmosphere"
             case .football:
                 return "Football Fixtures"
+            case .gameSales:
+                return "Game Sales"
+            }
+        }
+
+        var symbolName: String {
+            switch self {
+            case .atmosphere:
+                return "sun.max"
+            case .football:
+                return "sportscourt"
+            case .gameSales:
+                return "gamecontroller.fill"
             }
         }
     }
@@ -327,31 +341,8 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .center, spacing: 16) {
-                Picker("Settings section", selection: $selectedTab) {
-                    ForEach(SettingsTab.allCases) { tab in
-                        Label(tab.rawValue, systemImage: tab.symbolName)
-                            .tag(tab)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 420, alignment: .leading)
-
-                if selectedTab == .feeds {
-                    Spacer(minLength: 0)
-
-                    Picker("Feeds subsection", selection: $selectedFeedsSubsection) {
-                        ForEach(FeedsSubsection.allCases) { subsection in
-                            Text(subsection.rawValue).tag(subsection)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
-                    .frame(width: 240)
-                }
-            }
-            .padding(.bottom, 2)
+            settingsNavigationControls
+                .padding(.bottom, 2)
 
             Group {
                 if selectedTab == .feeds, selectedFeedsSubsection == .football {
