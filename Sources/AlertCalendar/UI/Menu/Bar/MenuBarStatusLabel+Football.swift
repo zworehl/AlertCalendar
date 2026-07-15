@@ -143,7 +143,7 @@ extension MenuBarStatusLabel {
         let resolvedBorderColor = borderColor ?? NSColor.labelColor
         let image: NSImage?
         if let path,
-           let localImage = FootballLocalImageCache.cachedImage(for: path) {
+           let localImage = immediatelyAvailableFootballLogo(at: path) {
             let resolvedImage = localImage.copy() as? NSImage ?? localImage
             image = usesCircularOutline
                 ? circularFootballLogoImage(resolvedImage, size: logoSize, borderColor: resolvedBorderColor)
@@ -170,6 +170,20 @@ extension MenuBarStatusLabel {
             height: logoSize
         )
         return NSAttributedString(attachment: attachment)
+    }
+
+    @MainActor
+    static func immediatelyAvailableFootballLogo(at path: String) -> NSImage? {
+        if let cachedImage = FootballLocalImageCache.cachedImage(for: path) {
+            return cachedImage
+        }
+
+        guard let localImage = NSImage(contentsOfFile: path) else {
+            return nil
+        }
+
+        FootballLocalImageCache.store(localImage, for: path)
+        return localImage
     }
 
     @MainActor

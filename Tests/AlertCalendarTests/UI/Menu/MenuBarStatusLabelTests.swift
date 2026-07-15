@@ -4,6 +4,25 @@ import XCTest
 
 @MainActor
 final class MenuBarStatusLabelTests: XCTestCase {
+    func testFootballLogoIsAvailableImmediatelyFromLocalPath() throws {
+        let image = NSImage(size: NSSize(width: 12, height: 8))
+        image.lockFocus()
+        NSColor.systemBlue.setFill()
+        NSRect(x: 0, y: 0, width: 12, height: 8).fill()
+        image.unlockFocus()
+
+        let data = try XCTUnwrap(image.tiffRepresentation)
+        let path = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("tiff")
+            .path
+        try data.write(to: URL(fileURLWithPath: path))
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        XCTAssertNotNil(MenuBarStatusLabel.immediatelyAvailableFootballLogo(at: path))
+        XCTAssertNotNil(FootballLocalImageCache.cachedImage(for: path))
+    }
+
     func testSymbolMarkerAspectFitPreservesWideSymbolRatio() {
         let rect = CGRect(x: 10, y: 20, width: 12, height: 12)
         let fitted = MenuBarStatusLabel.aspectFitRect(
