@@ -44,6 +44,7 @@ extension SettingsView {
         contactsAuthorizationStatus = SettingsPermissionKind.currentContactsAuthorizationStatus()
         lastRefreshDate = monitor.lastRefreshDate
         refreshDiagnostics = monitor.refreshDiagnostics
+        externalFeedDiagnostics = monitor.externalFeedDiagnostics
         slackConnections = monitor.slackConnections()
         slackConnectionStatusMessage = monitor.slackConnectionStatusMessage
         slackRuntimeStatusDescription = monitor.slackRuntimeStatusDescription
@@ -53,13 +54,38 @@ extension SettingsView {
     }
 
     func applyDraft() {
-        let oldAutoLocation = monitor.currentSettings.useAutomaticAstronomyLocation
+        let previousSettings = monitor.currentSettings
+        let oldAutoLocation = previousSettings.useAutomaticAstronomyLocation
         let settings = draft.applied(
-            to: monitor.currentSettings,
+            to: previousSettings,
             availableEventCalendarIDs: Set(availableEventCalendars.map(\.id))
         )
+        let footballConfigurationChanged = settings.footballTargetCalendarID != previousSettings.footballTargetCalendarID
+            || settings.footballAutoAddCompetitionSlugs != previousSettings.footballAutoAddCompetitionSlugs
+            || settings.footballCalendarAlertOption != previousSettings.footballCalendarAlertOption
+        let gameSaleConfigurationChanged = settings.gameSaleTargetCalendarID != previousSettings.gameSaleTargetCalendarID
+            || settings.gameSaleAutoAddStores != previousSettings.gameSaleAutoAddStores
+            || settings.gameSaleCalendarAlertOption != previousSettings.gameSaleCalendarAlertOption
 
         monitor.persistSettings(settings)
+        draft = SettingsDraft(settings: settings)
+        settingsWindowCloseGuard.hasUnsavedChanges = false
+
+        if footballConfigurationChanged {
+            let now = AlertCalendarClock.nowRoundedToSecond()
+            monitor.applyManagedFootballAlertConfigurationIfNeeded(now: now)
+            Task { @MainActor in
+                await monitor.syncAutoAddedFootballMatchesIfNeeded(now: now, force: true)
+                await monitor.syncManagedFootballEventsIfNeeded(now: now, force: true)
+            }
+        }
+
+        if gameSaleConfigurationChanged {
+            monitor.applyManagedGameSaleAlertConfiguration()
+            Task { @MainActor in
+                await monitor.refreshGameSales(forceRefresh: false)
+            }
+        }
 
         if draft.useAutomaticAstronomyLocation, !oldAutoLocation {
             monitor.refreshAstronomyCoordinatesFromSystem()
@@ -69,16 +95,6 @@ extension SettingsView {
         } else {
             monitor.refreshNow(reason: .settingsChanged)
         }
-    }
-
-    func persistCalendarSelectionDraft() {
-        var settings = monitor.currentSettings
-        settings.selectedEventCalendarIDs = draft.selectedEventCalendarIDs
-        settings.selectedReminderCalendarIDs = draft.selectedReminderCalendarIDs
-        settings.weekdayOnlyEventCalendarIDs = draft.weekdayOnlyEventCalendarIDs
-        settings.weekdayOnlyReminderCalendarIDs = draft.weekdayOnlyReminderCalendarIDs
-        monitor.persistSettings(settings)
-        monitor.refreshNow(reason: .calendarSelectionChanged)
     }
 
     func detectLocation() {

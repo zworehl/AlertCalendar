@@ -35,7 +35,7 @@ actor GameSalesFeedClient {
     )!
     static let nintendoArticleRequestLimit = 20
 
-    private enum RemoteSource: CaseIterable, Hashable, Sendable {
+    private enum RemoteSource: String, CaseIterable, Hashable, Sendable {
         case steam
         case xbox
         case playStation
@@ -71,23 +71,53 @@ actor GameSalesFeedClient {
             case .nintendoSitemap: .nintendoSwitch
             }
         }
+
+        var cacheTTL: TimeInterval {
+            switch self {
+            case .steam:
+                return 24 * 60 * 60
+            case .xbox, .playStation:
+                return 2 * 60 * 60
+            case .nintendoSitemap:
+                return 6 * 60 * 60
+            }
+        }
+
+        var diagnosticsKey: String {
+            "game-sales.\(rawValue)"
+        }
     }
 
     private struct SourceLoadResult: Sendable {
         let source: RemoteSource
-        let text: String?
+        let document: LoadedDocument?
+        let wasNotModified: Bool
         let error: ClientError?
     }
 
-    private struct CacheEntry {
-        let sales: [GameSaleEvent]
-        let fetchedAt: Date
+    private struct LoadedDocument: Sendable {
+        let text: String
+        let eTag: String?
+        let lastModified: String?
     }
 
     private let session: URLSession
-    private var cache: CacheEntry?
+    private let cacheStore: GameSalesFeedCacheStore?
+    private var sourceCache: [String: GameSalesFeedSourceCacheEntry]
+    private var sourceFailures: [String: GameSalesFeedFailureState]
+    private var nintendoArticleLastModified: [String: Date]
 
-    init(session: URLSession? = nil) {
+    init(
+        session: URLSession? = nil,
+        cacheStore: GameSalesFeedCacheStore? = nil
+    ) {
+        let resolvedCacheStore = cacheStore ?? (session == nil ? GameSalesFeedCacheStore.defaultStore() : nil)
+        let persisted = resolvedCacheStore?.load() ?? .empty
+        self.cacheStore = resolvedCacheStore
+        self.sourceCache = persisted.sources
+        self.sourceFailures = persisted.failures
+        self.nintendoArticleLastModified = persisted.nintendoArticleLastModified
+
         if let session {
             self.session = session
             return
@@ -104,30 +134,63 @@ actor GameSalesFeedClient {
         now: Date = Date(),
         forceRefresh: Bool = false
     ) async throws -> [GameSaleEvent] {
-        if !forceRefresh,
-           let cache,
-           now >= cache.fetchedAt,
-           now.timeIntervalSince(cache.fetchedAt) <= Self.cacheTTL {
-            return cache.sales.filter { $0.endDateExclusive > now }
+        let sourcesToRefresh = RemoteSource.allCases.filter { source in
+            if forceRefresh {
+                return true
+            }
+            if let failure = sourceFailures[source.rawValue], now < failure.nextRetryAt {
+                return false
+            }
+            guard let cached = sourceCache[source.rawValue], now >= cached.fetchedAt else {
+                return true
+            }
+            return now.timeIntervalSince(cached.fetchedAt) > source.cacheTTL
         }
 
-        let session = session
+        let cachedSources = Set(RemoteSource.allCases).subtracting(sourcesToRefresh)
+        for source in cachedSources {
+            await ExternalFeedMetrics.shared.recordCacheHit(source: source.diagnosticsKey)
+        }
+
+        guard !sourcesToRefresh.isEmpty else {
+            return cachedSales(now: now)
+        }
+
+        let session = self.session
+        let validators = Dictionary(uniqueKeysWithValues: sourcesToRefresh.map { source in
+            let cached = sourceCache[source.rawValue]
+            return (source, (cached?.eTag, cached?.lastModified))
+        })
         let results = await withTaskGroup(of: SourceLoadResult.self) { group in
-            for source in RemoteSource.allCases {
+            for source in sourcesToRefresh {
                 group.addTask {
                     do {
-                        let text = try await Self.loadText(
+                        let document = try await Self.loadText(
                             from: source.url,
                             acceptHeader: source.acceptHeader,
+                            eTag: validators[source]?.0,
+                            lastModified: validators[source]?.1,
+                            diagnosticsSource: source.diagnosticsKey,
                             session: session
                         )
-                        return SourceLoadResult(source: source, text: text, error: nil)
+                        return SourceLoadResult(
+                            source: source,
+                            document: document,
+                            wasNotModified: document == nil,
+                            error: nil
+                        )
                     } catch let error as ClientError {
-                        return SourceLoadResult(source: source, text: nil, error: error)
+                        return SourceLoadResult(
+                            source: source,
+                            document: nil,
+                            wasNotModified: false,
+                            error: error
+                        )
                     } catch {
                         return SourceLoadResult(
                             source: source,
-                            text: nil,
+                            document: nil,
+                            wasNotModified: false,
                             error: .invalidResponse
                         )
                     }
@@ -141,64 +204,71 @@ actor GameSalesFeedClient {
             return loaded
         }
 
-        let documents = Dictionary(
-            uniqueKeysWithValues: results.compactMap { result in
-                result.text.map { (result.source, $0) }
+        var firstError: ClientError?
+        var receivedSuccessfulResponse = false
+        for result in results {
+            let key = result.source.rawValue
+            if let error = result.error {
+                firstError = firstError ?? error
+                let failureCount = (sourceFailures[key]?.consecutiveFailureCount ?? 0) + 1
+                sourceFailures[key] = GameSalesFeedFailureState(
+                    consecutiveFailureCount: failureCount,
+                    nextRetryAt: now.addingTimeInterval(Self.retryDelay(forFailureCount: failureCount))
+                )
+                continue
             }
-        )
-        guard !documents.isEmpty else {
-            let errors = Dictionary(
-                uniqueKeysWithValues: results.compactMap { result in
-                    result.error.map { (result.source, $0) }
-                }
-            )
-            throw RemoteSource.allCases.compactMap { errors[$0] }.first
-                ?? ClientError.invalidResponse
-        }
 
-        var sales: [GameSaleEvent] = []
-        if let steamHTML = documents[.steam] {
-            sales += Self.parseScheduledSales(fromHTML: steamHTML, now: now)
-        }
-        if let xboxRSS = documents[.xbox] {
-            sales += GameSalesEditorialRSSParser.parseEditorialRSS(
-                xml: xboxRSS,
-                store: .xbox,
-                now: now
-            )
-        }
-        if let playStationRSS = documents[.playStation] {
-            sales += GameSalesEditorialRSSParser.parseEditorialRSS(
-                xml: playStationRSS,
-                store: .playStation,
-                now: now
-            )
-        }
-        if let nintendoSitemap = documents[.nintendoSitemap] {
-            sales += await fetchNintendoSales(
-                sitemapXML: nintendoSitemap,
-                now: now,
-                session: session
-            )
-        }
-
-        let failedStores = Set(results.compactMap { result in
-            result.text == nil ? result.source.store : nil
-        })
-        let consoleStores: Set<GameStore> = [.xbox, .playStation, .nintendoSwitch]
-        if let cache {
-            sales += cache.sales.filter { sale in
-                failedStores.contains(sale.store) || consoleStores.contains(sale.store)
+            receivedSuccessfulResponse = true
+            sourceFailures[key] = nil
+            if result.wasNotModified, var cached = sourceCache[key] {
+                cached.fetchedAt = now
+                sourceCache[key] = cached
+                continue
             }
+            guard let document = result.document else { continue }
+
+            let sales: [GameSaleEvent]
+            switch result.source {
+            case .steam:
+                sales = Self.parseScheduledSales(fromHTML: document.text, now: now)
+            case .xbox:
+                sales = GameSalesEditorialRSSParser.parseEditorialRSS(
+                    xml: document.text,
+                    store: .xbox,
+                    now: now
+                )
+            case .playStation:
+                sales = GameSalesEditorialRSSParser.parseEditorialRSS(
+                    xml: document.text,
+                    store: .playStation,
+                    now: now
+                )
+            case .nintendoSitemap:
+                sales = await fetchNintendoSales(
+                    sitemapXML: document.text,
+                    cachedSales: sourceCache[key]?.sales ?? [],
+                    now: now,
+                    session: session
+                )
+            }
+            sourceCache[key] = GameSalesFeedSourceCacheEntry(
+                sales: sales,
+                fetchedAt: now,
+                eTag: document.eTag,
+                lastModified: document.lastModified
+            )
         }
 
-        sales = Self.normalizedSales(sales, now: now)
-        cache = CacheEntry(sales: sales, fetchedAt: now)
-        return sales
+        persistCache()
+        if !receivedSuccessfulResponse, sourceCache.isEmpty {
+            throw firstError ?? ClientError.invalidResponse
+        }
+        return cachedSales(now: now)
     }
 
     private func fetchNintendoSales(
         sitemapXML: String,
+        cachedSales: [GameSaleEvent],
         now: Date,
         session: URLSession
     ) async -> [GameSaleEvent] {
@@ -208,50 +278,89 @@ actor GameSalesFeedClient {
                 return ["sale", "save", "deal", "discount", "promotion", "offer", "eshop"]
                     .contains { slug.contains($0) }
             }
+            .filter { reference in
+                nintendoArticleLastModified[reference.url.absoluteString] != reference.lastModified
+            }
             .prefix(Self.nintendoArticleRequestLimit)
 
-        return await withTaskGroup(of: GameSaleEvent?.self) { group in
+        let refreshedURLs = Set(references.map(\.url))
+        var retainedSales = cachedSales.filter {
+            $0.endDateExclusive > now && !refreshedURLs.contains($0.officialURL)
+        }
+
+        let refreshedSales = await withTaskGroup(of: (NintendoSaleArticleReference, GameSaleEvent?).self) { group in
             for reference in references {
                 group.addTask {
                     guard let html = try? await Self.loadText(
                         from: reference.url,
                         acceptHeader: "text/html,application/xhtml+xml",
+                        eTag: nil,
+                        lastModified: nil,
+                        diagnosticsSource: "game-sales.nintendo-article",
                         session: session
                     ) else {
-                        return nil
+                        return (reference, nil)
                     }
-                    return Self.parseNintendoSaleArticle(
-                        html,
+                    return (reference, Self.parseNintendoSaleArticle(
+                        html.text,
                         url: reference.url,
                         now: now
-                    )
+                    ))
                 }
             }
 
             var sales: [GameSaleEvent] = []
-            for await sale in group {
+            for await (reference, sale) in group {
+                nintendoArticleLastModified[reference.url.absoluteString] = reference.lastModified
                 if let sale {
                     sales.append(sale)
                 }
             }
             return sales
         }
+        retainedSales.append(contentsOf: refreshedSales)
+        return Self.normalizedSales(retainedSales, now: now)
     }
 
     nonisolated private static func loadText(
         from url: URL,
         acceptHeader: String,
+        eTag: String?,
+        lastModified: String?,
+        diagnosticsSource: String,
         session: URLSession
-    ) async throws -> String {
+    ) async throws -> LoadedDocument? {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.timeoutInterval = requestTimeout
         request.setValue(acceptHeader, forHTTPHeaderField: "Accept")
         request.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
+        if let eTag, !eTag.isEmpty {
+            request.setValue(eTag, forHTTPHeaderField: "If-None-Match")
+        }
+        if let lastModified, !lastModified.isEmpty {
+            request.setValue(lastModified, forHTTPHeaderField: "If-Modified-Since")
+        }
 
-        let (data, response) = try await session.data(for: request)
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            await ExternalFeedMetrics.shared.recordTransportFailure(source: diagnosticsSource)
+            throw error
+        }
         guard let httpResponse = response as? HTTPURLResponse else {
+            await ExternalFeedMetrics.shared.recordTransportFailure(source: diagnosticsSource)
             throw ClientError.invalidResponse
+        }
+        await ExternalFeedMetrics.shared.recordNetworkResponse(
+            source: diagnosticsSource,
+            statusCode: httpResponse.statusCode,
+            responseBytes: data.count
+        )
+        if httpResponse.statusCode == 304 {
+            return nil
         }
         guard (200...299).contains(httpResponse.statusCode) else {
             throw ClientError.unsuccessfulResponse(statusCode: httpResponse.statusCode)
@@ -259,7 +368,28 @@ actor GameSalesFeedClient {
         guard let text = String(data: data, encoding: .utf8) else {
             throw ClientError.unreadableHTML
         }
-        return text
+        return LoadedDocument(
+            text: text,
+            eTag: httpResponse.value(forHTTPHeaderField: "ETag"),
+            lastModified: httpResponse.value(forHTTPHeaderField: "Last-Modified")
+        )
+    }
+
+    private func cachedSales(now: Date) -> [GameSaleEvent] {
+        Self.normalizedSales(sourceCache.values.flatMap(\.sales), now: now)
+    }
+
+    private func persistCache() {
+        cacheStore?.save(GameSalesFeedCacheSnapshot(
+            sources: sourceCache,
+            failures: sourceFailures,
+            nintendoArticleLastModified: nintendoArticleLastModified
+        ))
+    }
+
+    nonisolated private static func retryDelay(forFailureCount failureCount: Int) -> TimeInterval {
+        let exponent = min(max(failureCount - 1, 0), 6)
+        return min(6 * 60 * 60, 5 * 60 * pow(2, Double(exponent)))
     }
 
     nonisolated private static func normalizedSales(

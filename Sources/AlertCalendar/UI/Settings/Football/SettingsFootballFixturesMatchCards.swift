@@ -248,19 +248,6 @@ extension SettingsFootballFixturesSectionView {
         }
 
         autoAddFootballCompetitionSlugs = slugs
-        monitor.setFootballAutoAddEnabled(isEnabled, for: section.competition)
-
-        guard isEnabled else { return }
-        Task {
-            let now = Self.minuteReferenceDate(for: AlertCalendarClock.nowRoundedToSecond())
-            await monitor.autoAddFootballMatches(section.matches, now: now)
-            await monitor.loadFootballCompetitionSection(section.competition, force: true)
-            await MainActor.run {
-                visibleNow = now
-                synchronizeViewStateFromMonitor()
-            }
-            await refreshManagedMatchesPanel(now: now, force: true)
-        }
     }
 
     func footballCardShowsMetadataLine(_ match: FootballFixtureMatch, showsCompetitionName: Bool) -> Bool {

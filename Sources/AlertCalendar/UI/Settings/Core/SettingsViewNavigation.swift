@@ -6,7 +6,7 @@ extension SettingsView {
         ViewThatFits(in: .horizontal) {
             HStack(alignment: .center, spacing: 16) {
                 settingsTabPicker
-                    .frame(maxWidth: 420, alignment: .leading)
+                    .frame(maxWidth: 620, alignment: .leading)
 
                 if selectedTab == .feeds {
                     Spacer(minLength: 0)
@@ -17,7 +17,7 @@ extension SettingsView {
 
             VStack(alignment: .leading, spacing: 10) {
                 settingsTabPicker
-                    .frame(maxWidth: 420, alignment: .leading)
+                    .frame(maxWidth: 620, alignment: .leading)
 
                 if selectedTab == .feeds {
                     feedsSubsectionPicker

@@ -8,8 +8,13 @@ actor FootballImageStore {
     private let fileManager: FileManager
     private let session: URLSession
     private let baseDirectoryURL: URL
+    private var failedRequestDates: [String: Date] = [:]
+    private var lastCleanupDate: Date?
     private static let requestTimeout: TimeInterval = 6
     private static let resourceTimeout: TimeInterval = 12
+    private static let failedRequestRetryInterval: TimeInterval = 30 * 60
+    private static let cleanupInterval: TimeInterval = 24 * 60 * 60
+    private static let cachedImageRetentionInterval: TimeInterval = 90 * 24 * 60 * 60
 
     init(fileManager: FileManager = .default, session: URLSession? = nil) {
         self.fileManager = fileManager
@@ -35,29 +40,77 @@ actor FootballImageStore {
     func localFileURL(for remoteURL: URL?) async -> URL? {
         guard let remoteURL else { return nil }
         ensureDirectoryExists(at: baseDirectoryURL)
+        let now = Date()
+        cleanupCachedImagesIfNeeded(now: now)
 
         let fileExtension = normalizedFileExtension(from: remoteURL)
         let fileName = "\(hashed(remoteURL.absoluteString)).\(fileExtension)"
         let destinationURL = baseDirectoryURL.appendingPathComponent(fileName)
 
         if fileManager.fileExists(atPath: destinationURL.path) {
+            await ExternalFeedMetrics.shared.recordCacheHit(source: "football.images")
             normalizeExistingImageIfNeeded(at: destinationURL, remoteURL: remoteURL)
             return destinationURL
+        }
+
+        let requestKey = remoteURL.absoluteString
+        if let failedAt = failedRequestDates[requestKey],
+           now.timeIntervalSince(failedAt) < Self.failedRequestRetryInterval {
+            await ExternalFeedMetrics.shared.recordCacheHit(source: "football.images.negative")
+            return nil
         }
 
         do {
             var request = URLRequest(url: remoteURL)
             request.timeoutInterval = Self.requestTimeout
             let (data, response) = try await session.data(for: request)
-            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode), !data.isEmpty else {
+            guard let http = response as? HTTPURLResponse else {
+                failedRequestDates[requestKey] = now
+                await ExternalFeedMetrics.shared.recordTransportFailure(source: "football.images")
+                return nil
+            }
+            await ExternalFeedMetrics.shared.recordNetworkResponse(
+                source: "football.images",
+                statusCode: http.statusCode,
+                responseBytes: data.count
+            )
+            guard (200...299).contains(http.statusCode), !data.isEmpty else {
+                failedRequestDates[requestKey] = now
                 return nil
             }
 
             let imageData = Self.normalizedImageData(from: data, remoteURL: remoteURL)
             try imageData.write(to: destinationURL, options: [.atomic])
+            failedRequestDates[requestKey] = nil
             return destinationURL
         } catch {
+            failedRequestDates[requestKey] = now
+            await ExternalFeedMetrics.shared.recordTransportFailure(source: "football.images")
             return nil
+        }
+    }
+
+    private func cleanupCachedImagesIfNeeded(now: Date) {
+        if let lastCleanupDate,
+           now.timeIntervalSince(lastCleanupDate) < Self.cleanupInterval {
+            return
+        }
+        lastCleanupDate = now
+        guard let files = try? fileManager.contentsOfDirectory(
+            at: baseDirectoryURL,
+            includingPropertiesForKeys: [.contentModificationDateKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return
+        }
+
+        for fileURL in files {
+            guard let values = try? fileURL.resourceValues(forKeys: [.contentModificationDateKey]),
+                  let modifiedAt = values.contentModificationDate,
+                  now.timeIntervalSince(modifiedAt) > Self.cachedImageRetentionInterval else {
+                continue
+            }
+            try? fileManager.removeItem(at: fileURL)
         }
     }
 

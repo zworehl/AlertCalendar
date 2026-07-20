@@ -3,14 +3,6 @@ import Combine
 import SwiftUI
 
 extension SettingsFootballFixturesSectionView {
-    func applyFootballCalendarAlertPreference() {
-        let now = Self.minuteReferenceDate(for: AlertCalendarClock.nowRoundedToSecond())
-        visibleNow = now
-        refreshManagedMatchesDerivedState(now: now)
-        monitor.applyManagedFootballAlertConfigurationIfNeeded(now: now)
-        monitor.refreshManagedFootballTrackingSnapshot(now: now)
-    }
-
     var shouldRefreshManagedMatchesOnVisibleTick: Bool {
         !managedFootballMatchIDs.isEmpty || !managedFootballMatches.isEmpty
     }
@@ -22,7 +14,6 @@ extension SettingsFootballFixturesSectionView {
         footballLiveAndNextDaySection = monitor.footballLiveAndNextDaySection
         managedFootballMatchIDs = monitor.managedFootballMatchIDs
         managedFootballMatches = monitor.managedFootballMatches
-        autoAddFootballCompetitionSlugs = monitor.footballAutoAddCompetitionSlugs()
         refreshCompetitionSectionsDerivedState()
         refreshLiveAndNextDayDerivedState()
         refreshManagedMatchesDerivedState(now: visibleNow)

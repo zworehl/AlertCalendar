@@ -21,15 +21,8 @@ extension SettingsFootballFixturesSectionView {
         writableEventCalendars
     }
 
-    var footballCalendarAlertOption: FootballCalendarAlertOption {
-        FootballCalendarAlertOption(rawValue: footballCalendarAlertOptionRaw) ?? .none
-    }
-
     var footballCalendarAlertOptionBinding: Binding<FootballCalendarAlertOption> {
-        Binding(
-            get: { footballCalendarAlertOption },
-            set: { footballCalendarAlertOptionRaw = $0.rawValue }
-        )
+        $footballCalendarAlertOption
     }
 
     var footballCalendarAlertSummaryText: String {

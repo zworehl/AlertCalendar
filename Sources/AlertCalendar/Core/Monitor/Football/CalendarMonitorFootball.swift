@@ -10,12 +10,12 @@ struct ManagedFootballEventSnapshot {
 }
 
 extension CalendarMonitor {
-    nonisolated static let footballMenuRefreshInterval: TimeInterval = 60
+    nonisolated static let footballMenuRefreshInterval: TimeInterval = 15 * 60
     nonisolated static let footballManagedSyncInterval: TimeInterval = 60
     nonisolated static let footballActiveRefreshInterval: TimeInterval = 30
-    nonisolated static let footballMissingCacheRefreshInterval: TimeInterval = 30
-    nonisolated static let footballUpcomingRefreshInterval: TimeInterval = 5 * 60
-    nonisolated static let footballIdleRefreshInterval: TimeInterval = 15 * 60
+    nonisolated static let footballMissingCacheRefreshInterval: TimeInterval = 5 * 60
+    nonisolated static let footballUpcomingRefreshInterval: TimeInterval = 15 * 60
+    nonisolated static let footballIdleRefreshInterval: TimeInterval = 6 * 60 * 60
     static let footballManagedCleanupInterval: TimeInterval = 6 * 60 * 60
     static let footballManagedRecoveryInterval: TimeInterval = 15 * 60
     static let footballLegacyMigrationInterval: TimeInterval = 6 * 60 * 60
@@ -167,20 +167,21 @@ extension CalendarMonitor {
             footballLiveAndNextDaySection = loadingSection
         }
 
-        let limitedPresets = FootballCompetitionPreset.menuPresets.map {
-            FootballCompetitionPreset(
-                slug: $0.slug,
-                title: $0.title,
-                lookbackDays: 1,
-                lookaheadDays: 1,
-                category: $0.category,
-                region: $0.region
-            )
-        }
+        let limitedPresets = FootballCompetitionPreset.menuPresets
+        let calendar = Calendar(identifier: .gregorian)
+        let dayStart = calendar.startOfDay(for: now)
+        let range = FootballScoreboardDateRange(
+            start: calendar.date(byAdding: .day, value: -1, to: dayStart) ?? dayStart,
+            end: calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart
+        )
+        let rangesBySlug = Dictionary(
+            uniqueKeysWithValues: limitedPresets.map { ($0.slug, [range]) }
+        )
 
         do {
             let fetchedMatches = try await footballClient.fetchMatches(
                 for: limitedPresets,
+                dateRangesByCompetitionSlug: rangesBySlug,
                 enrichTeams: false
             )
             let refreshedMatches = await footballClient.refreshStatusesIfNeeded(for: fetchedMatches)
@@ -272,7 +273,13 @@ extension CalendarMonitor {
         let trackedPresets = deduplicatedFootballPresets(from: trackedEvents.map(\.reference.competitionSlug))
         lastFootballManagedSyncDate = now
         do {
-            let matches = try await footballClient.fetchMatches(for: trackedPresets)
+            let rangesBySlug = footballScoreboardDateRangesByCompetition(
+                trackedEvents.map { ($0.reference.competitionSlug, $0.event.startDate) }
+            )
+            let matches = try await footballClient.fetchMatches(
+                for: trackedPresets,
+                dateRangesByCompetitionSlug: rangesBySlug
+            )
             let forceSummaryMatchIDs = Self.footballManagedMatchIDsNeedingActualEndBackfill(
                 matches,
                 trackedMatchIDs: Set(trackedEvents.map(\.reference.matchID)),
@@ -289,6 +296,35 @@ extension CalendarMonitor {
             lastFootballManagedSyncDate = now
         } catch {
             return
+        }
+    }
+
+    func footballScoreboardDateRangesByCompetition(
+        _ entries: [(competitionSlug: String, date: Date)]
+    ) -> [String: [FootballScoreboardDateRange]] {
+        let calendar = Calendar(identifier: .gregorian)
+        return Dictionary(grouping: entries, by: \.competitionSlug).mapValues { groupedEntries in
+            let days = Array(Set(groupedEntries.flatMap { entry -> [Date] in
+                let day = calendar.startOfDay(for: entry.date)
+                return (-1...1).compactMap { calendar.date(byAdding: .day, value: $0, to: day) }
+            })).sorted()
+            guard let first = days.first else { return [] }
+
+            var ranges: [FootballScoreboardDateRange] = []
+            var start = first
+            var end = first
+            for day in days.dropFirst() {
+                let nextDay = calendar.date(byAdding: .day, value: 1, to: end) ?? end
+                if day <= nextDay {
+                    end = day
+                } else {
+                    ranges.append(FootballScoreboardDateRange(start: start, end: end))
+                    start = day
+                    end = day
+                }
+            }
+            ranges.append(FootballScoreboardDateRange(start: start, end: end))
+            return ranges
         }
     }
 

@@ -9,28 +9,32 @@ import UniformTypeIdentifiers
 extension SettingsView {
     @ViewBuilder
     func slackIntegrationActionCard(badgeState: SettingsCardBadgeState) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            if slackConnections.isEmpty {
-                slackIntegrationLeftColumn(badgeState: badgeState)
-            } else if slackShouldUseTwoColumnLayout {
-                HStack(alignment: .top, spacing: 18) {
-                    slackIntegrationLeftColumn(badgeState: badgeState)
-                        .frame(width: slackIntegrationLeftColumnWidth, alignment: .leading)
+        VStack(alignment: .leading, spacing: 12) {
+            if slackShouldUseSideBySideConnectionManagement {
+                HStack(alignment: .top, spacing: 14) {
+                    slackIntegrationOverview(badgeState: badgeState)
+                        .frame(minWidth: 520, maxWidth: .infinity, alignment: .topLeading)
 
                     Rectangle()
                         .fill(Color.white.opacity(0.08))
                         .frame(width: 1)
-                        .padding(.vertical, 4)
 
-                    slackIntegrationRightColumn
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    slackIntegrationConnectionManagementSection
+                        .frame(width: 380, alignment: .topLeading)
                 }
             } else {
-                VStack(alignment: .leading, spacing: 18) {
-                    slackIntegrationLeftColumn(badgeState: badgeState)
-                    slackIntegrationRightColumn
+                VStack(alignment: .leading, spacing: 12) {
+                    slackIntegrationOverview(badgeState: badgeState)
+
+                    Divider()
+
+                    slackIntegrationStackedConnectionManagement
                 }
             }
+
+            Divider()
+
+            slackIntegrationRightColumn
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -45,8 +49,8 @@ extension SettingsView {
     }
 
     @ViewBuilder
-    func slackIntegrationLeftColumn(badgeState: SettingsCardBadgeState) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
+    func slackIntegrationOverview(badgeState: SettingsCardBadgeState) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
             integrationActionCardHeader(for: .slackStatusSync, badgeState: badgeState)
 
             Text(SettingsIntegrationKind.slackStatusSync.summary)
@@ -59,11 +63,73 @@ extension SettingsView {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
+            slackIntegrationStatusMessages
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+
+    @ViewBuilder
+    var slackIntegrationStackedConnectionManagement: some View {
+        if slackConnections.isEmpty {
+            slackIntegrationConnectionManagementSection
+        } else {
+            DisclosureGroup(
+                isExpanded: $isShowingSlackConnectionManagement
+            ) {
+                slackIntegrationConnectionManagement
+                    .padding(.top, 10)
+            } label: {
+                Label("Connection Management", systemImage: "key.horizontal")
+                    .font(.subheadline.weight(.semibold))
+            }
+        }
+    }
+
+    @ViewBuilder
+    var slackIntegrationConnectionManagement: some View {
+        VStack(alignment: .leading, spacing: 10) {
             slackIntegrationConnectionColumnContent
 
             integrationActionButtons(for: .slackStatusSync)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    var slackIntegrationConnectionManagementSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 10) {
+                    Label("Connection Management", systemImage: "key.horizontal")
+                        .font(.subheadline.weight(.semibold))
+
+                    Spacer(minLength: 8)
+
+                    slackOpenAppsButton
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Connection Management", systemImage: "key.horizontal")
+                        .font(.subheadline.weight(.semibold))
+
+                    slackOpenAppsButton
+                }
+            }
+
+            slackIntegrationConnectionManagement
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+
+    @ViewBuilder
+    var slackOpenAppsButton: some View {
+        Button {
+            openSlackAppDashboard()
+        } label: {
+            Label("Slack Apps", systemImage: "link")
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
     }
 
     @ViewBuilder
@@ -73,32 +139,31 @@ extension SettingsView {
             slackStatusRulesListContent
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: SlackStatusRulesColumnWidthPreferenceKey.self,
+                    value: proxy.size.width
+                )
+            }
+        )
+        .onPreferenceChange(SlackStatusRulesColumnWidthPreferenceKey.self) { width in
+            guard width > 0, abs(width - slackStatusRulesColumnWidth) > 0.5 else { return }
+            slackStatusRulesColumnWidth = width
+        }
     }
 
-    var slackShouldUseTwoColumnLayout: Bool {
-        !slackConnections.isEmpty && settingsWindowWidth >= slackTwoColumnMinimumWindowWidth
+    var slackWideRuleEditorMinimumColumnWidth: CGFloat {
+        1180
     }
 
-    var slackTwoColumnMinimumWindowWidth: CGFloat {
-        1360
-    }
-
-    var slackIntegrationLeftColumnWidth: CGFloat {
-        let availableWidth = max(settingsWindowWidth - 40, 0)
-        return min(max(availableWidth * 0.28, 420), 560)
-    }
-
-    var slackShouldUseRuleGrid: Bool {
-        slackShouldUseTwoColumnLayout && settingsWindowWidth >= 1700
-    }
-
-    var slackStatusRulesListMaxHeight: CGFloat {
-        slackShouldUseRuleGrid ? 340 : 520
+    var slackShouldUseSideBySideConnectionManagement: Bool {
+        settingsWindowWidth >= 1100
     }
 
     @ViewBuilder
     var slackIntegrationConnectionColumnContent: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Slack User Token")
                     .font(.caption.weight(.semibold))
@@ -108,43 +173,10 @@ extension SettingsView {
                     .textFieldStyle(.roundedBorder)
             }
 
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 10) {
-                    Button {
-                        openSlackAppDashboard()
-                    } label: {
-                        Label("Open Slack Apps", systemImage: "link")
-                    }
-                    .buttonStyle(.bordered)
-
-                    Text("Copy any text that contains the token, then use Extract Token.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Button {
-                        openSlackAppDashboard()
-                    } label: {
-                        Label("Open Slack Apps", systemImage: "link")
-                    }
-                    .buttonStyle(.bordered)
-
-                    Text("Copy any text that contains the token, then use Extract Token.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-
-            if slackConnections.isEmpty {
-                Text("Paste a Slack user token or copy a Slack page payload and use Extract Token. Then choose which workspace and calendar should drive the status.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            slackIntegrationStatusMessages
+            Text("Use an xoxp- token or extract it from the clipboard. Connected tokens are stored in Keychain.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -180,11 +212,6 @@ extension SettingsView {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-
-            Text("Slack status updates still require a user token that starts with xoxp-. AlertCalendar stores the connected token in Keychain.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -241,10 +268,15 @@ extension SettingsView {
     var slackStatusRulesHeader: some View {
         ViewThatFits(in: .horizontal) {
             HStack(alignment: .top, spacing: 10) {
-                Text(slackStatusRulesSummary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Status Rules")
+                        .font(.subheadline.weight(.semibold))
+
+                    Text(slackStatusRulesSummary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
                 Spacer(minLength: 12)
 
@@ -253,10 +285,15 @@ extension SettingsView {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text(slackStatusRulesSummary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Status Rules")
+                        .font(.subheadline.weight(.semibold))
+
+                    Text(slackStatusRulesSummary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
                 HStack(spacing: 10) {
                     slackConnectedWorkspacesMenu
@@ -274,37 +311,22 @@ extension SettingsView {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         } else {
-            ScrollView(.vertical) {
-                LazyVGrid(columns: slackStatusRulesGridColumns, alignment: .leading, spacing: 12) {
-                    ForEach(Array(draft.slackStatusSyncRules.enumerated()), id: \.element.id) { index, rule in
-                        slackStatusSyncRuleCard(index: index, rule: rule)
-                            .opacity(draggingSlackStatusRuleID == rule.id ? 0.55 : 1)
-                            .onDrop(
-                                of: [.text],
-                                delegate: SlackStatusSyncRuleDropDelegate(
-                                    targetRuleID: rule.id,
-                                    rules: $draft.slackStatusSyncRules,
-                                    draggingRuleID: $draggingSlackStatusRuleID
-                                )
+            LazyVStack(alignment: .leading, spacing: 12) {
+                ForEach(Array(draft.slackStatusSyncRules.enumerated()), id: \.element.id) { index, rule in
+                    slackStatusSyncRuleCard(index: index, rule: rule)
+                        .opacity(draggingSlackStatusRuleID == rule.id ? 0.55 : 1)
+                        .onDrop(
+                            of: [.text],
+                            delegate: SlackStatusSyncRuleDropDelegate(
+                                targetRuleID: rule.id,
+                                rules: $draft.slackStatusSyncRules,
+                                draggingRuleID: $draggingSlackStatusRuleID
                             )
-                    }
+                        )
                 }
-                .padding(.trailing, 4)
-                .padding(.bottom, 2)
             }
-            .scrollIndicators(.automatic)
-            .frame(maxWidth: .infinity, maxHeight: slackStatusRulesListMaxHeight, alignment: .topLeading)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-    }
-
-    var slackStatusRulesGridColumns: [GridItem] {
-        if slackShouldUseRuleGrid {
-            return [
-                GridItem(.flexible(minimum: 440), spacing: 12),
-                GridItem(.flexible(minimum: 440), spacing: 12)
-            ]
-        }
-        return [GridItem(.flexible(minimum: 0), spacing: 12)]
     }
 
     @ViewBuilder
@@ -312,7 +334,7 @@ extension SettingsView {
         Button {
             addSlackStatusSyncRule()
         } label: {
-            Label("Add Rule", systemImage: "plus")
+            Label("Add Status Rule", systemImage: "plus")
         }
         .buttonStyle(.bordered)
         .controlSize(.small)
@@ -394,6 +416,14 @@ extension SettingsView {
         let ruleText = ruleCount == 1 ? "1 rule" : "\(ruleCount) rules"
         let workspaceText = workspaceCount == 1 ? "1 workspace" : "\(workspaceCount) workspaces"
         return "\(ruleText) across \(workspaceText)."
+    }
+}
+
+private struct SlackStatusRulesColumnWidthPreferenceKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 

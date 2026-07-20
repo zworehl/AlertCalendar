@@ -94,7 +94,7 @@ extension SettingsView {
                     }
                 }
 
-                Text("Coordinates are configured from the Permissions tab. Solar moments use those coordinates; lunar phases and orbital highlights are estimated locally.")
+                Text("Coordinates are configured from the Access tab. Solar moments use those coordinates; lunar phases and orbital highlights are estimated locally.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -143,12 +143,31 @@ extension SettingsView {
 
     @ViewBuilder
     var footballFeedsSubsection: some View {
-        SettingsFootballFixturesSectionView(monitor: monitor)
+        SettingsFootballFixturesSectionView(
+            monitor: monitor,
+            footballTargetCalendarID: $draft.footballTargetCalendarID,
+            autoAddFootballCompetitionSlugs: $draft.footballAutoAddCompetitionSlugs,
+            footballCalendarAlertOption: $draft.footballCalendarAlertOption,
+            enableFootballGoalNotifications: $draft.enableFootballGoalNotifications,
+            enableFootballDisallowedGoalNotifications: $draft.enableFootballDisallowedGoalNotifications,
+            includeFootballGoalScorerInNotifications: $draft.includeFootballGoalScorerInNotifications,
+            enableFootballFinalNotifications: $draft.enableFootballFinalNotifications,
+            enableFootballAutoAddNotifications: $draft.enableFootballAutoAddNotifications,
+            showFinishedFootballMatches: $draft.showFinishedFootballMatches,
+            finishedFootballMatchLookbackDays: $draft.finishedFootballMatchLookbackDays,
+            footballMatchLookaheadDays: $draft.footballMatchLookaheadDays
+        )
     }
 
     @ViewBuilder
     var gameSalesSubsection: some View {
-        SettingsGameSalesSectionView(monitor: monitor)
+        SettingsGameSalesSectionView(
+            monitor: monitor,
+            targetCalendarID: $draft.gameSaleTargetCalendarID,
+            calendarAlertOption: $draft.gameSaleCalendarAlertOption,
+            enableAutoAddNotifications: $draft.enableGameSaleAutoAddNotifications,
+            autoAddStores: $draft.gameSaleAutoAddStores
+        )
     }
 
     @ViewBuilder
@@ -182,7 +201,7 @@ extension SettingsView {
                 availableReminderCalendars: availableReminderCalendars,
                 installedMeetingBrowsers: installedMeetingBrowsers,
                 meetingBrowserProfilesByBrowser: meetingBrowserProfilesByBrowser,
-                onSelectionChanged: persistCalendarSelectionDraft,
+                onSelectionChanged: {},
                 selectedEventCalendarIDs: $draft.selectedEventCalendarIDs,
                 selectedReminderCalendarIDs: $draft.selectedReminderCalendarIDs,
                 weekdayOnlyEventCalendarIDs: $draft.weekdayOnlyEventCalendarIDs,

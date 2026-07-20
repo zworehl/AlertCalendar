@@ -71,6 +71,7 @@ extension CalendarMonitor {
     }
 
     func startHeartbeat() {
+        lastPeriodicRefreshDate = fixedSecondNow()
         heartbeatCancellable = Timer.publish(
             every: CalendarMonitorCadence.heartbeatInterval,
             on: .main,

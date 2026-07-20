@@ -75,6 +75,7 @@ extension CalendarMonitor {
         evaluateAlert(now: now, settings: settings)
         updateMenuBarState(now: now, settings: settings)
         requestSlackStatusSyncEvaluation(now: now, settings: settings)
+        externalFeedDiagnostics = await ExternalFeedMetrics.shared.snapshot()
     }
 
     func pruneSkippedKeys(using items: [UpcomingItem], allDayItems: [UpcomingItem] = []) {

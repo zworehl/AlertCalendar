@@ -1,70 +1,20 @@
 import Foundation
 
 actor FootballDataAPIClient {
-    struct TeamResponse: Codable, Equatable, Sendable {
-        let countryName: String?
-        let isNational: Bool
-        let logoURL: URL?
-        let venueLocationText: String?
-    }
-
-    struct TeamCacheEntry: Codable, Sendable {
-        let response: TeamResponse
-        let fetchedAt: Date
-    }
-
-    struct ScoreboardPageCacheEntry {
-        let matches: [FootballFixtureMatch]
-        let fetchedAt: Date
-    }
-
-    struct SummaryRootCacheEntry {
-        let root: [String: Any]
-        let fetchedAt: Date
-    }
-
-    enum SummaryRootCacheRequirement {
-        case any
-        case minimumScorerCount(Int)
-        case hasStatistics
-    }
-
-    struct SummarySnapshot {
-        let statusState: FootballFixtureStatusState
-        let statusText: String
-        let statusDetailText: String?
-        let statusPeriod: Int?
-        let statusReliability: FootballFixtureStatusReliability
-        let competitionNote: String?
-        let seriesSummary: FootballFixtureSeriesSummary?
-        let locationText: String?
-        let actualStartDate: Date?
-        let actualEndDate: Date?
-        let homeScore: String
-        let awayScore: String
-        let homeYellowCards: Int
-        let awayYellowCards: Int
-        let homeRedCards: Int
-        let awayRedCards: Int
-        let officialWinner: FootballScoreSide?
-        let homeShootoutScore: Int?
-        let awayShootoutScore: Int?
-        let pregameOutcomeProbabilities: FootballMatchOutcomeProbabilities?
-        let outcomeProbabilities: FootballMatchOutcomeProbabilities?
-    }
-
     let session: URLSession
     let teamCacheStore: FootballTeamCacheStore?
     var teamCache: [String: TeamResponse] = [:]
     var teamCacheFetchedAt: [String: Date] = [:]
     var scoreboardPageCache: [String: ScoreboardPageCacheEntry] = [:]
-    var scoreboardPageTasks: [String: Task<[FootballFixtureMatch], Never>] = [:]
+    var scoreboardPageTasks: [String: Task<[FootballFixtureMatch], Error>] = [:]
+    var scoreboardPageFailures: [String: (count: Int, nextRetryAt: Date)] = [:]
     var goalScorersCache: [String: FootballMatchGoalScorers] = [:]
     var athleteCountryCache: [String: String] = [:]
     var missingAthleteCountryIDs: Set<String> = []
     var statisticsCache: [String: [FootballMatchStatistic]] = [:]
     var summaryRootCache: [String: SummaryRootCacheEntry] = [:]
     var summaryRootTasks: [String: Task<Data?, Error>] = [:]
+    var summaryRootFailures: [String: (count: Int, nextRetryAt: Date)] = [:]
 
     init(
         session: URLSession? = nil,
@@ -97,15 +47,15 @@ actor FootballDataAPIClient {
         for competitions: [FootballCompetitionPreset],
         enrichTeams shouldEnrichTeams: Bool = true
     ) async throws -> [FootballFixtureMatch] {
-        let chunks = await withTaskGroup(of: [FootballFixtureMatch].self) { group in
+        let chunks = try await withThrowingTaskGroup(of: [FootballFixtureMatch].self) { group in
             for competition in competitions {
                 group.addTask {
-                    await self.fetchMatchesForCompetition(competition)
+                    try await self.fetchMatchesForCompetition(competition)
                 }
             }
 
             var merged: [FootballFixtureMatch] = []
-            for await chunk in group {
+            for try await chunk in group {
                 merged.append(contentsOf: chunk)
             }
             return merged
@@ -141,35 +91,58 @@ actor FootballDataAPIClient {
         slug: String,
         competitionName: String,
         competitionCategory: FootballCompetitionCategory? = nil
-    ) async -> [FootballFixtureMatch] {
+    ) async throws -> [FootballFixtureMatch] {
         let cacheKey = url.absoluteString
         let now = AlertCalendarClock.nowRoundedToSecond()
 
         if let cached = scoreboardPageCache[cacheKey],
            now.timeIntervalSince(cached.fetchedAt) <= Self.scoreboardPageCacheTTL {
+            await ExternalFeedMetrics.shared.recordCacheHit(source: "football.scoreboard.\(slug)")
             return cached.matches
         }
 
-        let matches: [FootballFixtureMatch]
-        if let task = scoreboardPageTasks[cacheKey] {
-            matches = await task.value
-        } else {
-            let task = Task { [session] in
-                await Self.fetchMatchesPage(
-                    url: url,
-                    slug: slug,
-                    competitionName: competitionName,
-                    session: session,
-                    competitionCategory: competitionCategory
-                )
+        if let failure = scoreboardPageFailures[cacheKey], now < failure.nextRetryAt {
+            if let cached = scoreboardPageCache[cacheKey] {
+                await ExternalFeedMetrics.shared.recordCacheHit(source: "football.scoreboard.\(slug).stale")
+                return cached.matches
             }
-            scoreboardPageTasks[cacheKey] = task
-            defer { scoreboardPageTasks[cacheKey] = nil }
-            matches = await task.value
+            throw ClientError.unsuccessfulResponse(statusCode: 429)
         }
 
-        cacheScoreboardMatchesPage(matches, for: cacheKey, fetchedAt: now)
-        return matches
+        do {
+            let matches: [FootballFixtureMatch]
+            if let task = scoreboardPageTasks[cacheKey] {
+                await ExternalFeedMetrics.shared.recordCoalescedRequest(source: "football.scoreboard.\(slug)")
+                matches = try await task.value
+            } else {
+                let task = Task { [session] in
+                    try await Self.fetchMatchesPage(
+                        url: url,
+                        slug: slug,
+                        competitionName: competitionName,
+                        session: session,
+                        competitionCategory: competitionCategory
+                    )
+                }
+                scoreboardPageTasks[cacheKey] = task
+                defer { scoreboardPageTasks[cacheKey] = nil }
+                matches = try await task.value
+            }
+
+            scoreboardPageFailures[cacheKey] = nil
+            cacheScoreboardMatchesPage(matches, for: cacheKey, fetchedAt: now)
+            return matches
+        } catch {
+            let failureCount = (scoreboardPageFailures[cacheKey]?.count ?? 0) + 1
+            scoreboardPageFailures[cacheKey] = (
+                failureCount,
+                now.addingTimeInterval(Self.scoreboardRetryDelay(forFailureCount: failureCount))
+            )
+            if let cached = scoreboardPageCache[cacheKey] {
+                return cached.matches
+            }
+            throw error
+        }
     }
 
     func cacheScoreboardMatchesPage(
@@ -189,6 +162,11 @@ actor FootballDataAPIClient {
         )
     }
 
+    nonisolated static func scoreboardRetryDelay(forFailureCount failureCount: Int) -> TimeInterval {
+        let exponent = min(max(failureCount - 1, 0), 6)
+        return min(6 * 60 * 60, 60 * pow(2, Double(exponent)))
+    }
+
     func summaryRoot(
         url: URL,
         match: FootballFixtureMatch,
@@ -200,25 +178,50 @@ actor FootballDataAPIClient {
         if let cached = summaryRootCache[cacheKey],
            now.timeIntervalSince(cached.fetchedAt) <= Self.summaryRootCacheTTL,
            Self.summaryRoot(cached.root, satisfies: requirement, match: match) {
+            await ExternalFeedMetrics.shared.recordCacheHit(source: "football.summary")
             return cached.root
         }
 
-        let data: Data?
-        if let task = summaryRootTasks[cacheKey] {
-            data = try await task.value
-        } else {
-            let task = Task { [session] in
-                try await Self.fetchSummaryData(url: url, session: session)
+        if let failure = summaryRootFailures[cacheKey], now < failure.nextRetryAt {
+            if let cached = summaryRootCache[cacheKey],
+               Self.summaryRoot(cached.root, satisfies: requirement, match: match) {
+                await ExternalFeedMetrics.shared.recordCacheHit(source: "football.summary.stale")
+                return cached.root
             }
-            summaryRootTasks[cacheKey] = task
-            defer { summaryRootTasks[cacheKey] = nil }
-            data = try await task.value
+            throw ClientError.unsuccessfulResponse(statusCode: 429)
         }
 
-        guard let data else { return nil }
-        let root = try Self.jsonDictionary(from: data)
-        cacheSummaryRoot(root, for: cacheKey, fetchedAt: now)
-        return root
+        do {
+            let data: Data?
+            if let task = summaryRootTasks[cacheKey] {
+                await ExternalFeedMetrics.shared.recordCoalescedRequest(source: "football.summary")
+                data = try await task.value
+            } else {
+                let task = Task { [session] in
+                    try await Self.fetchSummaryData(url: url, session: session)
+                }
+                summaryRootTasks[cacheKey] = task
+                defer { summaryRootTasks[cacheKey] = nil }
+                data = try await task.value
+            }
+
+            guard let data else { return nil }
+            let root = try Self.jsonDictionary(from: data)
+            summaryRootFailures[cacheKey] = nil
+            cacheSummaryRoot(root, for: cacheKey, fetchedAt: now)
+            return root
+        } catch {
+            let count = (summaryRootFailures[cacheKey]?.count ?? 0) + 1
+            summaryRootFailures[cacheKey] = (
+                count,
+                now.addingTimeInterval(Self.scoreboardRetryDelay(forFailureCount: count))
+            )
+            if let cached = summaryRootCache[cacheKey],
+               Self.summaryRoot(cached.root, satisfies: requirement, match: match) {
+                return cached.root
+            }
+            throw error
+        }
     }
 
     func cacheSummaryRoot(

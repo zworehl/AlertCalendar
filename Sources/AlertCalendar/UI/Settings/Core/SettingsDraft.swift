@@ -30,6 +30,21 @@ struct SettingsDraft: Equatable {
     var weekdayOnlyEventCalendarIDs: Set<String>
     var weekdayOnlyReminderCalendarIDs: Set<String>
     var nonWorkingDateKeys: Set<String>
+    var footballTargetCalendarID: String
+    var footballAutoAddCompetitionSlugs: Set<String>
+    var footballCalendarAlertOption: FootballCalendarAlertOption
+    var enableFootballGoalNotifications: Bool
+    var enableFootballDisallowedGoalNotifications: Bool
+    var includeFootballGoalScorerInNotifications: Bool
+    var enableFootballFinalNotifications: Bool
+    var enableFootballAutoAddNotifications: Bool
+    var showFinishedFootballMatches: Bool
+    var finishedFootballMatchLookbackDays: Int
+    var footballMatchLookaheadDays: Int
+    var gameSaleTargetCalendarID: String
+    var gameSaleCalendarAlertOption: GameSaleCalendarAlertOption
+    var gameSaleAutoAddStores: Set<GameStore>
+    var enableGameSaleAutoAddNotifications: Bool
     var slackStatusSyncRules: [SlackStatusSyncRule]
     var slackMeetingStatusText: String
     var slackMeetingStatusEmoji: String
@@ -65,6 +80,21 @@ struct SettingsDraft: Equatable {
         weekdayOnlyEventCalendarIDs = settings.weekdayOnlyEventCalendarIDs
         weekdayOnlyReminderCalendarIDs = settings.weekdayOnlyReminderCalendarIDs
         nonWorkingDateKeys = settings.nonWorkingDateKeys
+        footballTargetCalendarID = settings.footballTargetCalendarID
+        footballAutoAddCompetitionSlugs = settings.footballAutoAddCompetitionSlugs
+        footballCalendarAlertOption = settings.footballCalendarAlertOption
+        enableFootballGoalNotifications = settings.enableFootballGoalNotifications
+        enableFootballDisallowedGoalNotifications = settings.enableFootballDisallowedGoalNotifications
+        includeFootballGoalScorerInNotifications = settings.includeFootballGoalScorerInNotifications
+        enableFootballFinalNotifications = settings.enableFootballFinalNotifications
+        enableFootballAutoAddNotifications = settings.enableFootballAutoAddNotifications
+        showFinishedFootballMatches = settings.showFinishedFootballMatches
+        finishedFootballMatchLookbackDays = settings.finishedFootballMatchLookbackDays
+        footballMatchLookaheadDays = settings.footballMatchLookaheadDays
+        gameSaleTargetCalendarID = settings.gameSaleTargetCalendarID
+        gameSaleCalendarAlertOption = settings.gameSaleCalendarAlertOption
+        gameSaleAutoAddStores = settings.gameSaleAutoAddStores
+        enableGameSaleAutoAddNotifications = settings.enableGameSaleAutoAddNotifications
         slackStatusSyncRules = settings.slackStatusSyncRules
         slackMeetingStatusText = settings.slackMeetingStatusText
         slackMeetingStatusEmoji = settings.slackMeetingStatusEmoji

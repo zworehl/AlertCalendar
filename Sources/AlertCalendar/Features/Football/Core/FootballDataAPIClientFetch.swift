@@ -1,7 +1,7 @@
 import Foundation
 
 extension FootballDataAPIClient {
-    func fetchMatchesForCompetition(_ competition: FootballCompetitionPreset) async -> [FootballFixtureMatch] {
+    func fetchMatchesForCompetition(_ competition: FootballCompetitionPreset) async throws -> [FootballFixtureMatch] {
         let calendar = Calendar(identifier: .gregorian)
         let now = AlertCalendarClock.nowRoundedToSecond()
         let dayStart = calendar.startOfDay(for: now)
@@ -9,11 +9,7 @@ extension FootballDataAPIClient {
         let end = calendar.date(byAdding: .day, value: competition.lookaheadDays, to: dayStart) ?? dayStart
         let endExclusive = calendar.date(byAdding: .day, value: 1, to: end) ?? end.addingTimeInterval(24 * 60 * 60)
 
-        async let primary = fetchMatchesForCompetitionPage(
-            competition,
-            dateRange: nil
-        )
-        let ranged = await fetchMatchesForCompetitionDateRanges(
+        let ranged = try await fetchMatchesForCompetitionDateRanges(
             competition,
             dateRanges: Self.scoreboardDateRanges(
                 start: start,
@@ -22,9 +18,8 @@ extension FootballDataAPIClient {
             )
         )
 
-        let merged = await primary + ranged
         var seen = Set<String>()
-        return merged
+        return ranged
             .filter { seen.insert($0.id).inserted }
             .filter { match in
                 match.startDate >= start && match.startDate < endExclusive
@@ -34,7 +29,7 @@ extension FootballDataAPIClient {
     func fetchMatchesForCompetitionPage(
         _ competition: FootballCompetitionPreset,
         dateRange: (Date, Date)?
-    ) async -> [FootballFixtureMatch] {
+    ) async throws -> [FootballFixtureMatch] {
         guard let url = Self.scoreboardURL(
             slug: competition.slug,
             dateRange: dateRange
@@ -42,7 +37,7 @@ extension FootballDataAPIClient {
             return []
         }
 
-        return await scoreboardMatchesPage(
+        return try await scoreboardMatchesPage(
             url: url,
             slug: competition.slug,
             competitionName: competition.title,
@@ -84,9 +79,24 @@ extension FootballDataAPIClient {
     ) async throws -> Data? {
         var request = URLRequest(url: url)
         request.timeoutInterval = Self.requestTimeout
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-            return nil
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            await ExternalFeedMetrics.shared.recordTransportFailure(source: "football.summary")
+            throw error
+        }
+        guard let http = response as? HTTPURLResponse else {
+            throw ClientError.invalidResponse
+        }
+        await ExternalFeedMetrics.shared.recordNetworkResponse(
+            source: "football.summary",
+            statusCode: http.statusCode,
+            responseBytes: data.count
+        )
+        guard (200...299).contains(http.statusCode) else {
+            throw ClientError.unsuccessfulResponse(statusCode: http.statusCode)
         }
         return data
     }
@@ -97,9 +107,9 @@ extension FootballDataAPIClient {
         session: URLSession,
         dateRange: (Date, Date)?,
         competitionCategory: FootballCompetitionCategory? = nil
-    ) async -> [FootballFixtureMatch] {
+    ) async throws -> [FootballFixtureMatch] {
         guard let url = scoreboardURL(slug: slug, dateRange: dateRange) else { return [] }
-        return await fetchMatchesPage(
+        return try await fetchMatchesPage(
             url: url,
             slug: slug,
             competitionName: competitionName,
@@ -114,34 +124,45 @@ extension FootballDataAPIClient {
         competitionName: String,
         session: URLSession,
         competitionCategory: FootballCompetitionCategory? = nil
-    ) async -> [FootballFixtureMatch] {
+    ) async throws -> [FootballFixtureMatch] {
+        var request = URLRequest(url: url)
+        request.timeoutInterval = Self.requestTimeout
+        let data: Data
+        let response: URLResponse
         do {
-            var request = URLRequest(url: url)
-            request.timeoutInterval = Self.requestTimeout
-            let (data, response) = try await session.data(for: request)
-            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-                return []
-            }
-
-            let root = try jsonDictionary(from: data)
-            let league = (root["leagues"] as? [[String: Any]])?.first
-            let resolvedCompetitionName = competitionDisplayName(from: league) ?? competitionName
-            let competitionLogoURL = leagueLogoURL(from: league)
-            let competitionStage = leagueStageName(from: league)
-            let events = root["events"] as? [[String: Any]] ?? []
-            let isNationalCompetition = (competitionCategory ?? FootballCompetitionPreset.category(forCompetitionSlug: slug)) == .nationalTeams
-            return events.compactMap {
-                liveMatch(
-                    from: $0,
-                    competitionSlug: slug,
-                    competitionName: resolvedCompetitionName,
-                    competitionStage: competitionStage,
-                    competitionLogoURL: competitionLogoURL,
-                    isNationalCompetition: isNationalCompetition
-                )
-            }
+            (data, response) = try await session.data(for: request)
         } catch {
-            return []
+            await ExternalFeedMetrics.shared.recordTransportFailure(source: "football.scoreboard.\(slug)")
+            throw error
+        }
+        guard let http = response as? HTTPURLResponse else {
+            throw ClientError.invalidResponse
+        }
+        await ExternalFeedMetrics.shared.recordNetworkResponse(
+            source: "football.scoreboard.\(slug)",
+            statusCode: http.statusCode,
+            responseBytes: data.count
+        )
+        guard (200...299).contains(http.statusCode) else {
+            throw ClientError.unsuccessfulResponse(statusCode: http.statusCode)
+        }
+
+        let root = try jsonDictionary(from: data)
+        let league = (root["leagues"] as? [[String: Any]])?.first
+        let resolvedCompetitionName = competitionDisplayName(from: league) ?? competitionName
+        let competitionLogoURL = leagueLogoURL(from: league)
+        let competitionStage = leagueStageName(from: league)
+        let events = root["events"] as? [[String: Any]] ?? []
+        let isNationalCompetition = (competitionCategory ?? FootballCompetitionPreset.category(forCompetitionSlug: slug)) == .nationalTeams
+        return events.compactMap {
+            liveMatch(
+                from: $0,
+                competitionSlug: slug,
+                competitionName: resolvedCompetitionName,
+                competitionStage: competitionStage,
+                competitionLogoURL: competitionLogoURL,
+                isNationalCompetition: isNationalCompetition
+            )
         }
     }
 

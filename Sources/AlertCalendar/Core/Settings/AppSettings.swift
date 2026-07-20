@@ -31,6 +31,7 @@ struct AppSettings: Equatable {
     var useEventTitleEllipsis: Bool
     var eventTitleMaxCharacters: Int
     var footballTargetCalendarID: String
+    var footballAutoAddCompetitionSlugs: Set<String>
     var footballCalendarAlertOption: FootballCalendarAlertOption
     var enableFootballGoalNotifications: Bool
     var enableFootballDisallowedGoalNotifications: Bool
@@ -40,6 +41,10 @@ struct AppSettings: Equatable {
     var showFinishedFootballMatches: Bool
     var finishedFootballMatchLookbackDays: Int
     var footballMatchLookaheadDays: Int
+    var gameSaleTargetCalendarID: String
+    var gameSaleCalendarAlertOption: GameSaleCalendarAlertOption
+    var gameSaleAutoAddStores: Set<GameStore>
+    var enableGameSaleAutoAddNotifications: Bool
     var slackConnections: [SlackConnection]
     var slackStatusSyncRules: [SlackStatusSyncRule]
     var slackMeetingStatusText: String
@@ -101,6 +106,7 @@ struct AppSettings: Equatable {
         useEventTitleEllipsis: true,
         eventTitleMaxCharacters: 22,
         footballTargetCalendarID: "",
+        footballAutoAddCompetitionSlugs: [],
         footballCalendarAlertOption: .none,
         enableFootballGoalNotifications: true,
         enableFootballDisallowedGoalNotifications: true,
@@ -110,6 +116,10 @@ struct AppSettings: Equatable {
         showFinishedFootballMatches: true,
         finishedFootballMatchLookbackDays: 7,
         footballMatchLookaheadDays: 14,
+        gameSaleTargetCalendarID: "",
+        gameSaleCalendarAlertOption: .fifteenMinutesBefore,
+        gameSaleAutoAddStores: [],
+        enableGameSaleAutoAddNotifications: true,
         slackConnections: [],
         slackStatusSyncRules: [],
         slackMeetingStatusText: SlackMeetingStatus.defaultText,

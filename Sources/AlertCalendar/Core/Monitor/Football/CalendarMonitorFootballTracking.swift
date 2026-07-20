@@ -254,6 +254,14 @@ extension CalendarMonitor {
             footballMatchesByID[match.id] = match
         }
 
+        let cacheStart = now.addingTimeInterval(-60 * 24 * 60 * 60)
+        let cacheEnd = now.addingTimeInterval(100 * 24 * 60 * 60)
+        let preservedMatchIDs = managedFootballMatchIDs
+        footballMatchesByID = footballMatchesByID.filter { matchID, match in
+            preservedMatchIDs.contains(matchID)
+                || (match.startDate >= cacheStart && match.startDate <= cacheEnd)
+        }
+
         let teams = matches
             .flatMap { [$0.homeTeam, $0.awayTeam] }
             .reduce(into: [String: FootballTeamSummary]()) { partialResult, team in

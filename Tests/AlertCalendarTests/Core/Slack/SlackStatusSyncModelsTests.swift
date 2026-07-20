@@ -172,6 +172,35 @@ final class SlackStatusSyncModelsTests: SlackStatusSyncTestCase {
         let rule = try JSONDecoder().decode(SlackStatusSyncRule.self, from: payload)
 
         XCTAssertEqual(rule.statusTextSource, .fixed)
+        XCTAssertFalse(rule.startsBeforeEvent)
+        XCTAssertEqual(rule.leadMinutes, AppSettingsRules.defaultSlackStatusLeadMinutes)
+        XCTAssertEqual(rule.preEventStatusText, "Heads down")
+        XCTAssertEqual(rule.preEventStatusEmoji, "🎯")
+    }
+
+    func testSlackStatusSyncRuleDecodingNormalizesPreEventLeadTime() throws {
+        let payload = """
+        {
+          "id": "rule-1",
+          "connectionID": "T1|U1",
+          "calendarID": "calendar-1",
+          "statusText": "Starting soon",
+          "statusEmoji": "⏳",
+          "statusTextSource": "fixed",
+          "startsBeforeEvent": true,
+          "leadMinutes": 22,
+          "preEventStatusText": "Joining shortly",
+          "preEventStatusEmoji": "⏳",
+          "isEnabled": true
+        }
+        """.data(using: .utf8)!
+
+        let rule = try JSONDecoder().decode(SlackStatusSyncRule.self, from: payload)
+
+        XCTAssertTrue(rule.startsBeforeEvent)
+        XCTAssertEqual(rule.leadMinutes, 15)
+        XCTAssertEqual(rule.preEventStatusText, "Joining shortly")
+        XCTAssertEqual(rule.preEventStatusEmoji, "⏳")
     }
 
     func testSlackStatusSyncRuleNormalizationPreservesPriorityOrder() {
@@ -213,5 +242,28 @@ final class SlackStatusSyncModelsTests: SlackStatusSyncTestCase {
         XCTAssertEqual(SlackMeetingStatus.normalizedEmoji(":spiral_calendar_pad:"), "🗓️")
         XCTAssertEqual(SlackMeetingStatus.normalizedEmoji(":dog:"), "🐶")
         XCTAssertTrue(SlackMeetingStatus.looksLikeSlackAlias(":dog:"))
+    }
+
+    func testSlackStatusSyncRuleNormalizationPreservesPreEventConfiguration() {
+        let rule = SlackStatusSyncRule(
+            connectionID: "T1|U1",
+            calendarID: "calendar-1",
+            startsBeforeEvent: true,
+            leadMinutes: 30,
+            preEventStatusText: "Preparing for the call",
+            preEventStatusEmoji: "⌛️",
+            isEnabled: true
+        )
+
+        let normalizedRule = SlackStatusSyncRule.normalized(
+            [rule],
+            validConnectionIDs: ["T1|U1"],
+            validCalendarIDs: ["calendar-1"]
+        ).first
+
+        XCTAssertEqual(normalizedRule?.startsBeforeEvent, true)
+        XCTAssertEqual(normalizedRule?.leadMinutes, 30)
+        XCTAssertEqual(normalizedRule?.preEventStatusText, "Preparing for the call")
+        XCTAssertEqual(normalizedRule?.preEventStatusEmoji, "⌛️")
     }
 }

@@ -3,6 +3,8 @@ import Foundation
 enum AppSettingsRules {
     static let minimumFootballWindowDays = 1
     static let maximumFootballWindowDays = 45
+    static let slackStatusLeadMinuteOptions = [5, 10, 15, 30]
+    static let defaultSlackStatusLeadMinutes = 10
 
     static func roundedCoordinate(_ value: Double) -> Double {
         (value * 100).rounded() / 100
@@ -85,6 +87,18 @@ enum AppSettingsRules {
 
     static func normalizedEventTitleMaxCharacters(_ value: Int) -> Int {
         max(1, value)
+    }
+
+    static func normalizedSlackStatusLeadMinutes(_ value: Int) -> Int {
+        let candidate = value > 0 ? value : defaultSlackStatusLeadMinutes
+        return slackStatusLeadMinuteOptions.min { lhs, rhs in
+            let lhsDistance = abs(lhs - candidate)
+            let rhsDistance = abs(rhs - candidate)
+            if lhsDistance != rhsDistance {
+                return lhsDistance < rhsDistance
+            }
+            return lhs < rhs
+        } ?? defaultSlackStatusLeadMinutes
     }
 
     static func normalizedFootballWindowDays(_ value: Int) -> Int {

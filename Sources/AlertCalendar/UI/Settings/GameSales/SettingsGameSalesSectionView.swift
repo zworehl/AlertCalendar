@@ -40,14 +40,13 @@ struct SettingsGameSalesSectionView: View {
     static let inlineFieldLabelWidth: CGFloat = 92
 
     @ObservedObject var monitor: CalendarMonitor
-
-    @AppStorage(DefaultsKeys.gameSaleTargetCalendarID) var targetCalendarID = ""
-    @AppStorage(DefaultsKeys.gameSaleCalendarAlertOption) var calendarAlertOptionRaw = GameSaleCalendarAlertOption.fifteenMinutesBefore.rawValue
-    @AppStorage(DefaultsKeys.enableGameSaleAutoAddNotifications) var enableAutoAddNotifications = true
+    @Binding var targetCalendarID: String
+    @Binding var calendarAlertOption: GameSaleCalendarAlertOption
+    @Binding var enableAutoAddNotifications: Bool
+    @Binding var autoAddStores: Set<GameStore>
 
     @State var browseMode: BrowseMode = .upcoming
     @State var storeFilter: StoreFilter = .all
-    @State var autoAddStores: Set<GameStore> = []
     @State var writableCalendars: [AvailableCalendar] = []
     @State var visibleNow = AlertCalendarClock.nowRoundedToSecond()
 
@@ -77,25 +76,12 @@ struct SettingsGameSalesSectionView: View {
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .onAppear {
             synchronizeCalendarConfiguration()
-            autoAddStores = monitor.gameSaleAutoAddStores()
         }
         .task {
             await monitor.refreshGameSales(forceRefresh: false)
         }
-        .onChange(of: calendarAlertOptionRaw) { _ in
-            monitor.applyManagedGameSaleAlertConfiguration()
-        }
-        .onChange(of: targetCalendarID) { identifier in
-            guard !identifier.isEmpty else { return }
-            monitor.refreshNow(reason: .calendarSelectionChanged)
-        }
         .onReceive(monitor.$availableEventCalendars.removeDuplicates()) { _ in
             synchronizeCalendarConfiguration()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in
-            let nextStores = monitor.gameSaleAutoAddStores()
-            guard nextStores != autoAddStores else { return }
-            autoAddStores = nextStores
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             visibleNow = AlertCalendarClock.nowRoundedToSecond()
@@ -128,22 +114,11 @@ struct SettingsGameSalesSectionView: View {
             }
     }
 
-    var calendarAlertOption: GameSaleCalendarAlertOption {
-        GameSaleCalendarAlertOption(rawValue: calendarAlertOptionRaw) ?? .fifteenMinutesBefore
-    }
-
     var calendarAlertBinding: Binding<GameSaleCalendarAlertOption> {
-        Binding(
-            get: { calendarAlertOption },
-            set: { calendarAlertOptionRaw = $0.rawValue }
-        )
+        $calendarAlertOption
     }
 
     func synchronizeCalendarConfiguration() {
         writableCalendars = monitor.writableGameSaleTargetCalendars()
-        if targetCalendarID.isEmpty,
-           let resolvedID = monitor.gameSaleTargetCalendarID() {
-            targetCalendarID = resolvedID
-        }
     }
 }

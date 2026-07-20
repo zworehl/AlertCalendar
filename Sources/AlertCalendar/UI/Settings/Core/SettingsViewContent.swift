@@ -15,7 +15,9 @@ extension SettingsView {
             liveFeedsSettingsContent
         case .calendars:
             calendarSettingsContent
-        case .permissions:
+        case .integrations:
+            integrationsSettingsContent
+        case .access:
             permissionsSettingsContent
         }
     }

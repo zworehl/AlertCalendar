@@ -39,6 +39,7 @@ final class CalendarMonitor: ObservableObject {
     @Published var astronomyLocationStatus = "Manual coordinates"
     @Published var lastRefreshDate: Date?
     @Published var refreshDiagnostics = CalendarMonitorRefreshDiagnostics()
+    @Published var externalFeedDiagnostics = ExternalFeedDiagnostics()
     @Published var footballMenuSections: [FootballMenuCompetitionSection] = []
     @Published var footballLiveAndNextDaySection = FootballMatchesOverviewSection.placeholder(title: "Now & Next 24 Hours")
     @Published var managedFootballMatchIDs: Set<String> = []

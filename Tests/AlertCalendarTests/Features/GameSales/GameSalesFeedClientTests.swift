@@ -320,6 +320,90 @@ final class GameSalesFeedClientTests: XCTestCase {
         }
     }
 
+    func testConditionalRefreshReusesCachedDocumentsOnNotModified() async throws {
+        let session = makeMockSession()
+        let client = GameSalesFeedClient(session: session)
+        let requestCounter = GameSalesFeedRequestCounter()
+        let now = try date(2026, 7, 16, hour: 12)
+
+        GameSalesFeedMockURLProtocol.requestHandler = { [fixture] request in
+            let url = try XCTUnwrap(request.url)
+            let count = requestCounter.record(url)
+            if count > 1 {
+                XCTAssertEqual(request.value(forHTTPHeaderField: "If-None-Match"), "\"feed-v1\"")
+            }
+            let body: String
+            if url == GameSalesFeedClient.steamworksUpcomingEventsURL {
+                body = fixture
+            } else if url == GameSalesFeedClient.nintendoNewsSitemapURL {
+                body = "<urlset></urlset>"
+            } else {
+                body = "<rss><channel></channel></rss>"
+            }
+            return (
+                try XCTUnwrap(HTTPURLResponse(
+                    url: url,
+                    statusCode: count > 1 ? 304 : 200,
+                    httpVersion: nil,
+                    headerFields: ["ETag": "\"feed-v1\""]
+                )),
+                count > 1 ? Data() : Data(body.utf8)
+            )
+        }
+
+        let initial = try await client.fetchScheduledSales(now: now)
+        let revalidated = try await client.fetchScheduledSales(
+            now: now.addingTimeInterval(60),
+            forceRefresh: true
+        )
+
+        XCTAssertEqual(initial, revalidated)
+        XCTAssertFalse(revalidated.isEmpty)
+    }
+
+    func testPersistentCacheAvoidsNetworkAfterClientRestart() async throws {
+        let session = makeMockSession()
+        let requestCounter = GameSalesFeedRequestCounter()
+        let now = try date(2026, 7, 16, hour: 12)
+        let cacheURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            .appendingPathComponent("game-sales.json")
+        let cacheStore = GameSalesFeedCacheStore(fileURL: cacheURL)
+        defer { try? FileManager.default.removeItem(at: cacheURL.deletingLastPathComponent()) }
+
+        GameSalesFeedMockURLProtocol.requestHandler = { [fixture] request in
+            let url = try XCTUnwrap(request.url)
+            requestCounter.record(url)
+            let body: String
+            if url == GameSalesFeedClient.steamworksUpcomingEventsURL {
+                body = fixture
+            } else if url == GameSalesFeedClient.nintendoNewsSitemapURL {
+                body = "<urlset></urlset>"
+            } else {
+                body = "<rss><channel></channel></rss>"
+            }
+            return (
+                try XCTUnwrap(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)),
+                Data(body.utf8)
+            )
+        }
+
+        let firstClient = GameSalesFeedClient(session: session, cacheStore: cacheStore)
+        let initial = try await firstClient.fetchScheduledSales(now: now)
+        let secondClient = GameSalesFeedClient(session: session, cacheStore: cacheStore)
+        let restored = try await secondClient.fetchScheduledSales(now: now.addingTimeInterval(60))
+
+        XCTAssertEqual(initial, restored)
+        for url in [
+            GameSalesFeedClient.steamworksUpcomingEventsURL,
+            GameSalesFeedClient.xboxWireStoreFeedURL,
+            GameSalesFeedClient.playStationStoreFeedURL,
+            GameSalesFeedClient.nintendoNewsSitemapURL,
+        ] {
+            XCTAssertEqual(requestCounter.count(for: url), 1)
+        }
+    }
+
     private var utcCalendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.locale = Locale(identifier: "en_US_POSIX")

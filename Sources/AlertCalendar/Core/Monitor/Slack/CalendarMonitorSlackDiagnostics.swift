@@ -1,12 +1,26 @@
 import Foundation
 
 extension CalendarMonitor {
-    func activeSlackItemTitles(from items: [UpcomingItem], now: Date) -> String {
+    func managedSlackItemTitles(
+        from items: [UpcomingItem],
+        rules: [SlackStatusSyncRule],
+        now: Date
+    ) -> String {
         let titles = items.compactMap { item -> String? in
             guard Self.isSlackStatusMeetingItem(item) else { return nil }
             let endDate = item.endDate ?? item.date.addingTimeInterval(60 * 60)
-            guard item.date <= now && endDate > now else { return nil }
-            return "\(item.calendarName): \(item.title)"
+            if item.date <= now && endDate > now {
+                return "active[\(item.calendarName): \(item.title)]"
+            }
+
+            guard item.date > now else { return nil }
+            guard let calendarID = item.calendarID else { return nil }
+            guard rules.contains(where: { rule in
+                rule.calendarID == calendarID &&
+                    rule.startsBeforeEvent &&
+                    Self.slackStatusLeadDate(for: item, rule: rule) <= now
+            }) else { return nil }
+            return "upcoming[\(item.calendarName): \(item.title)]"
         }
 
         guard !titles.isEmpty else { return "none" }

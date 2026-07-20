@@ -13,7 +13,14 @@ extension CalendarMonitor {
 
         if !unresolvedEvents.isEmpty {
             do {
-                let fetchedMatches = try await footballClient.fetchMatches(for: FootballCompetitionPreset.menuPresets)
+                let eventDates = unresolvedEvents.compactMap(\.startDate)
+                let rangeEntries = FootballCompetitionPreset.menuPresets.flatMap { preset in
+                    eventDates.map { (preset.slug, $0) }
+                }
+                let fetchedMatches = try await footballClient.fetchMatches(
+                    for: FootballCompetitionPreset.menuPresets,
+                    dateRangesByCompetitionSlug: footballScoreboardDateRangesByCompetition(rangeEntries)
+                )
                 let refreshedMatches = await footballClient.refreshStatusesIfNeeded(for: fetchedMatches)
                 let resolvedMatches = matchesPreservingKnownTimingContext(refreshedMatches)
                 await cacheFootballMatches(resolvedMatches)

@@ -13,7 +13,9 @@ struct FootballGoalScorersSection: View {
     @State private var hasAttemptedLoad = false
     @State private var loadTask: Task<Void, Never>?
     @State private var retryTask: Task<Void, Never>?
+    @State private var retryAttempt = 0
     let incompleteRetryDelayNanoseconds: UInt64 = 12_000_000_000
+    let maximumIncompleteRetryCount = 4
 
     var requestKey: String {
         let statusDetail = match.statusDetailText ?? ""
@@ -27,6 +29,10 @@ struct FootballGoalScorersSection: View {
 
     var shouldRetryIncompleteScorers: Bool {
         match.totalGoals > resolvedScorerCount
+    }
+
+    var canRetryIncompleteScorers: Bool {
+        shouldRetryIncompleteScorers && retryAttempt < maximumIncompleteRetryCount
     }
 
     var body: some View {
@@ -43,7 +49,7 @@ struct FootballGoalScorersSection: View {
                     showsScore: showsScoreHeader,
                     availableWidth: availableWidth
                 )
-            } else if scorers == nil && (!hasAttemptedLoad || isLoading || shouldRetryIncompleteScorers) {
+            } else if scorers == nil && (!hasAttemptedLoad || isLoading || canRetryIncompleteScorers) {
                 FootballGoalScorersLoadingView(
                     match: match,
                     display: display,
@@ -54,10 +60,10 @@ struct FootballGoalScorersSection: View {
             }
         }
         .onAppear {
-            startLoadingScorers()
+            startLoadingScorers(resetRetryAttempt: true)
         }
         .onChange(of: requestKey) { _ in
-            startLoadingScorers()
+            startLoadingScorers(resetRetryAttempt: true)
         }
         .onDisappear {
             loadTask?.cancel()
@@ -67,9 +73,12 @@ struct FootballGoalScorersSection: View {
         }
     }
 
-    func startLoadingScorers() {
+    func startLoadingScorers(resetRetryAttempt: Bool = false) {
         loadTask?.cancel()
         retryTask?.cancel()
+        if resetRetryAttempt {
+            retryAttempt = 0
+        }
 
         guard match.totalGoals > 0 else {
             scorers = nil
@@ -110,10 +119,12 @@ struct FootballGoalScorersSection: View {
     func scheduleRetryIfNeeded(for currentRequestKey: String) {
         retryTask?.cancel()
 
-        guard shouldRetryIncompleteScorers else { return }
+        guard canRetryIncompleteScorers else { return }
+        let delayMultiplier = UInt64(1 << min(retryAttempt, 3))
+        retryAttempt += 1
 
         retryTask = Task {
-            try? await Task.sleep(nanoseconds: incompleteRetryDelayNanoseconds)
+            try? await Task.sleep(nanoseconds: incompleteRetryDelayNanoseconds * delayMultiplier)
             guard !Task.isCancelled else { return }
 
             await MainActor.run {

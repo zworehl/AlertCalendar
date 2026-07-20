@@ -4,6 +4,15 @@ import XCTest
 @testable import AlertCalendar
 
 final class AlertCalendarModelMetadataTests: AlertCalendarModelTestCase {
+    func testSettingsNavigationKeepsIntegrationsSeparateFromAccess() {
+        XCTAssertEqual(
+            SettingsView.SettingsTab.allCases.map(\.rawValue),
+            ["General", "Feeds", "Calendars", "Integrations", "Access"]
+        )
+        XCTAssertEqual(SettingsView.SettingsTab.integrations.symbolName, "puzzlepiece.extension")
+        XCTAssertEqual(SettingsView.SettingsTab.access.symbolName, "lock.shield")
+    }
+
     func testActiveEventDisplayModeMetadataIsStable() {
         XCTAssertEqual(ActiveEventDisplayMode.allCases.map(\.id), ["remaining", "elapsed"])
         XCTAssertEqual(ActiveEventDisplayMode.remaining.title, "Show time remaining")

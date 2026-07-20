@@ -5,6 +5,7 @@ import UserNotifications
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let settingsWindowIdentifier = NSUserInterfaceItemIdentifier(WindowMetadata.preferencesID)
     private var emojiShortcutMonitor: Any?
+    private weak var settingsWindowCloseGuard: SettingsWindowCloseGuard?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         UNUserNotificationCenter.current().delegate = self
@@ -68,6 +69,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func handleWindowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
         guard isSettingsWindow(window) else { return }
+        settingsWindowCloseGuard?.clear()
+        settingsWindowCloseGuard = nil
         DispatchQueue.main.async { [weak self] in
             self?.restoreAccessoryActivationPolicyIfNeeded()
         }
@@ -186,7 +189,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         return mainMenu
     }
 
-    func configureSettingsWindow(_ window: NSWindow) {
+    func configureSettingsWindow(_ window: NSWindow, closeGuard: SettingsWindowCloseGuard? = nil) {
+        if let closeGuard {
+            settingsWindowCloseGuard = closeGuard
+        }
         window.identifier = settingsWindowIdentifier
         window.delegate = self
         window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable])
@@ -203,6 +209,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             zoomButton.action = #selector(toggleSettingsFullScreen(_:))
         }
         window.level = .normal
+    }
+
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        guard isSettingsWindow(sender),
+              let closeGuard = settingsWindowCloseGuard,
+              closeGuard.hasUnsavedChanges else {
+            return true
+        }
+
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Apply changes before closing Settings?"
+        alert.informativeText = "You have unapplied changes. If you close now, those changes may be lost."
+        alert.addButton(withTitle: "Apply Changes")
+        alert.addButton(withTitle: "Discard Changes")
+        alert.addButton(withTitle: "Keep Editing")
+
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            closeGuard.applyChanges?()
+            closeGuard.hasUnsavedChanges = false
+            return true
+        case .alertSecondButtonReturn:
+            closeGuard.discardChanges?()
+            closeGuard.hasUnsavedChanges = false
+            return true
+        default:
+            return false
+        }
     }
 }
 

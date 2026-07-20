@@ -24,16 +24,17 @@ struct SettingsFootballFixturesSectionView: View {
 
     let monitor: CalendarMonitor
 
-    @AppStorage(DefaultsKeys.footballTargetCalendarID) var footballTargetCalendarID = ""
-    @AppStorage(DefaultsKeys.footballCalendarAlertOption) var footballCalendarAlertOptionRaw = FootballCalendarAlertOption.none.rawValue
-    @AppStorage(DefaultsKeys.enableFootballGoalNotifications) var enableFootballGoalNotifications = true
-    @AppStorage(DefaultsKeys.enableFootballDisallowedGoalNotifications) var enableFootballDisallowedGoalNotifications = true
-    @AppStorage(DefaultsKeys.includeFootballGoalScorerInNotifications) var includeFootballGoalScorerInNotifications = true
-    @AppStorage(DefaultsKeys.enableFootballFinalNotifications) var enableFootballFinalNotifications = true
-    @AppStorage(DefaultsKeys.enableFootballAutoAddNotifications) var enableFootballAutoAddNotifications = true
-    @AppStorage(DefaultsKeys.showFinishedFootballMatches) var showFinishedFootballMatches = true
-    @AppStorage(DefaultsKeys.finishedFootballMatchLookbackDays) var finishedFootballMatchLookbackDays = 7
-    @AppStorage(DefaultsKeys.footballMatchLookaheadDays) var footballMatchLookaheadDays = 14
+    @Binding var footballTargetCalendarID: String
+    @Binding var autoAddFootballCompetitionSlugs: Set<String>
+    @Binding var footballCalendarAlertOption: FootballCalendarAlertOption
+    @Binding var enableFootballGoalNotifications: Bool
+    @Binding var enableFootballDisallowedGoalNotifications: Bool
+    @Binding var includeFootballGoalScorerInNotifications: Bool
+    @Binding var enableFootballFinalNotifications: Bool
+    @Binding var enableFootballAutoAddNotifications: Bool
+    @Binding var showFinishedFootballMatches: Bool
+    @Binding var finishedFootballMatchLookbackDays: Int
+    @Binding var footballMatchLookaheadDays: Int
     @State var browseMode: FootballBrowseMode = .competitions
     @State var selectedCompetitionRegionID: String?
     @State var selectedCompetitionID: String?
@@ -46,7 +47,6 @@ struct SettingsFootballFixturesSectionView: View {
     @State var footballLiveAndNextDaySection = FootballMatchesOverviewSection.placeholder(title: "Now & Next 24 Hours")
     @State var managedFootballMatchIDs: Set<String> = []
     @State var managedFootballMatches: [FootballFixtureMatch] = []
-    @State var autoAddFootballCompetitionSlugs: Set<String> = []
     @State var competitionSectionsByRegionCache: [(region: FootballCompetitionRegion, sections: [FootballMenuCompetitionSection])] = []
     @State var competitionSectionsWithErrorsCache: [FootballMenuCompetitionSection] = []
     @State var hasAnyCompetitionCardsCache = false
@@ -73,13 +73,8 @@ struct SettingsFootballFixturesSectionView: View {
             visibleNow = Self.minuteReferenceDate(for: AlertCalendarClock.nowRoundedToSecond())
             finishedFootballMatchLookbackDays = Self.normalizedFootballWindowDays(finishedFootballMatchLookbackDays)
             footballMatchLookaheadDays = Self.normalizedFootballWindowDays(footballMatchLookaheadDays)
-            if footballTargetCalendarID.isEmpty,
-               let resolvedCalendarID = monitor.footballTargetCalendarID() {
-                footballTargetCalendarID = resolvedCalendarID
-            }
             monitor.ensureFootballCompetitionSections()
             monitor.refreshManagedFootballTrackingSnapshot(now: visibleNow)
-            autoAddFootballCompetitionSlugs = monitor.footballAutoAddCompetitionSlugs()
             synchronizeViewStateFromMonitor()
         }
         .task(id: browseMode) {
@@ -114,14 +109,6 @@ struct SettingsFootballFixturesSectionView: View {
                     await refreshManagedMatchesPanel(now: now)
                 }
             }
-        }
-        .onChange(of: footballCalendarAlertOptionRaw) { _ in
-            applyFootballCalendarAlertPreference()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in
-            let nextSlugs = monitor.footballAutoAddCompetitionSlugs()
-            guard autoAddFootballCompetitionSlugs != nextSlugs else { return }
-            autoAddFootballCompetitionSlugs = nextSlugs
         }
         .onChange(of: showFinishedFootballMatches) { _ in
             refreshCompetitionSectionsDerivedState()

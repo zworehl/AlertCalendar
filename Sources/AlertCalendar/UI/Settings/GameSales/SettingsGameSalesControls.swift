@@ -177,7 +177,6 @@ extension SettingsGameSalesSectionView {
         } else {
             autoAddStores.remove(store)
         }
-        monitor.setGameSaleAutoAddEnabled(isEnabled, for: store)
     }
 
     func automationStoreTitle(for store: GameStore) -> String {

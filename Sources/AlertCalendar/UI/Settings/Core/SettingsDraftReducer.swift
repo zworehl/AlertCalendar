@@ -42,6 +42,29 @@ extension SettingsDraft {
         settings.weekdayOnlyEventCalendarIDs = weekdayOnlyEventCalendarIDs
         settings.weekdayOnlyReminderCalendarIDs = weekdayOnlyReminderCalendarIDs
         settings.nonWorkingDateKeys = WorkingDayRules.normalizedNonWorkingDateKeys(nonWorkingDateKeys)
+        settings.footballTargetCalendarID = footballTargetCalendarID
+        settings.footballAutoAddCompetitionSlugs = Set(
+            CalendarMonitor.normalizedFootballAutoAddCompetitionSlugs(
+                Array(footballAutoAddCompetitionSlugs)
+            )
+        )
+        settings.footballCalendarAlertOption = footballCalendarAlertOption
+        settings.enableFootballGoalNotifications = enableFootballGoalNotifications
+        settings.enableFootballDisallowedGoalNotifications = enableFootballDisallowedGoalNotifications
+        settings.includeFootballGoalScorerInNotifications = includeFootballGoalScorerInNotifications
+        settings.enableFootballFinalNotifications = enableFootballFinalNotifications
+        settings.enableFootballAutoAddNotifications = enableFootballAutoAddNotifications
+        settings.showFinishedFootballMatches = showFinishedFootballMatches
+        settings.finishedFootballMatchLookbackDays = AppSettingsRules.normalizedFootballWindowDays(
+            finishedFootballMatchLookbackDays
+        )
+        settings.footballMatchLookaheadDays = AppSettingsRules.normalizedFootballWindowDays(
+            footballMatchLookaheadDays
+        )
+        settings.gameSaleTargetCalendarID = gameSaleTargetCalendarID
+        settings.gameSaleCalendarAlertOption = gameSaleCalendarAlertOption
+        settings.gameSaleAutoAddStores = gameSaleAutoAddStores
+        settings.enableGameSaleAutoAddNotifications = enableGameSaleAutoAddNotifications
         settings.slackMeetingStatusText = SlackMeetingStatus.normalizedText(slackMeetingStatusText)
         settings.slackMeetingStatusEmoji = SlackMeetingStatus.normalizedEmoji(slackMeetingStatusEmoji)
         settings.slackStatusSyncRules = SlackStatusSyncRule.normalized(

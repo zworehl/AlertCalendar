@@ -9,8 +9,9 @@ struct SettingsView: View {
     enum SettingsTab: String, CaseIterable, Identifiable {
         case general = "General"
         case feeds = "Feeds"
-        case calendars = "Calendars & Reminders"
-        case permissions = "Permissions"
+        case calendars = "Calendars"
+        case integrations = "Integrations"
+        case access = "Access"
 
         var id: String { rawValue }
 
@@ -22,7 +23,9 @@ struct SettingsView: View {
                 return "sun.max"
             case .calendars:
                 return "calendar"
-            case .permissions:
+            case .integrations:
+                return "puzzlepiece.extension"
+            case .access:
                 return "lock.shield"
             }
         }
@@ -275,7 +278,7 @@ struct SettingsView: View {
         var summary: String {
             switch self {
             case .slackStatusSync:
-                return "Update Slack with a customizable status while a selected calendar event is in progress."
+                return "Publish customizable Slack statuses before and during selected calendar events."
             }
         }
 
@@ -307,6 +310,7 @@ struct SettingsView: View {
 
     let monitor: CalendarMonitor
 
+    @StateObject var settingsWindowCloseGuard = SettingsWindowCloseGuard()
     @State var draft = SettingsDraft.empty
     @State var didLoad = false
     @State var selectedTab: SettingsTab = .general
@@ -324,6 +328,7 @@ struct SettingsView: View {
     @State var contactsAuthorizationStatus: CNAuthorizationStatus = .notDetermined
     @State var lastRefreshDate: Date?
     @State var refreshDiagnostics = CalendarMonitorRefreshDiagnostics()
+    @State var externalFeedDiagnostics = ExternalFeedDiagnostics()
     @State var isShowingPermissionDiagnostics = false
     @State var slackUserTokenDraft = ""
     @State var slackConnections: [SlackConnection] = []
@@ -333,6 +338,8 @@ struct SettingsView: View {
     @State var isRefreshingSlackConnectionMetadata = false
     @State var didAttemptSlackConnectionMetadataRefresh = false
     @State var draggingSlackStatusRuleID: String?
+    @State var isShowingSlackConnectionManagement = false
+    @State var slackStatusRulesColumnWidth: CGFloat = 0
     @State var installedMeetingBrowsers: [MeetingBrowserKind] = MeetingBrowserCatalog.installedBrowsers()
     @State var meetingBrowserProfilesByBrowser: [MeetingBrowserKind: [MeetingBrowserProfileOption]] = MeetingBrowserProfileStore.profilesByBrowser(
         for: MeetingBrowserCatalog.installedBrowsers()
@@ -393,7 +400,7 @@ struct SettingsView: View {
                 onResolve: { window in
                     guard let appDelegate = NSApp.delegate as? AppDelegate else { return }
                     appDelegate.prepareForSettingsPresentation()
-                    appDelegate.configureSettingsWindow(window)
+                    appDelegate.configureSettingsWindow(window, closeGuard: settingsWindowCloseGuard)
                 },
                 onResize: { width in
                     settingsWindowWidth = width
@@ -407,7 +414,14 @@ struct SettingsView: View {
             synchronizeSettingsStateFromMonitor()
             synchronizeDraftWithStoredSettings(force: true)
             didLoad = true
+            configureSettingsWindowCloseGuard()
             refreshSlackConnectionMetadataIfNeeded()
+        }
+        .onDisappear {
+            settingsWindowCloseGuard.clear()
+        }
+        .onChange(of: hasUnsavedChanges) { hasChanges in
+            settingsWindowCloseGuard.hasUnsavedChanges = hasChanges
         }
         .onReceive(monitor.$hasEventsAccess.removeDuplicates()) { value in
             hasEventsAccess = value
@@ -441,6 +455,9 @@ struct SettingsView: View {
         }
         .onReceive(monitor.$refreshDiagnostics.removeDuplicates()) { diagnostics in
             refreshDiagnostics = diagnostics
+        }
+        .onReceive(monitor.$externalFeedDiagnostics.removeDuplicates()) { diagnostics in
+            externalFeedDiagnostics = diagnostics
         }
         .onReceive(monitor.$slackConnectionStatusMessage.removeDuplicates()) { message in
             slackConnectionStatusMessage = message

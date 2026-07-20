@@ -85,6 +85,9 @@ struct AppSettingsStore {
                 defaults.integer(forKey: DefaultsKeys.eventTitleMaxCharacters)
             ),
             footballTargetCalendarID: defaults.string(forKey: DefaultsKeys.footballTargetCalendarID) ?? defaultSettings.footballTargetCalendarID,
+            footballAutoAddCompetitionSlugs: Set(
+                defaults.stringArray(forKey: DefaultsKeys.footballAutoAddCompetitionSlugs) ?? []
+            ),
             footballCalendarAlertOption: FootballCalendarAlertOption(
                 rawValue: defaults.string(forKey: DefaultsKeys.footballCalendarAlertOption) ?? ""
             ) ?? defaultSettings.footballCalendarAlertOption,
@@ -99,6 +102,18 @@ struct AppSettingsStore {
             ),
             footballMatchLookaheadDays: AppSettingsRules.normalizedFootballWindowDays(
                 defaults.integer(forKey: DefaultsKeys.footballMatchLookaheadDays)
+            ),
+            gameSaleTargetCalendarID: defaults.string(forKey: DefaultsKeys.gameSaleTargetCalendarID)
+                ?? defaultSettings.gameSaleTargetCalendarID,
+            gameSaleCalendarAlertOption: GameSaleCalendarAlertOption(
+                rawValue: defaults.string(forKey: DefaultsKeys.gameSaleCalendarAlertOption) ?? ""
+            ) ?? defaultSettings.gameSaleCalendarAlertOption,
+            gameSaleAutoAddStores: Set(
+                (defaults.stringArray(forKey: DefaultsKeys.gameSaleAutoAddStoreIDs) ?? [])
+                    .compactMap(GameStore.init(rawValue:))
+            ),
+            enableGameSaleAutoAddNotifications: defaults.bool(
+                forKey: DefaultsKeys.enableGameSaleAutoAddNotifications
             ),
             slackConnections: storedSlackConnections,
             slackStatusSyncRules: migratedSlackStatusSyncRules,
@@ -160,6 +175,10 @@ struct AppSettingsStore {
             forKey: DefaultsKeys.eventTitleMaxCharacters
         )
         defaults.set(settings.footballTargetCalendarID, forKey: DefaultsKeys.footballTargetCalendarID)
+        defaults.set(
+            Array(settings.footballAutoAddCompetitionSlugs).sorted(),
+            forKey: DefaultsKeys.footballAutoAddCompetitionSlugs
+        )
         defaults.set(settings.footballCalendarAlertOption.rawValue, forKey: DefaultsKeys.footballCalendarAlertOption)
         defaults.set(settings.enableFootballGoalNotifications, forKey: DefaultsKeys.enableFootballGoalNotifications)
         defaults.set(settings.enableFootballDisallowedGoalNotifications, forKey: DefaultsKeys.enableFootballDisallowedGoalNotifications)
@@ -174,6 +193,16 @@ struct AppSettingsStore {
         defaults.set(
             AppSettingsRules.normalizedFootballWindowDays(settings.footballMatchLookaheadDays),
             forKey: DefaultsKeys.footballMatchLookaheadDays
+        )
+        defaults.set(settings.gameSaleTargetCalendarID, forKey: DefaultsKeys.gameSaleTargetCalendarID)
+        defaults.set(settings.gameSaleCalendarAlertOption.rawValue, forKey: DefaultsKeys.gameSaleCalendarAlertOption)
+        defaults.set(
+            settings.gameSaleAutoAddStores.map(\.rawValue).sorted(),
+            forKey: DefaultsKeys.gameSaleAutoAddStoreIDs
+        )
+        defaults.set(
+            settings.enableGameSaleAutoAddNotifications,
+            forKey: DefaultsKeys.enableGameSaleAutoAddNotifications
         )
         defaults.set(
             SlackMeetingStatus.normalizedText(settings.slackMeetingStatusText),
@@ -291,7 +320,7 @@ struct AppSettingsStore {
             DefaultsKeys.menuBarFontSize: defaultSettings.menuBarFontSize,
             DefaultsKeys.skippedItemKeys: [],
             DefaultsKeys.footballTargetCalendarID: defaultSettings.footballTargetCalendarID,
-            DefaultsKeys.footballAutoAddCompetitionSlugs: [],
+            DefaultsKeys.footballAutoAddCompetitionSlugs: Array(defaultSettings.footballAutoAddCompetitionSlugs),
             DefaultsKeys.footballCalendarAlertOption: defaultSettings.footballCalendarAlertOption.rawValue,
             DefaultsKeys.enableFootballGoalNotifications: defaultSettings.enableFootballGoalNotifications,
             DefaultsKeys.enableFootballDisallowedGoalNotifications: defaultSettings.enableFootballDisallowedGoalNotifications,
@@ -301,10 +330,10 @@ struct AppSettingsStore {
             DefaultsKeys.showFinishedFootballMatches: defaultSettings.showFinishedFootballMatches,
             DefaultsKeys.finishedFootballMatchLookbackDays: defaultSettings.finishedFootballMatchLookbackDays,
             DefaultsKeys.footballMatchLookaheadDays: defaultSettings.footballMatchLookaheadDays,
-            DefaultsKeys.gameSaleTargetCalendarID: "",
-            DefaultsKeys.gameSaleCalendarAlertOption: GameSaleCalendarAlertOption.fifteenMinutesBefore.rawValue,
-            DefaultsKeys.gameSaleAutoAddStoreIDs: [],
-            DefaultsKeys.enableGameSaleAutoAddNotifications: true,
+            DefaultsKeys.gameSaleTargetCalendarID: defaultSettings.gameSaleTargetCalendarID,
+            DefaultsKeys.gameSaleCalendarAlertOption: defaultSettings.gameSaleCalendarAlertOption.rawValue,
+            DefaultsKeys.gameSaleAutoAddStoreIDs: defaultSettings.gameSaleAutoAddStores.map(\.rawValue),
+            DefaultsKeys.enableGameSaleAutoAddNotifications: defaultSettings.enableGameSaleAutoAddNotifications,
             DefaultsKeys.removeEndedGameSalesAutomatically: true,
             DefaultsKeys.dismissedGameSaleEventIDs: [],
             DefaultsKeys.slackMeetingStatusText: defaultSettings.slackMeetingStatusText,

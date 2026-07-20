@@ -1,14 +1,19 @@
 import Foundation
 
+struct FootballScoreboardDateRange: Hashable, Sendable {
+    let start: Date
+    let end: Date
+}
+
 extension FootballDataAPIClient {
     func fetchMatchesForCompetitionDateRanges(
         _ competition: FootballCompetitionPreset,
         dateRanges: [(Date, Date)]
-    ) async -> [FootballFixtureMatch] {
-        await withTaskGroup(of: [FootballFixtureMatch].self) { group in
+    ) async throws -> [FootballFixtureMatch] {
+        try await withThrowingTaskGroup(of: [FootballFixtureMatch].self) { group in
             for dateRange in dateRanges {
                 group.addTask {
-                    await self.fetchMatchesForCompetitionPage(
+                    try await self.fetchMatchesForCompetitionPage(
                         competition,
                         dateRange: dateRange
                     )
@@ -16,11 +21,43 @@ extension FootballDataAPIClient {
             }
 
             var merged: [FootballFixtureMatch] = []
-            for await matches in group {
+            for try await matches in group {
                 merged.append(contentsOf: matches)
             }
             return merged
         }
+    }
+
+    func fetchMatches(
+        for competitions: [FootballCompetitionPreset],
+        dateRangesByCompetitionSlug: [String: [FootballScoreboardDateRange]],
+        enrichTeams shouldEnrichTeams: Bool = true
+    ) async throws -> [FootballFixtureMatch] {
+        let chunks = try await withThrowingTaskGroup(of: [FootballFixtureMatch].self) { group in
+            for competition in competitions {
+                for range in dateRangesByCompetitionSlug[competition.slug] ?? [] {
+                    group.addTask {
+                        try await self.fetchMatchesForCompetitionPage(
+                            competition,
+                            dateRange: (range.start, range.end)
+                        )
+                    }
+                }
+            }
+
+            var merged: [FootballFixtureMatch] = []
+            for try await matches in group {
+                merged.append(contentsOf: matches)
+            }
+            return merged
+        }
+
+        var seen = Set<String>()
+        let deduplicated = chunks
+            .filter { seen.insert($0.id).inserted }
+            .sorted { $0.startDate == $1.startDate ? $0.id < $1.id : $0.startDate < $1.startDate }
+        guard shouldEnrichTeams else { return deduplicated }
+        return await enrichTeams(in: deduplicated)
     }
 
     static func scoreboardDateRanges(

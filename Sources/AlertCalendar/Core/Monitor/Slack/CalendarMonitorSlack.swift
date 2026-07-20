@@ -26,6 +26,19 @@ extension CalendarMonitor {
         let expiration: Int
     }
 
+    enum SlackRuleActivityPhase: Int {
+        case upcoming
+        case active
+    }
+
+    struct SlackRuleStateCandidate {
+        let priority: Int
+        let phase: SlackRuleActivityPhase
+        let statusText: String
+        let statusEmoji: String
+        let expiration: Int
+    }
+
     struct SlackStatusSyncTarget: Equatable {
         enum Mode: Equatable {
             case clear

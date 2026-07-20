@@ -4,8 +4,8 @@ extension FootballDataAPIClient {
     static let requestTimeout: TimeInterval = 8
     static let resourceTimeout: TimeInterval = 20
     static let scoreboardDateRangeChunkDays = 14
-    static let scoreboardPageCacheTTL: TimeInterval = 45
-    static let scoreboardPageCacheLimit = 160
+    static let scoreboardPageCacheTTL: TimeInterval = 15 * 60
+    static let scoreboardPageCacheLimit = 320
     static let teamCacheTTL: TimeInterval = 30 * 24 * 60 * 60
     static let summaryRootCacheTTL: TimeInterval = 15
     static let summaryRootCacheLimit = 120

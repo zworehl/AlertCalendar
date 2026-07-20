@@ -498,7 +498,7 @@ final class FootballDataAPIClientFetchMatchesTests: FootballDataAPIClientTestCas
             value: FootballCompetitionPreset.majorLeagueSoccer.lookaheadDays,
             to: dayStart
         ) ?? dayStart
-        let expectedScoreboardRequestCount = 1 + FootballDataAPIClient.scoreboardDateRanges(
+        let expectedScoreboardRequestCount = FootballDataAPIClient.scoreboardDateRanges(
             start: expectedStart,
             end: expectedEnd,
             calendar: calendar

@@ -18,6 +18,16 @@ extension CalendarMonitor {
             let endDate = item.endDate ?? item.date.addingTimeInterval(60 * 60)
             return item.date <= now && endDate > now
         }
+        let preEventItemKeys = Set(
+            rules.flatMap { rule in
+                Self.upcomingSlackStatusMeetingItems(
+                    for: items,
+                    rule: rule,
+                    now: now
+                )
+                .map(\.notificationKey)
+            }
+        )
         let rulesText = rules.count == 1 ? "1 rule" : "\(rules.count) rules"
         let calendarsText = uniqueCalendarCount == 1 ? "1 calendar" : "\(uniqueCalendarCount) calendars"
 
@@ -29,6 +39,20 @@ extension CalendarMonitor {
             } else {
                 slackRuntimeStatusDescription =
                     "Watching \(rulesText) across \(calendarsText). \(activeText)."
+            }
+            return
+        }
+
+        if !preEventItemKeys.isEmpty {
+            let preEventText = preEventItemKeys.count == 1
+                ? "1 meeting is in its pre-event window"
+                : "\(preEventItemKeys.count) meetings are in their pre-event window"
+            if let nextTransitionDate {
+                slackRuntimeStatusDescription =
+                    "Watching \(rulesText) across \(calendarsText). \(preEventText). Next change: \(Self.slackRuntimeDateFormatter.string(from: nextTransitionDate))."
+            } else {
+                slackRuntimeStatusDescription =
+                    "Watching \(rulesText) across \(calendarsText). \(preEventText)."
             }
             return
         }
@@ -64,7 +88,7 @@ extension CalendarMonitor {
             nextTransitionDate: nextTransitionDate
         )
         appendSlackDiagnosticsLog(
-            "schedule rules=\(enabledRules.count) items=\(items.count) active=\(activeSlackItemTitles(from: items, now: now)) next=\(formattedSlackTransitionDate(nextTransitionDate))"
+            "schedule rules=\(enabledRules.count) items=\(items.count) managed=\(managedSlackItemTitles(from: items, rules: enabledRules, now: now)) next=\(formattedSlackTransitionDate(nextTransitionDate))"
         )
         scheduleNextSlackStatusSyncTransition(at: nextTransitionDate, now: now)
 

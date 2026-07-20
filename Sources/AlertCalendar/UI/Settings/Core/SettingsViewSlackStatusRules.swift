@@ -23,7 +23,7 @@ extension SettingsView {
             }
 
             if slackStatusRuleEmojiNeedsPrettyInput(rule) {
-                Text("Use an actual emoji like 🐶 or 🗓️ here. Known Slack aliases are auto-converted when possible, but the field looks better with emoji characters.")
+                Text("Use actual emoji like 🐶, 🗓️, or ⏳. Known Slack aliases are auto-converted when possible, but the fields look better with emoji characters.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -43,15 +43,39 @@ extension SettingsView {
 
     @ViewBuilder
     func slackStatusSyncRuleHeader(index: Int, rule: SlackStatusSyncRule, isComplete: Bool) -> some View {
-        HStack(alignment: .top, spacing: 14) {
-            slackStatusSyncRuleDragHandle(for: rule)
+        if slackShouldUseWideRuleEditors {
+            HStack(alignment: .top, spacing: 14) {
+                slackStatusSyncRuleDragHandle(for: rule)
 
-            slackStatusSyncRuleIdentity(for: rule)
+                slackStatusSyncRuleIdentity(for: rule)
+                    .frame(minWidth: 210, maxWidth: 300, alignment: .leading)
 
-            Spacer(minLength: 0)
+                slackStatusRuleStatusPreviews(for: rule)
+                    .layoutPriority(1)
 
-            slackStatusSyncRuleActionBar(index: index, rule: rule, isComplete: isComplete)
-                .fixedSize(horizontal: true, vertical: false)
+                Spacer(minLength: 12)
+
+                slackStatusSyncRuleWideTimingControls(index: index)
+                    .frame(width: 280, alignment: .leading)
+
+                slackStatusSyncRuleActionBar(index: index, rule: rule, isComplete: isComplete)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+        } else {
+            HStack(alignment: .top, spacing: 14) {
+                slackStatusSyncRuleDragHandle(for: rule)
+
+                VStack(alignment: .leading, spacing: 5) {
+                    slackStatusSyncRuleIdentity(for: rule)
+                    slackStatusRuleStatusPreviews(for: rule)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Spacer(minLength: 0)
+
+                slackStatusSyncRuleActionBar(index: index, rule: rule, isComplete: isComplete)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
         }
     }
 
@@ -132,45 +156,152 @@ extension SettingsView {
                     slackStatusSyncRuleEmojiField(index: index)
                 }
             }
+
+            slackStatusSyncRuleTimingEditor(index: index)
         }
     }
 
     var slackShouldUseWideRuleEditors: Bool {
-        settingsWindowWidth >= slackTwoColumnMinimumWindowWidth && !slackShouldUseRuleGrid
+        slackStatusRulesAvailableWidth >= slackWideRuleEditorMinimumColumnWidth
     }
 
     var slackShouldUseInlineRuleEditorRows: Bool {
-        settingsWindowWidth >= 980
+        slackStatusRulesAvailableWidth >= 760
+    }
+
+    var slackStatusRulesAvailableWidth: CGFloat {
+        if slackStatusRulesColumnWidth > 0 {
+            return slackStatusRulesColumnWidth
+        }
+        return max(settingsWindowWidth - 68, 0)
     }
 
     @ViewBuilder
     func slackStatusSyncRuleWideEditors(index: Int) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top, spacing: 10) {
-                slackStatusSyncRuleConnectionPicker(index: index)
-                    .frame(width: 260, alignment: .leading)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Calendar Mapping")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
 
-                slackStatusSyncRuleCalendarPicker(index: index)
-                    .frame(minWidth: 260, maxWidth: 420, alignment: .leading)
+                    HStack(alignment: .top, spacing: 10) {
+                        slackStatusSyncRuleConnectionPicker(index: index)
+                            .frame(width: 220, alignment: .leading)
 
-                Spacer(minLength: 0)
+                        slackStatusSyncRuleCalendarPicker(index: index)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .frame(width: 580, alignment: .leading)
+
+                Divider()
+                    .padding(.vertical, 4)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Active Status")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    HStack(alignment: .top, spacing: 10) {
+                        slackStatusSyncRuleTextSourcePicker(index: index)
+                            .frame(width: 180, alignment: .leading)
+
+                        if draft.slackStatusSyncRules[index].statusTextSource == .fixed {
+                            slackStatusSyncRuleTextField(index: index)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        } else {
+                            Spacer(minLength: 0)
+                        }
+
+                        slackStatusSyncRuleEmojiField(index: index)
+                            .frame(width: 100, alignment: .leading)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            HStack(alignment: .top, spacing: 10) {
-                slackStatusSyncRuleTextSourcePicker(index: index)
-                    .frame(width: 180, alignment: .leading)
+            if draft.slackStatusSyncRules[index].startsBeforeEvent {
+                Divider()
 
-                if draft.slackStatusSyncRules[index].statusTextSource == .fixed {
-                    slackStatusSyncRuleTextField(index: index)
-                        .frame(minWidth: 260, maxWidth: 520, alignment: .leading)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Pre-event Status")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    slackStatusSyncRuleWidePreEventEditors(index: index)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-
-                slackStatusSyncRuleEmojiField(index: index)
-                    .frame(width: 88, alignment: .leading)
-
-                Spacer(minLength: 0)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    func slackStatusSyncRuleWideTimingControls(index: Int) -> some View {
+        let startsBeforeEvent = draft.slackStatusSyncRules[index].startsBeforeEvent
+
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Timing")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 10) {
+                Toggle(
+                    "Set before event",
+                    isOn: $draft.slackStatusSyncRules[index].startsBeforeEvent
+                )
+                .toggleStyle(.switch)
+                .controlSize(.small)
+
+                Picker(
+                    "Lead time",
+                    selection: $draft.slackStatusSyncRules[index].leadMinutes
+                ) {
+                    ForEach(AppSettingsRules.slackStatusLeadMinuteOptions, id: \.self) { minutes in
+                        Text("\(minutes) min").tag(minutes)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .frame(width: 92)
+                .disabled(!startsBeforeEvent)
+                .opacity(startsBeforeEvent ? 1 : 0.55)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    func slackStatusSyncRuleWidePreEventEditors(index: Int) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Pre-event Text")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                TextField(
+                    "Starting soon",
+                    text: $draft.slackStatusSyncRules[index].preEventStatusText
+                )
+                .textFieldStyle(.roundedBorder)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Pre-event Emoji")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                TextField(
+                    "⏳",
+                    text: $draft.slackStatusSyncRules[index].preEventStatusEmoji
+                )
+                .textFieldStyle(.roundedBorder)
+            }
+            .frame(width: 100, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
@@ -187,8 +318,6 @@ extension SettingsView {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-
-                slackStatusRuleStatusChip(for: rule)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -323,73 +452,4 @@ extension SettingsView {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    func slackStatusRuleTitle(for rule: SlackStatusSyncRule) -> String {
-        slackConnection(for: rule)?.workspaceLabel ?? "Choose Slack workspace"
-    }
-
-    func slackStatusRuleSubtitle(for rule: SlackStatusSyncRule) -> String {
-        guard let connection = slackConnection(for: rule) else { return "Connect a Slack workspace" }
-        return connection.resolvedDisplayName
-    }
-
-    func slackStatusRuleCount(for connection: SlackConnection) -> Int {
-        draft.slackStatusSyncRules.filter { $0.connectionID == connection.id }.count
-    }
-
-    func slackConnection(for rule: SlackStatusSyncRule) -> SlackConnection? {
-        slackConnections.first(where: { $0.id == rule.connectionID })
-    }
-
-    func slackStatusRuleStatusPreview(for rule: SlackStatusSyncRule) -> String {
-        SlackMeetingStatus.statusLine(
-            text: rule.statusTextSource == .eventTitle ? "Event Title" : rule.statusText,
-            emoji: rule.statusEmoji
-        )
-    }
-
-    func slackStatusRuleEmojiNeedsPrettyInput(_ rule: SlackStatusSyncRule) -> Bool {
-        SlackMeetingStatus.looksLikeSlackAlias(rule.statusEmoji)
-    }
-
-    @ViewBuilder
-    func slackStatusRuleStatusChip(for rule: SlackStatusSyncRule) -> some View {
-        Text(slackStatusRuleStatusPreview(for: rule))
-            .font(.caption2.weight(.medium))
-            .foregroundStyle(.primary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(Color.white.opacity(0.06))
-            )
-            .overlay(
-                Capsule(style: .continuous)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
-            )
-    }
-
-    @ViewBuilder
-    func slackWorkspaceBadge(for rule: SlackStatusSyncRule) -> some View {
-        let connection = slackConnection(for: rule)
-
-        SlackWorkspaceAvatarPair(
-            primaryImageURL: connection?.profileImageURL,
-            secondaryImageURL: connection?.workspaceImageURL,
-            primaryInitials: initials(for: connection?.resolvedDisplayName),
-            secondaryInitials: initials(for: connection?.workspaceLabel)
-        )
-        .equatable()
-    }
-
-    func initials(for value: String?) -> String {
-        let components = (value ?? "")
-            .split(whereSeparator: { $0.isWhitespace || $0 == "." || $0 == "-" })
-            .prefix(2)
-
-        let initials = components.compactMap { component in
-            component.first.map { String($0).uppercased() }
-        }.joined()
-
-        return initials
-    }
 }

@@ -85,4 +85,42 @@ final class SettingsDraftReducerTests: XCTestCase {
         XCTAssertEqual(settings.meetingBrowserRouting.rules.map(\.id), ["rule-a"])
         XCTAssertEqual(settings.meetingBrowserRouting.rules.first?.calendarIDs, Set(["cal-a"]))
     }
+
+    func testAppliedSettingsIncludesFootballAndGameSaleDraftChanges() {
+        var draft = SettingsDraft(settings: .defaults)
+        draft.footballTargetCalendarID = "football-calendar"
+        draft.footballAutoAddCompetitionSlugs = [
+            FootballCompetitionPreset.majorLeagueSoccer.slug,
+            "unsupported-league",
+        ]
+        draft.footballCalendarAlertOption = .fifteenMinutesBefore
+        draft.enableFootballGoalNotifications = false
+        draft.showFinishedFootballMatches = false
+        draft.finishedFootballMatchLookbackDays = 500
+        draft.footballMatchLookaheadDays = -5
+        draft.gameSaleTargetCalendarID = "sales-calendar"
+        draft.gameSaleCalendarAlertOption = .oneDayBefore
+        draft.gameSaleAutoAddStores = [.steam, .nintendoSwitch]
+        draft.enableGameSaleAutoAddNotifications = false
+
+        let settings = draft.applied(
+            to: .defaults,
+            availableEventCalendarIDs: []
+        )
+
+        XCTAssertEqual(settings.footballTargetCalendarID, "football-calendar")
+        XCTAssertEqual(
+            settings.footballAutoAddCompetitionSlugs,
+            [FootballCompetitionPreset.majorLeagueSoccer.slug]
+        )
+        XCTAssertEqual(settings.footballCalendarAlertOption, .fifteenMinutesBefore)
+        XCTAssertFalse(settings.enableFootballGoalNotifications)
+        XCTAssertFalse(settings.showFinishedFootballMatches)
+        XCTAssertEqual(settings.finishedFootballMatchLookbackDays, AppSettingsRules.maximumFootballWindowDays)
+        XCTAssertEqual(settings.footballMatchLookaheadDays, AppSettingsRules.minimumFootballWindowDays)
+        XCTAssertEqual(settings.gameSaleTargetCalendarID, "sales-calendar")
+        XCTAssertEqual(settings.gameSaleCalendarAlertOption, .oneDayBefore)
+        XCTAssertEqual(settings.gameSaleAutoAddStores, [.steam, .nintendoSwitch])
+        XCTAssertFalse(settings.enableGameSaleAutoAddNotifications)
+    }
 }

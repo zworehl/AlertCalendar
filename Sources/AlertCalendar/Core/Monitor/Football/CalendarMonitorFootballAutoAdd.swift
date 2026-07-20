@@ -4,7 +4,7 @@ import EventKit
 import Foundation
 
 extension CalendarMonitor {
-    nonisolated static let footballAutoAddRefreshInterval: TimeInterval = 5 * 60
+    nonisolated static let footballAutoAddRefreshInterval: TimeInterval = 3 * 60 * 60
 
     nonisolated static func normalizedFootballAutoAddCompetitionSlugs(_ slugs: [String]) -> [String] {
         let requestedSlugs = Set(
@@ -87,7 +87,21 @@ extension CalendarMonitor {
 
         lastFootballAutoAddRefreshDate = now
         do {
-            let fetchedMatches = try await footballClient.fetchMatches(for: presets)
+            let calendar = Calendar(identifier: .gregorian)
+            let dayStart = calendar.startOfDay(for: now)
+            let dateRangesBySlug = Dictionary(uniqueKeysWithValues: presets.map { preset in
+                let end = calendar.date(byAdding: .day, value: preset.lookaheadDays, to: dayStart) ?? dayStart
+                let ranges = FootballDataAPIClient.scoreboardDateRanges(
+                    start: dayStart,
+                    end: end,
+                    calendar: calendar
+                ).map { FootballScoreboardDateRange(start: $0.0, end: $0.1) }
+                return (preset.slug, ranges)
+            })
+            let fetchedMatches = try await footballClient.fetchMatches(
+                for: presets,
+                dateRangesByCompetitionSlug: dateRangesBySlug
+            )
             let refreshedMatches = await footballClient.refreshStatusesIfNeeded(for: fetchedMatches)
             let resolvedMatches = matchesPreservingKnownTimingContext(refreshedMatches)
             await cacheFootballMatches(resolvedMatches)

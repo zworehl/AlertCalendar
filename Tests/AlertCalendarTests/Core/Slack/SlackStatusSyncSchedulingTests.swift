@@ -468,12 +468,286 @@ final class SlackStatusSyncSchedulingTests: SlackStatusSyncTestCase {
         )
     }
 
+    func testUpcomingMeetingDoesNotSetSlackStatusWhenPreEventOptionIsDisabled() {
+        let now = Date(timeIntervalSince1970: 1_777_000_000)
+        let meetingStart = now.addingTimeInterval(10 * 60)
+        let rules = [
+            SlackStatusSyncRule(
+                connectionID: "T1|U1",
+                calendarID: "calendar-1",
+                startsBeforeEvent: false,
+                leadMinutes: 15,
+                isEnabled: true
+            ),
+        ]
+        let items = [
+            makeEvent(
+                id: "upcoming",
+                title: "Design Review",
+                calendarID: "calendar-1",
+                startDate: meetingStart,
+                endDate: now.addingTimeInterval(40 * 60)
+            ),
+        ]
+
+        XCTAssertTrue(
+            CalendarMonitor.activeSlackRuleStateByConnectionID(
+                for: items,
+                rules: rules,
+                now: now
+            ).isEmpty
+        )
+        XCTAssertEqual(
+            CalendarMonitor.nextSlackStatusSyncTransitionDate(
+                for: items,
+                rules: rules,
+                now: now
+            ),
+            meetingStart
+        )
+    }
+
+    func testPreEventSlackStatusStartsInsideConfiguredLeadWindow() {
+        let now = Date(timeIntervalSince1970: 1_777_000_000)
+        let meetingStart = now.addingTimeInterval(10 * 60)
+        let meetingEnd = now.addingTimeInterval(40 * 60)
+        let connectionID = "T1|U1"
+        let rules = [
+            SlackStatusSyncRule(
+                connectionID: connectionID,
+                calendarID: "calendar-1",
+                statusText: "In progress",
+                statusEmoji: "⏳",
+                startsBeforeEvent: true,
+                leadMinutes: 15,
+                preEventStatusText: "Joining in a few minutes",
+                preEventStatusEmoji: "🔜",
+                isEnabled: true
+            ),
+        ]
+        let items = [
+            makeEvent(
+                id: "upcoming",
+                title: "Design Review",
+                calendarID: "calendar-1",
+                startDate: meetingStart,
+                endDate: meetingEnd
+            ),
+        ]
+
+        XCTAssertEqual(
+            CalendarMonitor.activeSlackRuleStateByConnectionID(
+                for: items,
+                rules: rules,
+                now: now
+            ),
+            [
+                connectionID: CalendarMonitor.SlackActiveRuleState(
+                    statusText: "Joining in a few minutes",
+                    statusEmoji: "🔜",
+                    expiration: Int(meetingEnd.timeIntervalSince1970)
+                ),
+            ]
+        )
+        XCTAssertEqual(
+            CalendarMonitor.nextSlackStatusSyncTransitionDate(
+                for: items,
+                rules: rules,
+                now: now
+            ),
+            meetingStart
+        )
+    }
+
+    func testNextSlackStatusSyncTransitionDateUsesPreEventLeadBoundary() {
+        let now = Date(timeIntervalSince1970: 1_777_000_000)
+        let meetingStart = now.addingTimeInterval(45 * 60)
+        let rules = [
+            SlackStatusSyncRule(
+                connectionID: "T1|U1",
+                calendarID: "calendar-1",
+                startsBeforeEvent: true,
+                leadMinutes: 15,
+                isEnabled: true
+            ),
+        ]
+        let items = [
+            makeEvent(
+                id: "upcoming",
+                title: "Planning",
+                calendarID: "calendar-1",
+                startDate: meetingStart,
+                endDate: now.addingTimeInterval(75 * 60)
+            ),
+        ]
+
+        XCTAssertEqual(
+            CalendarMonitor.nextSlackStatusSyncTransitionDate(
+                for: items,
+                rules: rules,
+                now: now
+            ),
+            meetingStart.addingTimeInterval(-15 * 60)
+        )
+    }
+
+    func testSlackStatusSwitchesFromCustomPreEventTextToActiveTextAtStart() {
+        let meetingStart = Date(timeIntervalSince1970: 1_777_000_000)
+        let meetingEnd = meetingStart.addingTimeInterval(30 * 60)
+        let connectionID = "T1|U1"
+        let rules = [
+            SlackStatusSyncRule(
+                connectionID: connectionID,
+                calendarID: "calendar-1",
+                statusText: "In the meeting",
+                startsBeforeEvent: true,
+                leadMinutes: 10,
+                preEventStatusText: "Joining shortly",
+                preEventStatusEmoji: "⌛️",
+                isEnabled: true
+            ),
+        ]
+        let items = [
+            makeEvent(
+                id: "meeting",
+                title: "Planning",
+                calendarID: "calendar-1",
+                startDate: meetingStart,
+                endDate: meetingEnd
+            ),
+        ]
+
+        XCTAssertEqual(
+            CalendarMonitor.activeSlackRuleStateByConnectionID(
+                for: items,
+                rules: rules,
+                now: meetingStart.addingTimeInterval(-5 * 60)
+            )[connectionID]?.statusText,
+            "Joining shortly"
+        )
+        XCTAssertEqual(
+            CalendarMonitor.activeSlackRuleStateByConnectionID(
+                for: items,
+                rules: rules,
+                now: meetingStart.addingTimeInterval(-5 * 60)
+            )[connectionID]?.statusEmoji,
+            "⌛️"
+        )
+        XCTAssertEqual(
+            CalendarMonitor.activeSlackRuleStateByConnectionID(
+                for: items,
+                rules: rules,
+                now: meetingStart
+            )[connectionID]?.statusText,
+            "In the meeting"
+        )
+    }
+
+    func testActiveMeetingTakesPriorityOverHigherPriorityUpcomingMeeting() {
+        let now = Date(timeIntervalSince1970: 1_777_000_000)
+        let connectionID = "T1|U1"
+        let activeEnd = now.addingTimeInterval(20 * 60)
+        let upcomingEnd = now.addingTimeInterval(50 * 60)
+        let rules = [
+            SlackStatusSyncRule(
+                connectionID: connectionID,
+                calendarID: "calendar-upcoming",
+                statusText: "In progress soon",
+                statusEmoji: "⏳",
+                startsBeforeEvent: true,
+                leadMinutes: 15,
+                preEventStatusText: "Starting soon",
+                isEnabled: true
+            ),
+            SlackStatusSyncRule(
+                connectionID: connectionID,
+                calendarID: "calendar-active",
+                statusText: "In progress",
+                statusEmoji: "🗓️",
+                isEnabled: true
+            ),
+        ]
+        let items = [
+            makeEvent(
+                id: "upcoming",
+                title: "Planning",
+                calendarID: "calendar-upcoming",
+                startDate: now.addingTimeInterval(10 * 60),
+                endDate: upcomingEnd
+            ),
+            makeEvent(
+                id: "active",
+                title: "Standup",
+                calendarID: "calendar-active",
+                startDate: now.addingTimeInterval(-5 * 60),
+                endDate: activeEnd
+            ),
+        ]
+
+        XCTAssertEqual(
+            CalendarMonitor.activeSlackRuleStateByConnectionID(
+                for: items,
+                rules: rules,
+                now: now
+            ),
+            [
+                connectionID: CalendarMonitor.SlackActiveRuleState(
+                    statusText: "In progress",
+                    statusEmoji: "🗓️",
+                    expiration: Int(upcomingEnd.timeIntervalSince1970)
+                ),
+            ]
+        )
+    }
+
+    func testPreEventStatusUsesCustomTextWhenActiveStatusUsesEventTitle() {
+        let now = Date(timeIntervalSince1970: 1_777_000_000)
+        let connectionID = "T1|U1"
+        let meetingEnd = now.addingTimeInterval(35 * 60)
+        let rules = [
+            SlackStatusSyncRule(
+                connectionID: connectionID,
+                calendarID: "calendar-1",
+                statusTextSource: .eventTitle,
+                startsBeforeEvent: true,
+                leadMinutes: 10,
+                preEventStatusText: "Getting ready",
+                preEventStatusEmoji: "🔜",
+                isEnabled: true
+            ),
+        ]
+        let items = [
+            makeEvent(
+                id: "upcoming",
+                title: "Architecture Review",
+                calendarID: "calendar-1",
+                startDate: now.addingTimeInterval(5 * 60),
+                endDate: meetingEnd
+            ),
+        ]
+
+        XCTAssertEqual(
+            CalendarMonitor.activeSlackRuleStateByConnectionID(
+                for: items,
+                rules: rules,
+                now: now
+            )[connectionID],
+            CalendarMonitor.SlackActiveRuleState(
+                statusText: "Getting ready",
+                statusEmoji: "🔜",
+                expiration: Int(meetingEnd.timeIntervalSince1970)
+            )
+        )
+    }
+
     func testNextSlackStatusSyncTransitionDateIgnoresMutedParticipationEvents() {
         let now = Date(timeIntervalSince1970: 1_777_000_000)
         let rules = [
             SlackStatusSyncRule(
                 connectionID: "T1|U1",
                 calendarID: "calendar-1",
+                startsBeforeEvent: true,
+                leadMinutes: 15,
                 isEnabled: true
             ),
         ]

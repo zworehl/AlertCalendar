@@ -49,9 +49,6 @@ extension SettingsView {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            integrationActionCard(for: .slackStatusSync)
-                .frame(maxWidth: .infinity)
-
             settingsSection(
                 title: "Diagnostics",
                 subtitle: "Refresh details for the last scheduler pass.",
@@ -62,11 +59,17 @@ extension SettingsView {
                         HStack(spacing: 18) {
                             statusPill(title: "Reason", value: refreshDiagnostics.summary)
                             statusPill(title: "Pending", value: refreshDiagnostics.pendingSummary)
+                            statusPill(title: "Feed requests", value: "\(externalFeedDiagnostics.networkRequests)")
+                            statusPill(title: "Cache hits", value: "\(externalFeedDiagnostics.cacheHits)")
+                            statusPill(title: "Feed failures", value: "\(externalFeedDiagnostics.failures)")
                         }
 
                         VStack(alignment: .leading, spacing: 8) {
                             statusPill(title: "Reason", value: refreshDiagnostics.summary)
                             statusPill(title: "Pending", value: refreshDiagnostics.pendingSummary)
+                            statusPill(title: "Feed requests", value: "\(externalFeedDiagnostics.networkRequests)")
+                            statusPill(title: "Cache hits", value: "\(externalFeedDiagnostics.cacheHits)")
+                            statusPill(title: "Feed failures", value: "\(externalFeedDiagnostics.failures)")
                         }
                     }
                     .padding(.top, 8)
