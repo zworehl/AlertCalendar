@@ -2,6 +2,11 @@ import XCTest
 @testable import AlertCalendar
 
 final class SettingsFootballFixturesFeedbackTests: XCTestCase {
+    func testCompetitionLayoutReservesAStableFullHeightSidebarBelowTheControls() {
+        XCTAssertEqual(SettingsFootballFixturesSectionView.competitionSidebarWidth, 320)
+        XCTAssertEqual(SettingsFootballFixturesSectionView.competitionColumnSpacing, 16)
+    }
+
     func testCompetitionOffseasonFeedbackAppliesToLoadedEmptySuccessfulSection() {
         let section = makeSection(matches: [], errorMessage: nil, isLoading: false, hasLoaded: true)
 

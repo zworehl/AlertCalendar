@@ -53,7 +53,7 @@ extension MenuContentView {
         } label: {
             actionPill {
                 Text("Join")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(MenuMarkerMetrics.actionLabelFont)
             }
         }
         .buttonStyle(.borderless)
@@ -75,7 +75,7 @@ extension MenuContentView {
         } label: {
             actionPill {
                 Text("Skip")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(MenuMarkerMetrics.actionLabelFont)
             }
         }
         .buttonStyle(.borderless)
@@ -91,9 +91,9 @@ extension MenuContentView {
             actionPill {
                 HStack(spacing: 4) {
                     Image(systemName: "map")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(MenuMarkerMetrics.actionLabelFont)
                     Text("Map")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(MenuMarkerMetrics.actionLabelFont)
                 }
             }
         }

@@ -1,6 +1,12 @@
 import AppKit
 import UserNotifications
 
+enum SettingsUnsavedChangesChoice {
+    case apply
+    case discard
+    case keepEditing
+}
+
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let settingsWindowIdentifier = NSUserInterfaceItemIdentifier(WindowMetadata.preferencesID)
@@ -28,6 +34,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard settingsWindowCloseGuard?.hasUnsavedChanges == true else {
+            return .terminateNow
+        }
+
+        let choice = presentUnsavedSettingsAlert()
+        return resolveUnsavedSettingsChanges(choice) ? .terminateNow : .terminateCancel
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -218,25 +233,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return true
         }
 
+        return resolveUnsavedSettingsChanges(presentUnsavedSettingsAlert())
+    }
+
+    func resolveUnsavedSettingsChanges(_ choice: SettingsUnsavedChangesChoice) -> Bool {
+        guard let closeGuard = settingsWindowCloseGuard,
+              closeGuard.hasUnsavedChanges else {
+            return true
+        }
+
+        switch choice {
+        case .apply:
+            guard let applyChanges = closeGuard.applyChanges else { return false }
+            applyChanges()
+            closeGuard.hasUnsavedChanges = false
+            return true
+        case .discard:
+            guard let discardChanges = closeGuard.discardChanges else { return false }
+            discardChanges()
+            closeGuard.hasUnsavedChanges = false
+            return true
+        case .keepEditing:
+            return false
+        }
+    }
+
+    private func presentUnsavedSettingsAlert() -> SettingsUnsavedChangesChoice {
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "Apply changes before closing Settings?"
-        alert.informativeText = "You have unapplied changes. If you close now, those changes may be lost."
+        alert.messageText = "Apply changes before leaving Settings?"
+        alert.informativeText = "Configuration changes are staged until you apply them. You can apply them now, discard them, or keep editing."
         alert.addButton(withTitle: "Apply Changes")
         alert.addButton(withTitle: "Discard Changes")
         alert.addButton(withTitle: "Keep Editing")
 
         switch alert.runModal() {
         case .alertFirstButtonReturn:
-            closeGuard.applyChanges?()
-            closeGuard.hasUnsavedChanges = false
-            return true
+            return .apply
         case .alertSecondButtonReturn:
-            closeGuard.discardChanges?()
-            closeGuard.hasUnsavedChanges = false
-            return true
+            return .discard
         default:
-            return false
+            return .keepEditing
         }
     }
 }

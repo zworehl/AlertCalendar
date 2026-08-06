@@ -3,6 +3,51 @@ import XCTest
 @testable import AlertCalendar
 
 final class GameSaleCalendarRulesTests: XCTestCase {
+    func testGameSalesRefreshPolicyEvaluatesEveryFifteenMinutesWhileFeedsCacheForSixHours() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+
+        XCTAssertEqual(GameSalesFeedClient.monitorEvaluationInterval, 900)
+        XCTAssertEqual(GameSalesFeedClient.refreshInterval, 21_600)
+        XCTAssertEqual(GameSalesFeedClient.failedRefreshRetryInterval, 900)
+        XCTAssertTrue(
+            CalendarMonitor.shouldRefreshGameSales(
+                lastAttemptDate: nil,
+                now: now,
+                forceRefresh: false
+            )
+        )
+        XCTAssertFalse(
+            CalendarMonitor.shouldRefreshGameSales(
+                lastAttemptDate: now.addingTimeInterval(-899),
+                now: now,
+                forceRefresh: false
+            )
+        )
+        XCTAssertTrue(
+            CalendarMonitor.shouldRefreshGameSales(
+                lastAttemptDate: now.addingTimeInterval(-900),
+                now: now,
+                forceRefresh: false
+            )
+        )
+        XCTAssertFalse(
+            CalendarMonitor.shouldRefreshGameSales(
+                lastAttemptDate: now.addingTimeInterval(-899),
+                lastAttemptFailed: true,
+                now: now,
+                forceRefresh: false
+            )
+        )
+        XCTAssertTrue(
+            CalendarMonitor.shouldRefreshGameSales(
+                lastAttemptDate: now.addingTimeInterval(-900),
+                lastAttemptFailed: true,
+                now: now,
+                forceRefresh: false
+            )
+        )
+    }
+
     func testExternalCleanupRequiresDedicatedGameSalesCalendarName() {
         XCTAssertTrue(CalendarMonitor.isDedicatedGameSalesCalendarTitle("Game Sales"))
         XCTAssertTrue(CalendarMonitor.isDedicatedGameSalesCalendarTitle("game sales"))
@@ -52,6 +97,74 @@ final class GameSaleCalendarRulesTests: XCTestCase {
         XCTAssertFalse(CalendarMonitor.gameSalesSemanticallyMatch(reference, differentStart, calendar: calendar))
         XCTAssertFalse(CalendarMonitor.gameSalesSemanticallyMatch(reference, differentEnd, calendar: calendar))
         XCTAssertFalse(CalendarMonitor.gameSalesSemanticallyMatch(reference, differentStore, calendar: calendar))
+    }
+
+    func testCalendarAssociationSurvivesChangedEndDateAndSourceIdentity() {
+        let calendar = makeCalendar()
+        let reference = makeSale()
+        let calendarVersion = makeSale(
+            sourceID: "calendar-reindexed-event",
+            title: "SUMMER SALE",
+            startDate: reference.startDate,
+            endDateExclusive: date(year: 2026, month: 7, day: 11),
+            officialURL: "https://store.steampowered.com/sale/summer"
+        )
+
+        XCTAssertFalse(
+            CalendarMonitor.gameSalesSemanticallyMatch(
+                reference,
+                calendarVersion,
+                calendar: calendar
+            )
+        )
+        XCTAssertTrue(
+            CalendarMonitor.gameSalesCalendarAssociationMatches(
+                reference,
+                calendarVersion,
+                calendar: calendar
+            )
+        )
+    }
+
+    func testCalendarAssociationRejectsAnotherCampaignOccurrenceOrStore() {
+        let calendar = makeCalendar()
+        let reference = makeSale()
+        let anotherOccurrence = makeSale(
+            sourceID: "seasonal-summer-2027",
+            startDate: date(year: 2027, month: 6, day: 25),
+            endDateExclusive: date(year: 2027, month: 7, day: 10)
+        )
+        let anotherCampaign = makeSale(
+            sourceID: "next-fest-2026",
+            title: "Steam Next Fest"
+        )
+        let anotherStore = makeSale(
+            store: .xbox,
+            title: "Xbox Summer Sale",
+            officialURL: "https://www.xbox.com/promotions/summer-sale"
+        )
+
+        XCTAssertFalse(
+            CalendarMonitor.gameSalesCalendarAssociationMatches(
+                reference,
+                anotherOccurrence,
+                calendar: calendar
+            )
+        )
+        XCTAssertFalse(
+            CalendarMonitor.gameSalesCalendarAssociationMatches(
+                reference,
+                anotherCampaign,
+                calendar: calendar
+            )
+        )
+        XCTAssertFalse(
+            CalendarMonitor.gameSalesCalendarAssociationMatches(
+                reference,
+                anotherStore,
+                calendar: calendar
+            )
+        )
     }
 
     func testNormalizedTitleRemovesStorePrefixPunctuationCaseAndDiacritics() {

@@ -1,6 +1,19 @@
 import AppKit
 import SwiftUI
 
+struct MenuBarLoadingIndicator: View {
+    nonisolated static let size: CGFloat = 16
+
+    var body: some View {
+        ProgressView()
+            .progressViewStyle(.circular)
+            .controlSize(.small)
+            .frame(width: Self.size, height: Self.size)
+            .accessibilityLabel("Loading Alert Calendar")
+            .help("Loading Alert Calendar")
+    }
+}
+
 struct MenuBarStatusLabel: View {
     static let sharedPillCornerRadius: CGFloat = 2
 
@@ -14,6 +27,7 @@ struct MenuBarStatusLabel: View {
     let segmentBackgroundColors: [NSColor]
     let segmentBackgroundProgresses: [CGFloat]
     let segmentParticipationStatuses: [EventParticipationStatus?]
+    let segmentTextureStatuses: [EventParticipationStatus?]
     let segmentAccessorySymbolNames: [[String]]
     let footballDisplay: FootballMenuBarDisplay?
     let footballTrailingText: String?
@@ -37,6 +51,7 @@ struct MenuBarStatusLabel: View {
                 segmentBackgroundColors: segmentBackgroundColors,
                 segmentBackgroundProgresses: segmentBackgroundProgresses,
                 segmentParticipationStatuses: segmentParticipationStatuses,
+                segmentTextureStatuses: segmentTextureStatuses,
                 segmentAccessorySymbolNames: segmentAccessorySymbolNames,
                 footballDisplay: footballDisplay,
                 footballTrailingText: footballTrailingText,
@@ -94,6 +109,7 @@ struct MenuBarStatusLabel: View {
         segmentBackgroundColors: [NSColor],
         segmentBackgroundProgresses: [CGFloat],
         segmentParticipationStatuses: [EventParticipationStatus?],
+        segmentTextureStatuses: [EventParticipationStatus?],
         segmentAccessorySymbolNames: [[String]],
         footballDisplay: FootballMenuBarDisplay?,
         footballTrailingText: String?,
@@ -211,19 +227,26 @@ struct MenuBarStatusLabel: View {
         let height: CGFloat = max(statusBarHeight, ceil(clampedFontSize + 5) + (outerCanvasPaddingY * 2))
         let markerHeight: CGFloat = 10
         let markerWidth: CGFloat = 3
-        let imageMarkerSize: CGFloat = 11
+        let imageMarkerSize = MenuMarkerMetrics.symbolSize
         let dots = Array(dotColors.prefix(max(1, textSegments.count)))
         let markers = markerStyles.isEmpty ? dots.map { MenuMarkerStyle.color(AlertCalendarColor(nsColor: $0)) } : markerStyles
         let markerSpacing: CGFloat = 6
         let segmentSpacing: CGFloat = 8
-        let leftPadding: CGFloat = segmentBackgroundOutsetX + outerCanvasPaddingX
-        let rightPadding: CGFloat = segmentBackgroundOutsetX + outerCanvasPaddingX
         let textWidth = zip(segmentSizes, accessoryWidths).reduce(CGFloat(0)) { partial, values in
             partial + values.0.width + values.1
         }
         let resolvedMarkers = textSegments.indices.map { index in
             index < markers.count ? markers[index] : .color(AlertCalendarColor(nsColor: color))
         }
+        let defaultHorizontalPadding = segmentBackgroundOutsetX + outerCanvasPaddingX
+        let leftPadding = outerHorizontalPadding(
+            hasBackground: (segmentBackgroundColors.first?.alphaComponent ?? 0) > 0.01,
+            defaultPadding: defaultHorizontalPadding
+        )
+        let rightPadding = outerHorizontalPadding(
+            hasBackground: (segmentBackgroundColors.last?.alphaComponent ?? 0) > 0.01,
+            defaultPadding: defaultHorizontalPadding
+        )
         let markerWidths = resolvedMarkers.map {
             markerWidthForStyle($0, defaultWidth: markerWidth, imageWidth: imageMarkerSize)
         }
@@ -259,13 +282,13 @@ struct MenuBarStatusLabel: View {
             } else {
                 backgroundProgress = backgroundColor.alphaComponent > 0.01 ? 1.0 : 0.0
             }
-            let participationStatus = index < segmentParticipationStatuses.count
-                ? segmentParticipationStatuses[index]
+            let textureStatus = index < segmentTextureStatuses.count
+                ? segmentTextureStatuses[index]
                 : nil
             drawSegmentBackground(
                 color: backgroundColor,
                 progress: backgroundProgress,
-                participationStatus: participationStatus,
+                textureStatus: textureStatus,
                 segmentStartX: markerX,
                 segmentWidth: segmentContentWidth,
                 segmentHeight: segmentSize.height,
@@ -361,15 +384,16 @@ struct MenuBarStatusLabel: View {
         rect: NSRect
     ) {
         let pointSize = max(rect.width, rect.height)
-        let config = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .semibold)
-        guard let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
-            .withSymbolConfiguration(config) else {
+        guard let symbol = MenuSymbolImageProvider.tintedSystemSymbol(
+            named: symbolName,
+            pointSize: pointSize,
+            weight: .semibold,
+            tintColor: tintColor
+        ) else {
             return
         }
 
         let drawingRect = aspectFitRect(for: symbol.size, in: rect)
         symbol.draw(in: drawingRect)
-        tintColor.setFill()
-        drawingRect.fill(using: .sourceAtop)
     }
 }

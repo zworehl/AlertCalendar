@@ -100,11 +100,13 @@ extension CalendarMonitor {
             })
             let fetchedMatches = try await footballClient.fetchMatches(
                 for: presets,
-                dateRangesByCompetitionSlug: dateRangesBySlug
+                dateRangesByCompetitionSlug: dateRangesBySlug,
+                forceRefresh: force
             )
             let refreshedMatches = await footballClient.refreshStatusesIfNeeded(for: fetchedMatches)
             let resolvedMatches = matchesPreservingKnownTimingContext(refreshedMatches)
             await cacheFootballMatches(resolvedMatches)
+            markFootballRefreshed(at: now)
             updateFootballCompetitionSectionsAfterAutoAddRefresh(
                 presets: presets,
                 matches: resolvedMatches,

@@ -71,8 +71,18 @@ struct FootballCompetitionPreset: Identifiable, Hashable {
         self.region = region
     }
 
+    static let costaRicanPrimeraDivision = club(
+        "crc.1",
+        "Costa Rican Primera Division",
+        region: .northAmerica
+    )
     static let ligaMX = club("mex.1", "Liga MX", region: .northAmerica)
     static let majorLeagueSoccer = club("usa.1", "MLS", region: .northAmerica)
+    static let centralAmericanCup = club(
+        "concacaf.central.american.cup",
+        "Concacaf Central American Cup",
+        region: .northAmerica
+    )
     static let goldCup = national("concacaf.gold", "Concacaf Gold Cup", region: .northAmerica)
     static let brasileiraoSerieA = club("bra.1", "Brasileirao Serie A", region: .southAmerica)
     static let ligaProfesionalArgentina = club("arg.1", "Liga Argentina", region: .southAmerica)
@@ -97,8 +107,10 @@ struct FootballCompetitionPreset: Identifiable, Hashable {
     static let asianCup = national("afc.asian.cup", "AFC Asian Cup", region: .global)
 
     static let menuPresets: [FootballCompetitionPreset] = [
+        .costaRicanPrimeraDivision,
         .ligaMX,
         .majorLeagueSoccer,
+        .centralAmericanCup,
         .goldCup,
         .brasileiraoSerieA,
         .ligaProfesionalArgentina,

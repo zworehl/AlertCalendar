@@ -4,6 +4,8 @@ struct CalendarMonitorGameSalesState {
     var fetchedSales: [GameSaleEvent] = []
     var managedEventRecords: [ManagedGameSaleEventRecord] = []
     var presenceBySaleID: [String: GameSalePresence] = [:]
+    var lastRefreshAttemptDate: Date?
+    var lastRefreshAttemptFailed = false
 }
 
 extension CalendarMonitor {
@@ -22,4 +24,13 @@ extension CalendarMonitor {
         set { gameSalesState.presenceBySaleID = newValue }
     }
 
+    var lastGameSalesRefreshAttemptDate: Date? {
+        get { gameSalesState.lastRefreshAttemptDate }
+        set { gameSalesState.lastRefreshAttemptDate = newValue }
+    }
+
+    var lastGameSalesRefreshAttemptFailed: Bool {
+        get { gameSalesState.lastRefreshAttemptFailed }
+        set { gameSalesState.lastRefreshAttemptFailed = newValue }
+    }
 }

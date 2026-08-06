@@ -107,7 +107,7 @@ extension SettingsGameSalesSectionView {
 
             Spacer(minLength: 0)
         }
-        .padding(14)
+        .padding(SettingsVisualMetrics.panelPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(panelChrome)
     }
@@ -137,16 +137,13 @@ private struct GameSaleCardView: View {
                         .opacity(isHovered ? 0 : 1)
                         .scaleEffect(isHovered ? 0.96 : 1)
 
-                    cardActions
-                        .opacity(isHovered ? 1 : 0)
-                        .scaleEffect(isHovered ? 1 : 0.94)
-                        .allowsHitTesting(isHovered)
+                    cardActions(isVisible: isHovered)
                 }
                 .animation(.easeInOut(duration: 0.14), value: isHovered)
             }
 
             Text(sale.title)
-                .font(.system(size: 13, weight: .semibold))
+                .font(SettingsTypography.itemTitle)
                 .lineLimit(2)
                 .frame(maxWidth: .infinity, minHeight: 32, alignment: .topLeading)
 
@@ -157,20 +154,12 @@ private struct GameSaleCardView: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
-            .font(.system(size: 11, weight: .medium))
+            .font(SettingsTypography.itemDetail)
             .foregroundStyle(.secondary)
 
             HStack(spacing: 6) {
-                if isPresent {
-                    Label(
-                        isManaged ? "Managed by Alert Calendar" : "Already in Calendar",
-                        systemImage: isManaged ? "checkmark.circle.fill" : "calendar.badge.checkmark"
-                    )
-                    .foregroundStyle(isManaged ? Color.green : Color.secondary)
-                } else {
-                    Text(isActive ? "Ends \(formattedEndDate)" : "Starts \(formattedStartDate)")
-                        .foregroundStyle(.secondary)
-                }
+                Text(isActive ? "Ends \(formattedEndDate)" : "Starts \(formattedStartDate)")
+                    .foregroundStyle(.secondary)
 
                 Spacer(minLength: 4)
 
@@ -207,18 +196,30 @@ private struct GameSaleCardView: View {
     }
 
     var formattedStartDate: String {
-        sale.startDate.formatted(date: .abbreviated, time: .omitted)
+        compactDateText(sale.startDate)
     }
 
     var formattedEndDate: String {
-        inclusiveEndDate.formatted(date: .abbreviated, time: .omitted)
+        compactDateText(inclusiveEndDate)
     }
 
     var dateRangeText: String {
-        if Calendar.autoupdatingCurrent.isDate(sale.startDate, inSameDayAs: inclusiveEndDate) {
-            return sale.startDate.formatted(date: .abbreviated, time: .omitted)
-        }
-        return "\(sale.startDate.formatted(date: .abbreviated, time: .omitted)) – \(inclusiveEndDate.formatted(date: .abbreviated, time: .omitted))"
+        let calendar = Calendar.autoupdatingCurrent
+        return AlertCalendarDateRangeFormatter.compactAllDayRange(
+            startDay: calendar.startOfDay(for: sale.startDate),
+            lastInclusiveDay: calendar.startOfDay(for: inclusiveEndDate),
+            calendar: calendar
+        )
+    }
+
+    func compactDateText(_ date: Date) -> String {
+        let calendar = Calendar.autoupdatingCurrent
+        let day = calendar.startOfDay(for: date)
+        return AlertCalendarDateRangeFormatter.compactAllDayRange(
+            startDay: day,
+            lastInclusiveDay: day,
+            calendar: calendar
+        )
     }
 
     var cardBorderColor: Color {
@@ -236,7 +237,7 @@ private struct GameSaleCardView: View {
 
     var statusBadge: some View {
         Text(isActive ? "ACTIVE" : "UPCOMING")
-            .font(.system(size: 9, weight: .bold))
+            .font(SettingsTypography.metadataEmphasized)
             .foregroundStyle(isActive ? Color.green : Color.secondary)
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
@@ -247,41 +248,42 @@ private struct GameSaleCardView: View {
     }
 
     var storeBadge: some View {
-        Label(storeTitle, systemImage: storeSymbolName)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(storeTint)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 4)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(storeTint.opacity(0.10))
-            )
+        HStack(spacing: 5) {
+            GameStoreIconView(store: sale.store, size: 12)
+
+            Text(storeTitle)
+        }
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(storeTint)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 4)
+        .background(
+            Capsule(style: .continuous)
+                .fill(storeTint.opacity(0.10))
+        )
     }
 
     @ViewBuilder
-    var cardActions: some View {
+    func cardActions(isVisible: Bool) -> some View {
         HStack(spacing: 5) {
             if isPresent {
-                actionButton(
-                    systemName: "calendar",
-                    tint: .blue,
-                    helpText: "Open this event in Apple Calendar",
+                SettingsCalendarCardActionButton(
+                    calendarAction: .open,
+                    isVisible: isVisible,
                     action: onOpen
                 )
             }
 
             if isManaged {
-                actionButton(
-                    systemName: "minus",
-                    tint: .red,
-                    helpText: "Remove this event from Apple Calendar",
+                SettingsCalendarCardActionButton(
+                    calendarAction: .remove,
+                    isVisible: isVisible,
                     action: onRemove
                 )
             } else if !isPresent {
-                actionButton(
-                    systemName: "plus",
-                    tint: .green,
-                    helpText: "Add this event to Apple Calendar",
+                SettingsCalendarCardActionButton(
+                    calendarAction: .add,
+                    isVisible: isVisible,
                     action: onAdd
                 )
                 .disabled(!canAdd)
@@ -289,48 +291,11 @@ private struct GameSaleCardView: View {
         }
     }
 
-    func actionButton(
-        systemName: String,
-        tint: Color,
-        helpText: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(tint)
-                .frame(width: 18, height: 18)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(tint.opacity(0.14))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .stroke(tint.opacity(0.28), lineWidth: 1)
-                )
-        }
-        .buttonStyle(.plain)
-        .help(helpText)
-    }
-
     var storeTitle: String {
         sale.store.title
     }
 
-    var storeSymbolName: String {
-        sale.store.systemImageName
-    }
-
     var storeTint: Color {
-        switch sale.store {
-        case .steam:
-            return .blue
-        case .xbox:
-            return .green
-        case .playStation:
-            return .indigo
-        case .nintendoSwitch:
-            return .red
-        }
+        Color(nsColor: GameStoreSymbolProvider.brandColor(for: sale.store))
     }
 }

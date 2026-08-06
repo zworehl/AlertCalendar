@@ -37,7 +37,6 @@ struct SettingsGameSalesSectionView: View {
 
     static let minimumCardWidth: CGFloat = 272
     static let preferredCardWidth: CGFloat = 306
-    static let inlineFieldLabelWidth: CGFloat = 92
 
     @ObservedObject var monitor: CalendarMonitor
     @Binding var targetCalendarID: String

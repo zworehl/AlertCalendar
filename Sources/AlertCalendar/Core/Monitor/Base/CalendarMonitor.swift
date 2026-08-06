@@ -18,6 +18,7 @@ final class CalendarMonitor: ObservableObject {
     @Published var combinedMenuBarSegmentBackgroundColors: [NSColor] = [.clear]
     @Published var combinedMenuBarSegmentBackgroundProgresses: [CGFloat] = [0]
     @Published var combinedMenuBarSegmentParticipationStatuses: [EventParticipationStatus?] = [nil]
+    @Published var combinedMenuBarSegmentTextureStatuses: [EventParticipationStatus?] = [nil]
     @Published var combinedMenuBarSegmentAccessorySymbolNames: [[String]] = [[]]
     @Published var combinedMenuBarFootballDisplay: FootballMenuBarDisplay?
     @Published var combinedMenuBarFootballTrailingText: String?
@@ -47,6 +48,13 @@ final class CalendarMonitor: ObservableObject {
     @Published var gameSales: [GameSaleEvent] = []
     @Published var isRefreshingGameSales = false
     @Published var gameSalesErrorDescription: String?
+    @Published private(set) var lastGameSalesRefreshDate: Date?
+    @Published var isSyncingGoogleHolidays = false
+    @Published var googleHolidaySyncErrorDescription: String?
+    @Published private(set) var googleHolidayLastRefreshDate: Date?
+    @Published private(set) var lastFootballRefreshDate: Date?
+    @Published private(set) var lastAstronomyLocationRefreshDate: Date?
+    @Published var calendarAlertRuleStatusDescription: String?
     @Published var slackStatusSyncErrorDescription: String?
     @Published var lastSlackStatusSyncDate: Date?
     @Published var slackConnectionStatusMessage: String?
@@ -58,6 +66,7 @@ final class CalendarMonitor: ObservableObject {
     let footballClient: FootballDataAPIClient
     let footballImageStore: FootballImageStore
     let gameSalesClient: GameSalesFeedClient
+    let googleHolidayClient: GoogleHolidayFeedClient
     let slackClient: SlackAPIClient
     let clock: AlertCalendarClockProviding
 
@@ -82,8 +91,12 @@ final class CalendarMonitor: ObservableObject {
     var locationRuntimeState = CalendarMonitorLocationRuntimeState()
     var footballState = CalendarMonitorFootballState()
     var gameSalesState = CalendarMonitorGameSalesState()
+    var googleHolidayState = CalendarMonitorGoogleHolidayState()
     var menuBarRotationState = MenuBarRotationState()
     var slackRuntimeState = CalendarMonitorSlackRuntimeState()
+    var calendarAlertFullSyncTask: Task<Void, Never>?
+    var calendarAlertFullSyncToken: UUID?
+    var calendarAlertFullSyncFingerprintInProgress: String?
 
     init(
         eventStore: EKEventStore = EKEventStore(),
@@ -91,6 +104,7 @@ final class CalendarMonitor: ObservableObject {
         footballClient: FootballDataAPIClient = FootballDataAPIClient(),
         footballImageStore: FootballImageStore = FootballImageStore(),
         gameSalesClient: GameSalesFeedClient = GameSalesFeedClient(),
+        googleHolidayClient: GoogleHolidayFeedClient = GoogleHolidayFeedClient(),
         slackClient: SlackAPIClient = SlackAPIClient(),
         clock: AlertCalendarClockProviding = SystemAlertCalendarClock()
     ) {
@@ -99,6 +113,7 @@ final class CalendarMonitor: ObservableObject {
         self.footballClient = footballClient
         self.footballImageStore = footballImageStore
         self.gameSalesClient = gameSalesClient
+        self.googleHolidayClient = googleHolidayClient
         self.slackClient = slackClient
         self.clock = clock
 
@@ -110,6 +125,12 @@ final class CalendarMonitor: ObservableObject {
         managedGameSaleEventRecords = Self.decodeManagedGameSaleEventRecords(
             from: defaults.data(forKey: DefaultsKeys.managedGameSaleEventRecords)
         )
+        managedGoogleHolidayEventRecords = Self.decodeManagedGoogleHolidayEventRecords(
+            from: defaults.data(forKey: DefaultsKeys.managedGoogleHolidayEventRecords)
+        )
+        self.googleHolidayLastRefreshDate = defaults.object(
+            forKey: DefaultsKeys.googleHolidayLastRefreshDate
+        ) as? Date
         skippedItemKeys = Set(defaults.stringArray(forKey: DefaultsKeys.skippedItemKeys) ?? [])
         startObservers()
         startHeartbeat()
@@ -127,6 +148,13 @@ final class CalendarMonitor: ObservableObject {
     private static func decodeManagedGameSaleEventRecords(from data: Data?) -> [ManagedGameSaleEventRecord] {
         guard let data else { return [] }
         return (try? JSONDecoder().decode([ManagedGameSaleEventRecord].self, from: data)) ?? []
+    }
+
+    private static func decodeManagedGoogleHolidayEventRecords(
+        from data: Data?
+    ) -> [ManagedGoogleHolidayEventRecord] {
+        guard let data else { return [] }
+        return (try? JSONDecoder().decode([ManagedGoogleHolidayEventRecord].self, from: data)) ?? []
     }
 
     func refreshNow(reason: CalendarMonitorRefreshReason = .manual) {
@@ -194,6 +222,22 @@ final class CalendarMonitor: ObservableObject {
 
     func fixedSecondNow() -> Date {
         clock.nowRoundedToSecond()
+    }
+
+    func markGameSalesRefreshed(at date: Date) {
+        lastGameSalesRefreshDate = date
+    }
+
+    func markGoogleHolidaysRefreshed(at date: Date) {
+        googleHolidayLastRefreshDate = date
+    }
+
+    func markFootballRefreshed(at date: Date) {
+        lastFootballRefreshDate = date
+    }
+
+    func markAstronomyLocationRefreshed(at date: Date) {
+        lastAstronomyLocationRefreshDate = date
     }
 
     func reloadCurrentSettings() {

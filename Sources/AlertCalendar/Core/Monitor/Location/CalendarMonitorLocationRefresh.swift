@@ -93,6 +93,7 @@ extension CalendarMonitor {
         let roundedLongitude = AppSettingsRules.roundedCoordinate(coordinate.longitude)
         defaults.set(roundedLatitude, forKey: DefaultsKeys.astronomyLatitude)
         defaults.set(roundedLongitude, forKey: DefaultsKeys.astronomyLongitude)
+        markAstronomyLocationRefreshed(at: fixedSecondNow())
         astronomyLocationStatus = String(
             format: "\(detectedLocation.statusPrefix): %.2f, %.2f",
             roundedLatitude,

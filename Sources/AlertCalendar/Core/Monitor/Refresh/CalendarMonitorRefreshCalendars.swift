@@ -45,7 +45,8 @@ extension CalendarMonitor {
                     color: color(from: $0),
                     kind: .event,
                     accountTitle: normalizedAccountTitle(for: $0),
-                    isSubscribed: $0.type == .subscription
+                    isSubscribed: $0.type == .subscription,
+                    allowsContentModifications: $0.allowsContentModifications
                 )
             }
             if availableEventCalendars != nextAvailableEventCalendars {
@@ -75,7 +76,8 @@ extension CalendarMonitor {
                     color: color(from: $0),
                     kind: .reminder,
                     accountTitle: normalizedAccountTitle(for: $0),
-                    isSubscribed: $0.type == .subscription
+                    isSubscribed: $0.type == .subscription,
+                    allowsContentModifications: $0.allowsContentModifications
                 )
             }
             if availableReminderCalendars != nextAvailableReminderCalendars {

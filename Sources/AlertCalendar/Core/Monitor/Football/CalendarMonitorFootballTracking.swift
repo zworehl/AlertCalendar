@@ -62,18 +62,63 @@ extension CalendarMonitor {
         }
 
         if matches.contains(where: { match in
-            let secondsFromKickoff = now.timeIntervalSince(match.startDate)
-            return secondsFromKickoff >= -FootballDataAPIClient.summaryPreBufferBeforeKickoff
-                && secondsFromKickoff <= FootballDataAPIClient.summaryPreBufferAfterKickoff
+            guard match.statusState == .finished,
+                  let actualEndDate = match.actualEndDate else {
+                return false
+            }
+            let secondsSinceFinal = now.timeIntervalSince(actualEndDate)
+            return secondsSinceFinal >= 0
+                && secondsSinceFinal <= footballPostMatchStabilizationWindow
         }) {
             return footballManagedSyncInterval
         }
 
         if matches.contains(where: { match in
+            guard match.statusState == .scheduled || match.statusState == .unknown else {
+                return false
+            }
+            let secondsFromKickoff = now.timeIntervalSince(match.startDate)
+            return secondsFromKickoff >= -FootballDataAPIClient.summaryPreBufferBeforeKickoff
+                && secondsFromKickoff <= footballKickoffGraceWindow
+        }) {
+            return footballManagedSyncInterval
+        }
+
+        if matches.contains(where: { match in
+            let secondsFromKickoff = now.timeIntervalSince(match.startDate)
+            if match.statusState == .finished, match.actualEndDate == nil {
+                return secondsFromKickoff >= 0
+                    && secondsFromKickoff <= FootballDataAPIClient.summaryPreBufferAfterKickoff
+            }
+
+            guard match.statusState == .scheduled || match.statusState == .unknown else { return false }
+            let timeUntilKickoff = match.startDate.timeIntervalSince(now)
+            let isApproaching = timeUntilKickoff > FootballDataAPIClient.summaryPreBufferBeforeKickoff
+                && timeUntilKickoff <= footballApproachingKickoffWindow
+            let isOverdue = secondsFromKickoff > footballKickoffGraceWindow
+                && secondsFromKickoff <= FootballDataAPIClient.summaryPreBufferAfterKickoff
+            return isApproaching || isOverdue
+        }) {
+            return footballApproachingRefreshInterval
+        }
+
+        if matches.contains(where: { match in
             match.statusState != .finished
+                && match.startDate >= now
                 && match.startDate <= now.addingTimeInterval(24 * 60 * 60)
         }) {
             return footballUpcomingRefreshInterval
+        }
+
+        let allFinishedMatchesAreSettled = matches.allSatisfy { match in
+            guard match.statusState == .finished,
+                  let actualEndDate = match.actualEndDate else {
+                return false
+            }
+            return now.timeIntervalSince(actualEndDate) > footballPostMatchStabilizationWindow
+        }
+        if allFinishedMatchesAreSettled {
+            return footballSettledRefreshInterval
         }
 
         return footballIdleRefreshInterval

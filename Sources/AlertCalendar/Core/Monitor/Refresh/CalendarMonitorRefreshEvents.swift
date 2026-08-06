@@ -63,6 +63,7 @@ extension CalendarMonitor {
                 footballMatchLocation: footballMatch?.locationText
             )
             let footballMenuBarDisplay = footballMatch.map(footballMenuBarDisplay(for:))
+            let gameStore = event.isAllDay ? event.url.flatMap(Self.gameStore(for:)) : nil
             let organizer = organizer(for: event)
             let attendees = invitees(for: event)
             let isRecurring = isRecurringEvent(event)
@@ -100,6 +101,7 @@ extension CalendarMonitor {
                         calendarName: calendarName,
                         calendarColor: calendarColor,
                         kind: .event,
+                        gameStore: gameStore,
                         footballMatch: footballMatch,
                         footballMenuBarDisplay: footballMenuBarDisplay
                     )
@@ -131,6 +133,7 @@ extension CalendarMonitor {
                     calendarName: calendarName,
                     calendarColor: calendarColor,
                     kind: .event,
+                    gameStore: gameStore,
                     footballMatch: footballMatch,
                     footballMenuBarDisplay: footballMenuBarDisplay
                 )

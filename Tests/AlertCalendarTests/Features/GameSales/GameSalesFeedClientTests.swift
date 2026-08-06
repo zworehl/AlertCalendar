@@ -299,6 +299,54 @@ final class GameSalesFeedClientTests: XCTestCase {
         XCTAssertFalse(duringOutage.isEmpty)
     }
 
+    func testPartialOutageRetriesOnlyFailedSourceWhenBackoffExpires() async throws {
+        let session = makeMockSession()
+        let client = GameSalesFeedClient(session: session)
+        let requestCounter = GameSalesFeedRequestCounter()
+        let now = try date(2026, 7, 16, hour: 12)
+
+        GameSalesFeedMockURLProtocol.requestHandler = { [fixture] request in
+            let url = try XCTUnwrap(request.url)
+            let count = requestCounter.record(url)
+            let isRetriableSteamFailure = url == GameSalesFeedClient.steamworksUpcomingEventsURL
+                && count == 2
+            let body: String
+            if url == GameSalesFeedClient.steamworksUpcomingEventsURL {
+                body = fixture
+            } else if url == GameSalesFeedClient.nintendoNewsSitemapURL {
+                body = "<urlset></urlset>"
+            } else {
+                body = "<rss><channel></channel></rss>"
+            }
+            return (
+                try XCTUnwrap(HTTPURLResponse(
+                    url: url,
+                    statusCode: isRetriableSteamFailure ? 503 : 200,
+                    httpVersion: nil,
+                    headerFields: nil
+                )),
+                Data(body.utf8)
+            )
+        }
+
+        _ = try await client.fetchScheduledSales(now: now)
+        _ = try await client.fetchScheduledSales(
+            now: now.addingTimeInterval(60),
+            forceRefresh: true
+        )
+        _ = try await client.fetchScheduledSales(now: now.addingTimeInterval(60 + 899))
+        _ = try await client.fetchScheduledSales(now: now.addingTimeInterval(60 + 900))
+
+        XCTAssertEqual(requestCounter.count(for: GameSalesFeedClient.steamworksUpcomingEventsURL), 3)
+        for url in [
+            GameSalesFeedClient.xboxWireStoreFeedURL,
+            GameSalesFeedClient.playStationStoreFeedURL,
+            GameSalesFeedClient.nintendoNewsSitemapURL,
+        ] {
+            XCTAssertEqual(requestCounter.count(for: url), 2)
+        }
+    }
+
     func testFetchSurfacesUnsuccessfulResponse() async throws {
         let session = makeMockSession()
         let client = GameSalesFeedClient(session: session)

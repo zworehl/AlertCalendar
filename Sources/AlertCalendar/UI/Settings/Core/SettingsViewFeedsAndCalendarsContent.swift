@@ -8,10 +8,12 @@ import SwiftUI
 extension SettingsView {
     @ViewBuilder
     var liveFeedsSettingsContent: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: SettingsVisualMetrics.pageSpacing) {
             switch selectedFeedsSubsection {
             case .atmosphere:
                 atmosphereFeedsSubsection
+            case .holidays:
+                googleHolidaysSubsection
             case .football:
                 footballFeedsSubsection
             case .gameSales:
@@ -22,9 +24,18 @@ extension SettingsView {
     }
 
     @ViewBuilder
+    var googleHolidaysSubsection: some View {
+        SettingsGoogleHolidaysSectionView(
+            monitor: monitor,
+            selectedCountryIDs: $draft.googleHolidayCountryIDs,
+            targetCalendarID: $draft.googleHolidayTargetCalendarID
+        )
+    }
+
+    @ViewBuilder
     var atmosphereFeedsSubsection: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 14) {
+            HStack(alignment: .top, spacing: SettingsVisualMetrics.pageSpacing) {
                     atmosphereFeedControlsColumn
                         .frame(width: settingsControlColumnWidth, alignment: .topLeading)
 
@@ -32,7 +43,7 @@ extension SettingsView {
                     .frame(maxWidth: .infinity, alignment: .topLeading)
             }
 
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: SettingsVisualMetrics.pageSpacing) {
                 atmosphereFeedControlsColumn
                 astronomyPreviewSection
             }
@@ -62,7 +73,7 @@ extension SettingsView {
     }
 
     var atmosphereFeedControlsColumn: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: SettingsVisualMetrics.pageSpacing) {
             astronomyFeedControlsSection
         }
     }
@@ -79,7 +90,7 @@ extension SettingsView {
                         astronomyMasterToggleControl
                             .frame(minWidth: 280, maxWidth: .infinity, alignment: .topLeading)
 
-                        settingsVerticalDivider()
+                        SettingsVerticalDivider()
 
                         astronomyFeedVisibilityCard
                             .frame(minWidth: 360, maxWidth: .infinity, alignment: .topLeading)
@@ -114,30 +125,16 @@ extension SettingsView {
         }
     }
 
-    func settingsVerticalDivider() -> some View {
-        Divider()
-            .overlay(Color.primary.opacity(0.04))
-            .padding(.vertical, 2)
-    }
-
     var astronomyFeedVisibilityCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Visible Feeds")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-
-            LazyVGrid(
-                columns: [
-                    GridItem(.adaptive(minimum: 170, maximum: 260), alignment: .leading),
-                ],
-                alignment: .leading,
-                spacing: 10
-            ) {
-                Toggle("Sunrise & Sunset", isOn: $draft.includeSunriseSunset)
-                Toggle("Solar Noon & Midnight", isOn: $draft.includeSolarNoonMidnight)
-                Toggle("Moon Phases", isOn: $draft.includeMoonPhases)
-                Toggle("Orbital Highlights", isOn: $draft.includeOrbitalHighlights)
-            }
+        SettingsLabeledCheckboxGroup(
+            title: "Visible Feeds",
+            minimumItemWidth: 170,
+            maximumItemWidth: 260
+        ) {
+            Toggle("Sunrise & Sunset", isOn: $draft.includeSunriseSunset)
+            Toggle("Solar Noon & Midnight", isOn: $draft.includeSolarNoonMidnight)
+            Toggle("Moon Phases", isOn: $draft.includeMoonPhases)
+            Toggle("Orbital Highlights", isOn: $draft.includeOrbitalHighlights)
         }
     }
 
@@ -172,26 +169,10 @@ extension SettingsView {
 
     @ViewBuilder
     var calendarSettingsContent: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            settingsSection(
-                title: "Sources",
-                subtitle: "Choose the broad item types Alert Calendar is allowed to show before picking individual calendars.",
-                systemImage: "calendar.badge.checkmark"
-            ) {
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 18) {
-                        Toggle("Calendar Events", isOn: $draft.includeEvents)
-                        Toggle("All-day Events", isOn: $draft.includeAllDayEvents)
-                        Toggle("Reminders", isOn: $draft.includeReminders)
-                    }
+        VStack(alignment: .leading, spacing: SettingsVisualMetrics.pageSpacing) {
+            calendarSourceSelectionPanel
 
-                    VStack(alignment: .leading, spacing: 10) {
-                        Toggle("Calendar Events", isOn: $draft.includeEvents)
-                        Toggle("All-day Events", isOn: $draft.includeAllDayEvents)
-                        Toggle("Reminders", isOn: $draft.includeReminders)
-                    }
-                }
-            }
+            meetingBrowserProfileIssuesBanner
 
             SettingsCalendarColumnsView(
                 includeEvents: draft.includeEvents,
@@ -201,17 +182,33 @@ extension SettingsView {
                 availableReminderCalendars: availableReminderCalendars,
                 installedMeetingBrowsers: installedMeetingBrowsers,
                 meetingBrowserProfilesByBrowser: meetingBrowserProfilesByBrowser,
+                meetingBrowserProfileIssuesByBrowser: meetingBrowserProfileIssuesByBrowser,
                 onSelectionChanged: {},
                 selectedEventCalendarIDs: $draft.selectedEventCalendarIDs,
                 selectedReminderCalendarIDs: $draft.selectedReminderCalendarIDs,
                 weekdayOnlyEventCalendarIDs: $draft.weekdayOnlyEventCalendarIDs,
                 weekdayOnlyReminderCalendarIDs: $draft.weekdayOnlyReminderCalendarIDs,
+                calendarAlertRules: $draft.calendarAlertRules,
                 meetingBrowserRouting: $draft.meetingBrowserRouting
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
             calendarAuxiliarySettingsContent
         }
+    }
+
+    var calendarSourceSelectionPanel: some View {
+        SettingsLabeledCheckboxGroup(
+            title: "Sources",
+            helpText: "Choose the broad item types Alert Calendar can show before selecting individual calendars."
+        ) {
+            Toggle("Calendar Events", isOn: $draft.includeEvents)
+            Toggle("All-day Events", isOn: $draft.includeAllDayEvents)
+            Toggle("Reminders", isOn: $draft.includeReminders)
+        }
+        .padding(SettingsVisualMetrics.panelPadding)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(SettingsPanelChrome())
     }
 
     private var hasWeekdayOnlyCalendars: Bool {
@@ -222,7 +219,7 @@ extension SettingsView {
     private var calendarAuxiliarySettingsContent: some View {
         if hasWeekdayOnlyCalendars {
             ViewThatFits(in: .horizontal) {
-                HStack(alignment: .top, spacing: 14) {
+                HStack(alignment: .top, spacing: SettingsVisualMetrics.pageSpacing) {
                     nonWorkingDatesSettingsContent
                         .frame(maxWidth: .infinity, alignment: .topLeading)
 
@@ -230,7 +227,7 @@ extension SettingsView {
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
 
-                VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: SettingsVisualMetrics.pageSpacing) {
                     nonWorkingDatesSettingsContent
                     meetingBrowserRoutingSettingsContent
                 }

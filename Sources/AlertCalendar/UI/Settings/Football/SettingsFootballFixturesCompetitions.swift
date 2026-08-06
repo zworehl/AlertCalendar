@@ -11,7 +11,7 @@ extension SettingsFootballFixturesSectionView {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
             competitionFiltersPanel
-                .frame(width: 280, alignment: .topLeading)
+                .frame(width: Self.competitionSidebarWidth, alignment: .topLeading)
                 .frame(maxHeight: .infinity, alignment: .topLeading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -57,7 +57,7 @@ extension SettingsFootballFixturesSectionView {
                 emptyState("Choose a competition from the panel on the right.")
             }
         }
-        .padding(14)
+        .padding(SettingsVisualMetrics.panelPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(panelChrome)
     }
@@ -89,6 +89,13 @@ extension SettingsFootballFixturesSectionView {
     }
 
     var competitionFiltersPanel: some View {
+        competitionFiltersContent
+            .padding(SettingsVisualMetrics.panelPadding)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(panelChrome)
+    }
+
+    var competitionFiltersContent: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .center, spacing: 12) {
                 Text("Browse")
@@ -190,9 +197,7 @@ extension SettingsFootballFixturesSectionView {
                 }
             }
         }
-        .padding(14)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(panelChrome)
     }
 
     @ViewBuilder

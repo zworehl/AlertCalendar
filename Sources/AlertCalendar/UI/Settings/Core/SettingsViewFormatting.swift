@@ -6,13 +6,6 @@ import EventKit
 import SwiftUI
 
 extension SettingsView {
-    static let settingsDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "MMM d, yyyy h:mm:ss a"
-        return formatter
-    }()
-
     nonisolated static func durationValueText(value: Int, singular: String, plural: String) -> String {
         let normalizedValue = max(0, value)
         let unit = normalizedValue == 1 ? singular : plural

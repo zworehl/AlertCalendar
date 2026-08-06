@@ -15,7 +15,7 @@ extension CalendarMonitor {
             case .hourly:
                 return 60 * 60
             case .appActivation:
-                return 60
+                return 15 * 60
             case .manual, .launch, .wifiNetworkChange:
                 return 0
             }

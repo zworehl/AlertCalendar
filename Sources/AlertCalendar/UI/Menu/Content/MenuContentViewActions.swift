@@ -246,8 +246,12 @@ extension MenuContentView {
                 if let venueName {
                     HStack(alignment: .center, spacing: 4) {
                         Image(systemName: locationSymbolName(for: item))
-                            .font(.system(size: 12, weight: .regular))
-                            .frame(width: 12, height: 12, alignment: .center)
+                            .font(.system(size: MenuMarkerMetrics.symbolSize, weight: .regular))
+                            .frame(
+                                width: MenuMarkerMetrics.symbolSize,
+                                height: MenuMarkerMetrics.symbolSize,
+                                alignment: .center
+                            )
                             .foregroundStyle(.secondary)
 
                         Text(venueName)

@@ -23,9 +23,7 @@ struct SettingsAstronomySectionView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(.primary)
+            SettingsSectionHeaderView(title: title)
 
             if showsCalculatedTimes {
                 VStack(alignment: .leading, spacing: 12) {
@@ -61,20 +59,13 @@ struct SettingsAstronomySectionView: View {
     private var astronomyTimesSection: some View {
         previewPanel("Calculated Sun Times") {
             VStack(alignment: .leading, spacing: 10) {
-                AstronomyArtworkCard(
-                    title: "Daylight Map",
-                    subtitle: hasValidCoordinates
-                        ? "A live world preview showing today’s terminator across Earth."
-                        : "Enter valid coordinates to unlock the daylight preview."
-                ) {
-                    DaylightPreviewArtwork(
-                        latitude: astronomyLatitude,
-                        longitude: astronomyLongitude,
-                        date: previewReferenceDate,
-                        isEnabled: hasValidCoordinates && !enabledSolarMoments.isEmpty
-                    )
-                    .aspectRatio(DaylightPreviewArtwork.preferredAspectRatio, contentMode: ContentMode.fit)
-                }
+                DaylightPreviewArtwork(
+                    latitude: astronomyLatitude,
+                    longitude: astronomyLongitude,
+                    date: previewReferenceDate,
+                    isEnabled: hasValidCoordinates && !enabledSolarMoments.isEmpty
+                )
+                .aspectRatio(DaylightPreviewArtwork.preferredAspectRatio, contentMode: ContentMode.fit)
 
                 if enabledSolarMoments.isEmpty {
                     Text("Sun moments are currently hidden from Feeds.")
@@ -117,17 +108,12 @@ struct SettingsAstronomySectionView: View {
 
         return previewPanel("Orbital Highlights") {
             VStack(alignment: .leading, spacing: 10) {
-                AstronomyArtworkCard(
-                    title: "Orbital Storyboard",
-                    subtitle: "Earth’s current orbital position, with the next seasonal or orbital milestone called out."
-                ) {
-                    OrbitalHighlightsArtwork(
-                        preview: preview,
-                        date: previewReferenceDate,
-                        isEnabled: showsOrbitalHighlights
-                    )
-                    .aspectRatio(2.02, contentMode: ContentMode.fit)
-                }
+                OrbitalHighlightsArtwork(
+                    preview: preview,
+                    date: previewReferenceDate,
+                    isEnabled: showsOrbitalHighlights
+                )
+                .aspectRatio(2.02, contentMode: ContentMode.fit)
 
                 if showsOrbitalHighlights {
                     astronomyPreviewLayout(preview: preview, maximumColumns: 3)
@@ -150,7 +136,7 @@ struct SettingsAstronomySectionView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title)
-                .font(.subheadline.weight(.semibold))
+                .font(SettingsTypography.panelTitle)
                 .foregroundStyle(.primary)
 
             content()
@@ -186,7 +172,7 @@ struct SettingsAstronomySectionView: View {
             }
 
             Text(value)
-                .font(.system(size: 16, weight: .semibold))
+                .font(SettingsTypography.prominentValue)
                 .foregroundStyle(.primary)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)

@@ -16,7 +16,7 @@ extension CalendarMonitor {
 
         let now = fixedSecondNow()
         if let existingSnapshot = gameSaleCalendarSnapshots(now: now).first(where: {
-            Self.gameSalesSemanticallyMatch($0.sale, sale)
+            Self.gameSalesCalendarAssociationMatches($0.sale, sale)
         }) {
             upsertManagedGameSaleEventRecord(for: existingSnapshot.event, sale: sale)
             removeDismissedGameSaleID(sale.id)
@@ -75,7 +75,10 @@ extension CalendarMonitor {
         }
 
         persistManagedGameSaleEventRecords(
-            managedGameSaleEventRecords.filter { $0.saleID != record.saleID }
+            managedGameSaleEventRecords.filter {
+                $0.saleID != record.saleID
+                    && !Self.gameSalesCalendarAssociationMatches($0.sale, sale)
+            }
         )
         addDismissedGameSaleID(sale.id)
         refreshGameSaleTrackingSnapshot(now: fixedSecondNow())
@@ -85,7 +88,7 @@ extension CalendarMonitor {
     func openGameSaleInCalendar(_ sale: GameSaleEvent) {
         let now = fixedSecondNow()
         let event = gameSaleCalendarSnapshots(now: now).first(where: {
-            Self.gameSalesSemanticallyMatch($0.sale, sale)
+            Self.gameSalesCalendarAssociationMatches($0.sale, sale)
         })?.event
             ?? managedGameSaleRecord(for: sale).flatMap(resolveManagedGameSaleEvent(for:))
 
@@ -124,7 +127,10 @@ extension CalendarMonitor {
             eventUID: normalizedEventUID(for: event)
         )
         persistManagedGameSaleEventRecords(
-            managedGameSaleEventRecords.filter { $0.saleID != sale.id } + [record]
+            managedGameSaleEventRecords.filter {
+                $0.saleID != sale.id
+                    && !Self.gameSalesCalendarAssociationMatches($0.sale, sale)
+            } + [record]
         )
     }
 

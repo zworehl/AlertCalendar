@@ -8,14 +8,16 @@ struct FootballScoreboardDateRange: Hashable, Sendable {
 extension FootballDataAPIClient {
     func fetchMatchesForCompetitionDateRanges(
         _ competition: FootballCompetitionPreset,
-        dateRanges: [(Date, Date)]
+        dateRanges: [(Date, Date)],
+        forceRefresh: Bool = false
     ) async throws -> [FootballFixtureMatch] {
         try await withThrowingTaskGroup(of: [FootballFixtureMatch].self) { group in
             for dateRange in dateRanges {
                 group.addTask {
                     try await self.fetchMatchesForCompetitionPage(
                         competition,
-                        dateRange: dateRange
+                        dateRange: dateRange,
+                        forceRefresh: forceRefresh
                     )
                 }
             }
@@ -31,7 +33,8 @@ extension FootballDataAPIClient {
     func fetchMatches(
         for competitions: [FootballCompetitionPreset],
         dateRangesByCompetitionSlug: [String: [FootballScoreboardDateRange]],
-        enrichTeams shouldEnrichTeams: Bool = true
+        enrichTeams shouldEnrichTeams: Bool = true,
+        forceRefresh: Bool = false
     ) async throws -> [FootballFixtureMatch] {
         let chunks = try await withThrowingTaskGroup(of: [FootballFixtureMatch].self) { group in
             for competition in competitions {
@@ -39,7 +42,8 @@ extension FootballDataAPIClient {
                     group.addTask {
                         try await self.fetchMatchesForCompetitionPage(
                             competition,
-                            dateRange: (range.start, range.end)
+                            dateRange: (range.start, range.end),
+                            forceRefresh: forceRefresh
                         )
                     }
                 }

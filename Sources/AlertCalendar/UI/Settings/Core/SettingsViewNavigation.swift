@@ -3,25 +3,27 @@ import SwiftUI
 extension SettingsView {
     @ViewBuilder
     var settingsNavigationControls: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .center, spacing: 16) {
-                settingsTabPicker
-                    .frame(maxWidth: 620, alignment: .leading)
+        Group {
+            if settingsWindowWidth >= SettingsVisualMetrics.navigationStackBreakpoint {
+                HStack(alignment: .center, spacing: 16) {
+                    settingsTabPicker
+                        .frame(maxWidth: 620, alignment: .leading)
 
-                if selectedTab == .feeds {
-                    Spacer(minLength: 0)
-                    feedsSubsectionPicker
-                        .frame(width: 330)
+                    if selectedTab == .feeds {
+                        Spacer(minLength: 0)
+                        feedsSubsectionPicker
+                            .frame(width: 440)
+                    }
                 }
-            }
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    settingsTabPicker
+                        .frame(maxWidth: 620, alignment: .leading)
 
-            VStack(alignment: .leading, spacing: 10) {
-                settingsTabPicker
-                    .frame(maxWidth: 620, alignment: .leading)
-
-                if selectedTab == .feeds {
-                    feedsSubsectionPicker
-                        .frame(maxWidth: 330, alignment: .leading)
+                    if selectedTab == .feeds {
+                        feedsSubsectionPicker
+                            .frame(maxWidth: 440, alignment: .leading)
+                    }
                 }
             }
         }

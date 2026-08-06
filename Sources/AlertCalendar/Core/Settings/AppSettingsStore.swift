@@ -57,6 +57,7 @@ struct AppSettingsStore {
             selectedReminderCalendarIDs: selectedCalendarIDs(for: .reminder),
             weekdayOnlyEventCalendarIDs: weekdayOnlyCalendarIDs(for: .event),
             weekdayOnlyReminderCalendarIDs: weekdayOnlyCalendarIDs(for: .reminder),
+            calendarAlertRules: calendarAlertRules(),
             nonWorkingDateKeys: nonWorkingDateKeys(),
             lookAheadHours: lookAheadHours,
             contextualPreviewLeadMinutes: AppSettingsRules.normalizedContextualPreviewLeadMinutes(
@@ -115,6 +116,12 @@ struct AppSettingsStore {
             enableGameSaleAutoAddNotifications: defaults.bool(
                 forKey: DefaultsKeys.enableGameSaleAutoAddNotifications
             ),
+            googleHolidayCountryIDs: GoogleHolidayCountry.normalizedCountryIDs(
+                Set(defaults.stringArray(forKey: DefaultsKeys.googleHolidayCountryIDs) ?? [])
+            ),
+            googleHolidayTargetCalendarID: defaults.string(
+                forKey: DefaultsKeys.googleHolidayTargetCalendarID
+            ) ?? defaultSettings.googleHolidayTargetCalendarID,
             slackConnections: storedSlackConnections,
             slackStatusSyncRules: migratedSlackStatusSyncRules,
             slackMeetingStatusText: legacySlackMeetingStatusText,
@@ -140,6 +147,11 @@ struct AppSettingsStore {
         defaults.set(Array(settings.selectedReminderCalendarIDs).sorted(), forKey: DefaultsKeys.selectedReminderCalendarIDs)
         defaults.set(Array(settings.weekdayOnlyEventCalendarIDs).sorted(), forKey: DefaultsKeys.weekdayOnlyEventCalendarIDs)
         defaults.set(Array(settings.weekdayOnlyReminderCalendarIDs).sorted(), forKey: DefaultsKeys.weekdayOnlyReminderCalendarIDs)
+        if let encodedCalendarAlertRules = try? JSONEncoder().encode(
+            CalendarAlertRule.normalized(settings.calendarAlertRules)
+        ) {
+            defaults.set(encodedCalendarAlertRules, forKey: DefaultsKeys.calendarAlertRules)
+        }
         defaults.set(
             Array(WorkingDayRules.normalizedNonWorkingDateKeys(settings.nonWorkingDateKeys)).sorted(),
             forKey: DefaultsKeys.nonWorkingDateKeys
@@ -205,6 +217,14 @@ struct AppSettingsStore {
             forKey: DefaultsKeys.enableGameSaleAutoAddNotifications
         )
         defaults.set(
+            Array(GoogleHolidayCountry.normalizedCountryIDs(settings.googleHolidayCountryIDs)).sorted(),
+            forKey: DefaultsKeys.googleHolidayCountryIDs
+        )
+        defaults.set(
+            settings.googleHolidayTargetCalendarID,
+            forKey: DefaultsKeys.googleHolidayTargetCalendarID
+        )
+        defaults.set(
             SlackMeetingStatus.normalizedText(settings.slackMeetingStatusText),
             forKey: DefaultsKeys.slackMeetingStatusText
         )
@@ -257,6 +277,12 @@ struct AppSettingsStore {
         return normalized
     }
 
+    func calendarAlertRules(availableCalendarIDs: Set<String>? = nil) -> [CalendarAlertRule] {
+        guard let data = defaults.data(forKey: DefaultsKeys.calendarAlertRules) else { return [] }
+        let decoded = (try? JSONDecoder().decode([CalendarAlertRule].self, from: data)) ?? []
+        return CalendarAlertRule.normalized(decoded, validCalendarIDs: availableCalendarIDs)
+    }
+
     func slackConnections() -> [SlackConnection] {
         guard let data = defaults.data(forKey: DefaultsKeys.slackConnections) else { return [] }
         let decoded = (try? JSONDecoder().decode([SlackConnection].self, from: data)) ?? []
@@ -305,6 +331,7 @@ struct AppSettingsStore {
             DefaultsKeys.astronomyLongitude: defaultSettings.astronomyLongitude,
             DefaultsKeys.weekdayOnlyEventCalendarIDs: [],
             DefaultsKeys.weekdayOnlyReminderCalendarIDs: [],
+            DefaultsKeys.calendarAlertRules: Data(),
             DefaultsKeys.nonWorkingDateKeys: [],
             DefaultsKeys.lookAheadHours: defaultSettings.lookAheadHours,
             DefaultsKeys.contextualPreviewLeadMinutes: defaultSettings.contextualPreviewLeadMinutes,
@@ -334,6 +361,8 @@ struct AppSettingsStore {
             DefaultsKeys.gameSaleCalendarAlertOption: defaultSettings.gameSaleCalendarAlertOption.rawValue,
             DefaultsKeys.gameSaleAutoAddStoreIDs: defaultSettings.gameSaleAutoAddStores.map(\.rawValue),
             DefaultsKeys.enableGameSaleAutoAddNotifications: defaultSettings.enableGameSaleAutoAddNotifications,
+            DefaultsKeys.googleHolidayCountryIDs: Array(defaultSettings.googleHolidayCountryIDs),
+            DefaultsKeys.googleHolidayTargetCalendarID: defaultSettings.googleHolidayTargetCalendarID,
             DefaultsKeys.removeEndedGameSalesAutomatically: true,
             DefaultsKeys.dismissedGameSaleEventIDs: [],
             DefaultsKeys.slackMeetingStatusText: defaultSettings.slackMeetingStatusText,

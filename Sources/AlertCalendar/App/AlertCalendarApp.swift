@@ -3,7 +3,11 @@ import SwiftUI
 @main
 struct AlertCalendarApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @StateObject private var monitor = CalendarMonitor()
+    @StateObject private var monitorOwner = CalendarMonitorOwner()
+
+    private var monitor: CalendarMonitor {
+        monitorOwner.monitor
+    }
 
     init() {
         NSWindow.allowsAutomaticWindowTabbing = false
@@ -30,25 +34,7 @@ struct AlertCalendarApp: App {
             MenuContentView(kindFilter: nil, headerTitle: "Alert Calendar")
                 .environmentObject(monitor)
         } label: {
-            MenuBarStatusLabel(
-                text: monitor.combinedMenuBarLabel,
-                color: monitor.combinedMenuBarColor,
-                alertedSegmentIndex: monitor.combinedMenuBarAlertedSegmentIndex,
-                alertTextOpacity: monitor.combinedMenuBarAlertTextOpacity,
-                dotColors: monitor.combinedMenuBarDotColors,
-                markerStyles: monitor.combinedMenuBarMarkerStyles,
-                segments: monitor.combinedMenuBarSegments,
-                segmentBackgroundColors: monitor.combinedMenuBarSegmentBackgroundColors,
-                segmentBackgroundProgresses: monitor.combinedMenuBarSegmentBackgroundProgresses,
-                segmentParticipationStatuses: monitor.combinedMenuBarSegmentParticipationStatuses,
-                segmentAccessorySymbolNames: monitor.combinedMenuBarSegmentAccessorySymbolNames,
-                footballDisplay: monitor.combinedMenuBarFootballDisplay,
-                footballTrailingText: monitor.combinedMenuBarFootballTrailingText,
-                footballStatusText: monitor.combinedMenuBarFootballStatusText,
-                footballStatusColor: monitor.combinedMenuBarFootballStatusColor,
-                footballGoalHighlightSide: monitor.combinedMenuBarFootballGoalHighlightSide,
-                footballGoalHighlightTextOpacity: monitor.combinedMenuBarFootballGoalHighlightTextOpacity
-            )
+            MenuBarMonitorStatusLabel(monitor: monitor)
         }
         .menuBarExtraStyle(.window)
 
@@ -64,6 +50,43 @@ struct AlertCalendarApp: App {
                 }
                 .keyboardShortcut("f", modifiers: [.control, .command])
             }
+        }
+    }
+}
+
+@MainActor
+private final class CalendarMonitorOwner: ObservableObject {
+    let monitor = CalendarMonitor()
+}
+
+private struct MenuBarMonitorStatusLabel: View {
+    @ObservedObject var monitor: CalendarMonitor
+
+    @ViewBuilder
+    var body: some View {
+        if monitor.isInitialLoadInProgress {
+            MenuBarLoadingIndicator()
+        } else {
+            MenuBarStatusLabel(
+                text: monitor.combinedMenuBarLabel,
+                color: monitor.combinedMenuBarColor,
+                alertedSegmentIndex: monitor.combinedMenuBarAlertedSegmentIndex,
+                alertTextOpacity: monitor.combinedMenuBarAlertTextOpacity,
+                dotColors: monitor.combinedMenuBarDotColors,
+                markerStyles: monitor.combinedMenuBarMarkerStyles,
+                segments: monitor.combinedMenuBarSegments,
+                segmentBackgroundColors: monitor.combinedMenuBarSegmentBackgroundColors,
+                segmentBackgroundProgresses: monitor.combinedMenuBarSegmentBackgroundProgresses,
+                segmentParticipationStatuses: monitor.combinedMenuBarSegmentParticipationStatuses,
+                segmentTextureStatuses: monitor.combinedMenuBarSegmentTextureStatuses,
+                segmentAccessorySymbolNames: monitor.combinedMenuBarSegmentAccessorySymbolNames,
+                footballDisplay: monitor.combinedMenuBarFootballDisplay,
+                footballTrailingText: monitor.combinedMenuBarFootballTrailingText,
+                footballStatusText: monitor.combinedMenuBarFootballStatusText,
+                footballStatusColor: monitor.combinedMenuBarFootballStatusColor,
+                footballGoalHighlightSide: monitor.combinedMenuBarFootballGoalHighlightSide,
+                footballGoalHighlightTextOpacity: monitor.combinedMenuBarFootballGoalHighlightTextOpacity
+            )
         }
     }
 }

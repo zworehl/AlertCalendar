@@ -36,24 +36,15 @@ extension CalendarMonitor {
 
     func managedGameSaleRecord(for sale: GameSaleEvent) -> ManagedGameSaleEventRecord? {
         managedGameSaleEventRecords.first { record in
-            record.saleID == sale.id || Self.gameSalesSemanticallyMatch(record.sale, sale)
+            record.saleID == sale.id
+                || Self.gameSalesCalendarAssociationMatches(record.sale, sale)
         }
     }
 
     func managedGameSaleRecord(for event: EKEvent) -> ManagedGameSaleEventRecord? {
-        let eventIdentifier = event.eventIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let eventUID = normalizedEventUID(for: event)
-
-        return managedGameSaleEventRecords.first { record in
-            if let eventUID, record.eventUID == eventUID {
-                return true
-            }
-            if let eventIdentifier, record.eventIdentifier == eventIdentifier {
-                return true
-            }
-            guard let snapshot = gameSaleSnapshot(for: event) else { return false }
-            return record.calendarIdentifier == event.calendar?.calendarIdentifier
-                && Self.gameSalesSemanticallyMatch(record.sale, snapshot.sale)
+        guard let snapshot = gameSaleSnapshot(for: event) else { return nil }
+        return managedGameSaleEventRecords.first {
+            gameSaleRecord($0, identifies: snapshot)
         }
     }
 
@@ -93,7 +84,7 @@ extension CalendarMonitor {
         )
         return eventStore.events(matching: originalCalendarPredicate).first { event in
             guard let snapshot = gameSaleSnapshot(for: event) else { return false }
-            return Self.gameSalesSemanticallyMatch(record.sale, snapshot.sale)
+            return Self.gameSalesCalendarAssociationMatches(record.sale, snapshot.sale)
         }
     }
 
@@ -146,17 +137,24 @@ extension CalendarMonitor {
         return GameSaleCalendarSnapshot(sale: sale, event: event)
     }
 
-    func refreshGameSaleTrackingSnapshot(now: Date) {
-        let snapshots = gameSaleCalendarSnapshots(now: now)
+    func refreshGameSaleTrackingSnapshot(
+        now: Date,
+        calendarSnapshots: [GameSaleCalendarSnapshot]? = nil
+    ) {
+        let snapshots = calendarSnapshots ?? gameSaleCalendarSnapshots(now: now)
         var allSales = fetchedGameSales.filter { $0.endDateExclusive > now }
 
         for record in managedGameSaleEventRecords where record.sale.endDateExclusive > now {
-            if !allSales.contains(where: { Self.gameSalesSemanticallyMatch($0, record.sale) }) {
+            if !allSales.contains(where: {
+                Self.gameSalesCalendarAssociationMatches($0, record.sale)
+            }) {
                 allSales.append(record.sale)
             }
         }
         for snapshot in snapshots where snapshot.sale.endDateExclusive > now {
-            if !allSales.contains(where: { Self.gameSalesSemanticallyMatch($0, snapshot.sale) }) {
+            if !allSales.contains(where: {
+                Self.gameSalesCalendarAssociationMatches($0, snapshot.sale)
+            }) {
                 allSales.append(snapshot.sale)
             }
         }
@@ -167,24 +165,59 @@ extension CalendarMonitor {
         }
 
         var presenceByID: [String: GameSalePresence] = [:]
+        var healedRecords = managedGameSaleEventRecords
         for sale in allSales {
             guard let matchingSnapshot = snapshots.first(where: {
-                Self.gameSalesSemanticallyMatch($0.sale, sale)
+                Self.gameSalesCalendarAssociationMatches($0.sale, sale)
             }) else {
                 presenceByID[sale.id] = .absent
                 continue
             }
 
-            let isManaged = managedGameSaleEventRecords.contains { record in
-                Self.gameSalesSemanticallyMatch(record.sale, sale)
-                    && (record.eventIdentifier == matchingSnapshot.event.eventIdentifier
-                        || record.eventUID == normalizedEventUID(for: matchingSnapshot.event))
+            guard healedRecords.contains(where: { record in
+                gameSaleRecord(record, identifies: matchingSnapshot)
+            }), let calendarIdentifier = matchingSnapshot.event.calendar?.calendarIdentifier else {
+                presenceByID[sale.id] = .external
+                continue
             }
-            presenceByID[sale.id] = isManaged ? .managed : .external
+
+            let healedRecord = ManagedGameSaleEventRecord(
+                sale: sale,
+                calendarIdentifier: calendarIdentifier,
+                eventIdentifier: matchingSnapshot.event.eventIdentifier,
+                eventUID: normalizedEventUID(for: matchingSnapshot.event)
+            )
+            for index in healedRecords.indices where Self.gameSalesCalendarAssociationMatches(
+                healedRecords[index].sale,
+                sale
+            ) {
+                healedRecords[index] = healedRecord
+            }
+            presenceByID[sale.id] = .managed
         }
 
+        persistManagedGameSaleEventRecords(healedRecords)
         gameSales = allSales
         gameSalePresenceByID = presenceByID
+    }
+
+    func gameSaleRecord(
+        _ record: ManagedGameSaleEventRecord,
+        identifies snapshot: GameSaleCalendarSnapshot
+    ) -> Bool {
+        let event = snapshot.event
+        if let eventUID = normalizedEventUID(for: event),
+           let recordUID = AlertCalendarString.trimmedNonEmpty(record.eventUID),
+           recordUID == eventUID {
+            return true
+        }
+        if let eventIdentifier = AlertCalendarString.trimmedNonEmpty(event.eventIdentifier),
+           let recordIdentifier = AlertCalendarString.trimmedNonEmpty(record.eventIdentifier),
+           recordIdentifier == eventIdentifier {
+            return true
+        }
+        return record.calendarIdentifier == event.calendar?.calendarIdentifier
+            && Self.gameSalesCalendarAssociationMatches(record.sale, snapshot.sale)
     }
 
     func isGameSalePresent(_ sale: GameSaleEvent) -> Bool {
@@ -205,6 +238,17 @@ extension CalendarMonitor {
                 == normalizedGameSaleTitle(rhs.title, store: rhs.store)
             && calendar.isDate(lhs.startDate, inSameDayAs: rhs.startDate)
             && calendar.isDate(lhs.endDateExclusive, inSameDayAs: rhs.endDateExclusive)
+    }
+
+    nonisolated static func gameSalesCalendarAssociationMatches(
+        _ lhs: GameSaleEvent,
+        _ rhs: GameSaleEvent,
+        calendar: Calendar = Calendar(identifier: .gregorian)
+    ) -> Bool {
+        lhs.store == rhs.store
+            && normalizedGameSaleTitle(lhs.title, store: lhs.store)
+                == normalizedGameSaleTitle(rhs.title, store: rhs.store)
+            && calendar.isDate(lhs.startDate, inSameDayAs: rhs.startDate)
     }
 
     nonisolated static func normalizedGameSaleTitle(_ title: String, store: GameStore) -> String {

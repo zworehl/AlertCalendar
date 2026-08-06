@@ -13,9 +13,14 @@ extension CalendarMonitor {
     nonisolated static let footballMenuRefreshInterval: TimeInterval = 15 * 60
     nonisolated static let footballManagedSyncInterval: TimeInterval = 60
     nonisolated static let footballActiveRefreshInterval: TimeInterval = 30
+    nonisolated static let footballApproachingRefreshInterval: TimeInterval = 5 * 60
     nonisolated static let footballMissingCacheRefreshInterval: TimeInterval = 5 * 60
     nonisolated static let footballUpcomingRefreshInterval: TimeInterval = 15 * 60
-    nonisolated static let footballIdleRefreshInterval: TimeInterval = 6 * 60 * 60
+    nonisolated static let footballIdleRefreshInterval: TimeInterval = 3 * 60 * 60
+    nonisolated static let footballApproachingKickoffWindow: TimeInterval = 60 * 60
+    nonisolated static let footballKickoffGraceWindow: TimeInterval = 15 * 60
+    nonisolated static let footballPostMatchStabilizationWindow: TimeInterval = 10 * 60
+    nonisolated static let footballSettledRefreshInterval = TimeInterval.greatestFiniteMagnitude
     static let footballManagedCleanupInterval: TimeInterval = 6 * 60 * 60
     static let footballManagedRecoveryInterval: TimeInterval = 15 * 60
     static let footballLegacyMigrationInterval: TimeInterval = 6 * 60 * 60
@@ -106,11 +111,15 @@ extension CalendarMonitor {
         }
 
         do {
-            let matchesByCompetition = try await footballClient.fetchMatchesByCompetition(for: [competition])
+            let matchesByCompetition = try await footballClient.fetchMatchesByCompetition(
+                for: [competition],
+                forceRefresh: force
+            )
             let fetchedMatches = matchesByCompetition[competition.slug] ?? []
             let refreshedMatches = await footballClient.refreshStatusesIfNeeded(for: fetchedMatches)
             let resolvedMatches = matchesPreservingKnownTimingContext(refreshedMatches)
             await cacheFootballMatches(resolvedMatches)
+            markFootballRefreshed(at: now)
             let matches = Self.resolvedFootballSectionMatches(
                 resolvedMatches,
                 cachedMatchesByID: footballMatchesByID,
@@ -182,11 +191,13 @@ extension CalendarMonitor {
             let fetchedMatches = try await footballClient.fetchMatches(
                 for: limitedPresets,
                 dateRangesByCompetitionSlug: rangesBySlug,
-                enrichTeams: false
+                enrichTeams: false,
+                forceRefresh: force
             )
             let refreshedMatches = await footballClient.refreshStatusesIfNeeded(for: fetchedMatches)
             let resolvedMatches = matchesPreservingKnownTimingContext(refreshedMatches)
             await cacheFootballMatches(resolvedMatches)
+            markFootballRefreshed(at: now)
             let resolvedLiveCandidates = resolvedMatches.map { footballMatchesByID[$0.id] ?? $0 }
             let filteredMatches = Self.liveAndNextDayMatches(
                 from: resolvedLiveCandidates,
@@ -236,7 +247,10 @@ extension CalendarMonitor {
             lastFootballLegacyMigrationDate = now
         }
         if shouldRunFootballManagedRecovery(now: now, force: force) {
-            await recoverManagedFootballEventRecordsIfNeeded(now: now)
+            await recoverManagedFootballEventRecordsIfNeeded(
+                now: now,
+                forceRefresh: force
+            )
             lastFootballManagedRecoveryDate = now
         }
         didFootballEventStoreChange = false
@@ -278,7 +292,8 @@ extension CalendarMonitor {
             )
             let matches = try await footballClient.fetchMatches(
                 for: trackedPresets,
-                dateRangesByCompetitionSlug: rangesBySlug
+                dateRangesByCompetitionSlug: rangesBySlug,
+                forceRefresh: force
             )
             let forceSummaryMatchIDs = Self.footballManagedMatchIDsNeedingActualEndBackfill(
                 matches,
@@ -291,6 +306,7 @@ extension CalendarMonitor {
             )
             let resolvedMatches = matchesPreservingKnownTimingContext(refreshedMatches)
             await cacheFootballMatches(resolvedMatches)
+            markFootballRefreshed(at: now)
             updateManagedFootballMatches(using: trackedEvents, now: now)
             await applyFootballEventUpdates(trackedEvents, using: resolvedMatches)
             lastFootballManagedSyncDate = now

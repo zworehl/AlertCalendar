@@ -79,4 +79,21 @@ final class GameSaleEventTests: XCTestCase {
         XCTAssertEqual(GameStore.playStation.title, "PlayStation Store")
         XCTAssertEqual(GameStore.nintendoSwitch.title, "Nintendo eShop")
     }
+
+    func testSaleDateRangeMatchesTheCompactDropdownFormat() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let startDay = calendar.date(from: DateComponents(year: 2026, month: 7, day: 29))!
+        let lastInclusiveDay = calendar.date(from: DateComponents(year: 2026, month: 8, day: 11))!
+
+        XCTAssertEqual(
+            AlertCalendarDateRangeFormatter.compactAllDayRange(
+                startDay: startDay,
+                lastInclusiveDay: lastInclusiveDay,
+                calendar: calendar,
+                locale: Locale(identifier: "en_US_POSIX")
+            ),
+            "Jul 29-Aug 11"
+        )
+    }
 }

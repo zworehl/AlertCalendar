@@ -3,49 +3,18 @@ import EventKit
 import Foundation
 
 extension CalendarMonitor {
-    nonisolated static func makeAllDayDateFormatter(locale: Locale) -> DateFormatter {
-        let formatter = DateFormatter()
-        formatter.locale = locale
-        formatter.dateFormat = "MMM d"
-        return formatter
-    }
-
-    nonisolated static func makeAllDayMonthFormatter(locale: Locale) -> DateFormatter {
-        let formatter = DateFormatter()
-        formatter.locale = locale
-        formatter.dateFormat = "MMM"
-        return formatter
-    }
-
-    nonisolated static let allDayDateFormatter: DateFormatter = {
-        makeAllDayDateFormatter(locale: .autoupdatingCurrent)
-    }()
-
-    nonisolated static let allDayMonthFormatter: DateFormatter = {
-        makeAllDayMonthFormatter(locale: .autoupdatingCurrent)
-    }()
-
     nonisolated static func formattedAllDayRange(
         startDay: Date,
         lastInclusiveDay: Date,
         calendar: Calendar = .current,
         locale: Locale? = nil
     ) -> String {
-        let dateFormatter = locale.map(makeAllDayDateFormatter(locale:)) ?? allDayDateFormatter
-        let monthFormatter = locale.map(makeAllDayMonthFormatter(locale:)) ?? allDayMonthFormatter
-
-        let sameMonth = calendar.isDate(startDay, equalTo: lastInclusiveDay, toGranularity: .month)
-            && calendar.isDate(startDay, equalTo: lastInclusiveDay, toGranularity: .year)
-        if sameMonth {
-            let monthText = monthFormatter.string(from: startDay)
-            let startDayNumber = calendar.component(.day, from: startDay)
-            let endDayNumber = calendar.component(.day, from: lastInclusiveDay)
-            return "\(monthText) \(startDayNumber)-\(endDayNumber)"
-        }
-
-        let startText = dateFormatter.string(from: startDay)
-        let endText = dateFormatter.string(from: lastInclusiveDay)
-        return "\(startText)-\(endText)"
+        AlertCalendarDateRangeFormatter.compactAllDayRange(
+            startDay: startDay,
+            lastInclusiveDay: lastInclusiveDay,
+            calendar: calendar,
+            locale: locale ?? .autoupdatingCurrent
+        )
     }
 
     func setIfChanged<T: Equatable>(_ keyPath: ReferenceWritableKeyPath<CalendarMonitor, T>, to newValue: T) {
@@ -92,6 +61,7 @@ extension CalendarMonitor {
         setColorArrayIfChanged(\.combinedMenuBarSegmentBackgroundColors, to: state.segmentBackgroundColors)
         setIfChanged(\.combinedMenuBarSegmentBackgroundProgresses, to: state.segmentBackgroundProgresses)
         setIfChanged(\.combinedMenuBarSegmentParticipationStatuses, to: state.segmentParticipationStatuses)
+        setIfChanged(\.combinedMenuBarSegmentTextureStatuses, to: state.segmentTextureStatuses)
         setIfChanged(\.combinedMenuBarSegmentAccessorySymbolNames, to: state.segmentAccessorySymbolNames)
         setIfChanged(\.combinedMenuBarFootballDisplay, to: state.footballDisplay)
         setIfChanged(\.combinedMenuBarFootballTrailingText, to: state.footballTrailingText)
@@ -102,7 +72,7 @@ extension CalendarMonitor {
         setMenuBarAlertAnimationEnabled(shouldAnimateAlert)
     }
 
-    nonisolated static let alertBlinkPeriod: TimeInterval = 1.2
+    nonisolated static let alertBlinkPeriod: TimeInterval = 2
 
     nonisolated static func alertBlinkTextOpacity(now: Date) -> CGFloat {
         let remainder = now.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: alertBlinkPeriod)
@@ -247,6 +217,9 @@ extension CalendarMonitor {
                     segmentBackgroundColors: segmentBackgrounds.map(\.color),
                     segmentBackgroundProgresses: segmentBackgrounds.map(\.progress),
                     segmentParticipationStatuses: previewItems.map(\.eventParticipationStatus),
+                    segmentTextureStatuses: previewItems.map {
+                        activeParticipationTextureStatus(for: $0, now: now, settings: settings)
+                    },
                     segmentAccessorySymbolNames: previewItems.map(menuBarAccessorySymbolNames(for:)),
                     footballDisplay: showsFootballMenuBarDetails ? selectedItem?.footballMenuBarDisplay : nil,
                     footballTrailingText: showsFootballMenuBarDetails

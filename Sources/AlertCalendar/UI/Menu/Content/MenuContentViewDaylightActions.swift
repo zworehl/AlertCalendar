@@ -14,8 +14,8 @@ extension MenuContentView {
     @ViewBuilder
     func contextualDaylightHeaderContent(for item: UpcomingItem, isHovered: Bool) -> some View {
         let accentColor = Color(nsColor: item.calendarColor.nsColor)
-        let titleFont = Font.system(size: 12, weight: .semibold)
-        let timeFont = Font.system(size: 11, weight: .medium)
+        let titleFont = MenuMarkerMetrics.rowTitleFont
+        let timeFont = MenuMarkerMetrics.rowDetailFont
 
         HStack(alignment: .center, spacing: 0) {
             HStack(alignment: .center, spacing: 10) {
@@ -49,8 +49,8 @@ extension MenuContentView {
     func contextualMarkerView(for item: UpcomingItem, accentColor: Color) -> some View {
         if let markerSymbol = markerSymbolName(for: item) {
             Image(systemName: markerSymbol)
-                .font(.system(size: 12, weight: .regular))
-                .frame(width: 12, height: 12)
+                .font(.system(size: MenuMarkerMetrics.symbolSize, weight: .regular))
+                .frame(width: MenuMarkerMetrics.symbolSize, height: MenuMarkerMetrics.symbolSize)
                 .foregroundStyle(accentColor)
         } else if let image = markerImage(for: item) {
             let markerSize = markerImageSize(for: item)
@@ -87,25 +87,19 @@ extension MenuContentView {
 
     @ViewBuilder
     func contextualDaylightPreview(for item: UpcomingItem, preferredHeight: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Daylight Map")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-
-            DaylightPreviewArtwork(
-                latitude: settings.astronomyLatitude,
-                longitude: settings.astronomyLongitude,
-                date: item.date,
-                isEnabled: hasValidAstronomyPreviewCoordinates
-            )
-            .frame(maxWidth: .infinity)
-            .frame(height: preferredHeight)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
-            )
-        }
+        DaylightPreviewArtwork(
+            latitude: settings.astronomyLatitude,
+            longitude: settings.astronomyLongitude,
+            date: item.date,
+            isEnabled: hasValidAstronomyPreviewCoordinates
+        )
+        .frame(maxWidth: .infinity)
+        .frame(height: preferredHeight)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
     }
 
     var hasValidAstronomyPreviewCoordinates: Bool {

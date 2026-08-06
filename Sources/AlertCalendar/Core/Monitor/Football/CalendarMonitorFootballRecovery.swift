@@ -4,7 +4,10 @@ import EventKit
 import Foundation
 
 extension CalendarMonitor {
-    func recoverManagedFootballEventRecordsIfNeeded(now: Date) async {
+    func recoverManagedFootballEventRecordsIfNeeded(
+        now: Date,
+        forceRefresh: Bool = false
+    ) async {
         let orphanEvents = unresolvedManagedFootballCandidateEvents(now: now)
         guard !orphanEvents.isEmpty else { return }
 
@@ -19,11 +22,13 @@ extension CalendarMonitor {
                 }
                 let fetchedMatches = try await footballClient.fetchMatches(
                     for: FootballCompetitionPreset.menuPresets,
-                    dateRangesByCompetitionSlug: footballScoreboardDateRangesByCompetition(rangeEntries)
+                    dateRangesByCompetitionSlug: footballScoreboardDateRangesByCompetition(rangeEntries),
+                    forceRefresh: forceRefresh
                 )
                 let refreshedMatches = await footballClient.refreshStatusesIfNeeded(for: fetchedMatches)
                 let resolvedMatches = matchesPreservingKnownTimingContext(refreshedMatches)
                 await cacheFootballMatches(resolvedMatches)
+                markFootballRefreshed(at: now)
                 candidateMatches = Array(footballMatchesByID.values)
             } catch {
                 return

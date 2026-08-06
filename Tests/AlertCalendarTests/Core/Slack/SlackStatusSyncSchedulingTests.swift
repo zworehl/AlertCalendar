@@ -2,6 +2,11 @@ import XCTest
 @testable import AlertCalendar
 
 final class SlackStatusSyncSchedulingTests: SlackStatusSyncTestCase {
+    func testSlackHeartbeatUsesOneMinuteFallback() {
+        XCTAssertEqual(CalendarMonitorCadence.slackStatusHeartbeatInterval, 60)
+        XCTAssertEqual(CalendarMonitorCadence.slackDynamicStatusRotationInterval, 30)
+    }
+
     func testSlackStatusSyncTaskStartRequiresPendingWorkAndNoRunningTask() {
         XCTAssertTrue(
             CalendarMonitor.shouldStartSlackStatusSyncTask(

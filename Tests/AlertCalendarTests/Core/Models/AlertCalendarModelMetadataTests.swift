@@ -81,6 +81,7 @@ final class AlertCalendarModelMetadataTests: AlertCalendarModelTestCase {
         let grouped = Dictionary(grouping: FootballCompetitionPreset.menuPresets, by: \.category)
 
         XCTAssertTrue(grouped[.clubCompetitions]?.contains(where: { $0.slug == "eng.1" }) == true)
+        XCTAssertTrue(grouped[.clubCompetitions]?.contains(where: { $0.slug == "concacaf.central.american.cup" }) == true)
         XCTAssertTrue(grouped[.nationalTeams]?.contains(where: { $0.slug == "fifa.world" }) == true)
         XCTAssertEqual(FootballCompetitionCategory.clubCompetitions.title, "Club Competitions")
         XCTAssertEqual(FootballCompetitionCategory.nationalTeams.title, "National Teams")
@@ -97,11 +98,15 @@ final class AlertCalendarModelMetadataTests: AlertCalendarModelTestCase {
         XCTAssertEqual(FootballCompetitionRegion.global.title, "Global")
 
         XCTAssertTrue(grouped[.northAmerica]?.contains(where: { $0.slug == "mex.1" }) == true)
+        XCTAssertTrue(grouped[.northAmerica]?.contains(where: { $0.slug == "crc.1" }) == true)
+        XCTAssertTrue(grouped[.northAmerica]?.contains(where: { $0.slug == "concacaf.central.american.cup" }) == true)
         XCTAssertTrue(grouped[.southAmerica]?.contains(where: { $0.slug == "conmebol.libertadores" }) == true)
         XCTAssertTrue(grouped[.europe]?.contains(where: { $0.slug == "uefa.champions" }) == true)
         XCTAssertTrue(grouped[.global]?.contains(where: { $0.slug == "fifa.world" }) == true)
 
         XCTAssertEqual(FootballCompetitionPreset.region(forCompetitionSlug: "mex.1"), .northAmerica)
+        XCTAssertEqual(FootballCompetitionPreset.region(forCompetitionSlug: "crc.1"), .northAmerica)
+        XCTAssertEqual(FootballCompetitionPreset.region(forCompetitionSlug: "concacaf.central.american.cup"), .northAmerica)
         XCTAssertEqual(FootballCompetitionPreset.region(forCompetitionSlug: "conmebol.america"), .southAmerica)
         XCTAssertEqual(FootballCompetitionPreset.region(forCompetitionSlug: "esp.1"), .europe)
         XCTAssertEqual(FootballCompetitionPreset.region(forCompetitionSlug: "fifa.world"), .global)
@@ -139,6 +144,7 @@ final class AlertCalendarModelMetadataTests: AlertCalendarModelTestCase {
             DefaultsKeys.selectedReminderCalendarIDs,
             DefaultsKeys.weekdayOnlyEventCalendarIDs,
             DefaultsKeys.weekdayOnlyReminderCalendarIDs,
+            DefaultsKeys.calendarAlertRules,
             DefaultsKeys.nonWorkingDateKeys,
             DefaultsKeys.lookAheadHours,
             DefaultsKeys.contextualPreviewLeadMinutes,
@@ -175,13 +181,14 @@ final class AlertCalendarModelMetadataTests: AlertCalendarModelTestCase {
             DefaultsKeys.managedFootballEventRecords,
         ]
 
-        XCTAssertEqual(keys.count, 50)
+        XCTAssertEqual(keys.count, 51)
         XCTAssertEqual(Set(keys).count, keys.count)
         XCTAssertTrue(keys.contains("activeEventDisplayMode"))
         XCTAssertTrue(keys.contains("contextualPreviewLeadMinutes"))
         XCTAssertTrue(keys.contains("menuBarRotationWindowMinutes"))
         XCTAssertTrue(keys.contains("menuBarFontSize"))
         XCTAssertTrue(keys.contains("meetingBrowserRouting"))
+        XCTAssertTrue(keys.contains("calendarAlertRules"))
         XCTAssertTrue(keys.contains("nonWorkingDateKeys"))
         XCTAssertTrue(keys.contains("footballAutoAddCompetitionSlugs"))
         XCTAssertTrue(keys.contains("enableFootballAutoAddNotifications"))
@@ -328,8 +335,11 @@ final class AlertCalendarModelMetadataTests: AlertCalendarModelTestCase {
     }
     func testMenuMarkerStyleDistinguishesSymbolFamilies() {
         XCTAssertEqual(MenuMarkerStyle.allDay(.systemBlue), MenuMarkerStyle.allDay(.systemBlue))
+        XCTAssertEqual(MenuMarkerStyle.gameStore(.steam), MenuMarkerStyle.gameStore(.steam))
+        XCTAssertNotEqual(MenuMarkerStyle.gameStore(.steam), MenuMarkerStyle.gameStore(.xbox))
         XCTAssertNotEqual(MenuMarkerStyle.color(.systemBlue), MenuMarkerStyle.reminder(.systemBlue))
         XCTAssertNotEqual(MenuMarkerStyle.birthday(.systemPink), MenuMarkerStyle.allDay(.systemPink))
+        XCTAssertNotEqual(MenuMarkerStyle.gameStore(.playStation), MenuMarkerStyle.allDay(.systemBlue))
         XCTAssertNotEqual(MenuMarkerStyle.travel(.systemPink), MenuMarkerStyle.allDay(.systemPink))
         XCTAssertNotEqual(MenuMarkerStyle.newMoon, MenuMarkerStyle.fullMoon)
         XCTAssertNotEqual(MenuMarkerStyle.juneSolstice, MenuMarkerStyle.aphelion)

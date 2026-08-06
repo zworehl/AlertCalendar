@@ -35,6 +35,9 @@ extension CalendarMonitor {
         if isBirthdayItem(item) {
             return .birthday(item.calendarColor)
         }
+        if let gameStore = item.gameStore {
+            return .gameStore(gameStore)
+        }
         if item.kind == .event, item.isAllDay {
             return .allDay(item.calendarColor)
         }
@@ -45,11 +48,6 @@ extension CalendarMonitor {
     }
 
     func backgroundTintColor(for item: UpcomingItem, now: Date) -> NSColor {
-        if item.showsMutedBackground {
-            return item.calendarColor.nsColor.withAlphaComponent(
-                item.eventParticipationStatus?.appleCalendarBackgroundAlpha ?? 0.26
-            )
-        }
         if item.kind == .reminder, item.date <= now {
             return item.calendarColor.nsColor.withAlphaComponent(0.26)
         }
@@ -107,6 +105,43 @@ extension CalendarMonitor {
                 weekdayOnlyDuration(from: start, to: end, nonWorkingDateKeys: settings.nonWorkingDateKeys)
             }
         )
+    }
+
+    func activeParticipationTextureStatus(
+        for item: UpcomingItem,
+        now: Date,
+        settings: AppSettings
+    ) -> EventParticipationStatus? {
+        Self.activeParticipationTextureStatus(
+            for: item,
+            now: now,
+            weekdayOnlyEventCalendarIDs: settings.weekdayOnlyEventCalendarIDs,
+            weekdayOnlyDuration: { start, end in
+                weekdayOnlyDuration(from: start, to: end, nonWorkingDateKeys: settings.nonWorkingDateKeys)
+            }
+        )
+    }
+
+    nonisolated static func activeParticipationTextureStatus(
+        for item: UpcomingItem,
+        now: Date,
+        weekdayOnlyEventCalendarIDs: Set<String>,
+        weekdayOnlyDuration: (Date, Date) -> TimeInterval = { start, end in
+            end.timeIntervalSince(start)
+        }
+    ) -> EventParticipationStatus? {
+        guard let status = item.eventParticipationStatus,
+              status.usesTexturedFill,
+              activeItemProgress(
+                  for: item,
+                  now: now,
+                  weekdayOnlyEventCalendarIDs: weekdayOnlyEventCalendarIDs,
+                  weekdayOnlyDuration: weekdayOnlyDuration
+              ) != nil else {
+            return nil
+        }
+
+        return status
     }
 
     nonisolated static func travelStartDate(for item: UpcomingItem) -> Date? {

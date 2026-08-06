@@ -509,6 +509,48 @@ final class FootballDataAPIClientFetchMatchesTests: FootballDataAPIClientTestCas
         XCTAssertEqual(thirdMatches.map(\.id), ["shared-scoreboard-match"])
         XCTAssertEqual(scoreboardRequestCount, expectedScoreboardRequestCount)
     }
+
+    func testForcedScoreboardRefreshBypassesFreshCache() async throws {
+        let url = try XCTUnwrap(
+            URL(string: "https://site.api.espn.com/apis/site/v2/sports/soccer/usa.1/scoreboard")
+        )
+        let startDateText = ISO8601DateFormatter().string(from: Date().addingTimeInterval(60 * 60))
+        let requestLock = NSLock()
+        var requestCount = 0
+        let session = makeMockSession { request in
+            requestLock.lock()
+            requestCount += 1
+            requestLock.unlock()
+            return try self.jsonResponse(
+                for: request,
+                body: self.scoreboardBody(
+                    leagueName: "MLS",
+                    matchID: "forced-scoreboard-match",
+                    startDateText: startDateText
+                )
+            )
+        }
+        let client = FootballDataAPIClient(session: session)
+
+        _ = try await client.scoreboardMatchesPage(
+            url: url,
+            slug: "usa.1",
+            competitionName: "MLS"
+        )
+        _ = try await client.scoreboardMatchesPage(
+            url: url,
+            slug: "usa.1",
+            competitionName: "MLS"
+        )
+        _ = try await client.scoreboardMatchesPage(
+            url: url,
+            slug: "usa.1",
+            competitionName: "MLS",
+            forceRefresh: true
+        )
+
+        XCTAssertEqual(requestCount, 2)
+    }
     func testFetchMatchesCanSkipTeamEnrichmentForLightweightLists() async throws {
         let startDate = Date().addingTimeInterval(24 * 60 * 60)
         let startDateText = ISO8601DateFormatter().string(from: startDate)

@@ -2,24 +2,13 @@ import SwiftUI
 
 extension SettingsGameSalesSectionView {
     var introductionPanel: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .center, spacing: 10) {
-                Image(systemName: "gamecontroller.fill")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .accessibilityHidden(true)
-
-                Text("Game Sales")
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-            }
-
-            Text("Track scheduled store campaigns and manage their all-day events in Apple Calendar.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(14)
+        SettingsSectionHeaderView(
+            title: "Game Sales",
+            subtitle: "Track scheduled store campaigns and manage their all-day events in Apple Calendar.",
+            detail: "Official sale feeds refresh automatically every 6 hours. Use Refresh now for an immediate check.",
+            systemImage: "gamecontroller.fill"
+        )
+        .padding(SettingsVisualMetrics.panelPadding)
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .background(panelChrome)
     }
@@ -52,39 +41,31 @@ extension SettingsGameSalesSectionView {
 
             automationControls
         }
-        .padding(14)
+        .padding(SettingsVisualMetrics.panelPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(panelChrome)
     }
 
     var targetCalendarControl: some View {
-        controlField(
-            title: "Add To",
-            helpText: "New managed sale campaigns are written to this Apple Calendar."
-        ) {
-            Picker("Game sales calendar", selection: $targetCalendarID) {
-                Text("Choose a calendar…").tag("")
-                ForEach(writableCalendars) { calendar in
-                    Text(calendar.title).tag(calendar.id)
-                }
-            }
-            .pickerStyle(.menu)
-            .labelsHidden()
-        }
+        SettingsAddToCalendarPicker(
+            selection: $targetCalendarID,
+            calendars: writableCalendars,
+            pickerTitle: "Game sales calendar",
+            helpText: "New managed sale campaigns are written to this Apple Calendar.",
+            emptySelectionTitle: "Choose a calendar…"
+        )
     }
 
     var calendarAlertControl: some View {
-        controlField(
+        SettingsLabeledMenuPicker(
             title: "Calendar Alert",
+            pickerTitle: "Game sale alert",
+            selection: calendarAlertBinding,
             helpText: "Applies one Apple Calendar alert to every sale managed by Alert Calendar."
         ) {
-            Picker("Game sale alert", selection: calendarAlertBinding) {
-                ForEach(GameSaleCalendarAlertOption.allCases) { option in
-                    Text(option.title).tag(option)
-                }
+            ForEach(GameSaleCalendarAlertOption.allCases) { option in
+                Text(option.title).tag(option)
             }
-            .pickerStyle(.menu)
-            .labelsHidden()
         }
     }
 
@@ -111,63 +92,52 @@ extension SettingsGameSalesSectionView {
 
     var automationControls: some View {
         ViewThatFits(in: .horizontal) {
-            automationRow
+            HStack(alignment: .center, spacing: 16) {
+                gameSalesAutoAddGroup(layout: .inline)
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                automationRow
+                SettingsVerticalDivider(height: SettingsVisualMetrics.inlineDividerHeight)
+
+                gameSalesNotificationGroup(layout: .inline)
+            }
+            .fixedSize(horizontal: true, vertical: false)
+
+            VStack(alignment: .leading, spacing: 10) {
+                gameSalesAutoAddGroup(layout: .adaptive)
+
+                Divider()
+
+                gameSalesNotificationGroup(layout: .adaptive)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    var automationRow: some View {
-        HStack(alignment: .top, spacing: 22) {
-            automationTitle
-                .frame(width: Self.inlineFieldLabelWidth, alignment: .leading)
-
-            storeAutomationRow
-
-            Divider()
-                .frame(height: 34)
-
-            Toggle("Notify when sales are added", isOn: $enableAutoAddNotifications)
-                .toggleStyle(.checkbox)
-                .controlSize(.small)
-                .disabled(autoAddStores.isEmpty)
-                .fixedSize()
-        }
-        .fixedSize(horizontal: true, vertical: false)
-    }
-
-    var automationTitle: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text("Automation")
-                .font(.caption.weight(.semibold))
-            Text("New campaigns")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    var storeAutomationRow: some View {
-        HStack(alignment: .top, spacing: 22) {
+    func gameSalesAutoAddGroup(layout: SettingsLabeledCheckboxGroupLayout) -> some View {
+        SettingsLabeledCheckboxGroup(title: "Auto-add", layout: layout) {
             ForEach(GameStore.allCases) { store in
                 autoAddToggle(for: store)
             }
         }
     }
 
+    func gameSalesNotificationGroup(layout: SettingsLabeledCheckboxGroupLayout) -> some View {
+        SettingsLabeledCheckboxGroup(title: "Notifications", layout: layout) {
+            Toggle("Added sales", isOn: $enableAutoAddNotifications)
+                .disabled(autoAddStores.isEmpty)
+                .help("Notify when Alert Calendar adds a new sale campaign to Apple Calendar.")
+        }
+    }
+
     func autoAddToggle(for store: GameStore) -> some View {
         Toggle(
-            "Auto-add \(automationStoreTitle(for: store))",
+            automationStoreTitle(for: store),
             isOn: Binding(
                 get: { autoAddStores.contains(store) },
                 set: { setAutoAddEnabled($0, for: store) }
             )
         )
-        .toggleStyle(.checkbox)
-        .controlSize(.small)
         .disabled(targetCalendarID.isEmpty)
-        .fixedSize()
+        .accessibilityLabel("Auto-add \(automationStoreTitle(for: store))")
         .help(automationHelp(for: store))
     }
 
@@ -201,31 +171,7 @@ extension SettingsGameSalesSectionView {
         }
     }
 
-    func controlField<Content: View>(
-        title: String,
-        helpText: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 5) {
-                Text(title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Image(systemName: "questionmark.circle")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .help(helpText)
-            }
-            content()
-        }
-    }
-
     var panelChrome: some View {
-        RoundedRectangle(cornerRadius: 8, style: .continuous)
-            .fill(Color(nsColor: .controlBackgroundColor))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-            )
+        SettingsPanelChrome()
     }
 }

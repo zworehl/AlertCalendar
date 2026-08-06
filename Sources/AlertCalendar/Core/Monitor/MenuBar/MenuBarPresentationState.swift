@@ -12,6 +12,7 @@ struct MenuBarPresentationState {
     var segmentBackgroundColors: [NSColor]
     var segmentBackgroundProgresses: [CGFloat]
     var segmentParticipationStatuses: [EventParticipationStatus?]
+    var segmentTextureStatuses: [EventParticipationStatus?]
     var segmentAccessorySymbolNames: [[String]]
     var footballDisplay: FootballMenuBarDisplay?
     var footballTrailingText: String?
@@ -31,6 +32,7 @@ struct MenuBarPresentationState {
         segmentBackgroundColors: [.clear],
         segmentBackgroundProgresses: [0],
         segmentParticipationStatuses: [nil],
+        segmentTextureStatuses: [nil],
         segmentAccessorySymbolNames: [[]],
         footballDisplay: nil,
         footballTrailingText: nil,
@@ -52,6 +54,7 @@ struct MenuBarPresentationState {
             segmentBackgroundColors: [.clear],
             segmentBackgroundProgresses: [0],
             segmentParticipationStatuses: [nil],
+            segmentTextureStatuses: [nil],
             segmentAccessorySymbolNames: [[]],
             footballDisplay: nil,
             footballTrailingText: nil,

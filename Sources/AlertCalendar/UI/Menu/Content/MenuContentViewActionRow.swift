@@ -102,9 +102,14 @@ extension MenuContentView {
         let detailTextColor: Color = .secondary
         let tertiaryTextColor: Color = .secondary.opacity(0.85)
         let participationTextOpacity = item.eventParticipationStatus?.appleCalendarTextAlpha ?? 1
-        let titleFont = Font.system(size: 12, weight: .semibold)
-        let detailFont = Font.system(size: 11, weight: .medium)
-        let detailIconFont = Font.system(size: 12, weight: .regular)
+        let activeTextureStatus = monitor.activeParticipationTextureStatus(
+            for: item,
+            now: now,
+            settings: settings
+        )
+        let titleFont = MenuMarkerMetrics.rowTitleFont
+        let detailFont = MenuMarkerMetrics.rowDetailFont
+        let detailIconFont = Font.system(size: MenuMarkerMetrics.symbolSize, weight: .regular)
         let accessorySymbolNames = Self.dropdownAccessorySymbolNames(
             monitor.menuBarAccessorySymbolNames(for: item),
             isHovered: isHovered
@@ -130,8 +135,8 @@ extension MenuContentView {
         let textBlock = HStack(alignment: .top, spacing: 8) {
             if let markerSymbol = markerSymbolName(for: item) {
                 Image(systemName: markerSymbol)
-                    .font(.system(size: 12, weight: .regular))
-                    .frame(width: 12, height: 12)
+                    .font(.system(size: MenuMarkerMetrics.symbolSize, weight: .regular))
+                    .frame(width: MenuMarkerMetrics.symbolSize, height: MenuMarkerMetrics.symbolSize)
                     .foregroundStyle(accentColor)
                     .padding(.top, markerTopPadding(for: item))
             } else if let image = markerImage(for: item, isReminderFilled: isHovered) {
@@ -167,7 +172,11 @@ extension MenuContentView {
                                 HStack(alignment: .center, spacing: 4) {
                                     Image(systemName: "car.fill")
                                         .font(detailIconFont)
-                                        .frame(width: 12, height: 12, alignment: .center)
+                                        .frame(
+                                            width: MenuMarkerMetrics.symbolSize,
+                                            height: MenuMarkerMetrics.symbolSize,
+                                            alignment: .center
+                                        )
                                         .foregroundStyle(accentColor)
                                     Text("\(travelMinutes) min travel time")
                                         .font(detailFont)
@@ -190,7 +199,11 @@ extension MenuContentView {
                                     HStack(alignment: .center, spacing: 4) {
                                         Image(systemName: locationSymbolName(for: item))
                                             .font(detailIconFont)
-                                            .frame(width: 12, height: 12, alignment: .center)
+                                            .frame(
+                                                width: MenuMarkerMetrics.symbolSize,
+                                                height: MenuMarkerMetrics.symbolSize,
+                                                alignment: .center
+                                            )
                                             .foregroundStyle(accentColor)
                                         Text(locationName)
                                             .font(detailFont)
@@ -205,7 +218,11 @@ extension MenuContentView {
                                 HStack(alignment: .center, spacing: 4) {
                                     Image(systemName: "video")
                                         .font(detailIconFont)
-                                        .frame(width: 12, height: 12, alignment: .center)
+                                        .frame(
+                                            width: MenuMarkerMetrics.symbolSize,
+                                            height: MenuMarkerMetrics.symbolSize,
+                                            alignment: .center
+                                        )
                                         .foregroundStyle(accentColor)
                                     Text(meetingServiceName(for: meetingURL))
                                         .font(detailFont)
@@ -268,7 +285,11 @@ extension MenuContentView {
                                     HStack(alignment: .center, spacing: 4) {
                                         Image(systemName: locationSymbolName(for: item))
                                             .font(detailIconFont)
-                                            .frame(width: 12, height: 12, alignment: .center)
+                                            .frame(
+                                                width: MenuMarkerMetrics.symbolSize,
+                                                height: MenuMarkerMetrics.symbolSize,
+                                                alignment: .center
+                                            )
                                             .foregroundStyle(accentColor)
                                         Text(locationName)
                                             .font(detailFont)
@@ -283,7 +304,11 @@ extension MenuContentView {
                                 HStack(alignment: .center, spacing: 4) {
                                     Image(systemName: "video")
                                         .font(detailIconFont)
-                                        .frame(width: 12, height: 12, alignment: .center)
+                                        .frame(
+                                            width: MenuMarkerMetrics.symbolSize,
+                                            height: MenuMarkerMetrics.symbolSize,
+                                            alignment: .center
+                                        )
                                         .foregroundStyle(accentColor)
                                     Text(meetingServiceName(for: meetingURL))
                                         .font(detailFont)
@@ -326,7 +351,11 @@ extension MenuContentView {
                             HStack(alignment: .center, spacing: 4) {
                                 Image(systemName: "clock")
                                     .font(detailIconFont)
-                                    .frame(width: 12, height: 12, alignment: .center)
+                                    .frame(
+                                        width: MenuMarkerMetrics.symbolSize,
+                                        height: MenuMarkerMetrics.symbolSize,
+                                        alignment: .center
+                                    )
                                     .foregroundStyle(accentColor)
                                 Text(detailTime)
                                     .font(detailFont)
@@ -353,11 +382,11 @@ extension MenuContentView {
                 RoundedRectangle(cornerRadius: 7)
                     .fill(
                         Color(nsColor: visual.color)
-                            .opacity(item.eventParticipationStatus?.usesTexturedFill == true ? 0.55 : 0.08)
+                            .opacity(activeTextureStatus != nil ? 0.55 : 0.08)
                     )
 
-                if item.eventParticipationStatus?.usesTexturedFill == true {
-                    CalendarParticipationTexture(status: item.eventParticipationStatus)
+                if activeTextureStatus != nil {
+                    CalendarParticipationTexture(status: activeTextureStatus)
                         .clipShape(RoundedRectangle(cornerRadius: 7))
                 }
             }
@@ -369,8 +398,8 @@ extension MenuContentView {
                         RoundedRectangle(cornerRadius: 7)
                             .fill(Color(nsColor: item.calendarColor.nsColor).opacity(0.22))
 
-                        if item.eventParticipationStatus?.usesTexturedFill == true {
-                            CalendarParticipationTexture(status: item.eventParticipationStatus)
+                        if activeTextureStatus != nil {
+                            CalendarParticipationTexture(status: activeTextureStatus)
                                 .clipShape(RoundedRectangle(cornerRadius: 7))
                         }
                     }
@@ -407,7 +436,11 @@ extension MenuContentView {
                     ForEach(symbolNames, id: \.self) { symbolName in
                         Image(systemName: symbolName)
                             .font(iconFont)
-                            .frame(width: 12, height: 12, alignment: .center)
+                            .frame(
+                                width: MenuMarkerMetrics.symbolSize,
+                                height: MenuMarkerMetrics.symbolSize,
+                                alignment: .center
+                            )
                             .foregroundStyle(iconColor)
                             .accessibilityHidden(true)
                     }

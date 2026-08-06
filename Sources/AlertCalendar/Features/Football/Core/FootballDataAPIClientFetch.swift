@@ -1,7 +1,10 @@
 import Foundation
 
 extension FootballDataAPIClient {
-    func fetchMatchesForCompetition(_ competition: FootballCompetitionPreset) async throws -> [FootballFixtureMatch] {
+    func fetchMatchesForCompetition(
+        _ competition: FootballCompetitionPreset,
+        forceRefresh: Bool = false
+    ) async throws -> [FootballFixtureMatch] {
         let calendar = Calendar(identifier: .gregorian)
         let now = AlertCalendarClock.nowRoundedToSecond()
         let dayStart = calendar.startOfDay(for: now)
@@ -15,7 +18,8 @@ extension FootballDataAPIClient {
                 start: start,
                 end: end,
                 calendar: calendar
-            )
+            ),
+            forceRefresh: forceRefresh
         )
 
         var seen = Set<String>()
@@ -28,7 +32,8 @@ extension FootballDataAPIClient {
 
     func fetchMatchesForCompetitionPage(
         _ competition: FootballCompetitionPreset,
-        dateRange: (Date, Date)?
+        dateRange: (Date, Date)?,
+        forceRefresh: Bool = false
     ) async throws -> [FootballFixtureMatch] {
         guard let url = Self.scoreboardURL(
             slug: competition.slug,
@@ -41,7 +46,8 @@ extension FootballDataAPIClient {
             url: url,
             slug: competition.slug,
             competitionName: competition.title,
-            competitionCategory: competition.category
+            competitionCategory: competition.category,
+            forceRefresh: forceRefresh
         )
     }
 

@@ -9,17 +9,17 @@ let package = Package(
         .macOS(.v13),
     ],
     targets: [
-        // Targets are the basic building blocks of a package, defining a module or a test suite.
-        // Targets can depend on other targets in this package and products from dependencies.
         .executableTarget(
             name: "AlertCalendar",
+            path: "Sources/AlertCalendar",
             resources: [
                 .process("Resources/Images"),
             ]
         ),
         .testTarget(
             name: "AlertCalendarTests",
-            dependencies: ["AlertCalendar"]
+            dependencies: ["AlertCalendar"],
+            path: "Tests/AlertCalendarTests"
         ),
     ]
 )

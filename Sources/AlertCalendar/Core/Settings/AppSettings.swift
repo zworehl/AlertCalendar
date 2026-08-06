@@ -17,6 +17,7 @@ struct AppSettings: Equatable {
     var selectedReminderCalendarIDs: Set<String>
     var weekdayOnlyEventCalendarIDs: Set<String>
     var weekdayOnlyReminderCalendarIDs: Set<String>
+    var calendarAlertRules: [CalendarAlertRule]
     var nonWorkingDateKeys: Set<String>
     var lookAheadHours: Int
     var contextualPreviewLeadMinutes: Int
@@ -45,6 +46,8 @@ struct AppSettings: Equatable {
     var gameSaleCalendarAlertOption: GameSaleCalendarAlertOption
     var gameSaleAutoAddStores: Set<GameStore>
     var enableGameSaleAutoAddNotifications: Bool
+    var googleHolidayCountryIDs: Set<String>
+    var googleHolidayTargetCalendarID: String
     var slackConnections: [SlackConnection]
     var slackStatusSyncRules: [SlackStatusSyncRule]
     var slackMeetingStatusText: String
@@ -92,6 +95,7 @@ struct AppSettings: Equatable {
         selectedReminderCalendarIDs: [],
         weekdayOnlyEventCalendarIDs: [],
         weekdayOnlyReminderCalendarIDs: [],
+        calendarAlertRules: [],
         nonWorkingDateKeys: [],
         lookAheadHours: 24,
         contextualPreviewLeadMinutes: 120,
@@ -120,6 +124,8 @@ struct AppSettings: Equatable {
         gameSaleCalendarAlertOption: .fifteenMinutesBefore,
         gameSaleAutoAddStores: [],
         enableGameSaleAutoAddNotifications: true,
+        googleHolidayCountryIDs: [],
+        googleHolidayTargetCalendarID: "",
         slackConnections: [],
         slackStatusSyncRules: [],
         slackMeetingStatusText: SlackMeetingStatus.defaultText,

@@ -166,6 +166,23 @@ final class FootballVenueFormattingTests: XCTestCase {
         XCTAssertNil(value)
     }
 
+    func testVenueLocationTextPreservesIdentifiedVenueWhenESPNRepeatsNameAsCity() {
+        let json: [String: Any] = [
+            "venue": [
+                "id": "6194",
+                "fullName": "Estadio Nacional de Fútbol",
+                "address": [
+                    "city": "Estadio Nacional de Fútbol",
+                    "country": "Nicaragua",
+                ],
+            ],
+        ]
+
+        let value = FootballDataAPIClient.venueLocationText(from: json)
+
+        XCTAssertEqual(value, "Estadio Nacional de Fútbol, Nicaragua")
+    }
+
     func testVenueLocationTextReturnsNilWhenVenueIsStillTBD() {
         let json: [String: Any] = [
             "venue": [

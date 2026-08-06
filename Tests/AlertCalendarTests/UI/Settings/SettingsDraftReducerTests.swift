@@ -86,6 +86,22 @@ final class SettingsDraftReducerTests: XCTestCase {
         XCTAssertEqual(settings.meetingBrowserRouting.rules.first?.calendarIDs, Set(["cal-a"]))
     }
 
+    func testAppliedSettingsKeepsAlertRulesOnlyForKnownCalendars() {
+        var draft = SettingsDraft(settings: .defaults)
+        draft.calendarAlertRules = [
+            CalendarAlertRule(calendarID: "cal-a", overwriteExistingAlerts: true),
+            CalendarAlertRule(calendarID: "missing"),
+        ]
+
+        let settings = draft.applied(
+            to: .defaults,
+            availableEventCalendarIDs: ["cal-a"]
+        )
+
+        XCTAssertEqual(settings.calendarAlertRules.map(\.calendarID), ["cal-a"])
+        XCTAssertTrue(settings.calendarAlertRules.first?.overwriteExistingAlerts == true)
+    }
+
     func testAppliedSettingsIncludesFootballAndGameSaleDraftChanges() {
         var draft = SettingsDraft(settings: .defaults)
         draft.footballTargetCalendarID = "football-calendar"

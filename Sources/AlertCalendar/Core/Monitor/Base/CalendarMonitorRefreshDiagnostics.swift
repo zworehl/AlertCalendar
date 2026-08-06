@@ -60,6 +60,10 @@ enum CalendarMonitorRefreshReason: String, CaseIterable, Hashable {
             return false
         }
     }
+
+    var forcesExternalFeedRefresh: Bool {
+        self == .manual
+    }
 }
 
 struct CalendarMonitorRefreshDiagnostics: Equatable {

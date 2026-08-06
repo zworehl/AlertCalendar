@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import EventKit
 import Foundation
 
 extension CalendarMonitor {
@@ -31,6 +32,7 @@ extension CalendarMonitor {
             }
 
         eventStoreObserver = NotificationCenter.default.publisher(for: .EKEventStoreChanged)
+            .debounce(for: .milliseconds(350), scheduler: RunLoop.main)
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 guard let self else { return }
@@ -139,7 +141,17 @@ extension CalendarMonitor {
     }
 
     func requestEventsAccess() async -> Bool {
-        await withCheckedContinuation { continuation in
+        let status = EKEventStore.authorizationStatus(for: .event)
+        if Self.hasFullEventKitAccess(status) {
+            return true
+        }
+        guard status == .notDetermined || Self.hasWriteOnlyEventKitAccess(status) else {
+            return false
+        }
+        CalendarMonitorLog.refresh.info(
+            "Requesting Calendar access from status \(status.rawValue, privacy: .public)"
+        )
+        return await withCheckedContinuation { continuation in
             if #available(macOS 14.0, *) {
                 eventStore.requestFullAccessToEvents { granted, _ in
                     continuation.resume(returning: granted)
@@ -153,7 +165,17 @@ extension CalendarMonitor {
     }
 
     func requestRemindersAccess() async -> Bool {
-        await withCheckedContinuation { continuation in
+        let status = EKEventStore.authorizationStatus(for: .reminder)
+        if Self.hasFullEventKitAccess(status) {
+            return true
+        }
+        guard status == .notDetermined else {
+            return false
+        }
+        CalendarMonitorLog.refresh.info(
+            "Requesting Reminders access from status \(status.rawValue, privacy: .public)"
+        )
+        return await withCheckedContinuation { continuation in
             if #available(macOS 14.0, *) {
                 eventStore.requestFullAccessToReminders { granted, _ in
                     continuation.resume(returning: granted)
@@ -164,6 +186,23 @@ extension CalendarMonitor {
                 }
             }
         }
+    }
+
+    nonisolated static func hasFullEventKitAccess(_ status: EKAuthorizationStatus) -> Bool {
+        if status == .authorized {
+            return true
+        }
+        if #available(macOS 14.0, *) {
+            return status == .fullAccess
+        }
+        return false
+    }
+
+    nonisolated static func hasWriteOnlyEventKitAccess(_ status: EKAuthorizationStatus) -> Bool {
+        if #available(macOS 14.0, *) {
+            return status == .writeOnly
+        }
+        return false
     }
 
     func updateAccessDescription() {

@@ -2,13 +2,46 @@ import EventKit
 import Foundation
 
 extension CalendarMonitor {
-    func refreshGameSales(forceRefresh: Bool = false) async {
+    nonisolated static func shouldRefreshGameSales(
+        lastAttemptDate: Date?,
+        lastAttemptFailed: Bool = false,
+        now: Date,
+        forceRefresh: Bool
+    ) -> Bool {
+        forceRefresh || CalendarMonitorTime.hasElapsed(
+            since: lastAttemptDate,
+            now: now,
+            interval: lastAttemptFailed
+                ? GameSalesFeedClient.failedRefreshRetryInterval
+                : GameSalesFeedClient.monitorEvaluationInterval
+        )
+    }
+
+    func refreshGameSales(
+        forceRefresh: Bool = false,
+        refreshCalendarState: Bool = false
+    ) async {
         guard !isRefreshingGameSales else { return }
+
+        let now = fixedSecondNow()
+        guard Self.shouldRefreshGameSales(
+            lastAttemptDate: lastGameSalesRefreshAttemptDate,
+            lastAttemptFailed: lastGameSalesRefreshAttemptFailed,
+            now: now,
+            forceRefresh: forceRefresh
+        ) else {
+            if refreshCalendarState {
+                refreshGameSaleTrackingSnapshot(now: now)
+            }
+            return
+        }
+
+        lastGameSalesRefreshAttemptDate = now
         isRefreshingGameSales = true
         defer { isRefreshingGameSales = false }
 
-        let now = fixedSecondNow()
-        cleanupEndedGameSales(now: now)
+        let calendarSnapshots = gameSaleCalendarSnapshots(now: now)
+        cleanupEndedGameSales(now: now, calendarSnapshots: calendarSnapshots)
 
         do {
             let fetched = try await gameSalesClient.fetchScheduledSales(
@@ -17,14 +50,16 @@ extension CalendarMonitor {
             )
             fetchedGameSales = fetched
             gameSalesErrorDescription = nil
+            lastGameSalesRefreshAttemptFailed = false
+            markGameSalesRefreshed(at: now)
         } catch {
             gameSalesErrorDescription = error.localizedDescription
+            lastGameSalesRefreshAttemptFailed = true
         }
 
         reconcileManagedGameSalesWithFetchedSchedule()
-        refreshGameSaleTrackingSnapshot(now: now)
-        await autoAddGameSalesIfNeeded(now: now)
-        refreshGameSaleTrackingSnapshot(now: now)
+        refreshGameSaleTrackingSnapshot(now: now, calendarSnapshots: calendarSnapshots)
+        await autoAddGameSalesIfNeeded(now: now, existingSnapshots: calendarSnapshots)
     }
 
     func reconcileManagedGameSalesWithFetchedSchedule() {
@@ -39,30 +74,40 @@ extension CalendarMonitor {
                 nextRecords.append(record)
                 continue
             }
-            let desiredSale = fetchedByID[record.saleID] ?? record.sale
+            let desiredSale = fetchedByID[record.saleID]
+                ?? fetchedGameSales.first(where: {
+                    Self.gameSalesCalendarAssociationMatches($0, record.sale)
+                })
+                ?? record.sale
             let desiredCalendar = targetCalendar ?? currentCalendar
-            let needsUpdate = desiredSale != record.sale
+            let currentSnapshot = gameSaleSnapshot(for: event)
+            let eventMatchesSchedule = currentSnapshot.map {
+                Self.gameSalesSemanticallyMatch($0.sale, desiredSale)
+                    && $0.sale.title == desiredSale.title
+                    && $0.sale.officialURL == desiredSale.officialURL
+            } ?? false
+            let needsUpdate = !eventMatchesSchedule
                 || desiredCalendar.calendarIdentifier != currentCalendar.calendarIdentifier
-            guard needsUpdate else {
-                nextRecords.append(record)
-                continue
+
+            if needsUpdate {
+                applyGameSale(desiredSale, to: event, calendar: desiredCalendar)
+                do {
+                    try eventStore.save(event, span: .thisEvent, commit: false)
+                    needsCommit = true
+                } catch {
+                    nextRecords.append(record)
+                    continue
+                }
             }
 
-            applyGameSale(desiredSale, to: event, calendar: desiredCalendar)
-            do {
-                try eventStore.save(event, span: .thisEvent, commit: false)
-                nextRecords.append(
-                    ManagedGameSaleEventRecord(
-                        sale: desiredSale,
-                        calendarIdentifier: desiredCalendar.calendarIdentifier,
-                        eventIdentifier: event.eventIdentifier,
-                        eventUID: normalizedEventUID(for: event)
-                    )
+            nextRecords.append(
+                ManagedGameSaleEventRecord(
+                    sale: desiredSale,
+                    calendarIdentifier: desiredCalendar.calendarIdentifier,
+                    eventIdentifier: event.eventIdentifier,
+                    eventUID: normalizedEventUID(for: event)
                 )
-                needsCommit = true
-            } catch {
-                nextRecords.append(record)
-            }
+            )
         }
 
         if needsCommit {
@@ -75,13 +120,16 @@ extension CalendarMonitor {
         persistManagedGameSaleEventRecords(nextRecords)
     }
 
-    func cleanupEndedGameSales(now: Date) {
+    func cleanupEndedGameSales(
+        now: Date,
+        calendarSnapshots: [GameSaleCalendarSnapshot]? = nil
+    ) {
         guard hasEventsAccess else { return }
         let removeExternal = defaults.bool(forKey: DefaultsKeys.removeEndedGameSalesAutomatically)
             && resolvedGameSaleTargetCalendar().map {
                 Self.isDedicatedGameSalesCalendarTitle($0.title)
             } == true
-        let calendarSnapshots = gameSaleCalendarSnapshots(now: now)
+        let calendarSnapshots = calendarSnapshots ?? gameSaleCalendarSnapshots(now: now)
         var eventIdentifiersToRemove: Set<String> = []
         var recordsToKeep: [ManagedGameSaleEventRecord] = []
         var needsCommit = false
@@ -152,12 +200,15 @@ extension CalendarMonitor {
         }
     }
 
-    func autoAddGameSalesIfNeeded(now: Date) async {
+    func autoAddGameSalesIfNeeded(
+        now: Date,
+        existingSnapshots: [GameSaleCalendarSnapshot]? = nil
+    ) async {
         guard hasEventsAccess, resolvedGameSaleTargetCalendar() != nil else { return }
         let enabledStores = gameSaleAutoAddStores()
         guard !enabledStores.isEmpty else { return }
         let dismissedIDs = dismissedGameSaleIDs()
-        let existingSnapshots = gameSaleCalendarSnapshots(now: now)
+        let existingSnapshots = existingSnapshots ?? gameSaleCalendarSnapshots(now: now)
         var addedSales: [GameSaleEvent] = []
 
         for sale in fetchedGameSales where sale.endDateExclusive > now {
@@ -167,11 +218,9 @@ extension CalendarMonitor {
             }
 
             if let existingSnapshot = existingSnapshots.first(where: {
-                Self.gameSalesSemanticallyMatch($0.sale, sale)
+                Self.gameSalesCalendarAssociationMatches($0.sale, sale)
             }) {
-                if managedGameSaleRecord(for: sale) == nil {
-                    upsertManagedGameSaleEventRecord(for: existingSnapshot.event, sale: sale)
-                }
+                upsertManagedGameSaleEventRecord(for: existingSnapshot.event, sale: sale)
                 continue
             }
             guard !isGameSalePresent(sale) else { continue }

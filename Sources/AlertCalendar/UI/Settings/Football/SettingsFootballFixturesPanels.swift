@@ -40,7 +40,7 @@ extension SettingsFootballFixturesSectionView {
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        .padding(14)
+        .padding(SettingsVisualMetrics.panelPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(panelChrome)
     }
@@ -108,7 +108,7 @@ extension SettingsFootballFixturesSectionView {
                 )
             }
         }
-        .padding(14)
+        .padding(SettingsVisualMetrics.panelPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(panelChrome)
     }
@@ -150,12 +150,7 @@ extension SettingsFootballFixturesSectionView {
     }
 
     var panelChrome: some View {
-        RoundedRectangle(cornerRadius: 8, style: .continuous)
-            .fill(Color.clear)
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-            )
+        SettingsPanelChrome(fill: .clear)
     }
 
     @ViewBuilder
@@ -268,7 +263,7 @@ extension SettingsFootballFixturesSectionView {
                         competitionInlineLabel(match)
                     }
                 }
-                .font(.system(size: 11, weight: .medium))
+                .font(SettingsTypography.itemDetail)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -276,7 +271,7 @@ extension SettingsFootballFixturesSectionView {
             if let warningSummary,
                let warningText {
                 Text(warningSummary)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(SettingsTypography.itemDetail)
                     .foregroundStyle(.orange)
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -316,7 +311,7 @@ extension SettingsFootballFixturesSectionView {
 
     func matchMetadataRow(_ value: String) -> some View {
         Text(value)
-            .font(.system(size: 11, weight: .medium))
+            .font(SettingsTypography.itemDetail)
             .foregroundStyle(.secondary)
             .lineLimit(1)
             .truncationMode(.tail)
@@ -334,7 +329,7 @@ extension SettingsFootballFixturesSectionView {
                 .lineLimit(1)
                 .truncationMode(.tail)
         }
-        .font(.system(size: 11, weight: .medium))
+        .font(SettingsTypography.itemDetail)
         .foregroundStyle(.secondary)
         .frame(maxWidth: .infinity, alignment: .leading)
     }

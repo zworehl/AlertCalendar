@@ -45,12 +45,16 @@ actor FootballDataAPIClient {
 
     func fetchMatches(
         for competitions: [FootballCompetitionPreset],
-        enrichTeams shouldEnrichTeams: Bool = true
+        enrichTeams shouldEnrichTeams: Bool = true,
+        forceRefresh: Bool = false
     ) async throws -> [FootballFixtureMatch] {
         let chunks = try await withThrowingTaskGroup(of: [FootballFixtureMatch].self) { group in
             for competition in competitions {
                 group.addTask {
-                    try await self.fetchMatchesForCompetition(competition)
+                    try await self.fetchMatchesForCompetition(
+                        competition,
+                        forceRefresh: forceRefresh
+                    )
                 }
             }
 
@@ -77,11 +81,13 @@ actor FootballDataAPIClient {
 
     func fetchMatchesByCompetition(
         for competitions: [FootballCompetitionPreset],
-        enrichTeams shouldEnrichTeams: Bool = true
+        enrichTeams shouldEnrichTeams: Bool = true,
+        forceRefresh: Bool = false
     ) async throws -> [String: [FootballFixtureMatch]] {
         let matches = try await fetchMatches(
             for: competitions,
-            enrichTeams: shouldEnrichTeams
+            enrichTeams: shouldEnrichTeams,
+            forceRefresh: forceRefresh
         )
         return Dictionary(grouping: matches, by: \.competitionSlug)
     }
@@ -90,18 +96,22 @@ actor FootballDataAPIClient {
         url: URL,
         slug: String,
         competitionName: String,
-        competitionCategory: FootballCompetitionCategory? = nil
+        competitionCategory: FootballCompetitionCategory? = nil,
+        forceRefresh: Bool = false
     ) async throws -> [FootballFixtureMatch] {
         let cacheKey = url.absoluteString
         let now = AlertCalendarClock.nowRoundedToSecond()
 
-        if let cached = scoreboardPageCache[cacheKey],
-           now.timeIntervalSince(cached.fetchedAt) <= Self.scoreboardPageCacheTTL {
+        if !forceRefresh,
+           let cached = scoreboardPageCache[cacheKey],
+           now.timeIntervalSince(cached.fetchedAt) <= Self.scoreboardPageCacheTTL(for: url, now: now) {
             await ExternalFeedMetrics.shared.recordCacheHit(source: "football.scoreboard.\(slug)")
             return cached.matches
         }
 
-        if let failure = scoreboardPageFailures[cacheKey], now < failure.nextRetryAt {
+        if !forceRefresh,
+           let failure = scoreboardPageFailures[cacheKey],
+           now < failure.nextRetryAt {
             if let cached = scoreboardPageCache[cacheKey] {
                 await ExternalFeedMetrics.shared.recordCacheHit(source: "football.scoreboard.\(slug).stale")
                 return cached.matches

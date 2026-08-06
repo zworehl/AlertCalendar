@@ -584,6 +584,16 @@ final class FootballFixtureDurationAndContextTests: FootballFixtureFormatterTest
             startDate: now.addingTimeInterval(10 * 60),
             statusState: .scheduled
         )
+        let approachingKickoff = makeMatch(
+            id: "approaching-refresh",
+            startDate: now.addingTimeInterval(40 * 60),
+            statusState: .scheduled
+        )
+        let overdueKickoff = makeMatch(
+            id: "overdue-refresh",
+            startDate: now.addingTimeInterval(-20 * 60),
+            statusState: .scheduled
+        )
         let upcoming = makeMatch(
             id: "upcoming-refresh",
             startDate: now.addingTimeInterval(3 * 60 * 60),
@@ -593,6 +603,18 @@ final class FootballFixtureDurationAndContextTests: FootballFixtureFormatterTest
             id: "distant-refresh",
             startDate: now.addingTimeInterval(3 * 24 * 60 * 60),
             statusState: .scheduled
+        )
+        let recentlyFinished = makeMatch(
+            id: "recently-finished-refresh",
+            startDate: now.addingTimeInterval(-2 * 60 * 60),
+            actualEndDate: now.addingTimeInterval(-5 * 60),
+            statusState: .finished
+        )
+        let settledFinished = makeMatch(
+            id: "settled-finished-refresh",
+            startDate: now.addingTimeInterval(-2 * 60 * 60),
+            actualEndDate: now.addingTimeInterval(-11 * 60),
+            statusState: .finished
         )
 
         XCTAssertEqual(
@@ -604,12 +626,28 @@ final class FootballFixtureDurationAndContextTests: FootballFixtureFormatterTest
             CalendarMonitor.footballManagedSyncInterval
         )
         XCTAssertEqual(
+            CalendarMonitor.footballRefreshInterval(for: [approachingKickoff], now: now),
+            CalendarMonitor.footballApproachingRefreshInterval
+        )
+        XCTAssertEqual(
+            CalendarMonitor.footballRefreshInterval(for: [overdueKickoff], now: now),
+            CalendarMonitor.footballApproachingRefreshInterval
+        )
+        XCTAssertEqual(
             CalendarMonitor.footballRefreshInterval(for: [upcoming], now: now),
             CalendarMonitor.footballUpcomingRefreshInterval
         )
         XCTAssertEqual(
             CalendarMonitor.footballRefreshInterval(for: [distant], now: now),
             CalendarMonitor.footballIdleRefreshInterval
+        )
+        XCTAssertEqual(
+            CalendarMonitor.footballRefreshInterval(for: [recentlyFinished], now: now),
+            CalendarMonitor.footballManagedSyncInterval
+        )
+        XCTAssertEqual(
+            CalendarMonitor.footballRefreshInterval(for: [settledFinished], now: now),
+            CalendarMonitor.footballSettledRefreshInterval
         )
         XCTAssertEqual(
             CalendarMonitor.footballManagedRefreshInterval(

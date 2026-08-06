@@ -15,7 +15,7 @@ while IFS= read -r path; do
     duplicate_paths+=("$path")
   fi
   shopt -u nocasematch
-done < <(find Sources Tests -type f -name '*.swift' -print)
+done < <(rg --files Sources Tests -g '*.swift')
 
 if (( ${#duplicate_paths[@]} > 0 )); then
   echo "Duplicate Swift source copies found:" >&2

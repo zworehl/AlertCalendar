@@ -4,7 +4,8 @@ extension FootballDataAPIClient {
     static let requestTimeout: TimeInterval = 8
     static let resourceTimeout: TimeInterval = 20
     static let scoreboardDateRangeChunkDays = 14
-    static let scoreboardPageCacheTTL: TimeInterval = 15 * 60
+    static let scoreboardCurrentDayCacheTTL: TimeInterval = 5 * 60
+    static let scoreboardDistantCacheTTL: TimeInterval = 60 * 60
     static let scoreboardPageCacheLimit = 320
     static let teamCacheTTL: TimeInterval = 30 * 24 * 60 * 60
     static let summaryRootCacheTTL: TimeInterval = 15
@@ -13,12 +14,39 @@ extension FootballDataAPIClient {
     static let summaryPreBufferAfterKickoff: TimeInterval = 3 * 60 * 60
     static let delayedLiveDataWarningAfterKickoff: TimeInterval = 15 * 60
 
+    static func scoreboardPageCacheTTL(for url: URL, now: Date = Date()) -> TimeInterval {
+        guard let dates = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?
+            .first(where: { $0.name == "dates" })?
+            .value else {
+            return scoreboardCurrentDayCacheTTL
+        }
+
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .autoupdatingCurrent
+        formatter.dateFormat = "yyyyMMdd"
+        let today = formatter.string(from: now)
+        let bounds = dates.split(separator: "-", maxSplits: 1).map(String.init)
+        guard bounds.count == 2,
+              let start = bounds.first,
+              let end = bounds.last else {
+            return scoreboardCurrentDayCacheTTL
+        }
+
+        return start <= today && today <= end
+            ? scoreboardCurrentDayCacheTTL
+            : scoreboardDistantCacheTTL
+    }
+
     static let clubCountryByLeaguePrefix: [String: String] = [
         "arg": "Argentina",
         "aut": "Austria",
         "bel": "Belgium",
         "bra": "Brazil",
         "col": "Colombia",
+        "crc": "Costa Rica",
         "cze": "Czech Republic",
         "den": "Denmark",
         "eng": "England",

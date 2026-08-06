@@ -8,6 +8,7 @@ BUNDLE_IDENTIFIER="com.zworehl.alertcalendar"
 APP_DIR="${APP_DIR:-/Applications}"
 OPEN_AFTER_INSTALL="${OPEN_AFTER_INSTALL:-1}"
 ICON_SOURCE="$ROOT/Sources/AlertCalendar/Resources/Images/icon.png"
+ENTITLEMENTS_PATH="$ROOT/AlertCalendar.entitlements"
 USER_APP_DIR="$HOME/Applications"
 BUILD_CONFIGURATION="${BUILD_CONFIGURATION:-Release}"
 BUILD_ARCH="${BUILD_ARCH:-$(uname -m)}"
@@ -16,6 +17,7 @@ DERIVED_DATA="${DERIVED_DATA:-$ROOT/.build/install-derived-data}"
 PRODUCTS_DIR="$DERIVED_DATA/Build/Products/$BUILD_CONFIGURATION"
 RESOURCE_BUNDLE_NAME="${APP_NAME}_${BINARY_NAME}.bundle"
 RESOURCE_BUNDLE_SOURCE="$PRODUCTS_DIR/$RESOURCE_BUNDLE_NAME"
+CODE_SIGN_IDENTITY="${CODE_SIGN_IDENTITY:-}"
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   echo "This installer supports macOS only."
@@ -37,6 +39,19 @@ APP_BUNDLE="$APP_DIR/${APP_NAME}.app"
 
 check_duplicate_source_copies() {
   "$ROOT/scripts/check_duplicate_sources.sh"
+}
+
+resolve_code_sign_identity() {
+  if [[ -n "$CODE_SIGN_IDENTITY" && "$CODE_SIGN_IDENTITY" != "-" ]]; then
+    printf '%s\n' "$CODE_SIGN_IDENTITY"
+    return
+  fi
+
+  security find-identity -v -p codesigning 2>/dev/null \
+    | awk 'match($0, /"Apple Development:[^"]+"/) && !found {
+        print substr($0, RSTART + 1, RLENGTH - 2)
+        found = 1
+      }'
 }
 
 running_app_pids() {
@@ -157,6 +172,18 @@ remove_duplicate_installs() {
 
 check_duplicate_source_copies
 
+CODE_SIGN_IDENTITY="$(resolve_code_sign_identity)"
+if [[ -z "$CODE_SIGN_IDENTITY" ]]; then
+  echo "A stable Apple Development code-signing identity is required."
+  echo "Set CODE_SIGN_IDENTITY to a valid identity before installing."
+  exit 1
+fi
+
+if [[ ! -f "$ENTITLEMENTS_PATH" ]]; then
+  echo "Unable to locate signing entitlements: $ENTITLEMENTS_PATH"
+  exit 1
+fi
+
 echo "[1/4] Building ${APP_NAME} (${BUILD_CONFIGURATION})..."
 rm -rf "$DERIVED_DATA"
 xcodebuild \
@@ -228,13 +255,15 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
   <key>LSMultipleInstancesProhibited</key>
   <true/>
   <key>NSCalendarsUsageDescription</key>
-  <string>AlertCalendar needs Calendar access to show events and manage selected football fixtures and game-sale campaigns.</string>
+  <string>AlertCalendar needs Calendar access to show events, apply your per-calendar alert rules, and manage selected holidays, football fixtures, and game-sale campaigns.</string>
   <key>NSRemindersUsageDescription</key>
   <string>AlertCalendar needs Reminders access to show your pending reminders.</string>
   <key>NSCalendarsFullAccessUsageDescription</key>
-  <string>AlertCalendar needs full Calendar access to read events and manage selected football fixtures and game-sale campaigns.</string>
+  <string>AlertCalendar needs full Calendar access to read events, apply your per-calendar alert rules, and manage selected holidays, football fixtures, and game-sale campaigns.</string>
   <key>NSAppleEventsUsageDescription</key>
   <string>AlertCalendar uses Apple Events to reveal selected managed events in Calendar when you ask it to.</string>
+  <key>NSAppDataUsageDescription</key>
+  <string>AlertCalendar reads local browser profile names so calendar meeting links can open in the profile you choose.</string>
   <key>NSRemindersFullAccessUsageDescription</key>
   <string>AlertCalendar needs full Reminders access to show reminder due times.</string>
   <key>NSLocationWhenInUseUsageDescription</key>
@@ -251,7 +280,16 @@ PLIST
 
 echo "[3/4] Finalizing bundle..."
 xattr -cr "$APP_BUNDLE" || true
-codesign --force --deep --sign - "$APP_BUNDLE" >/dev/null 2>&1 || true
+echo "Signing with: $CODE_SIGN_IDENTITY"
+codesign \
+  --force \
+  --deep \
+  --options runtime \
+  --timestamp=none \
+  --entitlements "$ENTITLEMENTS_PATH" \
+  --sign "$CODE_SIGN_IDENTITY" \
+  "$APP_BUNDLE"
+codesign --verify --deep --strict "$APP_BUNDLE"
 
 echo "[4/4] Done."
 echo "Installed: $APP_BUNDLE"

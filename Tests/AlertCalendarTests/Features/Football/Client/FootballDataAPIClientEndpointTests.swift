@@ -35,6 +35,39 @@ final class FootballDataAPIClientEndpointTests: XCTestCase {
         XCTAssertEqual(components.queryItems, [URLQueryItem(name: "dates", value: "20260601-20260615")])
     }
 
+    func testScoreboardCacheTTLIsShortForTodayAndLongForDistantRanges() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .autoupdatingCurrent
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 6, day: 10, hour: 12)))
+        let todayURL = try XCTUnwrap(
+            FootballDataAPIClient.scoreboardURL(
+                slug: "fifa.world",
+                dateRange: (
+                    try XCTUnwrap(calendar.date(byAdding: .day, value: -1, to: now)),
+                    try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: now))
+                )
+            )
+        )
+        let distantURL = try XCTUnwrap(
+            FootballDataAPIClient.scoreboardURL(
+                slug: "fifa.world",
+                dateRange: (
+                    try XCTUnwrap(calendar.date(byAdding: .day, value: 10, to: now)),
+                    try XCTUnwrap(calendar.date(byAdding: .day, value: 20, to: now))
+                )
+            )
+        )
+
+        XCTAssertEqual(
+            FootballDataAPIClient.scoreboardPageCacheTTL(for: todayURL, now: now),
+            FootballDataAPIClient.scoreboardCurrentDayCacheTTL
+        )
+        XCTAssertEqual(
+            FootballDataAPIClient.scoreboardPageCacheTTL(for: distantURL, now: now),
+            FootballDataAPIClient.scoreboardDistantCacheTTL
+        )
+    }
+
     func testSummaryURLsIncludeCompetitionAndAllSportsFallback() throws {
         let match = FootballTestData.match(
             id: "summary-match",

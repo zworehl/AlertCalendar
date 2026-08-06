@@ -54,4 +54,72 @@ final class AppDelegateTests: XCTestCase {
         XCTAssertEqual(zoomButton.action, #selector(AppDelegate.toggleSettingsFullScreen(_:)))
         XCTAssertTrue((zoomButton.target as AnyObject?) === appDelegate)
     }
+
+    func testApplyingPendingSettingsRunsApplyClosureAndAllowsExit() {
+        let appDelegate = AppDelegate()
+        let closeGuard = SettingsWindowCloseGuard()
+        let window = settingsWindow()
+        var applyCount = 0
+
+        closeGuard.hasUnsavedChanges = true
+        closeGuard.applyChanges = {
+            applyCount += 1
+        }
+        appDelegate.configureSettingsWindow(window, closeGuard: closeGuard)
+
+        XCTAssertTrue(appDelegate.resolveUnsavedSettingsChanges(.apply))
+        XCTAssertEqual(applyCount, 1)
+        XCTAssertFalse(closeGuard.hasUnsavedChanges)
+    }
+
+    func testDiscardingPendingSettingsRunsDiscardClosureAndAllowsExit() {
+        let appDelegate = AppDelegate()
+        let closeGuard = SettingsWindowCloseGuard()
+        let window = settingsWindow()
+        var discardCount = 0
+
+        closeGuard.hasUnsavedChanges = true
+        closeGuard.discardChanges = {
+            discardCount += 1
+        }
+        appDelegate.configureSettingsWindow(window, closeGuard: closeGuard)
+
+        XCTAssertTrue(appDelegate.resolveUnsavedSettingsChanges(.discard))
+        XCTAssertEqual(discardCount, 1)
+        XCTAssertFalse(closeGuard.hasUnsavedChanges)
+    }
+
+    func testKeepingPendingSettingsOpenPreservesDirtyState() {
+        let appDelegate = AppDelegate()
+        let closeGuard = SettingsWindowCloseGuard()
+        let window = settingsWindow()
+
+        closeGuard.hasUnsavedChanges = true
+        appDelegate.configureSettingsWindow(window, closeGuard: closeGuard)
+
+        XCTAssertFalse(appDelegate.resolveUnsavedSettingsChanges(.keepEditing))
+        XCTAssertTrue(closeGuard.hasUnsavedChanges)
+    }
+
+    func testMissingPendingSettingsCallbackPreventsDataLoss() {
+        let appDelegate = AppDelegate()
+        let closeGuard = SettingsWindowCloseGuard()
+        let window = settingsWindow()
+
+        closeGuard.hasUnsavedChanges = true
+        appDelegate.configureSettingsWindow(window, closeGuard: closeGuard)
+
+        XCTAssertFalse(appDelegate.resolveUnsavedSettingsChanges(.apply))
+        XCTAssertFalse(appDelegate.resolveUnsavedSettingsChanges(.discard))
+        XCTAssertTrue(closeGuard.hasUnsavedChanges)
+    }
+
+    private func settingsWindow() -> NSWindow {
+        NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 900, height: 700),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+    }
 }

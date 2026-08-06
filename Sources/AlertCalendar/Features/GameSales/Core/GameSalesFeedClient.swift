@@ -20,7 +20,9 @@ actor GameSalesFeedClient {
 
     static let shared = GameSalesFeedClient()
     static let requestTimeout: TimeInterval = 15
-    static let cacheTTL: TimeInterval = 30 * 60
+    static let monitorEvaluationInterval: TimeInterval = 15 * 60
+    static let refreshInterval: TimeInterval = 6 * 60 * 60
+    static let failedRefreshRetryInterval: TimeInterval = monitorEvaluationInterval
     static let steamworksUpcomingEventsURL = URL(
         string: "https://partner.steamgames.com/doc/marketing/upcoming_events?l=english"
     )!
@@ -73,14 +75,7 @@ actor GameSalesFeedClient {
         }
 
         var cacheTTL: TimeInterval {
-            switch self {
-            case .steam:
-                return 24 * 60 * 60
-            case .xbox, .playStation:
-                return 2 * 60 * 60
-            case .nintendoSitemap:
-                return 6 * 60 * 60
-            }
+            GameSalesFeedClient.refreshInterval
         }
 
         var diagnosticsKey: String {
@@ -138,8 +133,8 @@ actor GameSalesFeedClient {
             if forceRefresh {
                 return true
             }
-            if let failure = sourceFailures[source.rawValue], now < failure.nextRetryAt {
-                return false
+            if let failure = sourceFailures[source.rawValue] {
+                return now >= failure.nextRetryAt
             }
             guard let cached = sourceCache[source.rawValue], now >= cached.fetchedAt else {
                 return true
@@ -389,7 +384,7 @@ actor GameSalesFeedClient {
 
     nonisolated private static func retryDelay(forFailureCount failureCount: Int) -> TimeInterval {
         let exponent = min(max(failureCount - 1, 0), 6)
-        return min(6 * 60 * 60, 5 * 60 * pow(2, Double(exponent)))
+        return min(6 * 60 * 60, 15 * 60 * pow(2, Double(exponent)))
     }
 
     nonisolated private static func normalizedSales(

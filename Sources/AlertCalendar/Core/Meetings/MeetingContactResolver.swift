@@ -21,7 +21,15 @@ actor MeetingContactResolver {
     ]
 
     func requestAccess() async -> Bool {
-        await withCheckedContinuation { continuation in
+        let status = CNContactStore.authorizationStatus(for: .contacts)
+        if status == .authorized {
+            return true
+        }
+        guard status == .notDetermined else {
+            return false
+        }
+
+        return await withCheckedContinuation { continuation in
             contactStore.requestAccess(for: .contacts) { granted, _ in
                 continuation.resume(returning: granted)
             }

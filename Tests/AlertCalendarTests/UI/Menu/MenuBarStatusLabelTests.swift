@@ -4,6 +4,10 @@ import XCTest
 
 @MainActor
 final class MenuBarStatusLabelTests: XCTestCase {
+    func testInitialLoadingIndicatorUsesACompactMenuBarSize() {
+        XCTAssertEqual(MenuBarLoadingIndicator.size, 16)
+    }
+
     func testFootballLogoIsAvailableImmediatelyFromLocalPath() throws {
         let image = NSImage(size: NSSize(width: 12, height: 8))
         image.lockFocus()

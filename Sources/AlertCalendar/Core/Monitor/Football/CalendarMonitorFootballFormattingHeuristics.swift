@@ -242,7 +242,7 @@ extension CalendarMonitor {
 
     nonisolated static func footballCanReachExtraTime(_ match: FootballFixtureMatch) -> Bool {
         switch match.competitionSlug {
-        case "eng.1", "esp.1", "bra.1", "ita.1", "ger.1", "fra.1", "por.1", "arg.1", "ned.1", "col.1", "mex.1", "usa.1", "fifa.friendly":
+        case "eng.1", "esp.1", "bra.1", "ita.1", "ger.1", "fra.1", "por.1", "arg.1", "ned.1", "col.1", "crc.1", "mex.1", "usa.1", "fifa.friendly":
             return false
         case "uefa.super_cup":
             return true

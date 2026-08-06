@@ -31,29 +31,58 @@ extension SettingsView {
         availableReminderCalendars.map(\.id)
     }
 
-    func synchronizeSettingsStateFromMonitor() {
+    var meetingBrowserProfilesByBrowser: [MeetingBrowserKind: [MeetingBrowserProfileOption]] {
+        meetingBrowserProfileCatalog.profilesByBrowser
+    }
+
+    var meetingBrowserProfileIssuesByBrowser: [MeetingBrowserKind: MeetingBrowserProfileLoadIssue] {
+        meetingBrowserProfileCatalog.issuesByBrowser
+    }
+
+    var meetingBrowserProfileIssues: [MeetingBrowserProfileLoadIssue] {
+        meetingBrowserProfileIssuesByBrowser.values.sorted {
+            $0.browser.title.localizedCaseInsensitiveCompare($1.browser.title) == .orderedAscending
+        }
+    }
+
+    func refreshMeetingBrowserProfiles() {
+        let installedBrowsers = MeetingBrowserCatalog.installedBrowsers()
+        installedMeetingBrowsers = installedBrowsers
+        meetingBrowserProfileCatalog = MeetingBrowserProfileStore.catalog(for: installedBrowsers)
+    }
+
+    func synchronizeSettingsStateFromMonitor(refreshBrowserProfiles: Bool = false) {
         hasEventsAccess = monitor.hasEventsAccess
         hasRemindersAccess = monitor.hasRemindersAccess
         availableEventCalendars = monitor.availableEventCalendars
         availableReminderCalendars = monitor.availableReminderCalendars
         calendarAccessDescription = monitor.calendarAccessDescription
+        calendarAlertRuleStatusDescription = monitor.calendarAlertRuleStatusDescription
         astronomyLocationStatus = monitor.astronomyLocationStatus
         eventAuthorizationStatus = SettingsPermissionKind.currentEventAuthorizationStatus()
         reminderAuthorizationStatus = SettingsPermissionKind.currentReminderAuthorizationStatus()
         locationAuthorizationStatus = SettingsPermissionKind.currentLocationAuthorizationStatus()
         contactsAuthorizationStatus = SettingsPermissionKind.currentContactsAuthorizationStatus()
         lastRefreshDate = monitor.lastRefreshDate
+        lastGameSalesRefreshDate = monitor.lastGameSalesRefreshDate
+        googleHolidayLastRefreshDate = monitor.googleHolidayLastRefreshDate
+        lastFootballRefreshDate = monitor.lastFootballRefreshDate
+        lastAstronomyLocationRefreshDate = monitor.lastAstronomyLocationRefreshDate
+        lastSlackStatusSyncDate = monitor.lastSlackStatusSyncDate
         refreshDiagnostics = monitor.refreshDiagnostics
         externalFeedDiagnostics = monitor.externalFeedDiagnostics
         slackConnections = monitor.slackConnections()
         slackConnectionStatusMessage = monitor.slackConnectionStatusMessage
         slackRuntimeStatusDescription = monitor.slackRuntimeStatusDescription
-        installedMeetingBrowsers = MeetingBrowserCatalog.installedBrowsers()
-        meetingBrowserProfilesByBrowser = MeetingBrowserProfileStore.profilesByBrowser(for: installedMeetingBrowsers)
+        if refreshBrowserProfiles {
+            refreshMeetingBrowserProfiles()
+        }
         syncSlackDraftSelectionIfNeeded()
     }
 
     func applyDraft() {
+        guard hasUnsavedChanges else { return }
+
         let previousSettings = monitor.currentSettings
         let oldAutoLocation = previousSettings.useAutomaticAstronomyLocation
         let settings = draft.applied(
@@ -66,6 +95,9 @@ extension SettingsView {
         let gameSaleConfigurationChanged = settings.gameSaleTargetCalendarID != previousSettings.gameSaleTargetCalendarID
             || settings.gameSaleAutoAddStores != previousSettings.gameSaleAutoAddStores
             || settings.gameSaleCalendarAlertOption != previousSettings.gameSaleCalendarAlertOption
+        let googleHolidayConfigurationChanged = settings.googleHolidayTargetCalendarID
+                != previousSettings.googleHolidayTargetCalendarID
+            || settings.googleHolidayCountryIDs != previousSettings.googleHolidayCountryIDs
 
         monitor.persistSettings(settings)
         draft = SettingsDraft(settings: settings)
@@ -83,7 +115,14 @@ extension SettingsView {
         if gameSaleConfigurationChanged {
             monitor.applyManagedGameSaleAlertConfiguration()
             Task { @MainActor in
-                await monitor.refreshGameSales(forceRefresh: false)
+                await monitor.refreshGameSales(forceRefresh: true)
+            }
+        }
+
+        if googleHolidayConfigurationChanged {
+            Task { @MainActor in
+                await Task.yield()
+                await monitor.refreshGoogleHolidays(forceRefresh: true)
             }
         }
 

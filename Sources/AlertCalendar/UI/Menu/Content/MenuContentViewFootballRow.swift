@@ -30,7 +30,11 @@ extension MenuContentView {
                 HStack(alignment: .center, spacing: 4) {
                     Image(systemName: locationSymbolName(for: item))
                         .font(detailIconFont)
-                        .frame(width: 12, height: 12, alignment: .center)
+                        .frame(
+                            width: MenuMarkerMetrics.symbolSize,
+                            height: MenuMarkerMetrics.symbolSize,
+                            alignment: .center
+                        )
                         .foregroundStyle(accentColor)
                     Text(locationName)
                         .font(detailFont)
@@ -234,7 +238,7 @@ extension MenuContentView {
 
             if count != 1 {
                 Text("\(count)")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(MenuMarkerMetrics.compactMetadataFont)
                     .foregroundStyle(.secondary)
             }
         }
@@ -256,7 +260,7 @@ extension MenuContentView {
     func footballFixtureContextBadge(for match: FootballFixtureMatch) -> some View {
         if let fixtureContext = footballFixtureContextBadgeText(for: match) {
             Text(fixtureContext)
-                .font(.system(size: 10, weight: .semibold))
+                .font(MenuMarkerMetrics.compactMetadataFont)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .padding(.horizontal, 6)

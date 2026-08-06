@@ -5,6 +5,9 @@ import SwiftUI
 
 extension MenuContentView {
     func markerImage(for item: UpcomingItem, isReminderFilled: Bool = false) -> NSImage? {
+        if let gameStore = item.gameStore {
+            return GameStoreSymbolProvider.image(for: gameStore, size: MenuMarkerMetrics.symbolSize)
+        }
         if item.kind == .reminder {
             return reminderMarkerImage(
                 color: item.calendarColor.nsColor,
@@ -53,28 +56,42 @@ extension MenuContentView {
         if monitor.isBirthdayItem(item) {
             return "gift.circle.fill"
         }
-        if item.kind == .event, item.isAllDay {
+        if item.kind == .event, item.isAllDay, item.gameStore == nil {
             return "calendar.circle.fill"
         }
         return nil
     }
 
     func astronomyMarkerImage(for moment: AstronomyMoment) -> NSImage {
-        if let image = AstronomyIconProvider.image(for: moment, pointSize: 13) {
+        if let image = AstronomyIconProvider.image(for: moment, pointSize: MenuMarkerMetrics.symbolSize) {
             return image
         }
-        return NSImage(size: NSSize(width: 16, height: 12))
+        return NSImage(
+            size: NSSize(
+                width: MenuMarkerMetrics.symbolSize,
+                height: MenuMarkerMetrics.symbolSize
+            )
+        )
     }
 
     func markerTopPadding(for item: UpcomingItem) -> CGFloat {
-        item.kind == .reminder ? 0 : 2
+        if let gameStore = item.gameStore {
+            return Self.gameStoreMarkerTopPadding(for: gameStore)
+        }
+        return item.kind == .reminder ? 0 : 2
+    }
+
+    nonisolated static func gameStoreMarkerTopPadding(for store: GameStore) -> CGFloat {
+        switch store {
+        case .steam:
+            return 1
+        case .xbox, .playStation, .nintendoSwitch:
+            return 0
+        }
     }
 
     func markerImageSize(for item: UpcomingItem) -> CGSize {
-        if AstronomyMoment(eventTitle: item.title) != nil {
-            return CGSize(width: 14, height: 14)
-        }
-        return CGSize(width: 12, height: 12)
+        CGSize(width: MenuMarkerMetrics.symbolSize, height: MenuMarkerMetrics.symbolSize)
     }
 
     enum ContextualPreviewKind: Equatable {
@@ -135,8 +152,8 @@ extension MenuContentView {
 
         switch previewKind {
         case .daylight:
-            let titleFont = NSFont.systemFont(ofSize: 12, weight: .semibold)
-            let timeFont = NSFont.systemFont(ofSize: 11, weight: .medium)
+            let titleFont = MenuMarkerMetrics.rowTitleNSFont
+            let timeFont = MenuMarkerMetrics.rowDetailNSFont
             let titleWidth = Self.measuredTextWidth(item.title, font: titleFont)
             let timeWidth = Self.measuredTextWidth(timeText(item.date), font: timeFont)
 
@@ -145,7 +162,7 @@ extension MenuContentView {
             let popupChromeWidth = (dropdownOuterPadding * 2) + 16
             return ceil(headerWidth + popupChromeWidth)
         case let .attendees(_, attendees):
-            let detailFont = NSFont.systemFont(ofSize: 11, weight: .medium)
+            let detailFont = MenuMarkerMetrics.rowDetailNSFont
             let widestAttendeeWidth = attendees
                 .prefix(6)
                 .map { Self.measuredTextWidth($0.displayText, font: detailFont) }
@@ -160,8 +177,8 @@ extension MenuContentView {
     }
 
     func queueItemMinimumWidth(for item: UpcomingItem) -> CGFloat {
-        let titleFont = NSFont.systemFont(ofSize: 12, weight: .semibold)
-        let detailFont = NSFont.systemFont(ofSize: 11, weight: .medium)
+        let titleFont = MenuMarkerMetrics.rowTitleNSFont
+        let detailFont = MenuMarkerMetrics.rowDetailNSFont
         let accessoryWidth = MenuBarStatusLabel.accessorySymbolsWidth(
             symbolNames: monitor.menuBarAccessorySymbolNames(for: item),
             font: titleFont
@@ -240,14 +257,14 @@ extension MenuContentView {
 
     func joinActionPillWidth() -> CGFloat {
         let pillHorizontalPadding: CGFloat = 12
-        let joinTextFont = NSFont.systemFont(ofSize: 11, weight: .semibold)
+        let joinTextFont = MenuMarkerMetrics.actionLabelNSFont
         let joinTextWidth = Self.measuredTextWidth("Join", font: joinTextFont)
         return joinTextWidth + pillHorizontalPadding
     }
 
     func mapActionPillWidth() -> CGFloat {
         let pillHorizontalPadding: CGFloat = 12
-        let mapTextFont = NSFont.systemFont(ofSize: 11, weight: .semibold)
+        let mapTextFont = MenuMarkerMetrics.actionLabelNSFont
         let mapTextWidth = Self.measuredTextWidth("Map", font: mapTextFont)
         let mapIconWidth: CGFloat = 11
         let mapInnerSpacing: CGFloat = 4
@@ -256,7 +273,7 @@ extension MenuContentView {
 
     func skipActionPillWidth() -> CGFloat {
         let pillHorizontalPadding: CGFloat = 12
-        let skipTextFont = NSFont.systemFont(ofSize: 11, weight: .semibold)
+        let skipTextFont = MenuMarkerMetrics.actionLabelNSFont
         let skipTextWidth = Self.measuredTextWidth("Skip", font: skipTextFont)
         return skipTextWidth + pillHorizontalPadding
     }

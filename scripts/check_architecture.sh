@@ -2,7 +2,10 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CHECK_TMP_DIR="$(mktemp -d)"
 failures=0
+
+trap 'rm -rf "$CHECK_TMP_DIR"' EXIT
 
 cd "$ROOT_DIR"
 
@@ -13,9 +16,11 @@ check_forbidden_imports() {
   local pattern="$2"
   local label="$3"
 
-  if grep -R -n -E "^import (${pattern})$" "$path" >/tmp/alertcalendar-architecture-check.txt; then
+  local output_path="$CHECK_TMP_DIR/forbidden-imports.txt"
+
+  if rg -n "^import (${pattern})$" "$path" >"$output_path"; then
     echo "Architecture rule failed: ${label}" >&2
-    cat /tmp/alertcalendar-architecture-check.txt >&2
+    cat "$output_path" >&2
     failures=$((failures + 1))
   fi
 }
@@ -26,9 +31,30 @@ check_forbidden_usage_outside() {
   local allowed_path="$3"
   local label="$4"
 
-  if grep -R -n -E "$pattern" "$path" | grep -v "$allowed_path" >/tmp/alertcalendar-architecture-usage-check.txt; then
+  local output_path="$CHECK_TMP_DIR/forbidden-usage.txt"
+
+  if rg -n "$pattern" "$path" \
+    | rg -v -F "${allowed_path}:" >"$output_path"; then
     echo "Architecture rule failed: ${label}" >&2
-    cat /tmp/alertcalendar-architecture-usage-check.txt >&2
+    cat "$output_path" >&2
+    failures=$((failures + 1))
+  fi
+}
+
+check_file_length() {
+  local path="$1"
+  local maximum_lines="$2"
+  local label="$3"
+  local output_path="$CHECK_TMP_DIR/file-length-${maximum_lines}.txt"
+
+  rg --files "$path" -g '*.swift' -0 \
+    | xargs -0 wc -l \
+    | awk -v maximum="$maximum_lines" '$2 != "total" && $1 > maximum { print }' \
+    >"$output_path"
+
+  if [[ -s "$output_path" ]]; then
+    echo "Architecture rule failed: ${label}" >&2
+    cat "$output_path" >&2
     failures=$((failures + 1))
   fi
 }
@@ -40,21 +66,17 @@ check_forbidden_imports "Sources/AlertCalendar/Features/Football/Core" "AppKit|S
 check_forbidden_imports "Sources/AlertCalendar/Features/GameSales/Core" "AppKit|SwiftUI|EventKit|CoreLocation|MapKit|Contacts" "GameSales/Core must stay UI and platform integration free"
 check_forbidden_imports "Sources/AlertCalendar/Core/Slack" "AppKit|SwiftUI|EventKit|CoreLocation|MapKit|Contacts" "Core/Slack must stay UI and calendar integration free"
 check_forbidden_imports "Sources/AlertCalendar/Shared" "AppKit|SwiftUI|EventKit|CoreLocation|CoreWLAN|MapKit|Contacts" "Shared must stay platform free"
+check_forbidden_imports "Sources/AlertCalendar/UI/Settings/State" "AppKit|SwiftUI|EventKit|CoreLocation|CoreWLAN|MapKit|Contacts" "Settings/State must stay platform and UI free"
 
 check_forbidden_usage_outside "Sources/AlertCalendar" "NSWorkspace\\.shared" "Sources/AlertCalendar/Core/System/AlertCalendarWorkspace.swift" "NSWorkspace.shared must stay behind AlertCalendarWorkspace"
 check_forbidden_usage_outside "Sources/AlertCalendar" "NSSound\\.beep\\(" "Sources/AlertCalendar/Core/System/AlertCalendarSoundPlayer.swift" "NSSound.beep must stay behind AlertCalendarSoundPlayer"
 check_forbidden_usage_outside "Sources/AlertCalendar" "Process\\(\\)" "Sources/AlertCalendar/Core/System/AlertCalendarProcessRunner.swift" "Process construction must stay behind AlertCalendarProcessRunner"
 check_forbidden_usage_outside "Sources/AlertCalendar" "URLSession\\.shared" "Sources/AlertCalendar/Core/System/AlertCalendarHTTPClient.swift" "URLSession.shared must stay behind an HTTP adapter"
+check_forbidden_usage_outside "Sources/AlertCalendar/UI/Settings" "title: \"Add To\"|Text\\(\"Add To\"\\)" "Sources/AlertCalendar/UI/Settings/Shared/SettingsLabeledControls.swift" "Settings Add To controls must use SettingsAddToCalendarPicker"
+check_forbidden_usage_outside "Sources/AlertCalendar/UI/Settings" "SettingsControlLabel\\(" "Sources/AlertCalendar/UI/Settings/Shared/SettingsLabeledControls.swift" "Settings labels must be composed through shared labeled controls"
 
-if find Sources/AlertCalendar -name '*.swift' -print0 \
-  | xargs -0 wc -l \
-  | awk '$2 != "total" && $1 > 500 { print }' \
-  | tee /tmp/alertcalendar-file-length-check.txt \
-  | grep . >/dev/null; then
-  echo "Architecture rule failed: source files must stay at or below 500 lines" >&2
-  cat /tmp/alertcalendar-file-length-check.txt >&2
-  failures=$((failures + 1))
-fi
+check_file_length "Sources/AlertCalendar" 500 "source files must stay at or below 500 lines"
+check_file_length "Tests/AlertCalendarTests" 1000 "test files must stay at or below 1,000 lines"
 
 if (( failures > 0 )); then
   exit 1

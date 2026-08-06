@@ -265,6 +265,18 @@ enum FootballVenueCanonicalizer {
             !isPlaceholderLocationText(candidate) && normalized(candidate) != normalizedName
         } ?? false
 
+        let repeatsVenueNameAsCity = city.map { candidate in
+            !isPlaceholderLocationText(candidate) && normalized(candidate) == normalizedName
+        } ?? false
+        let country = stringValue(address?["country"])
+        let hasUsableCountry = country.map { !isPlaceholderLocationText($0) } ?? false
+        let hasStableVenueIdentifier = stringValue(venue["id"]) != nil
+            || stringValue(venue["$ref"]) != nil
+
+        if repeatsVenueNameAsCity, hasUsableCountry, hasStableVenueIdentifier {
+            return false
+        }
+
         return !hasSpecificCity && !hasSpecificState
     }
 

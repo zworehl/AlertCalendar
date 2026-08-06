@@ -11,14 +11,14 @@ struct SettingsFootballFixturesSectionView: View {
         var id: String { rawValue }
     }
 
-    static let scrollableMatchCardThreshold = 12
-    static let preferredMatchCardWidth: CGFloat = 306
-    static let minimumMatchCardWidth: CGFloat = 272
-    static let inlineFieldLabelWidth: CGFloat = 96
-    static let topMenuControlWidth: CGFloat = 320
-    static let topShowControlWidth: CGFloat = 500
-    static let matchActionButtonSize: CGFloat = 18
-    static let matchActionSlotWidth: CGFloat = 112
+    nonisolated static let scrollableMatchCardThreshold = 12
+    nonisolated static let preferredMatchCardWidth: CGFloat = 306
+    nonisolated static let minimumMatchCardWidth: CGFloat = 272
+    nonisolated static let topMenuControlWidth: CGFloat = 320
+    nonisolated static let topShowControlWidth: CGFloat = 500
+    nonisolated static let competitionColumnSpacing: CGFloat = 16
+    nonisolated static let competitionSidebarWidth: CGFloat = 320
+    nonisolated static let matchActionSlotWidth: CGFloat = 112
     static let minimumFootballWindowDays = AppSettingsRules.minimumFootballWindowDays
     static let maximumFootballWindowDays = AppSettingsRules.maximumFootballWindowDays
 
@@ -166,34 +166,13 @@ struct SettingsFootballFixturesSectionView: View {
     }
 
     private var footballIntroSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .center, spacing: 10) {
-                Image(systemName: FootballFixtureFormatter.footballLocationSymbolName)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.secondary)
-
-                Text("Football Fixtures")
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-            }
-
-            Text("Add supported football matches to an Apple Calendar managed by Alert Calendar.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Text("Suggestions include matches from the \(FootballCompetitionPreset.suggestionWindowDescription). Managed fixtures outside that window are removed automatically.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-                )
+        SettingsSectionHeaderView(
+            title: "Football Fixtures",
+            subtitle: "Add supported football matches to an Apple Calendar managed by Alert Calendar.",
+            systemImage: FootballFixtureFormatter.footballLocationSymbolName
         )
+        .padding(SettingsVisualMetrics.panelPadding)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(SettingsPanelChrome())
     }
 }

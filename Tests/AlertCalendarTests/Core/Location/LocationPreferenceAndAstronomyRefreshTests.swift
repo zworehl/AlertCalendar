@@ -38,19 +38,19 @@ final class LocationPreferenceAndAstronomyRefreshTests: AlertCalendarModelTestCa
             )
         )
     }
-    func testAutomaticAstronomyLocationAppActivationSkipsImmediateDuplicateLaunchRefresh() {
+    func testAutomaticAstronomyLocationAppActivationWaitsFifteenMinutes() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
 
         XCTAssertFalse(
             CalendarMonitor.shouldRefreshAutomaticAstronomyLocation(
-                lastAttemptDate: now.addingTimeInterval(-45),
+                lastAttemptDate: now.addingTimeInterval(-(14 * 60 + 59)),
                 now: now,
                 trigger: .appActivation
             )
         )
         XCTAssertTrue(
             CalendarMonitor.shouldRefreshAutomaticAstronomyLocation(
-                lastAttemptDate: now.addingTimeInterval(-61),
+                lastAttemptDate: now.addingTimeInterval(-15 * 60),
                 now: now,
                 trigger: .appActivation
             )

@@ -186,46 +186,22 @@ extension SettingsView {
         systemImage: String? = nil,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: SettingsVisualMetrics.sectionContentSpacing) {
             settingsSectionHeader(title: title, subtitle: subtitle, systemImage: systemImage)
             content()
         }
-        .padding(14)
+        .padding(SettingsVisualMetrics.panelPadding)
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-                )
-        )
+        .background(SettingsPanelChrome())
     }
 
     @ViewBuilder
     func settingsSectionHeader(title: String, subtitle: String? = nil, systemImage: String? = nil) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            if let systemImage {
-                Image(systemName: systemImage)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 20, height: 20)
-            }
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-
-                if let subtitle {
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
+        SettingsSectionHeaderView(
+            title: title,
+            subtitle: subtitle,
+            systemImage: systemImage
+        )
     }
 
     @ViewBuilder
@@ -256,11 +232,11 @@ extension SettingsView {
     func settingsControlCopy(title: String, detail: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title)
-                .font(.subheadline.weight(.semibold))
+                .font(SettingsTypography.controlTitle)
                 .foregroundStyle(.primary)
 
             Text(detail)
-                .font(.caption)
+                .font(SettingsTypography.supportingText)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }

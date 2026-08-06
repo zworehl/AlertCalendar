@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import XCTest
 @testable import AlertCalendar
@@ -174,6 +175,89 @@ final class MenuBarStateTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testRecurringSymbolImageKeepsTransparentCanvasCorners() throws {
+        let image = try XCTUnwrap(
+            MenuSymbolImageProvider.tintedSystemSymbol(
+                named: "repeat",
+                pointSize: 12,
+                weight: .semibold,
+                tintColor: .white
+            )
+        )
+        let representation = try XCTUnwrap(image.tiffRepresentation.flatMap(NSBitmapImageRep.init(data:)))
+        let cornerColor = try XCTUnwrap(representation.colorAt(x: 0, y: 0))
+
+        XCTAssertEqual(cornerColor.alphaComponent, 0, accuracy: 0.001)
+    }
+
+    @MainActor
+    func testGameStoreMarkersMatchAllDayMarkerSizes() {
+        XCTAssertEqual(MenuMarkerMetrics.symbolSize, 12)
+        XCTAssertEqual(
+            MenuBarStatusLabel.markerWidthForStyle(
+                .gameStore(.steam),
+                defaultWidth: 3,
+                imageWidth: MenuMarkerMetrics.symbolSize
+            ),
+            MenuMarkerMetrics.symbolSize
+        )
+        XCTAssertEqual(
+            MenuBarStatusLabel.markerWidthForStyle(
+                .allDay(.systemBlue),
+                defaultWidth: 3,
+                imageWidth: MenuMarkerMetrics.symbolSize
+            ),
+            MenuMarkerMetrics.symbolSize
+        )
+        XCTAssertEqual(
+            MenuBarStatusLabel.markerWidthForStyle(
+                .sunset,
+                defaultWidth: 3,
+                imageWidth: MenuMarkerMetrics.symbolSize
+            ),
+            MenuMarkerMetrics.symbolSize
+        )
+
+        for store in GameStore.allCases {
+            XCTAssertNotNil(GameStoreSymbolProvider.assetURL(for: store))
+            XCTAssertEqual(
+                GameStoreSymbolProvider.image(for: store, size: MenuMarkerMetrics.symbolSize)?.size,
+                NSSize(width: MenuMarkerMetrics.symbolSize, height: MenuMarkerMetrics.symbolSize)
+            )
+        }
+    }
+
+    func testSteamDropdownMarkerUsesOpticalVerticalOffset() {
+        XCTAssertEqual(MenuContentView.gameStoreMarkerTopPadding(for: .steam), 1)
+
+        for store in [GameStore.xbox, .playStation, .nintendoSwitch] {
+            XCTAssertEqual(MenuContentView.gameStoreMarkerTopPadding(for: store), 0)
+        }
+    }
+
+    @MainActor
+    func testInactiveSegmentsHaveNoOuterHorizontalPadding() {
+        XCTAssertEqual(
+            MenuBarStatusLabel.outerHorizontalPadding(
+                hasBackground: false,
+                defaultPadding: 5
+            ),
+            0
+        )
+    }
+
+    @MainActor
+    func testActiveSegmentsKeepOuterHorizontalPadding() {
+        XCTAssertEqual(
+            MenuBarStatusLabel.outerHorizontalPadding(
+                hasBackground: true,
+                defaultPadding: 5
+            ),
+            5
+        )
+    }
+
     func testDocumentIndicatorOnlyUsesDocumentURLs() throws {
         let meetingURL = try XCTUnwrap(URL(string: "https://meet.google.com/abc-defg-hij"))
 
@@ -321,7 +405,12 @@ final class MenuBarStateTests: XCTestCase {
         )
     }
 
-    func testAlertBlinkTextOpacityUsesSmoothPeriodicWave() {
+    func testAlertBlinkUpdatesOncePerSecond() {
+        XCTAssertEqual(CalendarMonitorCadence.menuBarAnimationInterval, 1)
+        XCTAssertEqual(CalendarMonitor.alertBlinkPeriod, 2)
+    }
+
+    func testAlertBlinkTextOpacityUsesPeriodicWave() {
         XCTAssertEqual(
             CalendarMonitor.alertBlinkTextOpacity(now: Date(timeIntervalSinceReferenceDate: 0)),
             1,
@@ -536,6 +625,43 @@ final class MenuBarStateTests: XCTestCase {
         )
     }
 
+    func testTentativeParticipationTextureOnlyAppearsWhileEventIsActive() {
+        let startDate = Date(timeIntervalSince1970: 1_800_000_000)
+        let endDate = startDate.addingTimeInterval(30 * 60)
+        let tentativeEvent = makeTimedEvent(
+            title: "Tentative design review",
+            startDate: startDate,
+            endDate: endDate,
+            travelTimeMinutes: 20,
+            meetingURL: nil,
+            showsMutedBackground: true,
+            participationStatus: .tentative
+        )
+
+        XCTAssertNil(
+            CalendarMonitor.activeParticipationTextureStatus(
+                for: tentativeEvent,
+                now: startDate.addingTimeInterval(-10 * 60),
+                weekdayOnlyEventCalendarIDs: []
+            )
+        )
+        XCTAssertEqual(
+            CalendarMonitor.activeParticipationTextureStatus(
+                for: tentativeEvent,
+                now: startDate.addingTimeInterval(10 * 60),
+                weekdayOnlyEventCalendarIDs: []
+            ),
+            .tentative
+        )
+        XCTAssertNil(
+            CalendarMonitor.activeParticipationTextureStatus(
+                for: tentativeEvent,
+                now: endDate,
+                weekdayOnlyEventCalendarIDs: []
+            )
+        )
+    }
+
     func testActiveEventProgressSkipsConfiguredNonWorkingWeekday() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
@@ -705,7 +831,9 @@ final class MenuBarStateTests: XCTestCase {
         endDate: Date?,
         isAllDay: Bool = false,
         travelTimeMinutes: Int? = nil,
-        meetingURL: URL?
+        meetingURL: URL?,
+        showsMutedBackground: Bool = false,
+        participationStatus: EventParticipationStatus? = nil
     ) -> UpcomingItem {
         UpcomingItem(
             id: id,
@@ -713,10 +841,11 @@ final class MenuBarStateTests: XCTestCase {
             date: startDate,
             endDate: endDate,
             isAllDay: isAllDay,
-            showsMutedBackground: false,
+            showsMutedBackground: showsMutedBackground,
             travelTimeMinutes: travelTimeMinutes,
             locationText: nil,
             meetingURL: meetingURL,
+            eventParticipationStatus: participationStatus,
             calendarID: "calendar-1",
             calendarName: "Work",
             calendarColor: .systemBlue,

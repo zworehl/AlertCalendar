@@ -76,4 +76,11 @@ final class CalendarMonitorRefreshDiagnosticsTests: XCTestCase {
         XCTAssertFalse(CalendarMonitorRefreshReason.eventStoreChanged.triggersFootballAutoAddSync)
         XCTAssertFalse(CalendarMonitorRefreshReason.itemAction.triggersFootballAutoAddSync)
     }
+
+    func testOnlyManualRefreshForcesExternalFeeds() {
+        XCTAssertTrue(CalendarMonitorRefreshReason.manual.forcesExternalFeedRefresh)
+        XCTAssertFalse(CalendarMonitorRefreshReason.launch.forcesExternalFeedRefresh)
+        XCTAssertFalse(CalendarMonitorRefreshReason.periodic.forcesExternalFeedRefresh)
+        XCTAssertFalse(CalendarMonitorRefreshReason.footballHeartbeat.forcesExternalFeedRefresh)
+    }
 }

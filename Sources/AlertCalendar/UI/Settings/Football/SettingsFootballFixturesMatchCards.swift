@@ -19,7 +19,7 @@ extension SettingsFootballFixturesSectionView {
             ZStack(alignment: .trailing) {
                 if let trailingText = footballCardTrailingText(for: match) {
                     Text(trailingText)
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(SettingsTypography.itemDetailEmphasized)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.trailing)
                         .lineLimit(2)
@@ -32,7 +32,7 @@ extension SettingsFootballFixturesSectionView {
                 matchCardActions(match, isVisible: isHovered)
             }
             .frame(
-                minWidth: Self.matchActionButtonSize,
+                minWidth: SettingsVisualMetrics.cardActionButtonSize,
                 maxWidth: Self.matchActionSlotWidth,
                 alignment: .trailing
             )
@@ -44,10 +44,8 @@ extension SettingsFootballFixturesSectionView {
         if managedFootballMatchIDs.contains(match.id) {
             removeMatchButton(match, isVisible: isVisible)
         } else {
-            actionIconButton(
-                systemName: "plus",
-                tint: .green,
-                helpText: "Add this event to Apple Calendar",
+            SettingsCalendarCardActionButton(
+                calendarAction: .add,
                 isVisible: isVisible
             ) {
                 Task {
@@ -59,43 +57,12 @@ extension SettingsFootballFixturesSectionView {
     }
 
     func removeMatchButton(_ match: FootballFixtureMatch, isVisible: Bool) -> some View {
-        actionIconButton(
-            systemName: "minus",
-            tint: .red,
-            helpText: "Remove this event from Apple Calendar",
+        SettingsCalendarCardActionButton(
+            calendarAction: .remove,
             isVisible: isVisible
         ) {
             monitor.removeFootballMatchFromCalendar(match)
         }
-    }
-
-    func actionIconButton(
-        systemName: String,
-        tint: Color,
-        helpText: String,
-        isVisible: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(tint)
-                .frame(width: Self.matchActionButtonSize, height: Self.matchActionButtonSize)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(tint.opacity(0.14))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .stroke(tint.opacity(0.28), lineWidth: 1)
-                )
-        }
-        .buttonStyle(.plain)
-        .help(helpText)
-        .opacity(isVisible ? 1 : 0)
-        .scaleEffect(isVisible ? 1 : 0.94)
-        .allowsHitTesting(isVisible)
-        .animation(.easeInOut(duration: 0.14), value: isVisible)
     }
 
     @ViewBuilder
@@ -126,7 +93,7 @@ extension SettingsFootballFixturesSectionView {
                     FootballStatusAccessoriesView(data: accessories)
                 }
             }
-            .font(.system(size: 13, weight: .semibold))
+            .font(SettingsTypography.itemTitle)
             .foregroundStyle(.primary)
             .fixedSize(horizontal: false, vertical: true)
         }
@@ -234,7 +201,7 @@ extension SettingsFootballFixturesSectionView {
         )
         .toggleStyle(.checkbox)
         .controlSize(.small)
-        .font(.subheadline.weight(.medium))
+        .font(SettingsTypography.inlineFieldLabel)
         .help("Automatically add new fixtures from this competition to Apple Calendar.")
         .disabled(footballTargetCalendarID.isEmpty)
     }

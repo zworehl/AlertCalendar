@@ -25,6 +25,15 @@ extension MenuBarStatusLabel {
             drawSymbolMarker(symbolName: "gift.circle.fill", tintColor: markerColor.nsColor, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
         case .allDay(let markerColor):
             drawSymbolMarker(symbolName: "calendar.circle.fill", tintColor: markerColor.nsColor, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
+        case .gameStore(let store):
+            GameStoreSymbolProvider.image(for: store, size: markerWidth)?.draw(
+                in: NSRect(
+                    x: x,
+                    y: floor((height - markerWidth) / 2),
+                    width: markerWidth,
+                    height: markerWidth
+                )
+            )
         case .travel(let markerColor):
             drawSymbolMarker(symbolName: "car.fill", tintColor: markerColor.nsColor, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
         case .sunrise:
@@ -93,13 +102,22 @@ extension MenuBarStatusLabel {
             .lastQuarter,
             .waningCrescent:
             return imageWidth
+        case .gameStore:
+            return imageWidth
         }
+    }
+
+    static func outerHorizontalPadding(
+        hasBackground: Bool,
+        defaultPadding: CGFloat
+    ) -> CGFloat {
+        hasBackground ? defaultPadding : 0
     }
 
     static func drawSegmentBackground(
         color: NSColor,
         progress: CGFloat,
-        participationStatus: EventParticipationStatus?,
+        textureStatus: EventParticipationStatus?,
         segmentStartX: CGFloat,
         segmentWidth: CGFloat,
         segmentHeight: CGFloat,
@@ -139,10 +157,10 @@ extension MenuBarStatusLabel {
         NSBezierPath(roundedRect: backgroundRect, xRadius: cornerRadius, yRadius: cornerRadius).addClip()
         color.setFill()
         NSBezierPath(rect: fillRect).fill()
-        if participationStatus?.usesTexturedFill == true {
+        if textureStatus?.usesTexturedFill == true {
             drawParticipationTexture(
                 in: backgroundRect,
-                participationStatus: participationStatus,
+                participationStatus: textureStatus,
                 cornerRadius: cornerRadius
             )
         }
@@ -210,12 +228,14 @@ extension MenuBarStatusLabel {
 
     static func drawSymbolMarker(symbolName: String, tintColor: NSColor, x: CGFloat, height: CGFloat, markerWidth: CGFloat, markerHeight: CGFloat) {
         let pointSize = max(markerWidth, markerHeight)
-        let config = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .regular)
-        guard let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
-            .withSymbolConfiguration(config) else {
+        guard let symbol = MenuSymbolImageProvider.tintedSystemSymbol(
+            named: symbolName,
+            pointSize: pointSize,
+            weight: .regular,
+            tintColor: tintColor
+        ) else {
             return
         }
-        symbol.isTemplate = true
         let rect = NSRect(
             x: x,
             y: floor((height - markerHeight) / 2),
@@ -224,8 +244,6 @@ extension MenuBarStatusLabel {
         )
         let drawingRect = aspectFitRect(for: symbol.size, in: rect)
         symbol.draw(in: drawingRect)
-        tintColor.setFill()
-        drawingRect.fill(using: .sourceAtop)
     }
 
     static func aspectFitRect(for imageSize: CGSize, in rect: CGRect) -> CGRect {
