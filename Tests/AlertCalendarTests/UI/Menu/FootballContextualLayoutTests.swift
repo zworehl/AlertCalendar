@@ -253,6 +253,23 @@ final class FootballContextualLayoutTests: AlertCalendarModelTestCase {
         )
     }
 
+    func testDropdownWidthCanFollowCompactVisibleTitle() {
+        let originalTitle = "Quarterly planning with product and operations"
+        let compactTitle = "Qtr planning"
+        let originalWidth = MenuContentView.dropdownMeasuredTitleWidth(
+            visibleTitle: originalTitle,
+            accessorySymbolNames: [],
+            titleFont: MenuMarkerMetrics.rowTitleNSFont
+        )
+        let compactWidth = MenuContentView.dropdownMeasuredTitleWidth(
+            visibleTitle: compactTitle,
+            accessorySymbolNames: [],
+            titleFont: MenuMarkerMetrics.rowTitleNSFont
+        )
+
+        XCTAssertLessThan(compactWidth, originalWidth)
+    }
+
     func testUpcomingAndContextualActionsShareEdgeAlignmentAndContentClearance() {
         XCTAssertEqual(MenuActionControlMetrics.leadingClearance, 16)
         XCTAssertEqual(MenuActionControlMetrics.trailingInset, 6)

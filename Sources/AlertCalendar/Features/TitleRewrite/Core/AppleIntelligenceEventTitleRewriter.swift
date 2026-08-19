@@ -43,6 +43,9 @@ final class AppleIntelligenceEventTitleRewriter: EventTitleRewriting, @unchecked
         let normalizedTitle = Self.normalized(title)
         let maximumCharacters = AppSettingsRules.normalizedEventTitleMaxCharacters(maximumCharacters)
         guard availability.isAvailable else { throw EventTitleRewriteError.unavailable }
+        guard AppSettingsRules.allowsAppleIntelligenceTitleRewrite(maximumCharacters: maximumCharacters) else {
+            throw EventTitleRewriteError.characterLimitTooSmall
+        }
 
         let instructions = Self.instructions(maximumCharacters: maximumCharacters)
         let result = try await responder(
@@ -155,5 +158,6 @@ private struct AppleEventTitleOutput {
 
 private enum EventTitleRewriteError: Error {
     case unavailable
+    case characterLimitTooSmall
     case invalidResponse
 }

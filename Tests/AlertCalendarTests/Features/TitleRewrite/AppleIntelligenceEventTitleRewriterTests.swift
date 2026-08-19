@@ -28,6 +28,25 @@ final class AppleIntelligenceEventTitleRewriterTests: XCTestCase {
         XCTAssertLessThanOrEqual(title.count, 12)
     }
 
+    func testRewriteRejectsLimitsBelowTenCharactersBeforeCallingModel() async {
+        let callCount = LockedCounter()
+        let client = AppleIntelligenceEventTitleRewriter(
+            availabilityProvider: { .available },
+            responder: { _, _ in
+                _ = callCount.increment()
+                return .init(title: "Planning")
+            }
+        )
+
+        await XCTAssertThrowsErrorAsync {
+            _ = try await client.rewriteTitle(
+                "Quarterly planning with product and operations",
+                maximumCharacters: 9
+            )
+        }
+        XCTAssertEqual(callCount.value, 0)
+    }
+
     func testRewriteUsesUntrustedJSONAndAcceptsBoundedPlainTitle() async throws {
         let client = AppleIntelligenceEventTitleRewriter(
             availabilityProvider: { .available },

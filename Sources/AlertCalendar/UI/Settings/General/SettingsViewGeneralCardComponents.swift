@@ -69,7 +69,7 @@ extension SettingsView {
     var showcaseMenuBarTitle: String {
         let fullTitle = "Quarterly planning with product and operations"
         guard draft.useEventTitleEllipsis else { return fullTitle }
-        if draft.rewriteEventTitlesWithAppleIntelligence {
+        if draft.rewriteEventTitlesWithAppleIntelligence && appleIntelligenceTitleRewriteIsAllowed {
             let rewrittenTitle = "Quarterly product planning"
             if rewrittenTitle.count <= draft.eventTitleMaxCharacters {
                 return rewrittenTitle
@@ -78,7 +78,58 @@ extension SettingsView {
         return showcaseTrimmedTitle(fullTitle, maxLength: draft.eventTitleMaxCharacters)
     }
 
+    var appleIntelligenceTitleRewriteIsAllowed: Bool {
+        AppSettingsRules.allowsAppleIntelligenceTitleRewrite(
+            maximumCharacters: draft.eventTitleMaxCharacters
+        )
+    }
+
+    var eventTitleMaxCharactersBinding: Binding<Int> {
+        Binding {
+            draft.eventTitleMaxCharacters
+        } set: { newValue in
+            let normalizedValue = AppSettingsRules.normalizedEventTitleMaxCharacters(newValue)
+            draft.eventTitleMaxCharacters = normalizedValue
+            if !AppSettingsRules.allowsAppleIntelligenceTitleRewrite(maximumCharacters: normalizedValue) {
+                draft.rewriteEventTitlesWithAppleIntelligence = false
+                draft.useRewrittenEventTitlesInDropdown = false
+            }
+        }
+    }
+
+    var eventTitleRewriteBinding: Binding<Bool> {
+        Binding {
+            draft.rewriteEventTitlesWithAppleIntelligence && appleIntelligenceTitleRewriteIsAllowed
+        } set: { newValue in
+            let isAllowed = AppSettingsRules.allowsAppleIntelligenceTitleRewrite(
+                maximumCharacters: draft.eventTitleMaxCharacters
+            )
+            draft.rewriteEventTitlesWithAppleIntelligence = newValue && isAllowed
+            if !draft.rewriteEventTitlesWithAppleIntelligence {
+                draft.useRewrittenEventTitlesInDropdown = false
+            }
+        }
+    }
+
+    var useRewrittenEventTitlesInDropdownBinding: Binding<Bool> {
+        Binding {
+            draft.useRewrittenEventTitlesInDropdown
+                && draft.rewriteEventTitlesWithAppleIntelligence
+                && appleIntelligenceTitleRewriteIsAllowed
+        } set: { newValue in
+            let isAllowed = AppSettingsRules.allowsAppleIntelligenceTitleRewrite(
+                maximumCharacters: draft.eventTitleMaxCharacters
+            )
+            draft.useRewrittenEventTitlesInDropdown = newValue
+                && draft.rewriteEventTitlesWithAppleIntelligence
+                && isAllowed
+        }
+    }
+
     var eventTitleRewriteAvailabilityMessage: String? {
+        guard appleIntelligenceTitleRewriteIsAllowed else {
+            return "Apple Intelligence title rewriting becomes available at 10 characters or more."
+        }
         guard !agendaSummaryAvailability.isAvailable else { return nil }
         switch agendaSummaryAvailability {
         case .available:

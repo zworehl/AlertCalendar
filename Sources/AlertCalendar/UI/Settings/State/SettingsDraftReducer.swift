@@ -32,9 +32,16 @@ extension SettingsDraft {
         settings.useSimplifiedCountdown = useSimplifiedCountdown
         settings.activeEventDisplayMode = activeEventDisplayMode
         settings.useEventTitleEllipsis = useEventTitleEllipsis
-        settings.eventTitleMaxCharacters = eventTitleMaxCharacters
-        settings.rewriteEventTitlesWithAppleIntelligence = rewriteEventTitlesWithAppleIntelligence
-        settings.useRewrittenEventTitlesInDropdown = useRewrittenEventTitlesInDropdown
+        settings.eventTitleMaxCharacters = AppSettingsRules.normalizedEventTitleMaxCharacters(
+            eventTitleMaxCharacters
+        )
+        settings.rewriteEventTitlesWithAppleIntelligence = useEventTitleEllipsis
+            && AppSettingsRules.allowsAppleIntelligenceTitleRewrite(
+                maximumCharacters: settings.eventTitleMaxCharacters
+            )
+            && rewriteEventTitlesWithAppleIntelligence
+        settings.useRewrittenEventTitlesInDropdown = settings.rewriteEventTitlesWithAppleIntelligence
+            && useRewrittenEventTitlesInDropdown
         settings.includeAstronomy = includeAstronomy
         settings.includeSunriseSunset = includeSunriseSunset
         settings.includeSolarNoonMidnight = includeSolarNoonMidnight

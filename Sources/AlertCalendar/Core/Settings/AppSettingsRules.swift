@@ -12,6 +12,7 @@ enum AppSettingsRules {
         + (1 ... 6).map { $0 * 30 * 24 }
     static let agendaSummaryMaximumWordOptions = Array(stride(from: 30, through: 100, by: 10))
     static let defaultAgendaSummaryMaximumWords = 60
+    static let minimumAppleIntelligenceTitleRewriteCharacters = 10
     static let slackStatusLeadMinuteOptions = [5, 10, 15, 30]
     static let defaultSlackStatusLeadMinutes = 10
 
@@ -118,6 +119,10 @@ enum AppSettingsRules {
 
     static func normalizedEventTitleMaxCharacters(_ value: Int) -> Int {
         max(1, value)
+    }
+
+    static func allowsAppleIntelligenceTitleRewrite(maximumCharacters value: Int) -> Bool {
+        normalizedEventTitleMaxCharacters(value) >= minimumAppleIntelligenceTitleRewriteCharacters
     }
 
     static func normalizedAgendaSummaryMaximumWords(_ value: Int) -> Int {

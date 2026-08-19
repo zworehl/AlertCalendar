@@ -33,6 +33,13 @@ final class AppSettingsRulesTests: XCTestCase {
         XCTAssertEqual(AppSettingsRules.normalizedAgendaSummaryMaximumWords(500), 100)
     }
 
+    func testAppleIntelligenceTitleRewriteRequiresAtLeastTenCharacters() {
+        XCTAssertFalse(AppSettingsRules.allowsAppleIntelligenceTitleRewrite(maximumCharacters: 8))
+        XCTAssertFalse(AppSettingsRules.allowsAppleIntelligenceTitleRewrite(maximumCharacters: 9))
+        XCTAssertTrue(AppSettingsRules.allowsAppleIntelligenceTitleRewrite(maximumCharacters: 10))
+        XCTAssertTrue(AppSettingsRules.allowsAppleIntelligenceTitleRewrite(maximumCharacters: 22))
+    }
+
     func testMenuBarRotationWindowStepAdvancesByHourAfterFirstHour() {
         XCTAssertEqual(
             AppSettingsRules.adjustedMenuBarRotationWindowMinutes(

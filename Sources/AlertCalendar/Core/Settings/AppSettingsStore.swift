@@ -39,6 +39,14 @@ struct AppSettingsStore {
             migratedRule.statusEmoji = legacySlackMeetingStatusEmoji
             return migratedRule
         }
+        let eventTitleMaxCharacters = AppSettingsRules.normalizedEventTitleMaxCharacters(
+            defaults.integer(forKey: DefaultsKeys.eventTitleMaxCharacters)
+        )
+        let rewriteEventTitlesWithAppleIntelligence = defaults.bool(
+            forKey: DefaultsKeys.rewriteEventTitlesWithAppleIntelligence
+        ) && AppSettingsRules.allowsAppleIntelligenceTitleRewrite(
+            maximumCharacters: eventTitleMaxCharacters
+        )
 
         return AppSettings(
             includeEvents: defaults.bool(forKey: DefaultsKeys.includeEvents),
@@ -91,15 +99,10 @@ struct AppSettingsStore {
                 rawValue: defaults.string(forKey: DefaultsKeys.activeEventDisplayMode) ?? ""
             ) ?? defaultSettings.activeEventDisplayMode,
             useEventTitleEllipsis: defaults.bool(forKey: DefaultsKeys.useEventTitleEllipsis),
-            eventTitleMaxCharacters: AppSettingsRules.normalizedEventTitleMaxCharacters(
-                defaults.integer(forKey: DefaultsKeys.eventTitleMaxCharacters)
-            ),
-            rewriteEventTitlesWithAppleIntelligence: defaults.bool(
-                forKey: DefaultsKeys.rewriteEventTitlesWithAppleIntelligence
-            ),
-            useRewrittenEventTitlesInDropdown: defaults.bool(
-                forKey: DefaultsKeys.useRewrittenEventTitlesInDropdown
-            ),
+            eventTitleMaxCharacters: eventTitleMaxCharacters,
+            rewriteEventTitlesWithAppleIntelligence: rewriteEventTitlesWithAppleIntelligence,
+            useRewrittenEventTitlesInDropdown: rewriteEventTitlesWithAppleIntelligence
+                && defaults.bool(forKey: DefaultsKeys.useRewrittenEventTitlesInDropdown),
             footballTargetCalendarID: defaults.string(forKey: DefaultsKeys.footballTargetCalendarID) ?? defaultSettings.footballTargetCalendarID,
             footballAutoAddCompetitionSlugs: Set(
                 defaults.stringArray(forKey: DefaultsKeys.footballAutoAddCompetitionSlugs) ?? []
@@ -146,6 +149,17 @@ struct AppSettingsStore {
     }
 
     func save(_ settings: AppSettings) {
+        let eventTitleMaxCharacters = AppSettingsRules.normalizedEventTitleMaxCharacters(
+            settings.eventTitleMaxCharacters
+        )
+        let rewriteEventTitlesWithAppleIntelligence = settings.useEventTitleEllipsis
+            && AppSettingsRules.allowsAppleIntelligenceTitleRewrite(
+                maximumCharacters: eventTitleMaxCharacters
+            )
+            && settings.rewriteEventTitlesWithAppleIntelligence
+        let useRewrittenEventTitlesInDropdown = rewriteEventTitlesWithAppleIntelligence
+            && settings.useRewrittenEventTitlesInDropdown
+
         defaults.set(settings.includeEvents, forKey: DefaultsKeys.includeEvents)
         defaults.set(settings.includeAllDayEvents, forKey: DefaultsKeys.includeAllDayEvents)
         defaults.set(settings.includeReminders, forKey: DefaultsKeys.includeReminders)
@@ -209,16 +223,13 @@ struct AppSettingsStore {
         defaults.set(settings.useSimplifiedCountdown, forKey: DefaultsKeys.useSimplifiedCountdown)
         defaults.set(settings.activeEventDisplayMode.rawValue, forKey: DefaultsKeys.activeEventDisplayMode)
         defaults.set(settings.useEventTitleEllipsis, forKey: DefaultsKeys.useEventTitleEllipsis)
+        defaults.set(eventTitleMaxCharacters, forKey: DefaultsKeys.eventTitleMaxCharacters)
         defaults.set(
-            AppSettingsRules.normalizedEventTitleMaxCharacters(settings.eventTitleMaxCharacters),
-            forKey: DefaultsKeys.eventTitleMaxCharacters
-        )
-        defaults.set(
-            settings.rewriteEventTitlesWithAppleIntelligence,
+            rewriteEventTitlesWithAppleIntelligence,
             forKey: DefaultsKeys.rewriteEventTitlesWithAppleIntelligence
         )
         defaults.set(
-            settings.useRewrittenEventTitlesInDropdown,
+            useRewrittenEventTitlesInDropdown,
             forKey: DefaultsKeys.useRewrittenEventTitlesInDropdown
         )
         defaults.set(settings.footballTargetCalendarID, forKey: DefaultsKeys.footballTargetCalendarID)

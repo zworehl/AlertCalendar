@@ -196,7 +196,7 @@ extension MenuContentView {
                             }
 
                             titleLine(
-                                title: monitor.eventTitle(for: item, inDropdown: true),
+                                title: dropdownVisibleTitle(for: item),
                                 symbolNames: [],
                                 titleFont: titleFont,
                                 iconFont: detailIconFont,
@@ -294,7 +294,7 @@ extension MenuContentView {
                     HStack(alignment: .top, spacing: 6) {
                         VStack(alignment: .leading, spacing: 0) {
                             titleLine(
-                                title: monitor.eventTitle(for: item, inDropdown: true),
+                                title: dropdownVisibleTitle(for: item),
                                 symbolNames: accessorySymbolNames,
                                 titleFont: titleFont,
                                 iconFont: detailIconFont,
@@ -362,7 +362,7 @@ extension MenuContentView {
                 } else {
                     VStack(alignment: .leading, spacing: 0) {
                         titleLine(
-                            title: monitor.eventTitle(for: item, inDropdown: true),
+                            title: dropdownVisibleTitle(for: item),
                             symbolNames: accessorySymbolNames,
                             titleFont: titleFont,
                             iconFont: detailIconFont,
@@ -467,6 +467,10 @@ extension MenuContentView {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    func dropdownVisibleTitle(for item: UpcomingItem) -> String {
+        monitor.eventTitle(for: item, inDropdown: true)
     }
 
     @ViewBuilder

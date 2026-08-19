@@ -34,6 +34,22 @@ final class SettingsDraftReducerTests: XCTestCase {
         XCTAssertTrue(settings.useRewrittenEventTitlesInDropdown)
     }
 
+    func testAppliedSettingsDisablesAppleIntelligenceTitleRewriteBelowTenCharacters() {
+        var draft = SettingsDraft(settings: .defaults)
+        draft.eventTitleMaxCharacters = 9
+        draft.rewriteEventTitlesWithAppleIntelligence = true
+        draft.useRewrittenEventTitlesInDropdown = true
+
+        let settings = draft.applied(
+            to: .defaults,
+            availableEventCalendarIDs: []
+        )
+
+        XCTAssertEqual(settings.eventTitleMaxCharacters, 9)
+        XCTAssertFalse(settings.rewriteEventTitlesWithAppleIntelligence)
+        XCTAssertFalse(settings.useRewrittenEventTitlesInDropdown)
+    }
+
     func testAppliedSettingsNormalizesSlackRulesAgainstKnownConnectionsAndCalendars() {
         let connection = SlackConnection(
             id: "conn-a",

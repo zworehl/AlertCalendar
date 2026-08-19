@@ -138,6 +138,28 @@ final class AppSettingsStoreMigrationTests: XCTestCase {
         XCTAssertTrue(store.load().useRewrittenEventTitlesInDropdown)
     }
 
+    func testAppleIntelligenceTitleRewriteIsDisabledBelowTenCharacters() {
+        let suiteName = "AppSettingsStoreMigrationTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let store = AppSettingsStore(defaults: defaults)
+        store.registerDefaults()
+
+        var settings = store.load()
+        settings.eventTitleMaxCharacters = 9
+        settings.rewriteEventTitlesWithAppleIntelligence = true
+        settings.useRewrittenEventTitlesInDropdown = true
+        store.save(settings)
+
+        let reloadedSettings = store.load()
+        XCTAssertEqual(reloadedSettings.eventTitleMaxCharacters, 9)
+        XCTAssertFalse(reloadedSettings.rewriteEventTitlesWithAppleIntelligence)
+        XCTAssertFalse(reloadedSettings.useRewrittenEventTitlesInDropdown)
+    }
+
     func testNonWorkingDatesPruneExpiredAndOutOfRangeConfiguration() {
         let suiteName = "AppSettingsStoreMigrationTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

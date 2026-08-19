@@ -183,12 +183,14 @@ extension MenuContentView {
     func queueItemMinimumWidth(for item: UpcomingItem) -> CGFloat {
         let titleFont = MenuMarkerMetrics.rowTitleNSFont
         let detailFont = MenuMarkerMetrics.rowDetailNSFont
-        let accessoryWidth = MenuBarStatusLabel.accessorySymbolsWidth(
-            symbolNames: monitor.menuBarAccessorySymbolNames(for: item),
-            font: titleFont
+        let accessorySymbolNames = monitor.menuBarAccessorySymbolNames(for: item)
+        let visibleTitle = dropdownVisibleTitle(for: item)
+        let measuredTitleWidth = Self.measuredTextWidth(visibleTitle, font: titleFont)
+        let titleWidth = Self.dropdownMeasuredTitleWidth(
+            visibleTitle: visibleTitle,
+            accessorySymbolNames: accessorySymbolNames,
+            titleFont: titleFont
         )
-        let measuredTitleWidth = Self.measuredTextWidth(item.title, font: titleFont)
-        let titleWidth = measuredTitleWidth + accessoryWidth
         let hoveredTitleWidth = measuredTitleWidth
         let markerColumnWidth: CGFloat = 20
         let spacingAfterMarker: CGFloat = 8
@@ -220,6 +222,18 @@ extension MenuContentView {
         let headerWidth = markerColumnWidth + spacingAfterMarker + titleWidth + (showRightTimeColumn ? (contentSpacing + rightColumnWidth) : 0)
         let hoveredWidth = markerColumnWidth + spacingAfterMarker + hoveredTitleWidth + contentSpacing + hoverActionRowWidth(for: item)
         return ceil(max(headerWidth, hoveredWidth) + popupChromeWidth)
+    }
+
+    static func dropdownMeasuredTitleWidth(
+        visibleTitle: String,
+        accessorySymbolNames: [String],
+        titleFont: NSFont
+    ) -> CGFloat {
+        measuredTextWidth(visibleTitle, font: titleFont)
+            + MenuBarStatusLabel.accessorySymbolsWidth(
+                symbolNames: accessorySymbolNames,
+                font: titleFont
+            )
     }
 
     func hoverActionRowWidth(

@@ -156,7 +156,7 @@ extension SettingsView {
                         detail: "Sets the menu bar title limit before the countdown or status is added."
                     ) {
                         generalSettingStepperControl(valueText: "\(draft.eventTitleMaxCharacters)") {
-                            Stepper("", value: $draft.eventTitleMaxCharacters, in: 8 ... 80)
+                            Stepper("", value: eventTitleMaxCharactersBinding, in: 8 ... 80)
                                 .labelsHidden()
                         }
                     }
@@ -165,19 +165,21 @@ extension SettingsView {
 
                     settingsControlRow(
                         title: "Rewrite with Apple Intelligence",
-                        detail: "Rephrases visible event and reminder titles on device so each compact title stays within the character limit; standard truncation remains the fallback."
+                        detail: appleIntelligenceTitleRewriteIsAllowed
+                            ? "Rephrases visible event and reminder titles on device so each compact title stays within the character limit; standard truncation remains the fallback."
+                            : "Requires at least 10 characters so the rewritten title still has room to say something useful."
                     ) {
                         Toggle(
                             "Rewrite titles with Apple Intelligence",
-                            isOn: $draft.rewriteEventTitlesWithAppleIntelligence
+                            isOn: eventTitleRewriteBinding
                         )
                         .labelsHidden()
                         .toggleStyle(.switch)
-                        .disabled(!agendaSummaryAvailability.isAvailable)
+                        .disabled(!agendaSummaryAvailability.isAvailable || !appleIntelligenceTitleRewriteIsAllowed)
                         .accessibilityLabel(Text("Rewrite titles with Apple Intelligence"))
                     }
 
-                    if draft.rewriteEventTitlesWithAppleIntelligence {
+                    if draft.rewriteEventTitlesWithAppleIntelligence && appleIntelligenceTitleRewriteIsAllowed {
                         settingsDivider()
 
                         settingsControlRow(
@@ -186,7 +188,7 @@ extension SettingsView {
                         ) {
                             Toggle(
                                 "Also rewrite dropdown titles",
-                                isOn: $draft.useRewrittenEventTitlesInDropdown
+                                isOn: useRewrittenEventTitlesInDropdownBinding
                             )
                             .labelsHidden()
                             .toggleStyle(.switch)

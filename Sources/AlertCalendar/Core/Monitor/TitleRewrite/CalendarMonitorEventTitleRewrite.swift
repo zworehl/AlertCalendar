@@ -9,6 +9,9 @@ extension CalendarMonitor {
     func scheduleEventTitleRewritesIfNeeded(now: Date, settings: AppSettings) {
         guard settings.useEventTitleEllipsis,
               settings.rewriteEventTitlesWithAppleIntelligence,
+              AppSettingsRules.allowsAppleIntelligenceTitleRewrite(
+                maximumCharacters: settings.eventTitleMaxCharacters
+              ),
               eventTitleRewriter.availability.isAvailable else {
             cancelEventTitleRewrites(clearDisplayedTitles: true)
             return
@@ -121,6 +124,9 @@ extension CalendarMonitor {
         let settings = currentSettings
         guard settings.useEventTitleEllipsis,
               settings.rewriteEventTitlesWithAppleIntelligence,
+              AppSettingsRules.allowsAppleIntelligenceTitleRewrite(
+                maximumCharacters: settings.eventTitleMaxCharacters
+              ),
               (!inDropdown || settings.useRewrittenEventTitlesInDropdown) else {
             return item.title
         }
