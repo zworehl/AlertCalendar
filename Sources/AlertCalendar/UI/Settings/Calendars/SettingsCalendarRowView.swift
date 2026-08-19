@@ -6,7 +6,6 @@ struct SettingsCalendarRowView: View {
     let selectedIDs: Binding<Set<String>>
     let weekdayOnlyIDs: Binding<Set<String>>
     let onSelectionChanged: () -> Void
-    let rowHoverBackground: Color
     var calendarAlertRules: Binding<[CalendarAlertRule]>?
     @State private var isHovered = false
     @State private var isShowingAlertRules = false
@@ -29,6 +28,10 @@ struct SettingsCalendarRowView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)
+            .frame(minHeight: SettingsVisualMetrics.minimumInteractiveControlSize)
+            .accessibilityLabel(calendar.title)
+            .accessibilityValue(isSelected ? "Selected" : "Not selected")
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
 
             if calendar.isSubscribed {
                 Image(systemName: "dot.radiowaves.left.and.right")
@@ -47,7 +50,13 @@ struct SettingsCalendarRowView: View {
                             .foregroundStyle(alertRule?.isEnabled == true ? Color.accentColor : .secondary)
                     }
                     .buttonStyle(.plain)
+                    .frame(
+                        width: SettingsVisualMetrics.minimumInteractiveControlSize,
+                        height: SettingsVisualMetrics.minimumInteractiveControlSize
+                    )
+                    .contentShape(Rectangle())
                     .disabled(!calendar.allowsContentModifications)
+                    .accessibilityLabel("Alert rule for \(calendar.title)")
                     .help(alertRuleHelpText)
                     .popover(isPresented: $isShowingAlertRules, arrowEdge: .trailing) {
                         if calendarAlertRules != nil {
@@ -77,16 +86,22 @@ struct SettingsCalendarRowView: View {
                         )
                 }
                 .buttonStyle(.plain)
+                .frame(minHeight: SettingsVisualMetrics.minimumInteractiveControlSize)
+                .contentShape(Rectangle())
+                .accessibilityLabel("Calendar schedule for \(calendar.title)")
+                .accessibilityValue(isWeekdayOnly ? "Weekdays" : "Every day")
                 .help("Toggle weekdays-only filtering for this calendar")
             }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(isHovered ? rowHoverBackground : .clear)
+        .background(SettingsHoverRowChrome(isHovered: isHovered))
+        .contentShape(
+            RoundedRectangle(
+                cornerRadius: SettingsVisualMetrics.selectionRowCornerRadius,
+                style: .continuous
+            )
         )
-        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .onHover { hovering in
             isHovered = hovering
         }

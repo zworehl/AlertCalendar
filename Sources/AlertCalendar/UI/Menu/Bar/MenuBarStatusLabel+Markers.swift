@@ -21,8 +21,6 @@ extension MenuBarStatusLabel {
             path.fill()
         case .reminder(let ringColor):
             drawReminderMarker(color: ringColor.nsColor, x: x, height: height, markerSize: imageMarkerSize)
-        case .birthday(let markerColor):
-            drawSymbolMarker(symbolName: "gift.circle.fill", tintColor: markerColor.nsColor, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
         case .allDay(let markerColor):
             drawSymbolMarker(symbolName: "calendar.circle.fill", tintColor: markerColor.nsColor, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
         case .gameStore(let store):
@@ -80,7 +78,6 @@ extension MenuBarStatusLabel {
         case .color:
             return defaultWidth
         case .reminder,
-            .birthday,
             .allDay,
             .travel,
             .sunrise,
@@ -207,7 +204,11 @@ extension MenuBarStatusLabel {
             height: markerHeight
         )
 
-        if let icon = AstronomyIconProvider.image(for: moment, pointSize: pointSize) {
+        if let icon = AstronomyIconProvider.monochromeImage(
+            for: moment,
+            pointSize: pointSize,
+            tintColor: NSColor.white.withAlphaComponent(0.97)
+        ) {
             icon.draw(in: rect)
         }
     }

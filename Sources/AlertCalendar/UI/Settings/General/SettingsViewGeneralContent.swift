@@ -21,7 +21,7 @@ extension SettingsView {
                 VStack(alignment: .leading, spacing: 12) {
                     settingsControlRow(
                         title: "Blinking alert",
-                        detail: "Turns near-start items red so they stand out before they begin."
+                        detail: "Turns near-start items and overdue timed events red so they stand out."
                     ) {
                         Toggle("Blinking alert", isOn: $draft.enableBlinkAlert)
                             .labelsHidden()
@@ -49,7 +49,7 @@ extension SettingsView {
                 }
             }
 
-            ViewThatFits(in: .horizontal) {
+            if settingsUsesTwoColumnLayout {
                 HStack(alignment: .top, spacing: SettingsVisualMetrics.pageSpacing) {
                     generalMenuBarSettingsSection
                         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -57,7 +57,7 @@ extension SettingsView {
                     generalDropdownSettingsSection(maxContextualPreviewLeadMinutes: maxContextualPreviewLeadMinutes)
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
-
+            } else {
                 VStack(alignment: .leading, spacing: SettingsVisualMetrics.pageSpacing) {
                     generalMenuBarSettingsSection
                     generalDropdownSettingsSection(maxContextualPreviewLeadMinutes: maxContextualPreviewLeadMinutes)
@@ -139,27 +139,69 @@ extension SettingsView {
                 settingsDivider()
 
                 settingsControlRow(
-                    title: "Use ellipsis for long titles",
-                    detail: "Shortens long event titles so the menu bar stays compact."
+                    title: "Shorten long titles",
+                    detail: "Keeps long event and reminder titles within a compact menu bar limit."
                 ) {
-                    Toggle("Use ellipsis for long titles", isOn: $draft.useEventTitleEllipsis)
+                    Toggle("Shorten long titles", isOn: $draft.useEventTitleEllipsis)
                         .labelsHidden()
                         .toggleStyle(.switch)
-                        .accessibilityLabel(Text("Use ellipsis for long titles"))
+                        .accessibilityLabel(Text("Shorten long titles"))
                 }
 
-                settingsDivider()
+                if draft.useEventTitleEllipsis {
+                    settingsDivider()
 
-                settingsControlRow(
-                    title: "Title max characters",
-                    detail: "Fine-tunes where titles clip when ellipsis mode is enabled."
-                ) {
-                    generalSettingStepperControl(valueText: "\(draft.eventTitleMaxCharacters)") {
-                        Stepper("", value: $draft.eventTitleMaxCharacters, in: 8 ... 80)
-                            .labelsHidden()
+                    settingsControlRow(
+                        title: "Maximum characters",
+                        detail: "Sets the menu bar title limit before the countdown or status is added."
+                    ) {
+                        generalSettingStepperControl(valueText: "\(draft.eventTitleMaxCharacters)") {
+                            Stepper("", value: $draft.eventTitleMaxCharacters, in: 8 ... 80)
+                                .labelsHidden()
+                        }
                     }
-                    .disabled(!draft.useEventTitleEllipsis)
-                    .opacity(draft.useEventTitleEllipsis ? 1 : 0.55)
+
+                    settingsDivider()
+
+                    settingsControlRow(
+                        title: "Rewrite with Apple Intelligence",
+                        detail: "Rephrases visible event and reminder titles on device so each compact title stays within the character limit; standard truncation remains the fallback."
+                    ) {
+                        Toggle(
+                            "Rewrite titles with Apple Intelligence",
+                            isOn: $draft.rewriteEventTitlesWithAppleIntelligence
+                        )
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .disabled(!agendaSummaryAvailability.isAvailable)
+                        .accessibilityLabel(Text("Rewrite titles with Apple Intelligence"))
+                    }
+
+                    if draft.rewriteEventTitlesWithAppleIntelligence {
+                        settingsDivider()
+
+                        settingsControlRow(
+                            title: "Also rewrite dropdown titles",
+                            detail: "Uses the same compact replacements in the dropdown list. Leave off to change only the menu bar."
+                        ) {
+                            Toggle(
+                                "Also rewrite dropdown titles",
+                                isOn: $draft.useRewrittenEventTitlesInDropdown
+                            )
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .accessibilityLabel(Text("Also rewrite dropdown titles"))
+                        }
+                    }
+
+                    if let message = eventTitleRewriteAvailabilityMessage {
+                        settingsDivider()
+
+                        Label(message, systemImage: "apple.intelligence")
+                            .font(SettingsTypography.supportingText)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
 
                 settingsDivider()
@@ -204,17 +246,25 @@ extension SettingsView {
             VStack(alignment: .leading, spacing: 12) {
                 settingsControlRow(
                     title: "Time window",
-                    detail: "Expands or tightens how far into the future timed items can appear."
+                    detail: "Expands from hours to days, weeks, and up to six months as you look further ahead."
                 ) {
                     generalSettingStepperControl(
-                        valueText: Self.durationValueText(
-                            value: draft.lookAheadHours,
-                            singular: "hour",
-                            plural: "hours"
-                        )
+                        valueText: Self.dropdownWindowValueText(hours: draft.lookAheadHours)
                     ) {
-                        Stepper("", value: $draft.lookAheadHours, in: 1 ... 168)
-                            .labelsHidden()
+                        Stepper {
+                            EmptyView()
+                        } onIncrement: {
+                            draft.lookAheadHours = AppSettingsRules.adjustedDropdownWindowHours(
+                                currentValue: draft.lookAheadHours,
+                                incrementing: true
+                            )
+                        } onDecrement: {
+                            draft.lookAheadHours = AppSettingsRules.adjustedDropdownWindowHours(
+                                currentValue: draft.lookAheadHours,
+                                incrementing: false
+                            )
+                        }
+                        .labelsHidden()
                     }
                 }
 
@@ -238,12 +288,72 @@ extension SettingsView {
 
                 settingsControlRow(
                     title: "Items in list",
-                    detail: "Caps how many dropdown rows are shown before overflow stays hidden."
+                    detail: "Sets the dropdown limit in groups of five, up to 100 rows."
                 ) {
                     generalSettingStepperControl(valueText: "\(draft.maxListItems)") {
-                        Stepper("", value: $draft.maxListItems, in: 3 ... 20)
+                        Stepper("", value: $draft.maxListItems, in: 5 ... 100, step: 5)
                             .labelsHidden()
                     }
+                }
+
+                settingsDivider()
+
+                settingsControlRow(
+                    title: "Agenda summary",
+                    detail: "Uses Apple Intelligence on device to generate a concise English overview."
+                ) {
+                    Toggle("Show agenda summary", isOn: $draft.showAgendaSummary)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .accessibilityLabel(Text("Show agenda summary"))
+                }
+
+                settingsDivider()
+
+                settingsControlRow(
+                    title: "Summary length",
+                    detail: "Sets the maximum number of words; shorter summaries are still allowed when they cover the visible agenda."
+                ) {
+                    generalSettingPickerControl {
+                        Picker(
+                            "Summary length",
+                            selection: $draft.agendaSummaryMaximumWords
+                        ) {
+                            ForEach(AppSettingsRules.agendaSummaryMaximumWordOptions, id: \.self) { wordCount in
+                                Text("\(wordCount) words").tag(wordCount)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .disabled(!draft.showAgendaSummary)
+                    }
+                }
+
+                settingsDivider()
+
+                settingsControlRow(
+                    title: "Linked page previews",
+                    detail: "Off by default. When enabled, connects directly to up to three public HTTPS pages, which can observe the request. Meeting links, private networks, files, credentials, and sensitive URL parameters stay blocked."
+                ) {
+                    Toggle(
+                        "Use linked page previews in agenda summary",
+                        isOn: $draft.useLinkedPagePreviewsInAgendaSummary
+                    )
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .disabled(!draft.showAgendaSummary)
+                    .accessibilityLabel(Text("Use linked page previews in agenda summary"))
+                }
+
+                if let alertMessage = agendaSummaryAvailability.settingsAlertMessage
+                    ?? agendaSummaryGenerationErrorDescription {
+                    settingsDivider()
+
+                    Label(alertMessage, systemImage: "exclamationmark.triangle.fill")
+                        .font(SettingsTypography.supportingText)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityLabel("Agenda Summary unavailable. \(alertMessage)")
                 }
             }
         }
@@ -321,7 +431,7 @@ extension SettingsView {
                 }
             }
 
-            Text("Window: \(Self.durationValueText(value: draft.lookAheadHours, singular: "hour", plural: "hours"))")
+            Text("Window: \(Self.dropdownWindowValueText(hours: draft.lookAheadHours))")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }

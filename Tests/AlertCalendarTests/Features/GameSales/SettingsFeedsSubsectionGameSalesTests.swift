@@ -11,4 +11,10 @@ final class SettingsFeedsSubsectionGameSalesTests: XCTestCase {
         XCTAssertEqual(SettingsView.FeedsSubsection.gameSales.title, "Game Sales")
         XCTAssertEqual(SettingsView.FeedsSubsection.gameSales.symbolName, "gamecontroller.fill")
     }
+
+    func testOnlyFootballUsesEmbeddedDetailScroller() {
+        let embeddedSubsections = SettingsView.FeedsSubsection.allCases.filter(\.usesEmbeddedDetailScroller)
+
+        XCTAssertEqual(embeddedSubsections, [.football])
+    }
 }

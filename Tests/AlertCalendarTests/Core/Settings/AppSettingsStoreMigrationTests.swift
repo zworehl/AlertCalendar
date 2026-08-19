@@ -69,6 +69,75 @@ final class AppSettingsStoreMigrationTests: XCTestCase {
         XCTAssertFalse(store.load().enableFootballDisallowedGoalNotifications)
     }
 
+    func testAgendaSummaryDefaultsOnAndPersistsUserChoice() {
+        let suiteName = "AppSettingsStoreMigrationTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let store = AppSettingsStore(defaults: defaults)
+        store.registerDefaults()
+
+        var settings = store.load()
+        XCTAssertTrue(settings.showAgendaSummary)
+        XCTAssertEqual(settings.agendaSummaryMaximumWords, 60)
+        XCTAssertFalse(settings.useLinkedPagePreviewsInAgendaSummary)
+
+        settings.showAgendaSummary = false
+        settings.agendaSummaryMaximumWords = 100
+        settings.useLinkedPagePreviewsInAgendaSummary = true
+        store.save(settings)
+
+        XCTAssertFalse(store.load().showAgendaSummary)
+        XCTAssertEqual(store.load().agendaSummaryMaximumWords, 100)
+        XCTAssertTrue(store.load().useLinkedPagePreviewsInAgendaSummary)
+    }
+
+    func testDropdownLimitsDefaultAndPersistUsingSupportedSteps() {
+        let suiteName = "AppSettingsStoreMigrationTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let store = AppSettingsStore(defaults: defaults)
+        store.registerDefaults()
+
+        var settings = store.load()
+        XCTAssertEqual(settings.lookAheadHours, 24)
+        XCTAssertEqual(settings.maxListItems, 10)
+
+        settings.lookAheadHours = 700
+        settings.maxListItems = 98
+        store.save(settings)
+
+        XCTAssertEqual(store.load().lookAheadHours, 720)
+        XCTAssertEqual(store.load().maxListItems, 100)
+    }
+
+    func testAppleIntelligenceTitleRewriteDefaultsToMenuBarOnlyAndPersistsScope() {
+        let suiteName = "AppSettingsStoreMigrationTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let store = AppSettingsStore(defaults: defaults)
+        store.registerDefaults()
+
+        var settings = store.load()
+        XCTAssertFalse(settings.rewriteEventTitlesWithAppleIntelligence)
+        XCTAssertFalse(settings.useRewrittenEventTitlesInDropdown)
+
+        settings.rewriteEventTitlesWithAppleIntelligence = true
+        settings.useRewrittenEventTitlesInDropdown = true
+        store.save(settings)
+
+        XCTAssertTrue(store.load().rewriteEventTitlesWithAppleIntelligence)
+        XCTAssertTrue(store.load().useRewrittenEventTitlesInDropdown)
+    }
+
     func testNonWorkingDatesPruneExpiredAndOutOfRangeConfiguration() {
         let suiteName = "AppSettingsStoreMigrationTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

@@ -41,8 +41,9 @@ struct AlertCalendarApp: App {
         Window(WindowMetadata.preferencesTitle, id: WindowMetadata.preferencesID) {
             SettingsView(monitor: monitor)
         }
-        .defaultSize(width: 1040, height: 820)
+        .defaultSize(width: 1240, height: 840)
         .windowResizability(.automatic)
+        .windowToolbarStyle(.unified(showsTitle: true))
         .commands {
             CommandGroup(after: .windowArrangement) {
                 Button("Toggle Full Screen") {
@@ -61,32 +62,41 @@ private final class CalendarMonitorOwner: ObservableObject {
 
 private struct MenuBarMonitorStatusLabel: View {
     @ObservedObject var monitor: CalendarMonitor
+    @Environment(\.openWindow) private var openWindow
 
     @ViewBuilder
     var body: some View {
-        if monitor.isInitialLoadInProgress {
-            MenuBarLoadingIndicator()
-        } else {
-            MenuBarStatusLabel(
-                text: monitor.combinedMenuBarLabel,
-                color: monitor.combinedMenuBarColor,
-                alertedSegmentIndex: monitor.combinedMenuBarAlertedSegmentIndex,
-                alertTextOpacity: monitor.combinedMenuBarAlertTextOpacity,
-                dotColors: monitor.combinedMenuBarDotColors,
-                markerStyles: monitor.combinedMenuBarMarkerStyles,
-                segments: monitor.combinedMenuBarSegments,
-                segmentBackgroundColors: monitor.combinedMenuBarSegmentBackgroundColors,
-                segmentBackgroundProgresses: monitor.combinedMenuBarSegmentBackgroundProgresses,
-                segmentParticipationStatuses: monitor.combinedMenuBarSegmentParticipationStatuses,
-                segmentTextureStatuses: monitor.combinedMenuBarSegmentTextureStatuses,
-                segmentAccessorySymbolNames: monitor.combinedMenuBarSegmentAccessorySymbolNames,
-                footballDisplay: monitor.combinedMenuBarFootballDisplay,
-                footballTrailingText: monitor.combinedMenuBarFootballTrailingText,
-                footballStatusText: monitor.combinedMenuBarFootballStatusText,
-                footballStatusColor: monitor.combinedMenuBarFootballStatusColor,
-                footballGoalHighlightSide: monitor.combinedMenuBarFootballGoalHighlightSide,
-                footballGoalHighlightTextOpacity: monitor.combinedMenuBarFootballGoalHighlightTextOpacity
-            )
+        Group {
+            if monitor.isInitialLoadInProgress {
+                MenuBarLoadingIndicator()
+            } else {
+                MenuBarStatusLabel(
+                    text: monitor.combinedMenuBarLabel,
+                    color: monitor.combinedMenuBarColor,
+                    alertedSegmentIndex: monitor.combinedMenuBarAlertedSegmentIndex,
+                    alertTextOpacity: monitor.combinedMenuBarAlertTextOpacity,
+                    dotColors: monitor.combinedMenuBarDotColors,
+                    markerStyles: monitor.combinedMenuBarMarkerStyles,
+                    segments: monitor.combinedMenuBarSegments,
+                    segmentBackgroundColors: monitor.combinedMenuBarSegmentBackgroundColors,
+                    segmentBackgroundProgresses: monitor.combinedMenuBarSegmentBackgroundProgresses,
+                    segmentParticipationStatuses: monitor.combinedMenuBarSegmentParticipationStatuses,
+                    segmentTextureStatuses: monitor.combinedMenuBarSegmentTextureStatuses,
+                    segmentAccessorySymbolNames: monitor.combinedMenuBarSegmentAccessorySymbolNames,
+                    footballDisplay: monitor.combinedMenuBarFootballDisplay,
+                    footballTrailingText: monitor.combinedMenuBarFootballTrailingText,
+                    footballStatusText: monitor.combinedMenuBarFootballStatusText,
+                    footballStatusColor: monitor.combinedMenuBarFootballStatusColor,
+                    footballGoalHighlightSide: monitor.combinedMenuBarFootballGoalHighlightSide,
+                    footballGoalHighlightTextOpacity: monitor.combinedMenuBarFootballGoalHighlightTextOpacity
+                )
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .alertCalendarOpenSettingsRequested)) { _ in
+            if let appDelegate = NSApp.delegate as? AppDelegate {
+                appDelegate.prepareForSettingsPresentation()
+            }
+            openWindow(id: WindowMetadata.preferencesID)
         }
     }
 }

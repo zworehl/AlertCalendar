@@ -1,53 +1,221 @@
+import AppKit
 import SwiftUI
 
 extension SettingsView {
     @ViewBuilder
-    var settingsNavigationControls: some View {
-        Group {
-            if settingsWindowWidth >= SettingsVisualMetrics.navigationStackBreakpoint {
-                HStack(alignment: .center, spacing: 16) {
-                    settingsTabPicker
-                        .frame(maxWidth: 620, alignment: .leading)
+    var settingsNavigationLayout: some View {
+        settingsNavigationSplitView
+    }
 
-                    if selectedTab == .feeds {
-                        Spacer(minLength: 0)
-                        feedsSubsectionPicker
-                            .frame(width: 440)
-                    }
-                }
+    private var settingsNavigationSplitView: some View {
+        NavigationSplitView(columnVisibility: $settingsColumnVisibility) {
+            settingsSidebar
+                .navigationSplitViewColumnWidth(
+                    min: SettingsVisualMetrics.sidebarMinimumWidth,
+                    ideal: SettingsVisualMetrics.sidebarIdealWidth,
+                    max: SettingsVisualMetrics.sidebarMaximumWidth
+                )
+        } detail: {
+            settingsDetailPane
+        }
+        .navigationSplitViewStyle(.balanced)
+    }
+
+    private var settingsSidebar: some View {
+        List(selection: settingsSidebarSelection) {
+            if visiblePrimarySettingsTabs.isEmpty && visibleFeedSubsections.isEmpty {
+                SettingsSidebarEmptySearchView(query: settingsSearchQuery)
+                    .listRowBackground(Color.clear)
             } else {
-                VStack(alignment: .leading, spacing: 10) {
-                    settingsTabPicker
-                        .frame(maxWidth: 620, alignment: .leading)
+                if !visiblePrimarySettingsTabs.isEmpty {
+                    Section("Settings") {
+                        ForEach(visiblePrimarySettingsTabs) { tab in
+                            Label(tab.rawValue, systemImage: tab.symbolName)
+                                .tag(SettingsSidebarDestination.tab(tab))
+                        }
+                    }
+                }
 
-                    if selectedTab == .feeds {
-                        feedsSubsectionPicker
-                            .frame(maxWidth: 440, alignment: .leading)
+                if !visibleFeedSubsections.isEmpty {
+                    Section("Feeds") {
+                        ForEach(visibleFeedSubsections) { subsection in
+                            Label(subsection.rawValue, systemImage: subsection.symbolName)
+                                .tag(SettingsSidebarDestination.feed(subsection))
+                        }
                     }
                 }
             }
         }
+        .listStyle(.sidebar)
+        .searchable(
+            text: $settingsSearchQuery,
+            placement: .sidebar,
+            prompt: "Search Settings"
+        )
+        .accessibilityIdentifier("settings.sidebar")
     }
 
-    private var settingsTabPicker: some View {
-        Picker("Settings section", selection: $selectedTab) {
-            ForEach(SettingsTab.allCases) { tab in
-                Label(tab.rawValue, systemImage: tab.symbolName)
-                    .tag(tab)
+    private var settingsSidebarSelection: Binding<SettingsSidebarDestination?> {
+        Binding(
+            get: {
+                selectedTab == .feeds
+                    ? .feed(selectedFeedsSubsection)
+                    : .tab(selectedTab)
+            },
+            set: { destination in
+                guard let destination else { return }
+                switch destination {
+                case .tab(let tab):
+                    selectedTab = tab
+                case .feed(let subsection):
+                    selectedTab = .feeds
+                    selectedFeedsSubsection = subsection
+                }
             }
-        }
-        .labelsHidden()
-        .pickerStyle(.segmented)
+        )
     }
 
-    private var feedsSubsectionPicker: some View {
-        Picker("Feeds subsection", selection: $selectedFeedsSubsection) {
-            ForEach(FeedsSubsection.allCases) { subsection in
-                Label(subsection.rawValue, systemImage: subsection.symbolName)
-                    .tag(subsection)
+    private var settingsDetailPane: some View {
+        VStack(spacing: 0) {
+            settingsPageHeader
+                .padding(.horizontal, SettingsVisualMetrics.detailHorizontalPadding)
+                .padding(.top, 20)
+                .padding(.bottom, 16)
+
+            Divider()
+
+            settingsDetailContent
+
+            settingsActionBar
+                .padding(.horizontal, SettingsVisualMetrics.detailHorizontalPadding)
+                .padding(.vertical, 12)
+                .background(.bar)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Color(nsColor: .windowBackgroundColor).ignoresSafeArea())
+        .background(
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: SettingsDetailWidthPreferenceKey.self,
+                    value: proxy.size.width
+                )
+            }
+        )
+        .accessibilityIdentifier("settings.detail")
+    }
+
+    @ViewBuilder
+    private var settingsPageHeader: some View {
+        SettingsPageHeaderView(
+            title: settingsPageTitle,
+            subtitle: settingsPageSubtitle,
+            systemImage: settingsPageSystemImage,
+            tint: settingsPageTint
+        )
+    }
+
+    @ViewBuilder
+    private var settingsDetailContent: some View {
+        Group {
+            if selectedSettingsContentUsesEmbeddedScroller {
+                settingsEmbeddedDetailContent
+            } else {
+                settingsScrollableDetailContent
             }
         }
-        .labelsHidden()
-        .pickerStyle(.segmented)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var settingsEmbeddedDetailContent: some View {
+        VStack(alignment: .leading, spacing: SettingsVisualMetrics.pageSpacing) {
+            activeSettingsContent
+        }
+        .padding(.horizontal, SettingsVisualMetrics.detailHorizontalPadding)
+        .padding(.vertical, SettingsVisualMetrics.detailVerticalPadding)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var settingsScrollableDetailContent: some View {
+        ScrollView(.vertical, showsIndicators: true) {
+            LazyVStack(alignment: .leading, spacing: SettingsVisualMetrics.pageSpacing) {
+                activeSettingsContent
+            }
+            .padding(.horizontal, SettingsVisualMetrics.detailHorizontalPadding)
+            .padding(.vertical, SettingsVisualMetrics.detailVerticalPadding)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+    }
+
+    private var selectedSettingsContentUsesEmbeddedScroller: Bool {
+        selectedTab == .feeds && selectedFeedsSubsection.usesEmbeddedDetailScroller
+    }
+
+    private var settingsPageTitle: String {
+        selectedTab == .feeds ? selectedFeedsSubsection.title : selectedTab.rawValue
+    }
+
+    private var settingsPageSubtitle: String {
+        selectedTab == .feeds ? selectedFeedsSubsection.subtitle : selectedTab.subtitle
+    }
+
+    private var settingsPageSystemImage: String {
+        selectedTab == .feeds ? selectedFeedsSubsection.symbolName : selectedTab.symbolName
+    }
+
+    private var settingsPageTint: Color {
+        selectedTab == .feeds ? selectedFeedsSubsection.tint : selectedTab.tint
+    }
+
+    private var normalizedSettingsSearchQuery: String {
+        settingsSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private var visiblePrimarySettingsTabs: [SettingsTab] {
+        let query = normalizedSettingsSearchQuery
+        let primaryTabs = SettingsTab.allCases.filter { $0 != .feeds }
+        guard !query.isEmpty else { return primaryTabs }
+
+        return primaryTabs.filter { tab in
+            sidebarSearchMatches(title: tab.rawValue, subtitle: tab.subtitle, query: query)
+        }
+    }
+
+    private var visibleFeedSubsections: [FeedsSubsection] {
+        let query = normalizedSettingsSearchQuery
+        guard !query.isEmpty else { return FeedsSubsection.allCases }
+
+        if sidebarSearchMatches(title: SettingsTab.feeds.rawValue, subtitle: SettingsTab.feeds.subtitle, query: query) {
+            return FeedsSubsection.allCases
+        }
+
+        return FeedsSubsection.allCases.filter { subsection in
+            sidebarSearchMatches(title: subsection.title, subtitle: subsection.subtitle, query: query)
+        }
+    }
+
+    private func sidebarSearchMatches(title: String, subtitle: String, query: String) -> Bool {
+        title.lowercased().contains(query) || subtitle.lowercased().contains(query)
+    }
+}
+
+private struct SettingsSidebarEmptySearchView: View {
+    let query: String
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.title2)
+                .foregroundStyle(.tertiary)
+
+            Text("No Settings Found")
+                .font(.subheadline.weight(.semibold))
+
+            Text("No settings match “\(query)”.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 18)
     }
 }

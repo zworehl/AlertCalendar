@@ -4,18 +4,8 @@ import SwiftUI
 
 extension SettingsFootballFixturesSectionView {
     nonisolated static let competitionOffseasonFeedbackTitle = "Offseason"
-
-    var competitionListPanel: some View {
-        HStack(alignment: .top, spacing: 16) {
-            competitionSelectionContentPanel
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-
-            competitionFiltersPanel
-                .frame(width: Self.competitionSidebarWidth, alignment: .topLeading)
-                .frame(maxHeight: .infinity, alignment: .topLeading)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
+    nonisolated static let competitionSelectionStatusWidth: CGFloat = 72
+    nonisolated static let competitionSelectionStatusHeight: CGFloat = 18
 
     var competitionSelectionContentPanel: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -51,15 +41,15 @@ extension SettingsFootballFixturesSectionView {
                     }
                 }
 
+                SettingsSectionDivider()
+
                 competitionContent(for: section, visibleMatches: visibleMatches)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             } else {
                 emptyState("Choose a competition from the panel on the right.")
             }
         }
-        .padding(SettingsVisualMetrics.panelPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(panelChrome)
     }
 
     func competitionSelectionHeader(for section: FootballMenuCompetitionSection) -> some View {
@@ -89,10 +79,13 @@ extension SettingsFootballFixturesSectionView {
     }
 
     var competitionFiltersPanel: some View {
-        competitionFiltersContent
-            .padding(SettingsVisualMetrics.panelPadding)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(panelChrome)
+        ScrollView(.vertical, showsIndicators: true) {
+            competitionFiltersContent
+                .padding(.trailing, 2)
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .clipped()
     }
 
     var competitionFiltersContent: some View {
@@ -163,7 +156,7 @@ extension SettingsFootballFixturesSectionView {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Divider()
+            SettingsSectionDivider()
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Region")
@@ -175,7 +168,7 @@ extension SettingsFootballFixturesSectionView {
                 }
             }
 
-            Divider()
+            SettingsSectionDivider()
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Competition")
@@ -185,19 +178,16 @@ extension SettingsFootballFixturesSectionView {
                 if selectedCompetitionSections.isEmpty {
                     emptyState("No competitions are available for the selected region.")
                 } else {
-                    ScrollView(.vertical, showsIndicators: true) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            ForEach(selectedCompetitionSections) { section in
-                                competitionSelectionButton(section)
-                            }
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(selectedCompetitionSections) { section in
+                            competitionSelectionButton(section)
                         }
-                        .padding(.trailing, 2)
                     }
-                    .frame(maxHeight: .infinity, alignment: .topLeading)
+                    .padding(.trailing, 2)
                 }
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     @ViewBuilder
@@ -263,23 +253,21 @@ extension SettingsFootballFixturesSectionView {
                 Spacer()
                 Text("\(entry.sections.count)")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(isSelected ? .white.opacity(0.92) : .secondary)
+                    .foregroundStyle(
+                        isSelected
+                            ? Color(nsColor: .selectedControlTextColor).opacity(0.92)
+                            : .secondary
+                    )
             }
             .font(.subheadline.weight(.medium))
-            .foregroundStyle(isSelected ? Color.white : .primary)
+            .foregroundStyle(isSelected ? Color(nsColor: .selectedControlTextColor) : .primary)
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(isSelected ? Color.accentColor : Color.primary.opacity(0.04))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(isSelected ? Color.accentColor.opacity(0.35) : Color.primary.opacity(0.06), lineWidth: 1)
-            )
+            .background(SettingsSelectionRowChrome(isSelected: isSelected))
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     func competitionSelectionButton(_ section: FootballMenuCompetitionSection) -> some View {
@@ -296,47 +284,64 @@ extension SettingsFootballFixturesSectionView {
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                if section.isLoading && !section.hasLoaded && section.matches.isEmpty {
-                    ProgressView()
-                        .controlSize(.small)
-                } else if autoAddFootballCompetitionSlugs.contains(section.competition.slug) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(isSelected ? .white.opacity(0.92) : .green)
-                } else if section.errorMessage != nil {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.orange)
-                } else if Self.isCompetitionOffseason(section) {
-                    Text(Self.competitionOffseasonFeedbackTitle)
-                        .font(.caption.weight(.semibold))
-                        .lineLimit(1)
-                        .foregroundStyle(isSelected ? .white.opacity(0.92) : .secondary)
-                } else if section.hasLoaded {
-                    Text("\(visibleMatchCount)")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(isSelected ? .white.opacity(0.92) : .secondary)
-                } else {
-                    Text("Load")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(isSelected ? .white.opacity(0.92) : .secondary)
+                Group {
+                    if section.isLoading && !section.hasLoaded && section.matches.isEmpty {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else if autoAddFootballCompetitionSlugs.contains(section.competition.slug) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(
+                                isSelected
+                                    ? Color(nsColor: .selectedControlTextColor).opacity(0.92)
+                                    : .green
+                            )
+                    } else if section.errorMessage != nil {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.orange)
+                    } else if Self.isCompetitionOffseason(section) {
+                        Text(Self.competitionOffseasonFeedbackTitle)
+                            .font(.caption.weight(.semibold))
+                            .lineLimit(1)
+                            .foregroundStyle(
+                                isSelected
+                                    ? Color(nsColor: .selectedControlTextColor).opacity(0.92)
+                                    : .secondary
+                            )
+                    } else if section.hasLoaded {
+                        Text("\(visibleMatchCount)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(
+                                isSelected
+                                    ? Color(nsColor: .selectedControlTextColor).opacity(0.92)
+                                    : .secondary
+                            )
+                    } else {
+                        Text("Load")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(
+                                isSelected
+                                    ? Color(nsColor: .selectedControlTextColor).opacity(0.92)
+                                    : .secondary
+                            )
+                    }
                 }
+                .frame(
+                    width: Self.competitionSelectionStatusWidth,
+                    height: Self.competitionSelectionStatusHeight,
+                    alignment: .trailing
+                )
             }
             .font(.subheadline.weight(.medium))
-            .foregroundStyle(isSelected ? Color.white : .primary)
+            .foregroundStyle(isSelected ? Color(nsColor: .selectedControlTextColor) : .primary)
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(isSelected ? Color.accentColor : Color.primary.opacity(0.04))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(isSelected ? Color.accentColor.opacity(0.35) : Color.primary.opacity(0.06), lineWidth: 1)
-            )
+            .background(SettingsSelectionRowChrome(isSelected: isSelected))
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     @ViewBuilder

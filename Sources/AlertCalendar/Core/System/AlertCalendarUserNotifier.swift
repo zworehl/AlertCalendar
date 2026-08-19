@@ -24,6 +24,32 @@ enum AlertCalendarUserNotifier {
         try? await add(request)
     }
 
+    static func schedule(identifier: String, title: String, body: String, at date: Date) async {
+        guard date > Date(), await ensureAuthorization() else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+
+        let components = Calendar.current.dateComponents(
+            [.year, .month, .day, .hour, .minute, .second, .timeZone],
+            from: date
+        )
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        let request = UNNotificationRequest(
+            identifier: identifier,
+            content: content,
+            trigger: trigger
+        )
+        try? await add(request)
+    }
+
+    static func removePendingRequests(withIdentifiers identifiers: [String]) {
+        guard !identifiers.isEmpty else { return }
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
+    }
+
     private static func ensureAuthorization() async -> Bool {
         let center = UNUserNotificationCenter.current()
         let authorizationStatus = await notificationAuthorizationStatus(for: center)

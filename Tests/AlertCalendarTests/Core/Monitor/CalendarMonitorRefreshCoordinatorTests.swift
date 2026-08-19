@@ -13,6 +13,10 @@ final class CalendarMonitorRefreshCoordinatorTests: XCTestCase {
             CalendarMonitorRefreshCoordinator.primaryReason(from: [.locationChanged, .footballHeartbeat]),
             .footballHeartbeat
         )
+        XCTAssertEqual(
+            CalendarMonitorRefreshCoordinator.primaryReason(from: [.calendarSync, .eventStoreChanged]),
+            .eventStoreChanged
+        )
     }
 
     func testEnqueuePublishesPendingAndCompletedDiagnostics() async {

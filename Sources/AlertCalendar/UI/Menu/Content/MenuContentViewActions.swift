@@ -85,6 +85,7 @@ extension MenuContentView {
                let locationText = previewLocationText {
                 MiniLocationMapView(
                     locationText: locationText,
+                    locationCoordinate: item.locationCoordinate,
                     preferredHeight: mapPreviewHeight
                 )
                     .frame(width: cardContentWidth, alignment: .topLeading)
@@ -226,7 +227,7 @@ extension MenuContentView {
                         footballFixtureHeadline(
                             match: footballMatch,
                             display: item.footballMenuBarDisplay,
-                            font: .subheadline.weight(.semibold),
+                            font: MenuMarkerMetrics.contextualHeadlineFont,
                             showsScore: true,
                             showsInlineAggregate: true,
                             showsCardBadges: true,
@@ -255,7 +256,7 @@ extension MenuContentView {
                             .foregroundStyle(.secondary)
 
                         Text(venueName)
-                            .font(.caption)
+                            .font(MenuMarkerMetrics.rowDetailFont)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                             .truncationMode(.tail)
@@ -266,7 +267,7 @@ extension MenuContentView {
                            let scheduleText,
                            !scheduleText.isEmpty {
                             Text(scheduleText)
-                                .font(.caption.weight(.semibold))
+                                .font(MenuMarkerMetrics.contextualMetadataEmphasisFont)
                                 .foregroundStyle(.secondary)
                                 .multilineTextAlignment(.trailing)
                                 .lineLimit(1)
@@ -279,7 +280,7 @@ extension MenuContentView {
                     HStack {
                         Spacer(minLength: 0)
                         Text(scheduleText)
-                            .font(.caption.weight(.semibold))
+                            .font(MenuMarkerMetrics.contextualMetadataEmphasisFont)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.trailing)
                             .lineLimit(1)
@@ -291,7 +292,7 @@ extension MenuContentView {
                     footballCompetitionLine(
                         match: footballMatch,
                         display: item.footballMenuBarDisplay,
-                        font: .caption
+                        font: MenuMarkerMetrics.rowDetailFont
                     )
                 }
             }
@@ -302,6 +303,9 @@ extension MenuContentView {
                 contextualActionButtons(for: item, locationText: previewLocationText)
             }
         }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .menuRowHoverBackground(isHovered: isHovered)
         .contentShape(Rectangle())
     }
 
@@ -353,7 +357,7 @@ extension MenuContentView {
                     locationText: locationText,
                     showsJoinButton: showsJoinButton
                 )
-                .padding(.trailing, 6)
+                .padding(.trailing, MenuActionControlMetrics.trailingInset)
             }
         }
         .frame(height: headerHeight, alignment: .topLeading)
@@ -375,28 +379,11 @@ extension MenuContentView {
         )
         let showRightTimeColumn = item.kind == .event && (!item.isAllDay || allDayRightLabel != nil)
 
-        if let preservedHeight = rowPrimaryContentMinimumHeight(
+        return rowPrimaryContentMinimumHeight(
             for: item,
             showsTravelTime: showsTravelTime,
             showRightTimeColumn: showRightTimeColumn
-        ) {
-            return preservedHeight
-        }
-
-        let showsLocation = item.kind == .event
-            && !item.isAllDay
-            && item.locationText.map {
-                shouldShowLocationRow(
-                    locationName: displayLocationName(from: $0),
-                    meetingURL: item.meetingURL
-                )
-            } == true
-        let showsMeetingLink = item.meetingURL != nil
-        let lineCount = 1
-            + (showsTravelTime ? 1 : 0)
-            + ((showsLocation || showsMeetingLink) ? 1 : 0)
-
-        return max(34, CGFloat(lineCount * 16) + 12)
+        )
     }
 
 }

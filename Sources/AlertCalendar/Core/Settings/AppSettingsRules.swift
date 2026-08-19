@@ -3,6 +3,15 @@ import Foundation
 enum AppSettingsRules {
     static let minimumFootballWindowDays = 1
     static let maximumFootballWindowDays = 45
+    static let dropdownListItemOptions = Array(stride(from: 5, through: 100, by: 5))
+    static let defaultMaximumDropdownItems = 10
+    static let defaultDropdownWindowHours = 24
+    static let dropdownWindowHourOptions = Array(1 ... 23)
+        + (1 ... 6).map { $0 * 24 }
+        + (1 ... 3).map { $0 * 7 * 24 }
+        + (1 ... 6).map { $0 * 30 * 24 }
+    static let agendaSummaryMaximumWordOptions = Array(stride(from: 30, through: 100, by: 10))
+    static let defaultAgendaSummaryMaximumWords = 60
     static let slackStatusLeadMinuteOptions = [5, 10, 15, 30]
     static let defaultSlackStatusLeadMinutes = 10
 
@@ -11,7 +20,29 @@ enum AppSettingsRules {
     }
 
     static func normalizedDropdownWindowHours(_ value: Int) -> Int {
-        max(1, min(168, value))
+        nearestOption(
+            to: value,
+            in: dropdownWindowHourOptions,
+            fallback: defaultDropdownWindowHours
+        )
+    }
+
+    static func adjustedDropdownWindowHours(currentValue: Int, incrementing: Bool) -> Int {
+        let normalized = normalizedDropdownWindowHours(currentValue)
+        guard let index = dropdownWindowHourOptions.firstIndex(of: normalized) else {
+            return defaultDropdownWindowHours
+        }
+        let offset = incrementing ? 1 : -1
+        let adjustedIndex = max(0, min(dropdownWindowHourOptions.count - 1, index + offset))
+        return dropdownWindowHourOptions[adjustedIndex]
+    }
+
+    static func normalizedMaximumDropdownItems(_ value: Int) -> Int {
+        nearestOption(
+            to: value,
+            in: dropdownListItemOptions,
+            fallback: defaultMaximumDropdownItems
+        )
     }
 
     static func maximumMenuBarRotationWindowMinutes(dropdownWindowHours: Int) -> Int {
@@ -89,16 +120,32 @@ enum AppSettingsRules {
         max(1, value)
     }
 
+    static func normalizedAgendaSummaryMaximumWords(_ value: Int) -> Int {
+        nearestOption(
+            to: value,
+            in: agendaSummaryMaximumWordOptions,
+            fallback: defaultAgendaSummaryMaximumWords
+        )
+    }
+
     static func normalizedSlackStatusLeadMinutes(_ value: Int) -> Int {
-        let candidate = value > 0 ? value : defaultSlackStatusLeadMinutes
-        return slackStatusLeadMinuteOptions.min { lhs, rhs in
+        nearestOption(
+            to: value,
+            in: slackStatusLeadMinuteOptions,
+            fallback: defaultSlackStatusLeadMinutes
+        )
+    }
+
+    private static func nearestOption(to value: Int, in options: [Int], fallback: Int) -> Int {
+        let candidate = value > 0 ? value : fallback
+        return options.min { lhs, rhs in
             let lhsDistance = abs(lhs - candidate)
             let rhsDistance = abs(rhs - candidate)
             if lhsDistance != rhsDistance {
                 return lhsDistance < rhsDistance
             }
             return lhs < rhs
-        } ?? defaultSlackStatusLeadMinutes
+        } ?? fallback
     }
 
     static func normalizedFootballWindowDays(_ value: Int) -> Int {

@@ -1,18 +1,25 @@
 import Foundation
 
 extension MenuContentView {
+    func actionRowPrimaryTrailingReservation(
+        for item: UpcomingItem,
+        actions: [MenuAction],
+        isHovered: Bool
+    ) -> CGFloat {
+        guard isHovered else { return 0 }
+        return actionRowTrailingReservation(
+            for: item,
+            actions: actions
+        )
+    }
+
     func rowPrimaryContentMinimumHeight(
         for item: UpcomingItem,
         showsTravelTime: Bool,
         showRightTimeColumn: Bool
-    ) -> CGFloat? {
-        guard Self.shouldPreserveDropdownHoverHeight(for: item) else {
-            return nil
-        }
-
+    ) -> CGFloat {
         if item.footballMatch != nil {
             let rightLineCount = showRightTimeColumn ? 2 : 0
-            guard rightLineCount > 1 else { return nil }
             return Self.dropdownRowMinimumHeight(leftLineCount: 1, rightLineCount: rightLineCount)
         }
 
@@ -40,12 +47,11 @@ extension MenuContentView {
 
             rightLineCount += 1
 
-            if let endDate = item.endDate, endDate > item.date {
+            if !item.isAllDay, let endDate = item.endDate, endDate > item.date {
                 rightLineCount += 1
             }
         }
 
-        guard rightLineCount > 1 else { return nil }
         return Self.dropdownRowMinimumHeight(
             leftLineCount: leftLineCount,
             rightLineCount: rightLineCount
@@ -68,7 +74,24 @@ extension MenuContentView {
         rightLineCount: Int
     ) -> CGFloat {
         let lineCount = max(1, max(leftLineCount, rightLineCount))
-        return max(34, CGFloat(lineCount) * 16 + 12)
+        return max(
+            MenuMarkerMetrics.singleLineRowMinimumHeight,
+            CGFloat(lineCount) * MenuMarkerMetrics.rowLayoutLineHeight
+                + MenuMarkerMetrics.rowMinimumVerticalAllowance
+        )
+    }
+
+    nonisolated static func dropdownCalendarMarkerHeight(
+        rowMinimumHeight: CGFloat
+    ) -> CGFloat {
+        let estimatedLineCount = max(
+            1,
+            Int(floor(
+                (rowMinimumHeight - MenuMarkerMetrics.rowMinimumVerticalAllowance)
+                    / MenuMarkerMetrics.rowLayoutLineHeight
+            ))
+        )
+        return MenuMarkerMetrics.calendarMarkerHeight(lineCount: estimatedLineCount)
     }
 
     nonisolated static func dropdownAccessorySymbolNames(
@@ -76,5 +99,16 @@ extension MenuContentView {
         isHovered: Bool
     ) -> [String] {
         isHovered ? [] : symbolNames
+    }
+
+    nonisolated static func dropdownAccessorySymbolsTrailingReservation(
+        _ symbolNames: [String]
+    ) -> CGFloat {
+        guard !symbolNames.isEmpty else { return 0 }
+        let symbolSpacing: CGFloat = 4
+        let leadingSpacing: CGFloat = 8
+        return leadingSpacing
+            + CGFloat(symbolNames.count) * MenuMarkerMetrics.symbolSize
+            + CGFloat(max(0, symbolNames.count - 1)) * symbolSpacing
     }
 }

@@ -69,7 +69,29 @@ extension SettingsView {
     var showcaseMenuBarTitle: String {
         let fullTitle = "Quarterly planning with product and operations"
         guard draft.useEventTitleEllipsis else { return fullTitle }
+        if draft.rewriteEventTitlesWithAppleIntelligence {
+            let rewrittenTitle = "Quarterly product planning"
+            if rewrittenTitle.count <= draft.eventTitleMaxCharacters {
+                return rewrittenTitle
+            }
+        }
         return showcaseTrimmedTitle(fullTitle, maxLength: draft.eventTitleMaxCharacters)
+    }
+
+    var eventTitleRewriteAvailabilityMessage: String? {
+        guard !agendaSummaryAvailability.isAvailable else { return nil }
+        switch agendaSummaryAvailability {
+        case .available:
+            return nil
+        case .unsupportedSystem:
+            return "Title rewriting requires macOS 26 or later."
+        case .deviceNotEligible:
+            return "Apple Intelligence title rewriting isn't supported on this Mac."
+        case .appleIntelligenceNotEnabled:
+            return "Turn on Apple Intelligence in System Settings to rewrite titles."
+        case .modelNotReady:
+            return "Apple Intelligence is still preparing its on-device model."
+        }
     }
 
     var showcaseDropdownItems: [String] {

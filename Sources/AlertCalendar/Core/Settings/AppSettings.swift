@@ -25,12 +25,17 @@ struct AppSettings: Equatable {
     var alertLeadMinutes: Int
     var concurrentEventRotationSeconds: Int
     var maxListItems: Int
+    var showAgendaSummary: Bool
+    var agendaSummaryMaximumWords: Int
+    var useLinkedPagePreviewsInAgendaSummary: Bool
     var enableBlinkAlert: Bool
     var menuBarFontSize: Double
     var useSimplifiedCountdown: Bool
     var activeEventDisplayMode: ActiveEventDisplayMode
     var useEventTitleEllipsis: Bool
     var eventTitleMaxCharacters: Int
+    var rewriteEventTitlesWithAppleIntelligence: Bool
+    var useRewrittenEventTitlesInDropdown: Bool
     var footballTargetCalendarID: String
     var footballAutoAddCompetitionSlugs: Set<String>
     var footballCalendarAlertOption: FootballCalendarAlertOption
@@ -97,18 +102,23 @@ struct AppSettings: Equatable {
         weekdayOnlyReminderCalendarIDs: [],
         calendarAlertRules: [],
         nonWorkingDateKeys: [],
-        lookAheadHours: 24,
+        lookAheadHours: AppSettingsRules.defaultDropdownWindowHours,
         contextualPreviewLeadMinutes: 120,
         menuBarRotationWindowMinutes: 60,
         alertLeadMinutes: 5,
         concurrentEventRotationSeconds: 30,
-        maxListItems: 8,
+        maxListItems: AppSettingsRules.defaultMaximumDropdownItems,
+        showAgendaSummary: true,
+        agendaSummaryMaximumWords: AppSettingsRules.defaultAgendaSummaryMaximumWords,
+        useLinkedPagePreviewsInAgendaSummary: false,
         enableBlinkAlert: true,
         menuBarFontSize: 13.0,
         useSimplifiedCountdown: true,
         activeEventDisplayMode: .remaining,
         useEventTitleEllipsis: true,
         eventTitleMaxCharacters: 22,
+        rewriteEventTitlesWithAppleIntelligence: false,
+        useRewrittenEventTitlesInDropdown: false,
         footballTargetCalendarID: "",
         footballAutoAddCompetitionSlugs: [],
         footballCalendarAlertOption: .none,

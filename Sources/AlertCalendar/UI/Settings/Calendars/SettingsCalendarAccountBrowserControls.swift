@@ -92,17 +92,11 @@ struct SettingsCalendarAccountBrowserControls: View {
             .font(.caption2.weight(.semibold))
             .foregroundStyle(.primary)
             .padding(.horizontal, 7)
-            .frame(height: 24)
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color.primary.opacity(0.06))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .stroke(Color.primary.opacity(0.10), lineWidth: 1)
-                    )
-            )
+            .frame(minHeight: SettingsVisualMetrics.minimumInteractiveControlSize)
+            .background(SettingsControlChrome())
         }
         .menuStyle(.borderlessButton)
+        .accessibilityLabel("Browser for \(accountTitle)")
     }
 
     @ViewBuilder
@@ -132,6 +126,7 @@ struct SettingsCalendarAccountBrowserControls: View {
                 }
                 .labelsHidden()
                 .frame(width: 132)
+                .controlSize(.small)
             }
         } else {
             Text("Default")

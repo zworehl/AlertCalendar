@@ -9,9 +9,19 @@ struct SettingsFootballFixturesSectionView: View {
         case addedMatches = "Added Matches"
 
         var id: String { rawValue }
+
+        var symbolName: String {
+            switch self {
+            case .competitions:
+                return "trophy"
+            case .liveAndNextDay:
+                return "clock"
+            case .addedMatches:
+                return "calendar.badge.checkmark"
+            }
+        }
     }
 
-    nonisolated static let scrollableMatchCardThreshold = 12
     nonisolated static let preferredMatchCardWidth: CGFloat = 306
     nonisolated static let minimumMatchCardWidth: CGFloat = 272
     nonisolated static let topMenuControlWidth: CGFloat = 320
@@ -19,6 +29,8 @@ struct SettingsFootballFixturesSectionView: View {
     nonisolated static let competitionColumnSpacing: CGFloat = 16
     nonisolated static let competitionSidebarWidth: CGFloat = 320
     nonisolated static let matchActionSlotWidth: CGFloat = 112
+    nonisolated static let minimumMatchListViewportHeight: CGFloat = 120
+    nonisolated static let maximumMatchListViewportHeight: CGFloat = 1_200
     static let minimumFootballWindowDays = AppSettingsRules.minimumFootballWindowDays
     static let maximumFootballWindowDays = AppSettingsRules.maximumFootballWindowDays
 
@@ -35,6 +47,7 @@ struct SettingsFootballFixturesSectionView: View {
     @Binding var showFinishedFootballMatches: Bool
     @Binding var finishedFootballMatchLookbackDays: Int
     @Binding var footballMatchLookaheadDays: Int
+    @Binding var pendingCalendarChanges: [String: SettingsPendingItemChange<FootballFixtureMatch>]
     @State var browseMode: FootballBrowseMode = .competitions
     @State var selectedCompetitionRegionID: String?
     @State var selectedCompetitionID: String?
@@ -56,8 +69,6 @@ struct SettingsFootballFixturesSectionView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            footballIntroSection
-
             if !hasEventsAccess {
                 emptyState("Grant Calendar access to add football fixtures.")
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -165,14 +176,4 @@ struct SettingsFootballFixturesSectionView: View {
         }
     }
 
-    private var footballIntroSection: some View {
-        SettingsSectionHeaderView(
-            title: "Football Fixtures",
-            subtitle: "Add supported football matches to an Apple Calendar managed by Alert Calendar.",
-            systemImage: FootballFixtureFormatter.footballLocationSymbolName
-        )
-        .padding(SettingsVisualMetrics.panelPadding)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(SettingsPanelChrome())
-    }
 }

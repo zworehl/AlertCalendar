@@ -2,7 +2,7 @@ import CoreLocation
 import MapKit
 import Foundation
 
-struct ResolvedLocationCoordinate: Equatable, Sendable {
+struct ResolvedLocationCoordinate: Equatable, Hashable, Sendable {
     let latitude: Double
     let longitude: Double
 
@@ -44,6 +44,17 @@ actor LocationCoordinateResolver {
 
     func coordinate(for rawText: String) async -> ResolvedLocationCoordinate? {
         await location(for: rawText, mode: .coordinate)?.coordinate
+    }
+
+    func coordinate(
+        for rawText: String,
+        preferring preferredCoordinate: ResolvedLocationCoordinate?
+    ) async -> ResolvedLocationCoordinate? {
+        if let preferredCoordinate {
+            return preferredCoordinate
+        }
+
+        return await coordinate(for: rawText)
     }
 
     func timeZone(for rawText: String) async -> TimeZone? {

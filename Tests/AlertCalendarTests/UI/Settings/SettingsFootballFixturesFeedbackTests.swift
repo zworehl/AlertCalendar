@@ -2,9 +2,13 @@ import XCTest
 @testable import AlertCalendar
 
 final class SettingsFootballFixturesFeedbackTests: XCTestCase {
-    func testCompetitionLayoutReservesAStableFullHeightSidebarBelowTheControls() {
+    func testCompetitionLayoutUsesStableTwoColumnMetrics() {
         XCTAssertEqual(SettingsFootballFixturesSectionView.competitionSidebarWidth, 320)
         XCTAssertEqual(SettingsFootballFixturesSectionView.competitionColumnSpacing, 16)
+        XCTAssertEqual(SettingsFootballFixturesSectionView.competitionSelectionStatusWidth, 72)
+        XCTAssertEqual(SettingsFootballFixturesSectionView.competitionSelectionStatusHeight, 18)
+        XCTAssertEqual(SettingsFootballFixturesSectionView.minimumMatchListViewportHeight, 120)
+        XCTAssertEqual(SettingsFootballFixturesSectionView.maximumMatchListViewportHeight, 1_200)
     }
 
     func testCompetitionOffseasonFeedbackAppliesToLoadedEmptySuccessfulSection() {

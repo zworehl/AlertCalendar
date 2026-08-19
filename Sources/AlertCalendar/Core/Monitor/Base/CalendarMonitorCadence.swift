@@ -3,6 +3,7 @@ import Foundation
 enum CalendarMonitorCadence {
     static let heartbeatInterval: TimeInterval = 1
     static let menuBarAnimationInterval: TimeInterval = 1
+    static let calendarStateRefreshInterval: TimeInterval = 60
     static let periodicRefreshInterval: TimeInterval = 15 * 60
     static let reminderFetchTimeoutInterval: TimeInterval = 12
     static let slackStatusHeartbeatInterval: TimeInterval = 60

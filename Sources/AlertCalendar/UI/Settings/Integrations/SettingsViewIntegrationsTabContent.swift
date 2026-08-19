@@ -11,12 +11,12 @@ extension SettingsView {
         VStack(alignment: .leading, spacing: SettingsVisualMetrics.pageSpacing) {
             settingsSectionHeader(
                 title: "Connected Services",
-                subtitle: "Manage external services that react to your calendar activity.",
+                subtitle: "Manage the service that reacts to your calendar activity.",
                 systemImage: "puzzlepiece.extension"
             )
 
             integrationActionCard(for: .slackStatusSync)
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }

@@ -9,6 +9,8 @@ extension SettingsFootballFixturesSectionView {
                 VStack(alignment: .leading, spacing: 12) {
                     footballTopControlsSection
 
+                    SettingsSectionDivider()
+
                     emptyState("No competitions are configured right now.")
                 }
             } else if browseMode == .competitions {
@@ -17,27 +19,41 @@ extension SettingsFootballFixturesSectionView {
                 VStack(alignment: .leading, spacing: 12) {
                     footballTopControlsSection
 
+                    SettingsSectionDivider()
+
                     activeMatchesPanel
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     var footballCompetitionContentSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            footballTopControlsSection
+        HStack(alignment: .top, spacing: Self.competitionColumnSpacing) {
+            VStack(alignment: .leading, spacing: 12) {
+                footballControlsPanel(showsBrowseControl: false)
 
-            HStack(alignment: .top, spacing: Self.competitionColumnSpacing) {
+                SettingsSectionDivider()
+
                 competitionSelectionContentPanel
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-
-                competitionFiltersPanel
-                    .frame(width: Self.competitionSidebarWidth, alignment: .topLeading)
-                    .frame(maxHeight: .infinity, alignment: .topLeading)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+            SettingsVerticalDivider()
+
+            VStack(alignment: .leading, spacing: 12) {
+                showControlField
+
+                SettingsSectionDivider()
+
+                competitionFiltersPanel
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
+            .frame(width: Self.competitionSidebarWidth, alignment: .topLeading)
+            .frame(maxHeight: .infinity, alignment: .topLeading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -48,21 +64,14 @@ extension SettingsFootballFixturesSectionView {
 
     func footballControlsPanel(showsBrowseControl: Bool) -> some View {
         ViewThatFits(in: .horizontal) {
-            VStack(alignment: .leading, spacing: 12) {
-                footballWideControlRow(showsBrowseControl: showsBrowseControl)
-
-                footballCalendarAlertSummary
-            }
+            footballWideControlRow(showsBrowseControl: showsBrowseControl)
 
             VStack(alignment: .leading, spacing: 12) {
                 footballPrimaryControlsSection(showsBrowseControl: showsBrowseControl)
-                footballCalendarAlertSummary
                 footballNotificationControlsSection
             }
         }
-        .padding(SettingsVisualMetrics.panelPadding)
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(panelChrome)
     }
 
     func footballWideControlRow(showsBrowseControl: Bool) -> some View {
@@ -90,13 +99,6 @@ extension SettingsFootballFixturesSectionView {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    var footballCalendarAlertSummary: some View {
-        Text(footballCalendarAlertSummaryText)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-    }
-
     func footballPrimaryControlsSection(showsBrowseControl: Bool) -> some View {
         ViewThatFits(in: .horizontal) {
             HStack(alignment: .top, spacing: 16) {
@@ -119,8 +121,13 @@ extension SettingsFootballFixturesSectionView {
                 calendarAlertControlField
 
                 if showsBrowseControl {
-                    showControlField
-                        .frame(maxWidth: Self.topShowControlWidth, alignment: .leading)
+                    HStack(spacing: 0) {
+                        Spacer(minLength: 0)
+
+                        showControlField
+                            .frame(maxWidth: Self.topShowControlWidth, alignment: .trailing)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
         }
@@ -133,13 +140,6 @@ extension SettingsFootballFixturesSectionView {
 
     var footballCalendarAlertOptionBinding: Binding<FootballCalendarAlertOption> {
         $footballCalendarAlertOption
-    }
-
-    var footballCalendarAlertSummaryText: String {
-        if footballCalendarAlertOption == .none {
-            return "Managed football fixtures will be added without an Apple Calendar alert."
-        }
-        return "All managed football fixtures use the same Apple Calendar alert: \(footballCalendarAlertOption.title.lowercased())."
     }
 
     var normalizedFinishedMatchLookbackDays: Int {
@@ -176,7 +176,7 @@ extension SettingsFootballFixturesSectionView {
         Group {
             switch browseMode {
             case .competitions:
-                competitionListPanel
+                competitionSelectionContentPanel
             case .liveAndNextDay:
                 liveAndNextDayPanel
             case .addedMatches:
@@ -186,7 +186,25 @@ extension SettingsFootballFixturesSectionView {
     }
 
     var upcomingManagedMatches: [FootballFixtureMatch] {
-        upcomingManagedMatchesCache
+        var matchesByKey = Dictionary(
+            uniqueKeysWithValues: upcomingManagedMatchesCache.map {
+                (SettingsPendingChanges.footballFixtureKey(for: $0), $0)
+            }
+        )
+
+        for (key, change) in pendingCalendarChanges {
+            switch change.mutation {
+            case .add:
+                matchesByKey[key] = change.item
+            case .remove:
+                matchesByKey.removeValue(forKey: key)
+            }
+        }
+
+        return CalendarMonitor.upcomingManagedFootballMatches(
+            from: Array(matchesByKey.values),
+            now: visibleNow
+        )
     }
 
     var upcomingManagedEventCount: Int {
@@ -287,15 +305,16 @@ extension SettingsFootballFixturesSectionView {
     var showControlField: some View {
         Picker("Football view", selection: $browseMode) {
             ForEach(FootballBrowseMode.allCases) { mode in
-                Text(mode.rawValue)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                Image(systemName: mode.symbolName)
+                    .accessibilityLabel(Text(mode.rawValue))
+                    .help(mode.rawValue)
                     .tag(mode)
             }
         }
         .pickerStyle(.segmented)
         .labelsHidden()
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .help(browseMode.rawValue)
     }
 
     var calendarAlertControlField: some View {
@@ -303,7 +322,8 @@ extension SettingsFootballFixturesSectionView {
             title: "Calendar Alert",
             pickerTitle: "Football event alert",
             selection: footballCalendarAlertOptionBinding,
-            helpText: "Applies the same Apple Calendar alert to every football fixture managed by Alert Calendar, including ones already added."
+            helpText: "Applies the same Apple Calendar alert to every football fixture managed by Alert Calendar, including ones already added.",
+            layout: .inline(labelWidth: SettingsVisualMetrics.calendarAlertLabelWidth)
         ) {
             ForEach(FootballCalendarAlertOption.allCases) { option in
                 Text(option.title).tag(option)
@@ -313,7 +333,7 @@ extension SettingsFootballFixturesSectionView {
 
     var footballNotificationControlsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Divider()
+            SettingsSectionDivider()
 
             footballNotificationGroup(layout: .adaptive)
         }

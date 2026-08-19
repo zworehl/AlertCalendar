@@ -7,7 +7,7 @@ import SwiftUI
 
 extension SettingsView {
     var hasUnsavedChanges: Bool {
-        didLoad && draft != storedDraft()
+        didLoad && (draft != storedDraft() || !pendingChanges.isEmpty)
     }
 
     func storedDraft() -> SettingsDraft {
@@ -16,6 +16,9 @@ extension SettingsView {
 
     func resetDraft() {
         draft = storedDraft()
+        pendingChanges = SettingsPendingChanges()
+        slackConnections = monitor.slackConnections()
+        syncSlackDraftSelectionIfNeeded()
     }
 
     func synchronizeDraftWithStoredSettings(force: Bool = false) {
@@ -71,7 +74,9 @@ extension SettingsView {
         lastSlackStatusSyncDate = monitor.lastSlackStatusSyncDate
         refreshDiagnostics = monitor.refreshDiagnostics
         externalFeedDiagnostics = monitor.externalFeedDiagnostics
-        slackConnections = monitor.slackConnections()
+        slackConnections = monitor.slackConnections().filter {
+            pendingChanges.slackConnectionsToRemove[$0.id] == nil
+        }
         slackConnectionStatusMessage = monitor.slackConnectionStatusMessage
         slackRuntimeStatusDescription = monitor.slackRuntimeStatusDescription
         if refreshBrowserProfiles {
@@ -81,10 +86,11 @@ extension SettingsView {
     }
 
     func applyDraft() {
-        guard hasUnsavedChanges else { return }
+        guard hasUnsavedChanges, !isApplyingChanges else { return }
 
         let previousSettings = monitor.currentSettings
         let oldAutoLocation = previousSettings.useAutomaticAstronomyLocation
+        let stagedChanges = pendingChanges
         let settings = draft.applied(
             to: previousSettings,
             availableEventCalendarIDs: Set(availableEventCalendars.map(\.id))
@@ -99,31 +105,21 @@ extension SettingsView {
                 != previousSettings.googleHolidayTargetCalendarID
             || settings.googleHolidayCountryIDs != previousSettings.googleHolidayCountryIDs
 
-        monitor.persistSettings(settings)
+        if settings != previousSettings {
+            monitor.persistSettings(settings)
+        }
         draft = SettingsDraft(settings: settings)
+        pendingChanges = SettingsPendingChanges()
+        isApplyingChanges = true
         settingsWindowCloseGuard.hasUnsavedChanges = false
 
         if footballConfigurationChanged {
             let now = AlertCalendarClock.nowRoundedToSecond()
             monitor.applyManagedFootballAlertConfigurationIfNeeded(now: now)
-            Task { @MainActor in
-                await monitor.syncAutoAddedFootballMatchesIfNeeded(now: now, force: true)
-                await monitor.syncManagedFootballEventsIfNeeded(now: now, force: true)
-            }
         }
 
         if gameSaleConfigurationChanged {
             monitor.applyManagedGameSaleAlertConfiguration()
-            Task { @MainActor in
-                await monitor.refreshGameSales(forceRefresh: true)
-            }
-        }
-
-        if googleHolidayConfigurationChanged {
-            Task { @MainActor in
-                await Task.yield()
-                await monitor.refreshGoogleHolidays(forceRefresh: true)
-            }
         }
 
         if draft.useAutomaticAstronomyLocation, !oldAutoLocation {
@@ -133,6 +129,86 @@ extension SettingsView {
             monitor.refreshNow(reason: .settingsChanged)
         } else {
             monitor.refreshNow(reason: .settingsChanged)
+        }
+
+        Task { @MainActor in
+            if footballConfigurationChanged {
+                let now = AlertCalendarClock.nowRoundedToSecond()
+                await monitor.syncAutoAddedFootballMatchesIfNeeded(now: now, force: true)
+                await monitor.syncManagedFootballEventsIfNeeded(now: now, force: true)
+            }
+
+            if gameSaleConfigurationChanged {
+                await monitor.refreshGameSales(forceRefresh: true)
+            }
+
+            if googleHolidayConfigurationChanged {
+                await Task.yield()
+                await monitor.refreshGoogleHolidays(forceRefresh: true)
+            }
+
+            await applyPendingContentChanges(stagedChanges)
+            isApplyingChanges = false
+        }
+    }
+
+    func applyPendingContentChanges(_ stagedChanges: SettingsPendingChanges) async {
+        let footballChanges = stagedChanges.footballFixtures.values.sorted {
+            if $0.item.startDate != $1.item.startDate {
+                return $0.item.startDate < $1.item.startDate
+            }
+            return $0.item.id < $1.item.id
+        }
+        for change in footballChanges {
+            switch change.mutation {
+            case .add:
+                _ = await monitor.addFootballMatchToCalendar(change.item)
+            case .remove:
+                monitor.removeFootballMatchFromCalendar(change.item)
+            }
+        }
+
+        let gameSaleChanges = stagedChanges.gameSales.values.sorted {
+            if $0.item.startDate != $1.item.startDate {
+                return $0.item.startDate < $1.item.startDate
+            }
+            return $0.item.id < $1.item.id
+        }
+        for change in gameSaleChanges {
+            switch change.mutation {
+            case .add:
+                _ = await monitor.addGameSaleToCalendar(change.item)
+            case .remove:
+                monitor.removeGameSaleFromCalendar(change.item)
+            }
+        }
+
+        for connection in stagedChanges.slackConnectionsToRemove.values.sorted(by: { $0.id < $1.id }) {
+            await monitor.removeSlackConnection(connection)
+        }
+
+        var failedSlackTokens: [String] = []
+        for token in stagedChanges.slackTokensToConnect {
+            do {
+                _ = try await monitor.connectSlackUserToken(token)
+                slackConnectErrorMessage = nil
+                slackConnectionStatusMessage = "Slack token connected."
+            } catch {
+                failedSlackTokens.append(token)
+                slackConnectErrorMessage = error.localizedDescription
+            }
+        }
+
+        if !stagedChanges.slackConnectionsToRemove.isEmpty || !stagedChanges.slackTokensToConnect.isEmpty {
+            slackConnections = monitor.slackConnections()
+            draft.slackStatusSyncRules = monitor.currentSettings.slackStatusSyncRules
+            didAttemptSlackConnectionMetadataRefresh = false
+            refreshSlackConnectionMetadataIfNeeded(force: true)
+            monitor.refreshNow(reason: .slackConnectionChanged)
+        }
+
+        for token in failedSlackTokens {
+            pendingChanges.stageSlackTokenConnection(token)
         }
     }
 
@@ -151,23 +227,10 @@ extension SettingsView {
             return
         }
 
+        pendingChanges.stageSlackTokenConnection(token)
+        slackUserTokenDraft = ""
         slackConnectErrorMessage = nil
-
-        Task { @MainActor in
-            do {
-                _ = try await monitor.connectSlackUserToken(token)
-                slackUserTokenDraft = ""
-                slackConnections = monitor.slackConnections()
-                draft.slackStatusSyncRules = monitor.currentSettings.slackStatusSyncRules
-                syncSlackDraftSelectionIfNeeded()
-                slackConnectionStatusMessage = "Slack token connected."
-                didAttemptSlackConnectionMetadataRefresh = false
-                refreshSlackConnectionMetadataIfNeeded(force: true)
-                monitor.refreshNow(reason: .slackConnectionChanged)
-            } catch {
-                slackConnectErrorMessage = error.localizedDescription
-            }
-        }
+        slackConnectionStatusMessage = "Slack connection pending. Click Apply to connect."
     }
 
     func extractSlackTokenFromClipboard() {
@@ -188,12 +251,11 @@ extension SettingsView {
     }
 
     func removeSlackAccount(_ connection: SlackConnection) {
-        Task { @MainActor in
-            await monitor.removeSlackConnection(connection)
-            slackConnections = monitor.slackConnections()
-            draft.slackStatusSyncRules.removeAll { $0.connectionID == connection.id }
-            syncSlackDraftSelectionIfNeeded()
-        }
+        pendingChanges.stageSlackConnectionRemoval(connection)
+        slackConnections.removeAll { $0.id == connection.id }
+        draft.slackStatusSyncRules.removeAll { $0.connectionID == connection.id }
+        syncSlackDraftSelectionIfNeeded()
+        slackConnectionStatusMessage = "Workspace removal pending. Click Apply to disconnect."
     }
 
     func preferredSlackMeetingCalendarID() -> String {
@@ -394,7 +456,9 @@ extension SettingsView {
 
         Task { @MainActor in
             await monitor.refreshSlackConnectionMetadataIfNeeded(force: force)
-            slackConnections = monitor.slackConnections()
+            slackConnections = monitor.slackConnections().filter {
+                pendingChanges.slackConnectionsToRemove[$0.id] == nil
+            }
             draft.slackStatusSyncRules = monitor.currentSettings.slackStatusSyncRules
             syncSlackDraftSelectionIfNeeded()
             slackConnectionStatusMessage = monitor.slackConnectionStatusMessage

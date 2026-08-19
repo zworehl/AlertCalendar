@@ -2,7 +2,7 @@ import EventKit
 import Foundation
 
 extension CalendarMonitor {
-    nonisolated static let currentGoogleHolidayIdentityVersion = 3
+    nonisolated static let currentGoogleHolidayIdentityVersion = 4
     nonisolated static let googleHolidayManagedMarker = "Managed by Alert Calendar • Google Holidays v3"
     nonisolated static let legacyGoogleHolidayManagedMarkers = [
         "Managed by Alert Calendar • Google Holidays v1",
@@ -142,7 +142,11 @@ extension CalendarMonitor {
             including: [targetCalendar]
         )
         for event in existingEvents {
-            guard let holidayID = managedGoogleHolidayID(from: event.notes) else { continue }
+            guard let holidayID = managedGoogleHolidayID(
+                for: event,
+                records: managedGoogleHolidayEventRecords,
+                calendar: calendar
+            ) else { continue }
             let identity = event.eventIdentifier ?? normalizedEventUID(for: event) ?? UUID().uuidString
             guard seenEventIdentities.insert(identity).inserted else { continue }
             existingByHolidayID[holidayID, default: []].append(
@@ -295,7 +299,11 @@ extension CalendarMonitor {
             request.execute()
         }.value
         return result.events.filter { event in
-            managedGoogleHolidayID(from: event.notes) != nil
+            managedGoogleHolidayID(
+                for: event,
+                records: records,
+                calendar: calendar
+            ) != nil
         }
     }
 
@@ -348,8 +356,8 @@ extension CalendarMonitor {
             endDateExclusive: holiday.endDateExclusive
         )
         event.availability = .free
-        event.url = holiday.sourceURL
-        event.notes = googleHolidayNotes(for: holiday)
+        event.url = nil
+        event.notes = nil
         event.alarms = []
     }
 
@@ -369,26 +377,11 @@ extension CalendarMonitor {
             || !gregorian.isDate(eventEndDateExclusive, inSameDayAs: holiday.endDateExclusive)
             || !event.isAllDay
             || event.availability != .free
-            || event.url != holiday.sourceURL
-            || event.notes != googleHolidayNotes(for: holiday)
+            || Self.googleHolidayEventNeedsMetadataCleanup(
+                notes: event.notes,
+                url: event.url
+            )
             || !(event.alarms ?? []).isEmpty
-    }
-
-    private func googleHolidayNotes(for holiday: GoogleHolidayEvent) -> String {
-        [
-            Self.googleHolidayManagedMarker,
-            "Countries: \(holiday.countryNames.joined(separator: ", "))",
-            "Holiday key: \(holiday.id)",
-            "Source: Google Calendar public holiday feeds",
-        ].joined(separator: "\n")
-    }
-
-    private func managedGoogleHolidayID(from notes: String?) -> String? {
-        guard Self.isManagedGoogleHolidayNotes(notes) else { return nil }
-        return notes?
-            .split(separator: "\n")
-            .first(where: { $0.hasPrefix("Holiday key: ") })
-            .map { String($0.dropFirst("Holiday key: ".count)) }
     }
 
     nonisolated static func googleHolidayCalendarEndDate(
@@ -407,12 +400,6 @@ extension CalendarMonitor {
         }
         return calendar.date(byAdding: .day, value: 1, to: endDay)
             ?? endDay.addingTimeInterval(86_400)
-    }
-
-    nonisolated static func isManagedGoogleHolidayNotes(_ notes: String?) -> Bool {
-        guard let notes else { return false }
-        return notes.contains(googleHolidayManagedMarker)
-            || legacyGoogleHolidayManagedMarkers.contains(where: notes.contains)
     }
 
     private func googleHolidaySyncWindowContains(

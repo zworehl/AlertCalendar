@@ -4,82 +4,6 @@ import XCTest
 @testable import AlertCalendar
 
 final class MenuBarStateTests: XCTestCase {
-    func testAllDayRangeFormattingKeepsMonthBeforeDayAcrossMonths() {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .autoupdatingCurrent
-
-        let startDay = calendar.date(from: DateComponents(year: 2026, month: 4, day: 22))!
-        let endDay = calendar.date(from: DateComponents(year: 2026, month: 5, day: 5))!
-
-        XCTAssertEqual(
-            CalendarMonitor.formattedAllDayRange(
-                startDay: startDay,
-                lastInclusiveDay: endDay,
-                calendar: calendar,
-                locale: Locale(identifier: "en_US_POSIX")
-            ),
-            "Apr 22-May 5"
-        )
-    }
-
-    func testAllDayRangeFormattingKeepsCompactMonthSpanWithinSingleMonth() {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .autoupdatingCurrent
-
-        let startDay = calendar.date(from: DateComponents(year: 2026, month: 4, day: 22))!
-        let endDay = calendar.date(from: DateComponents(year: 2026, month: 4, day: 25))!
-
-        XCTAssertEqual(
-            CalendarMonitor.formattedAllDayRange(
-                startDay: startDay,
-                lastInclusiveDay: endDay,
-                calendar: calendar,
-                locale: Locale(identifier: "en_US_POSIX")
-            ),
-            "Apr 22-25"
-        )
-    }
-
-    func testFutureAllDayLabelUsesCountdownBeforeTheStartDay() {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-
-        let now = calendar.date(from: DateComponents(year: 2026, month: 4, day: 23, hour: 10, minute: 0))!
-        let startDay = calendar.date(from: DateComponents(year: 2026, month: 4, day: 24, hour: 0, minute: 0))!
-        let endDay = calendar.date(from: DateComponents(year: 2026, month: 4, day: 25, hour: 0, minute: 0))!
-
-        XCTAssertEqual(
-            CalendarMonitor.allDayLabel(
-                startDate: startDay,
-                endDate: endDay,
-                now: now,
-                simplified: false,
-                calendar: calendar
-            ),
-            "in 14h 0m"
-        )
-    }
-
-    func testCurrentDayAllDayLabelStaysAllDay() {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-
-        let now = calendar.date(from: DateComponents(year: 2026, month: 4, day: 23, hour: 10, minute: 0))!
-        let startDay = calendar.date(from: DateComponents(year: 2026, month: 4, day: 23, hour: 0, minute: 0))!
-        let endDay = calendar.date(from: DateComponents(year: 2026, month: 4, day: 24, hour: 0, minute: 0))!
-
-        XCTAssertEqual(
-            CalendarMonitor.allDayLabel(
-                startDate: startDay,
-                endDate: endDay,
-                now: now,
-                simplified: false,
-                calendar: calendar
-            ),
-            "all-day"
-        )
-    }
-
     func testMenuBarRotationExcludesNextDayAllDayEventOutsideRotationWindow() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
@@ -236,6 +160,28 @@ final class MenuBarStateTests: XCTestCase {
         }
     }
 
+    func testDropdownMarkerAndDetailTextCenterOnTheFirstTitleLine() {
+        XCTAssertEqual(
+            MenuMarkerMetrics.markerFirstLineTopPadding + (MenuMarkerMetrics.symbolSize / 2),
+            MenuMarkerMetrics.rowTitleLineHeight / 2,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            MenuMarkerMetrics.detailFirstLineTopPadding + (MenuMarkerMetrics.rowDetailLineHeight / 2),
+            MenuMarkerMetrics.rowTitleLineHeight / 2,
+            accuracy: 0.001
+        )
+        XCTAssertGreaterThan(MenuMarkerMetrics.rowContentTopPadding, 0)
+        XCTAssertEqual(
+            MenuMarkerMetrics.rowContentTopPadding,
+            MenuMarkerMetrics.rowContentBottomPadding
+        )
+        XCTAssertGreaterThanOrEqual(
+            MenuMarkerMetrics.rowContentTopPadding + MenuMarkerMetrics.rowContentBottomPadding,
+            8
+        )
+    }
+
     @MainActor
     func testInactiveSegmentsHaveNoOuterHorizontalPadding() {
         XCTAssertEqual(
@@ -316,6 +262,34 @@ final class MenuBarStateTests: XCTestCase {
             MenuContentView.dropdownAccessorySymbolNames(symbolNames, isHovered: true),
             []
         )
+        XCTAssertEqual(MenuContentView.dropdownAccessorySymbolsTrailingReservation([]), 0)
+        XCTAssertEqual(
+            MenuContentView.dropdownAccessorySymbolsTrailingReservation(["repeat"]),
+            8 + MenuMarkerMetrics.symbolSize
+        )
+        XCTAssertEqual(
+            MenuContentView.dropdownAccessorySymbolsTrailingReservation(symbolNames),
+            12 + (MenuMarkerMetrics.symbolSize * 2)
+        )
+    }
+
+    func testDropdownUsesNativeMacOSControlAndTypographyMetrics() {
+        XCTAssertGreaterThanOrEqual(MenuContentNativeMetrics.toolbarButtonSize, 28)
+        XCTAssertEqual(MenuMarkerMetrics.rowTitleSize, NSFont.systemFontSize)
+        XCTAssertEqual(
+            MenuMarkerMetrics.rowDetailSize,
+            NSFont.systemFontSize(for: .small)
+        )
+        XCTAssertLessThan(MenuMarkerMetrics.compactMetadataSize, MenuMarkerMetrics.rowDetailSize)
+    }
+
+    @MainActor
+    func testDropdownVisualEffectUsesTheSystemPopoverMaterial() {
+        let visualEffect = MenuPopoverVisualEffect.makeVisualEffectView()
+
+        XCTAssertEqual(visualEffect.material, .popover)
+        XCTAssertEqual(visualEffect.blendingMode, .behindWindow)
+        XCTAssertEqual(visualEffect.state, .followsWindowActiveState)
     }
 
     func testMenuBarAccessorySymbolsShowRecurrenceForReminders() {
@@ -443,6 +417,46 @@ final class MenuBarStateTests: XCTestCase {
 
         XCTAssertGreaterThan(peak, falling)
         XCTAssertGreaterThan(falling, trough)
+    }
+
+    func testOverdueTimedEventsBlinkOnlyAfterTheirStart() {
+        let startDate = Date(timeIntervalSince1970: 1_800_000_000)
+        let event = makeTimedEvent(
+            title: "Design review",
+            startDate: startDate,
+            endDate: startDate.addingTimeInterval(30 * 60),
+            meetingURL: nil
+        )
+
+        XCTAssertFalse(
+            CalendarMonitor.shouldBlinkOverdueTimedEvent(
+                event,
+                now: startDate.addingTimeInterval(-1)
+            )
+        )
+        XCTAssertFalse(CalendarMonitor.shouldBlinkOverdueTimedEvent(event, now: startDate))
+        XCTAssertTrue(
+            CalendarMonitor.shouldBlinkOverdueTimedEvent(
+                event,
+                now: startDate.addingTimeInterval(1)
+            )
+        )
+    }
+
+    func testOverdueBlinkIgnoresAllDayEventsAndReminders() {
+        let dueDate = Date(timeIntervalSince1970: 1_800_000_000)
+        let allDayEvent = makeTimedEvent(
+            title: "Birthday",
+            startDate: dueDate,
+            endDate: dueDate.addingTimeInterval(24 * 60 * 60),
+            isAllDay: true,
+            meetingURL: nil
+        )
+        let reminder = makeReminder(title: "Submit report", dueDate: dueDate)
+        let now = dueDate.addingTimeInterval(60)
+
+        XCTAssertFalse(CalendarMonitor.shouldBlinkOverdueTimedEvent(allDayEvent, now: now))
+        XCTAssertFalse(CalendarMonitor.shouldBlinkOverdueTimedEvent(reminder, now: now))
     }
 
     func testTimedEventNowSegmentShowsForFirstMinuteAfterStartWithoutMeetingURL() {

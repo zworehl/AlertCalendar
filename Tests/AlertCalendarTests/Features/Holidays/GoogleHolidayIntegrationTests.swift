@@ -372,6 +372,54 @@ final class GoogleHolidayIntegrationTests: XCTestCase {
         XCTAssertFalse(CalendarMonitor.isManagedGoogleHolidayNotes("Unmanaged holiday"))
     }
 
+    func testManagedHolidayRecordsIdentifyCleanEventsWithoutNotesOrURLs() throws {
+        let start = try date(2026, 12, 25)
+        let holiday = GoogleHolidayEvent(
+            id: GoogleHolidayMerger.semanticKey(
+                title: "Christmas Day",
+                startDate: start,
+                calendar: testCalendar
+            ),
+            title: "Christmas Day",
+            startDate: start,
+            endDateExclusive: try date(2026, 12, 26),
+            countryIDs: ["CR"],
+            sourceUIDs: ["christmas-cr"]
+        )
+        let record = ManagedGoogleHolidayEventRecord(
+            holiday: holiday,
+            calendarIdentifier: "holidays",
+            eventIdentifier: nil,
+            eventUID: nil
+        )
+
+        let match = CalendarMonitor.managedGoogleHolidayRecord(
+            eventIdentifier: nil,
+            eventUID: nil,
+            calendarIdentifier: "holidays",
+            title: holiday.calendarTitle,
+            startDate: start,
+            isAllDay: true,
+            records: [record],
+            calendar: testCalendar
+        )
+
+        XCTAssertEqual(CalendarMonitor.currentGoogleHolidayIdentityVersion, 4)
+        XCTAssertEqual(match, record)
+        XCTAssertFalse(
+            CalendarMonitor.googleHolidayEventNeedsMetadataCleanup(
+                notes: nil,
+                url: nil
+            )
+        )
+        XCTAssertTrue(
+            CalendarMonitor.googleHolidayEventNeedsMetadataCleanup(
+                notes: "Legacy managed holiday metadata",
+                url: URL(string: "https://calendar.google.com")
+            )
+        )
+    }
+
     func testSubscribedCalendarDetectionFindsCurrentCountryCalendars() {
         XCTAssertEqual(
             GoogleHolidayCountry.matchingSubscribedCalendarTitles(

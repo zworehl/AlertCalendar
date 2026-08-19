@@ -31,21 +31,25 @@ extension CalendarMonitor {
                 self.enqueueRefresh(reason: .settingsChanged)
             }
 
-        eventStoreObserver = NotificationCenter.default.publisher(for: .EKEventStoreChanged)
+        eventStoreObserver = NotificationCenter.default.publisher(
+            for: .EKEventStoreChanged,
+            object: eventStore
+        )
             .debounce(for: .milliseconds(350), scheduler: RunLoop.main)
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 guard let self else { return }
                 self.invalidateManagedFootballSnapshotCache(markEventStoreChanged: true)
-                self.enqueueRefresh(reason: .eventStoreChanged)
+                self.synchronizeCalendarState(reason: .eventStoreChanged)
             }
 
         appActivationObserver = NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 guard let self else { return }
+                self.synchronizeCalendarState()
                 self.scheduleAutomaticAstronomyLocationRefresh(trigger: .appActivation)
-        }
+            }
 
         workspaceResumeObserver = Publishers.Merge3(
             AlertCalendarWorkspace.notificationPublisher(for: NSWorkspace.didWakeNotification),
@@ -63,6 +67,7 @@ extension CalendarMonitor {
 
     func handleWorkspaceResume() {
         reloadCurrentSettings()
+        refreshAgendaSummaryAvailability()
         let settings = snapshotSettings()
         let now = fixedSecondNow()
         CalendarMonitorLog.refresh.info("Workspace resumed; refreshing calendar state")
@@ -73,7 +78,9 @@ extension CalendarMonitor {
     }
 
     func startHeartbeat() {
-        lastPeriodicRefreshDate = fixedSecondNow()
+        let now = fixedSecondNow()
+        lastCalendarStateRefreshDate = now
+        lastPeriodicRefreshDate = now
         heartbeatCancellable = Timer.publish(
             every: CalendarMonitorCadence.heartbeatInterval,
             on: .main,
@@ -84,6 +91,9 @@ extension CalendarMonitor {
                 guard let self else { return }
 
                 tickCount += 1
+                if tickCount.isMultiple(of: 10) {
+                    refreshAgendaSummaryAvailability()
+                }
                 let now = fixedSecondNow()
                 let settings = snapshotSettings()
 
@@ -91,6 +101,14 @@ extension CalendarMonitor {
                 updateMenuBarState(now: now, settings: settings)
                 evaluateSlackStatusSyncOnHeartbeatIfNeeded(now: now, settings: settings)
                 scheduleHourlyAutomaticAstronomyLocationRefreshIfNeeded(now: now)
+
+                if CalendarMonitorTime.hasElapsed(
+                    since: lastCalendarStateRefreshDate,
+                    now: now,
+                    interval: CalendarMonitorCadence.calendarStateRefreshInterval
+                ) {
+                    synchronizeCalendarState()
+                }
 
                 let periodicRefreshInterval = CalendarMonitorCadence.periodicRefreshInterval
                 if CalendarMonitorTime.hasElapsed(since: lastPeriodicRefreshDate, now: now, interval: periodicRefreshInterval) {
@@ -100,6 +118,14 @@ extension CalendarMonitor {
                     enqueueRefresh(reason: .footballHeartbeat)
                 }
             }
+    }
+
+    func synchronizeCalendarState(reason: CalendarMonitorRefreshReason = .calendarSync) {
+        guard hasEventsAccess || hasRemindersAccess else { return }
+
+        eventStore.refreshSourcesIfNecessary()
+        lastCalendarStateRefreshDate = fixedSecondNow()
+        enqueueRefresh(reason: reason)
     }
 
     func setMenuBarAlertAnimationEnabled(_ isEnabled: Bool) {

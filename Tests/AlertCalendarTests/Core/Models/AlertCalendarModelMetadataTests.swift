@@ -155,7 +155,12 @@ final class AlertCalendarModelMetadataTests: AlertCalendarModelTestCase {
             DefaultsKeys.activeEventDisplayMode,
             DefaultsKeys.useEventTitleEllipsis,
             DefaultsKeys.eventTitleMaxCharacters,
+            DefaultsKeys.rewriteEventTitlesWithAppleIntelligence,
+            DefaultsKeys.useRewrittenEventTitlesInDropdown,
             DefaultsKeys.maxListItems,
+            DefaultsKeys.showAgendaSummary,
+            DefaultsKeys.agendaSummaryMaximumWords,
+            DefaultsKeys.useLinkedPagePreviewsInAgendaSummary,
             DefaultsKeys.enableBlinkAlert,
             DefaultsKeys.menuBarFontSize,
             DefaultsKeys.skippedItemKeys,
@@ -181,12 +186,17 @@ final class AlertCalendarModelMetadataTests: AlertCalendarModelTestCase {
             DefaultsKeys.managedFootballEventRecords,
         ]
 
-        XCTAssertEqual(keys.count, 51)
+        XCTAssertEqual(keys.count, 56)
         XCTAssertEqual(Set(keys).count, keys.count)
         XCTAssertTrue(keys.contains("activeEventDisplayMode"))
         XCTAssertTrue(keys.contains("contextualPreviewLeadMinutes"))
         XCTAssertTrue(keys.contains("menuBarRotationWindowMinutes"))
         XCTAssertTrue(keys.contains("menuBarFontSize"))
+        XCTAssertTrue(keys.contains("rewriteEventTitlesWithAppleIntelligence"))
+        XCTAssertTrue(keys.contains("useRewrittenEventTitlesInDropdown"))
+        XCTAssertTrue(keys.contains("showAgendaSummary"))
+        XCTAssertTrue(keys.contains("agendaSummaryMaximumWords"))
+        XCTAssertTrue(keys.contains("useLinkedPagePreviewsInAgendaSummary"))
         XCTAssertTrue(keys.contains("meetingBrowserRouting"))
         XCTAssertTrue(keys.contains("calendarAlertRules"))
         XCTAssertTrue(keys.contains("nonWorkingDateKeys"))
@@ -338,7 +348,7 @@ final class AlertCalendarModelMetadataTests: AlertCalendarModelTestCase {
         XCTAssertEqual(MenuMarkerStyle.gameStore(.steam), MenuMarkerStyle.gameStore(.steam))
         XCTAssertNotEqual(MenuMarkerStyle.gameStore(.steam), MenuMarkerStyle.gameStore(.xbox))
         XCTAssertNotEqual(MenuMarkerStyle.color(.systemBlue), MenuMarkerStyle.reminder(.systemBlue))
-        XCTAssertNotEqual(MenuMarkerStyle.birthday(.systemPink), MenuMarkerStyle.allDay(.systemPink))
+        XCTAssertNotEqual(MenuMarkerStyle.color(.systemPink), MenuMarkerStyle.allDay(.systemPink))
         XCTAssertNotEqual(MenuMarkerStyle.gameStore(.playStation), MenuMarkerStyle.allDay(.systemBlue))
         XCTAssertNotEqual(MenuMarkerStyle.travel(.systemPink), MenuMarkerStyle.allDay(.systemPink))
         XCTAssertNotEqual(MenuMarkerStyle.newMoon, MenuMarkerStyle.fullMoon)

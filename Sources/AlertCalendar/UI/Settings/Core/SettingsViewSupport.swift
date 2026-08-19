@@ -88,30 +88,33 @@ struct SettingsViewportHeightPreferenceKey: PreferenceKey {
     }
 }
 
+struct SettingsDetailWidthPreferenceKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 struct SettingsWindowAccessor: NSViewRepresentable {
     let onResolve: (NSWindow) -> Void
-    let onResize: (CGFloat) -> Void
 
     func makeNSView(context: Context) -> SettingsWindowObserverView {
-        SettingsWindowObserverView(onResolve: onResolve, onResize: onResize)
+        SettingsWindowObserverView(onResolve: onResolve)
     }
 
     func updateNSView(_ nsView: SettingsWindowObserverView, context: Context) {
         nsView.onResolve = onResolve
-        nsView.onResize = onResize
         nsView.resolveWindowIfNeeded()
     }
 }
 
 final class SettingsWindowObserverView: NSView {
     var onResolve: (NSWindow) -> Void
-    var onResize: (CGFloat) -> Void
     weak var lastResolvedWindow: NSWindow?
-    weak var observedWindow: NSWindow?
 
-    init(onResolve: @escaping (NSWindow) -> Void, onResize: @escaping (CGFloat) -> Void) {
+    init(onResolve: @escaping (NSWindow) -> Void) {
         self.onResolve = onResolve
-        self.onResize = onResize
         super.init(frame: .zero)
     }
 
@@ -133,41 +136,13 @@ final class SettingsWindowObserverView: NSView {
         DispatchQueue.main.async { [weak self, weak window] in
             guard let self, let window else { return }
             self.onResolve(window)
-            self.startObservingResize(for: window)
         }
-    }
-
-    func startObservingResize(for window: NSWindow) {
-        guard observedWindow !== window else { return }
-        stopObservingResize()
-        observedWindow = window
-        onResize(window.frame.width)
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleWindowResize),
-            name: NSWindow.didResizeNotification,
-            object: window
-        )
-    }
-
-    func stopObservingResize() {
-        NotificationCenter.default.removeObserver(self, name: NSWindow.didResizeNotification, object: observedWindow)
-        observedWindow = nil
-    }
-
-    deinit {
-        NotificationCenter.default.removeObserver(self)
-    }
-
-    @objc private func handleWindowResize(_ notification: Notification) {
-        guard let window = notification.object as? NSWindow else { return }
-        onResize(window.frame.width)
     }
 }
 
 extension SettingsView {
     var settingsUsesTwoColumnLayout: Bool {
-        settingsWindowWidth >= 1120
+        settingsWindowWidth >= SettingsVisualMetrics.generalTwoColumnMinimumWidth
     }
 
     var settingsUsesPreviewColumnLayout: Bool {
@@ -190,9 +165,7 @@ extension SettingsView {
             settingsSectionHeader(title: title, subtitle: subtitle, systemImage: systemImage)
             content()
         }
-        .padding(SettingsVisualMetrics.panelPadding)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(SettingsPanelChrome())
+        .settingsPanelSurface()
     }
 
     @ViewBuilder

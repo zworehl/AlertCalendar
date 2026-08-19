@@ -15,6 +15,8 @@ extension SettingsFootballFixturesSectionView {
                     .foregroundStyle(.secondary)
             }
 
+            SettingsSectionDivider()
+
             if let sharedAddedMatchesCompetitionTitle {
                 sharedCompetitionHeader(
                     text: "All added matches are from \(sharedAddedMatchesCompetitionTitle)",
@@ -40,9 +42,7 @@ extension SettingsFootballFixturesSectionView {
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        .padding(SettingsVisualMetrics.panelPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(panelChrome)
     }
 
     var liveAndNextDayPanel: some View {
@@ -64,6 +64,8 @@ extension SettingsFootballFixturesSectionView {
                         .foregroundStyle(.secondary)
                 }
             }
+
+            SettingsSectionDivider()
 
             if let errorMessage = section.errorMessage {
                 feedbackState(
@@ -102,55 +104,49 @@ extension SettingsFootballFixturesSectionView {
             } else if liveAndNextDayMatchesByRegion.isEmpty {
                 emptyState("No upcoming scheduled regional groups are available in the next 24 hours right now.")
             } else {
-                liveAndNextDayRegionsContent(
-                    liveAndNextDayMatchesByRegion,
-                    showsCompetitionName: sharedLiveAndNextDayCompetitionTitle == nil
-                )
+                footballMatchesScrollViewport {
+                    liveAndNextDayRegionsContent(
+                        liveAndNextDayMatchesByRegion,
+                        showsCompetitionName: sharedLiveAndNextDayCompetitionTitle == nil
+                    )
+                }
             }
         }
-        .padding(SettingsVisualMetrics.panelPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(panelChrome)
     }
 
     func liveAndNextDayRegionsContent(
         _ entries: [(region: FootballCompetitionRegion, matches: [FootballFixtureMatch])],
         showsCompetitionName: Bool
     ) -> some View {
-        ScrollView(.vertical, showsIndicators: true) {
-            VStack(alignment: .leading, spacing: 16) {
-                ForEach(Array(entries.enumerated()), id: \.element.region.id) { index, entry in
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack(spacing: 8) {
-                            Text(entry.region.title)
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            Text("\(entry.matches.count)")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                        }
-
-                        matchCardsGrid(
-                            entry.matches,
-                            showsCompetitionName: showsCompetitionName,
-                            showsSeparateMetadataRows: true
-                        )
+        VStack(alignment: .leading, spacing: 16) {
+            ForEach(Array(entries.enumerated()), id: \.element.region.id) { index, entry in
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 8) {
+                        Text(entry.region.title)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text("\(entry.matches.count)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
                     }
 
-                    if index < entries.count - 1 {
-                        Divider()
-                            .padding(.vertical, 2)
-                    }
+                    matchCardsGrid(
+                        entry.matches,
+                        showsCompetitionName: showsCompetitionName,
+                        showsSeparateMetadataRows: true
+                    )
+                }
+
+                if index < entries.count - 1 {
+                    SettingsSectionDivider()
+                        .padding(.vertical, 2)
                 }
             }
-            .padding(.trailing, 2)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-
-    var panelChrome: some View {
-        SettingsPanelChrome(fill: .clear)
+        .padding(.trailing, 2)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     @ViewBuilder
@@ -161,23 +157,25 @@ extension SettingsFootballFixturesSectionView {
     ) -> some View {
         let cardMatches = Self.matchesEligibleForFootballCards(matches)
 
-        if cardMatches.count > Self.scrollableMatchCardThreshold {
-            ScrollView(.vertical, showsIndicators: true) {
-                matchCardsGrid(
-                    cardMatches,
-                    showsCompetitionName: showsCompetitionName,
-                    showsSeparateMetadataRows: showsSeparateMetadataRows
-                )
-                .padding(.trailing, 2)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        } else {
+        footballMatchesScrollViewport {
             matchCardsGrid(
                 cardMatches,
                 showsCompetitionName: showsCompetitionName,
                 showsSeparateMetadataRows: showsSeparateMetadataRows
             )
+            .padding(.trailing, 2)
         }
+    }
+
+    func footballMatchesScrollViewport<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        FootballMatchesScrollViewport(
+            minimumHeight: Self.minimumMatchListViewportHeight,
+            maximumHeight: Self.maximumMatchListViewportHeight,
+            fillsAvailableHeight: true,
+            content: content
+        )
     }
 
     func matchCardsGrid(
@@ -240,7 +238,7 @@ extension SettingsFootballFixturesSectionView {
         )
         let warningText = CalendarMonitor.footballStatusWarningText(for: match)
         let warningSummary = warningText.flatMap { _ in CalendarMonitor.footballStatusWarningSummary(for: match) }
-        let isManaged = managedFootballMatchIDs.contains(match.id)
+        let isManaged = effectiveFootballFixturePresence(match)
         let baseBorderColor = isManaged ? Color.green.opacity(0.28) : Color.primary.opacity(0.06)
 
         VStack(alignment: .leading, spacing: 4) {
@@ -279,15 +277,15 @@ extension SettingsFootballFixturesSectionView {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .padding(12)
+        .padding(SettingsVisualMetrics.interactiveCardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(isHovered ? Color.accentColor.opacity(0.10) : Color.primary.opacity(0.04))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(isHovered ? Color.accentColor.opacity(0.22) : baseBorderColor, lineWidth: 1)
+            SettingsInteractiveCardChrome(
+                isHovered: isHovered,
+                isSelected: isManaged,
+                tint: isManaged ? .green : .accentColor,
+                borderColor: isHovered ? Color.accentColor.opacity(0.24) : baseBorderColor
+            )
         )
         .animation(.easeInOut(duration: 0.14), value: isHovered)
     }

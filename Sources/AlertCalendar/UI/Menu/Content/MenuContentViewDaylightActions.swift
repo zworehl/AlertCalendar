@@ -16,33 +16,61 @@ extension MenuContentView {
         let accentColor = Color(nsColor: item.calendarColor.nsColor)
         let titleFont = MenuMarkerMetrics.rowTitleFont
         let timeFont = MenuMarkerMetrics.rowDetailFont
+        let trailingReservation = contextualDaylightHeaderTrailingReservation(for: item)
 
-        HStack(alignment: .center, spacing: 0) {
-            HStack(alignment: .center, spacing: 10) {
-                contextualMarkerView(for: item, accentColor: accentColor)
+        ZStack(alignment: .trailing) {
+            HStack(alignment: .center, spacing: 0) {
+                HStack(alignment: .center, spacing: 10) {
+                    contextualMarkerView(for: item, accentColor: accentColor)
 
-                Text(item.title)
-                    .font(titleFont)
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .layoutPriority(1)
-            }
+                    Text(item.title)
+                        .font(titleFont)
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .layoutPriority(1)
+                }
 
-            Spacer(minLength: 12)
+                Spacer(minLength: 12)
 
-            if isHovered {
-                contextualActionButtons(for: item, locationText: nil)
-            } else {
                 Text(timeText(item.date))
                     .font(timeFont)
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
+                    .lineLimit(1)
+                    .frame(width: trailingReservation, alignment: .trailing)
+                    .opacity(isHovered ? 0 : 1)
             }
+
+            // Keep the action subtree in the ZStack in both states so that its
+            // native 28-point control height and trailing width are part of the
+            // stable hover region before the pointer enters it.
+            contextualActionButtons(for: item, locationText: nil)
+                .opacity(isHovered ? 1 : 0)
+                .allowsHitTesting(isHovered)
+                .accessibilityHidden(!isHovered)
+                .disabled(!isHovered)
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
+        .frame(height: Self.contextualDaylightHeaderHeight, alignment: .center)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .menuRowHoverBackground(isHovered: isHovered)
         .contentShape(Rectangle())
+    }
+
+    func contextualDaylightHeaderTrailingReservation(for item: UpcomingItem) -> CGFloat {
+        max(
+            contextualActionRowWidth(
+                for: item,
+                locationText: nil,
+                showsJoinButton: false
+            ),
+            Self.measuredTextWidth(timeText(item.date), font: MenuMarkerMetrics.rowDetailNSFont)
+        )
+    }
+
+    nonisolated static var contextualDaylightHeaderHeight: CGFloat {
+        MenuActionControlMetrics.minimumHitTargetSize + 8
     }
 
     @ViewBuilder
@@ -71,17 +99,18 @@ extension MenuContentView {
         locationText: String?,
         showsJoinButton: Bool = false
     ) -> some View {
-        HStack(spacing: 4) {
+        MenuActionButtonGroup {
             if showsJoinButton,
                item.meetingURL != nil {
                 joinActionButton(for: item)
             }
 
-            skipActionButton(for: item)
-
-            if let locationText {
+            if let locationText,
+               Self.hasUsableContextualLocation(locationText) {
                 mapActionButton(for: item, locationText: locationText)
             }
+
+            skipActionButton(for: item)
         }
     }
 

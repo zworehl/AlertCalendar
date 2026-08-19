@@ -104,7 +104,7 @@ extension SettingsView {
                 Button {
                     openPrivacySettings()
                 } label: {
-                    Label("Open Privacy", systemImage: "gearshape")
+                    Label("Open Privacy…", systemImage: "gearshape")
                 }
                 .buttonStyle(.bordered)
             }
@@ -120,7 +120,7 @@ extension SettingsView {
                 Button {
                     openPrivacySettings()
                 } label: {
-                    Label("Open Privacy", systemImage: "gearshape")
+                    Label("Open Privacy…", systemImage: "gearshape")
                 }
                 .buttonStyle(.bordered)
             }

@@ -1,18 +1,6 @@
 import SwiftUI
 
 extension SettingsGameSalesSectionView {
-    var introductionPanel: some View {
-        SettingsSectionHeaderView(
-            title: "Game Sales",
-            subtitle: "Track scheduled store campaigns and manage their all-day events in Apple Calendar.",
-            detail: "Official sale feeds refresh automatically every 6 hours. Use Refresh now for an immediate check.",
-            systemImage: "gamecontroller.fill"
-        )
-        .padding(SettingsVisualMetrics.panelPadding)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(panelChrome)
-    }
-
     var controlsPanel: some View {
         VStack(alignment: .leading, spacing: 12) {
             ViewThatFits(in: .horizontal) {
@@ -37,13 +25,11 @@ extension SettingsGameSalesSectionView {
                 }
             }
 
-            Divider()
+            SettingsSectionDivider()
 
             automationControls
         }
-        .padding(SettingsVisualMetrics.panelPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(panelChrome)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     var targetCalendarControl: some View {
@@ -61,7 +47,8 @@ extension SettingsGameSalesSectionView {
             title: "Calendar Alert",
             pickerTitle: "Game sale alert",
             selection: calendarAlertBinding,
-            helpText: "Applies one Apple Calendar alert to every sale managed by Alert Calendar."
+            helpText: "Applies one Apple Calendar alert to every sale managed by Alert Calendar.",
+            layout: .inline(labelWidth: SettingsVisualMetrics.calendarAlertLabelWidth)
         ) {
             ForEach(GameSaleCalendarAlertOption.allCases) { option in
                 Text(option.title).tag(option)
@@ -104,7 +91,7 @@ extension SettingsGameSalesSectionView {
             VStack(alignment: .leading, spacing: 10) {
                 gameSalesAutoAddGroup(layout: .adaptive)
 
-                Divider()
+                SettingsSectionDivider()
 
                 gameSalesNotificationGroup(layout: .adaptive)
             }
@@ -171,7 +158,4 @@ extension SettingsGameSalesSectionView {
         }
     }
 
-    var panelChrome: some View {
-        SettingsPanelChrome()
-    }
 }

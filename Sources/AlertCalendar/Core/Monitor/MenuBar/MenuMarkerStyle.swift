@@ -3,7 +3,6 @@ import Foundation
 enum MenuMarkerStyle: Equatable {
     case color(AlertCalendarColor)
     case reminder(AlertCalendarColor)
-    case birthday(AlertCalendarColor)
     case allDay(AlertCalendarColor)
     case gameStore(GameStore)
     case travel(AlertCalendarColor)
@@ -31,8 +30,6 @@ enum MenuMarkerStyle: Equatable {
         case let (.color(left), .color(right)):
             return left == right
         case let (.reminder(left), .reminder(right)):
-            return left == right
-        case let (.birthday(left), .birthday(right)):
             return left == right
         case let (.allDay(left), .allDay(right)):
             return left == right

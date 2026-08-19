@@ -12,6 +12,32 @@ extension SettingsView {
         return "\(normalizedValue) \(unit)"
     }
 
+    nonisolated static func dropdownWindowValueText(hours: Int) -> String {
+        let normalizedHours = AppSettingsRules.normalizedDropdownWindowHours(hours)
+        if normalizedHours >= 30 * 24, normalizedHours.isMultiple(of: 30 * 24) {
+            return durationValueText(
+                value: normalizedHours / (30 * 24),
+                singular: "month",
+                plural: "months"
+            )
+        }
+        if normalizedHours >= 7 * 24, normalizedHours.isMultiple(of: 7 * 24) {
+            return durationValueText(
+                value: normalizedHours / (7 * 24),
+                singular: "week",
+                plural: "weeks"
+            )
+        }
+        if normalizedHours >= 24, normalizedHours.isMultiple(of: 24) {
+            return durationValueText(
+                value: normalizedHours / 24,
+                singular: "day",
+                plural: "days"
+            )
+        }
+        return durationValueText(value: normalizedHours, singular: "hour", plural: "hours")
+    }
+
     nonisolated static func menuBarRotationWindowValueText(minutes: Int) -> String {
         let normalizedMinutes = max(1, minutes)
         if normalizedMinutes < 60 {

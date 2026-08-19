@@ -6,11 +6,8 @@ import EventKit
 import SwiftUI
 
 extension SettingsView {
-    func integrationDescription(for integration: SettingsIntegrationKind) -> String {
-        switch integration {
-        case .slackStatusSync:
-            return slackIntegrationDescription()
-        }
+    func integrationDescription(for _: SettingsIntegrationKind) -> String {
+        slackIntegrationDescription()
     }
 
     func permissionPrimaryButton(
@@ -37,7 +34,7 @@ extension SettingsView {
         Button {
             openPrivacySettings(for: permission)
         } label: {
-            Label("Open Settings", systemImage: "gearshape")
+            Label("Open Settings…", systemImage: "gearshape")
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         }
@@ -54,15 +51,7 @@ extension SettingsView {
 
     @ViewBuilder
     func cardStatusBadge(_ state: SettingsCardBadgeState) -> some View {
-        Text(state.title)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(state.tint)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(
-                Capsule()
-                    .fill(state.tint.opacity(0.12))
-            )
+        SettingsStatusBadge(title: state.title, tint: state.tint)
     }
 
     func permissionPrimaryActionTitle(for permission: SettingsPermissionKind, state: PermissionGrantState) -> String {
@@ -74,7 +63,7 @@ extension SettingsView {
         case .limited:
             return permission == .location ? "Check access" : "Upgrade access"
         case .denied, .restricted:
-            return "Open Settings"
+            return "Open Settings…"
         }
     }
 

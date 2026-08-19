@@ -59,6 +59,10 @@ final class CalendarMonitor: ObservableObject {
     @Published var lastSlackStatusSyncDate: Date?
     @Published var slackConnectionStatusMessage: String?
     @Published var slackRuntimeStatusDescription: String?
+    @Published var agendaSummaryState = AgendaSummaryState.idle
+    @Published var agendaSummaryAvailability = AgendaSummaryAvailability.unsupportedSystem
+    @Published var agendaSummaryGenerationErrorDescription: String?
+    @Published var rewrittenEventTitlesByItemKey: [String: String] = [:]
     @Published private(set) var currentSettings = AppSettings.defaults
 
     let eventStore: EKEventStore
@@ -68,6 +72,9 @@ final class CalendarMonitor: ObservableObject {
     let gameSalesClient: GameSalesFeedClient
     let googleHolidayClient: GoogleHolidayFeedClient
     let slackClient: SlackAPIClient
+    let agendaSummaryClient: any AgendaSummaryGenerating
+    let agendaSummaryLinkPreviewProvider: any AgendaSummaryLinkPreviewProviding
+    let eventTitleRewriter: any EventTitleRewriting
     let clock: AlertCalendarClockProviding
 
     var settingsStore: AppSettingsStore {
@@ -82,6 +89,7 @@ final class CalendarMonitor: ObservableObject {
     var workspaceResumeObserver: AnyCancellable?
     let refreshCoordinator = CalendarMonitorRefreshCoordinator()
     var tickCount = 0
+    var lastCalendarStateRefreshDate: Date?
     var lastPeriodicRefreshDate: Date?
     var birthdayCalendarIDs: Set<String> = []
     var allDayEventItems: [UpcomingItem] = []
@@ -97,6 +105,11 @@ final class CalendarMonitor: ObservableObject {
     var calendarAlertFullSyncTask: Task<Void, Never>?
     var calendarAlertFullSyncToken: UUID?
     var calendarAlertFullSyncFingerprintInProgress: String?
+    var agendaSummaryTask: Task<Void, Never>?
+    var agendaSummaryRequestFingerprint: Int?
+    var eventTitleRewriteTask: Task<Void, Never>?
+    var eventTitleRewriteFingerprint: Int?
+    var eventTitleRewriteCache: [EventTitleRewriteCacheKey: String] = [:]
 
     init(
         eventStore: EKEventStore = EKEventStore(),
@@ -106,6 +119,9 @@ final class CalendarMonitor: ObservableObject {
         gameSalesClient: GameSalesFeedClient = GameSalesFeedClient(),
         googleHolidayClient: GoogleHolidayFeedClient = GoogleHolidayFeedClient(),
         slackClient: SlackAPIClient = SlackAPIClient(),
+        agendaSummaryClient: any AgendaSummaryGenerating = AppleIntelligenceAgendaSummaryClient(),
+        agendaSummaryLinkPreviewProvider: any AgendaSummaryLinkPreviewProviding = AgendaSummaryLinkPreviewClient(),
+        eventTitleRewriter: any EventTitleRewriting = AppleIntelligenceEventTitleRewriter(),
         clock: AlertCalendarClockProviding = SystemAlertCalendarClock()
     ) {
         self.eventStore = eventStore
@@ -115,7 +131,11 @@ final class CalendarMonitor: ObservableObject {
         self.gameSalesClient = gameSalesClient
         self.googleHolidayClient = googleHolidayClient
         self.slackClient = slackClient
+        self.agendaSummaryClient = agendaSummaryClient
+        self.agendaSummaryLinkPreviewProvider = agendaSummaryLinkPreviewProvider
+        self.eventTitleRewriter = eventTitleRewriter
         self.clock = clock
+        self.agendaSummaryAvailability = agendaSummaryClient.availability
 
         registerDefaultSettings()
         currentSettings = settingsStore.load()

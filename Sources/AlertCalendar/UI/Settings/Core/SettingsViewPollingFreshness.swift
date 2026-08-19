@@ -45,19 +45,37 @@ extension SettingsView {
     var pollingFreshnessLabel: some View {
         let freshness = activePollingFreshness
 
-        Label {
-            if let date = freshness.date {
-                Text("\(freshness.title) updated ")
-                    + Text(date, style: .relative)
-            } else {
-                Text("\(freshness.title) not updated yet")
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            Label {
+                if let date = freshness.date {
+                    let elapsedText = Self.pollingFreshnessElapsedText(
+                        from: date,
+                        to: context.date,
+                        simplified: draft.useSimplifiedCountdown
+                    )
+                    Text("\(freshness.title) updated \(elapsedText)")
+                } else {
+                    Text("\(freshness.title) not updated yet")
+                }
+            } icon: {
+                Image(systemName: "clock.arrow.circlepath")
             }
-        } icon: {
-            Image(systemName: "clock.arrow.circlepath")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
         }
-        .font(.caption)
-        .foregroundStyle(.secondary)
-        .lineLimit(1)
-        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    nonisolated static func pollingFreshnessElapsedText(
+        from date: Date,
+        to now: Date,
+        simplified: Bool
+    ) -> String {
+        AlertCalendarRelativeTimeFormatter.elapsedText(
+            from: date,
+            to: now,
+            simplified: simplified
+        )
     }
 }

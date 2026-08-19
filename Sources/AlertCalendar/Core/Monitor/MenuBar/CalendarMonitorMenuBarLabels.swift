@@ -60,6 +60,7 @@ extension CalendarMonitor {
         activeEventDisplayMode: ActiveEventDisplayMode,
         useEventTitleEllipsis: Bool,
         eventTitleMaxCharacters: Int,
+        rewrittenTitle: String? = nil,
         fallback: String
     ) -> String {
         guard let item else { return fallback }
@@ -69,7 +70,8 @@ extension CalendarMonitor {
             simplified: simplified,
             activeEventDisplayMode: activeEventDisplayMode,
             useEventTitleEllipsis: useEventTitleEllipsis,
-            eventTitleMaxCharacters: eventTitleMaxCharacters
+            eventTitleMaxCharacters: eventTitleMaxCharacters,
+            rewrittenTitle: rewrittenTitle
         )
     }
 
@@ -79,11 +81,16 @@ extension CalendarMonitor {
         simplified: Bool,
         activeEventDisplayMode: ActiveEventDisplayMode,
         useEventTitleEllipsis: Bool,
-        eventTitleMaxCharacters: Int
+        eventTitleMaxCharacters: Int,
+        rewrittenTitle: String? = nil
     ) -> String {
-        let baseTitle = item.footballMatch.map(FootballFixtureFormatter.calendarTitle(for:)) ?? item.title
+        let baseTitle = rewrittenTitle
+            ?? item.footballMatch.map(FootballFixtureFormatter.calendarTitle(for:))
+            ?? item.title
         let compactTitle: String
-        if useEventTitleEllipsis {
+        if rewrittenTitle != nil {
+            compactTitle = baseTitle
+        } else if useEventTitleEllipsis {
             compactTitle = trimmedTitle(baseTitle, maxLength: max(1, eventTitleMaxCharacters))
         } else {
             compactTitle = baseTitle
@@ -119,11 +126,12 @@ extension CalendarMonitor {
             return compactTitle
         }
         if item.isAllDay {
-            if isBirthdayItem(item) {
-                return compactTitle
-            }
             let allDayDetail = allDayLabel(for: item, now: now, simplified: simplified) ?? "all-day"
-            return "\(compactTitle) \(allDayDetail)"
+            return Self.allDayMenuSegment(
+                compactTitle: compactTitle,
+                detail: allDayDetail,
+                isBirthday: isBirthdayItem(item)
+            )
         }
         if item.kind == .reminder, item.date <= now {
             return "\(compactTitle) \(elapsedCountdown(from: item.date, to: now, simplified: simplified)) ago"
@@ -137,6 +145,17 @@ extension CalendarMonitor {
             }
         }
         return "\(compactTitle) in \(relativeCountdown(to: item.date, from: now, simplified: simplified))"
+    }
+
+    nonisolated static func allDayMenuSegment(
+        compactTitle: String,
+        detail: String,
+        isBirthday: Bool
+    ) -> String {
+        if isBirthday, detail == "all-day" {
+            return compactTitle
+        }
+        return "\(compactTitle) \(detail)"
     }
 
     func footballMenuBarTrailingText(

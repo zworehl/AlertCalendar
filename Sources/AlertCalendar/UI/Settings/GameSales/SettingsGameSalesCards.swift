@@ -42,19 +42,24 @@ extension SettingsGameSalesSectionView {
                 spacing: 12
             ) {
                 ForEach(displayedSales) { sale in
+                    let persistedPresence = monitor.isGameSalePresent(sale)
+                    let pendingChange = pendingCalendarChanges[sale.id]
+                    let effectivePresence = pendingChange?.mutation.makesItemPresent ?? persistedPresence
+                    let effectiveManagement = pendingChange?.mutation.makesItemPresent
+                        ?? monitor.isGameSaleManaged(sale)
+
                     GameSaleCardView(
                         sale: sale,
                         now: visibleNow,
-                        isPresent: monitor.isGameSalePresent(sale),
-                        isManaged: monitor.isGameSaleManaged(sale),
+                        isPresent: effectivePresence,
+                        isManaged: effectiveManagement,
+                        hasPendingChange: pendingChange != nil,
                         canAdd: !targetCalendarID.isEmpty,
                         onAdd: {
-                            Task {
-                                _ = await monitor.addGameSaleToCalendar(sale)
-                            }
+                            togglePendingGameSale(sale)
                         },
                         onRemove: {
-                            monitor.removeGameSaleFromCalendar(sale)
+                            togglePendingGameSale(sale)
                         },
                         onOpen: {
                             monitor.openGameSaleInCalendar(sale)
@@ -107,9 +112,7 @@ extension SettingsGameSalesSectionView {
 
             Spacer(minLength: 0)
         }
-        .padding(SettingsVisualMetrics.panelPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(panelChrome)
     }
 }
 
@@ -118,6 +121,7 @@ private struct GameSaleCardView: View {
     let now: Date
     let isPresent: Bool
     let isManaged: Bool
+    let hasPendingChange: Bool
     let canAdd: Bool
     let onAdd: () -> Void
     let onRemove: () -> Void
@@ -126,7 +130,7 @@ private struct GameSaleCardView: View {
     @State private var isHovered = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .center, spacing: 8) {
                 storeBadge
 
@@ -145,7 +149,8 @@ private struct GameSaleCardView: View {
             Text(sale.title)
                 .font(SettingsTypography.itemTitle)
                 .lineLimit(2)
-                .frame(maxWidth: .infinity, minHeight: 32, alignment: .topLeading)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
 
             HStack(spacing: 6) {
                 Image(systemName: "calendar")
@@ -153,33 +158,37 @@ private struct GameSaleCardView: View {
                 Text(dateRangeText)
                     .lineLimit(1)
                     .truncationMode(.tail)
-            }
-            .font(SettingsTypography.itemDetail)
-            .foregroundStyle(.secondary)
-
-            HStack(spacing: 6) {
-                Text(isActive ? "Ends \(formattedEndDate)" : "Starts \(formattedStartDate)")
-                    .foregroundStyle(.secondary)
 
                 Spacer(minLength: 4)
 
+                Text(isActive ? "Ends \(formattedEndDate)" : "Starts \(formattedStartDate)")
+                    .lineLimit(1)
+
                 Link(destination: sale.officialURL) {
                     Image(systemName: "arrow.up.right.square")
+                        .frame(
+                            width: SettingsVisualMetrics.minimumInteractiveControlSize,
+                            height: SettingsVisualMetrics.minimumInteractiveControlSize
+                        )
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Open official campaign page")
                 .help("Open the official campaign page")
             }
-            .font(.caption2.weight(.medium))
+            .font(SettingsTypography.itemDetail)
+            .foregroundStyle(.secondary)
         }
-        .padding(12)
+        .padding(.horizontal, SettingsVisualMetrics.interactiveCardPadding)
+        .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(isHovered ? Color.accentColor.opacity(0.10) : Color.primary.opacity(0.04))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(cardBorderColor, lineWidth: 1)
+            SettingsInteractiveCardChrome(
+                isHovered: isHovered,
+                isSelected: isManaged,
+                tint: isManaged ? .green : .accentColor,
+                borderColor: cardBorderColor
+            )
         )
         .onHover { hovering in
             isHovered = hovering
@@ -236,15 +245,10 @@ private struct GameSaleCardView: View {
     }
 
     var statusBadge: some View {
-        Text(isActive ? "ACTIVE" : "UPCOMING")
-            .font(SettingsTypography.metadataEmphasized)
-            .foregroundStyle(isActive ? Color.green : Color.secondary)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .background(
-                Capsule(style: .continuous)
-                    .fill((isActive ? Color.green : Color.secondary).opacity(0.10))
-            )
+        SettingsStatusBadge(
+            title: isActive ? "ACTIVE" : "UPCOMING",
+            tint: isActive ? .green : .secondary
+        )
     }
 
     var storeBadge: some View {
@@ -266,7 +270,7 @@ private struct GameSaleCardView: View {
     @ViewBuilder
     func cardActions(isVisible: Bool) -> some View {
         HStack(spacing: 5) {
-            if isPresent {
+            if isPresent && !hasPendingChange {
                 SettingsCalendarCardActionButton(
                     calendarAction: .open,
                     isVisible: isVisible,

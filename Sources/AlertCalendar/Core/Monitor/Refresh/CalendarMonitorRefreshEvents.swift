@@ -1,4 +1,5 @@
 import AppKit
+import CoreLocation
 import EventKit
 import Foundation
 
@@ -60,14 +61,26 @@ extension CalendarMonitor {
             let meetingURL = meetingURL(for: event)
             let locationText = Self.preferredLocationText(
                 eventLocation: event.location,
+                structuredLocationTitle: event.structuredLocation?.title,
                 footballMatchLocation: footballMatch?.locationText
             )
+            let locationCoordinate = Self.nativeLocationCoordinate(for: event)
             let footballMenuBarDisplay = footballMatch.map(footballMenuBarDisplay(for:))
             let gameStore = event.isAllDay ? event.url.flatMap(Self.gameStore(for:)) : nil
             let organizer = organizer(for: event)
             let attendees = invitees(for: event)
             let isRecurring = isRecurringEvent(event)
             let hasDocumentIndicator = hasDocumentIndicator(for: event, meetingURL: meetingURL)
+            let urlMetadata = Self.calendarItemURLMetadata(
+                eventURL: event.url,
+                notes: event.notes,
+                meetingURL: meetingURL
+            )
+            let agendaSummaryURLCandidates = Self.agendaSummaryURLCandidates(
+                eventURL: event.url,
+                notes: event.notes,
+                meetingURL: meetingURL
+            )
             let travelTimeMinutes = normalizedTravelTimeMinutes(
                 for: event,
                 meetingURL: meetingURL,
@@ -91,12 +104,17 @@ extension CalendarMonitor {
                         showsMutedBackground: showsMutedBackground,
                         travelTimeMinutes: travelTimeMinutes,
                         locationText: locationText,
+                        locationCoordinate: locationCoordinate,
                         meetingURL: meetingURL,
+                        urlCount: urlMetadata.count,
+                        urlHosts: urlMetadata.hosts,
+                        agendaSummaryURLCandidates: agendaSummaryURLCandidates,
                         organizer: organizer,
                         attendees: attendees,
                         eventParticipationStatus: eventParticipationStatus,
                         isRecurring: isRecurring,
                         hasDocumentIndicator: hasDocumentIndicator,
+                        descriptionText: event.notes,
                         calendarID: calendarIdentifier,
                         calendarName: calendarName,
                         calendarColor: calendarColor,
@@ -123,12 +141,17 @@ extension CalendarMonitor {
                     showsMutedBackground: showsMutedBackground,
                     travelTimeMinutes: travelTimeMinutes,
                     locationText: locationText,
+                    locationCoordinate: locationCoordinate,
                     meetingURL: meetingURL,
+                    urlCount: urlMetadata.count,
+                    urlHosts: urlMetadata.hosts,
+                    agendaSummaryURLCandidates: agendaSummaryURLCandidates,
                     organizer: organizer,
                     attendees: attendees,
                     eventParticipationStatus: eventParticipationStatus,
                     isRecurring: isRecurring,
                     hasDocumentIndicator: hasDocumentIndicator,
+                    descriptionText: event.notes,
                     calendarID: calendarIdentifier,
                     calendarName: calendarName,
                     calendarColor: calendarColor,
@@ -145,12 +168,29 @@ extension CalendarMonitor {
         return (timedItems, allDayItems)
     }
 
-    nonisolated static func preferredLocationText(eventLocation: String?, footballMatchLocation: String?) -> String? {
+    nonisolated static func preferredLocationText(
+        eventLocation: String?,
+        structuredLocationTitle: String? = nil,
+        footballMatchLocation: String?
+    ) -> String? {
         if let footballLocation = normalizedLocationText(footballMatchLocation) {
             return footballLocation
         }
 
         return normalizedLocationText(eventLocation)
+            ?? normalizedLocationText(structuredLocationTitle)
+    }
+
+    nonisolated static func nativeLocationCoordinate(for event: EKEvent) -> ResolvedLocationCoordinate? {
+        guard let coordinate = event.structuredLocation?.geoLocation?.coordinate,
+              CLLocationCoordinate2DIsValid(coordinate) else {
+            return nil
+        }
+
+        return ResolvedLocationCoordinate(
+            latitude: coordinate.latitude,
+            longitude: coordinate.longitude
+        )
     }
 
     private nonisolated static func normalizedLocationText(_ rawLocation: String?) -> String? {
@@ -172,6 +212,16 @@ extension CalendarMonitor {
         return reminders.compactMap { reminder -> UpcomingItem? in
             guard let dueDate = dueDate(for: reminder) else { return nil }
             guard reminderHasExplicitTime(reminder) else { return nil }
+            let urlMetadata = Self.calendarItemURLMetadata(
+                eventURL: reminder.url,
+                notes: reminder.notes,
+                meetingURL: nil
+            )
+            let agendaSummaryURLCandidates = Self.agendaSummaryURLCandidates(
+                eventURL: reminder.url,
+                notes: reminder.notes,
+                meetingURL: nil
+            )
             return UpcomingItem(
                 id: reminder.calendarItemIdentifier,
                 title: normalizedTitle(reminder.title),
@@ -182,9 +232,18 @@ extension CalendarMonitor {
                 travelTimeMinutes: nil,
                 locationText: nil,
                 meetingURL: nil,
+                urlCount: urlMetadata.count,
+                urlHosts: urlMetadata.hosts,
+                agendaSummaryURLCandidates: agendaSummaryURLCandidates,
                 organizer: nil,
                 attendees: [],
                 isRecurring: isRecurringReminder(reminder),
+                hasDocumentIndicator: Self.hasDocumentIndicator(
+                    eventURL: reminder.url,
+                    notes: reminder.notes,
+                    meetingURL: nil
+                ),
+                descriptionText: reminder.notes,
                 calendarID: reminder.calendar.calendarIdentifier,
                 calendarName: reminder.calendar.title,
                 calendarColor: color(from: reminder.calendar),
@@ -269,102 +328,6 @@ extension CalendarMonitor {
 
     func isRecurringReminder(_ reminder: EKReminder) -> Bool {
         reminder.hasRecurrenceRules
-    }
-
-    func hasDocumentIndicator(for event: EKEvent, meetingURL: URL?) -> Bool {
-        Self.hasDocumentIndicator(
-            eventURL: event.url,
-            notes: event.notes,
-            meetingURL: meetingURL
-        )
-    }
-
-    nonisolated static func hasDocumentIndicator(
-        eventURL: URL?,
-        notes: String?,
-        meetingURL: URL?
-    ) -> Bool {
-        var candidates: [URL] = []
-
-        if let eventURL {
-            candidates.append(eventURL)
-        }
-
-        if let notes = AlertCalendarString.trimmedNonEmpty(notes) {
-            candidates.append(contentsOf: MeetingURLResolver.allURLs(in: notes))
-        }
-
-        return candidates.contains { candidate in
-            guard !urlsMatch(candidate, meetingURL) else { return false }
-            guard !MeetingURLResolver.isKnownMeetingURL(candidate) else { return false }
-            return isDocumentIndicatorURL(candidate)
-        }
-    }
-
-    nonisolated static func isDocumentIndicatorURL(_ url: URL) -> Bool {
-        if url.isFileURL {
-            return true
-        }
-
-        let pathExtension = url.pathExtension.lowercased()
-        if documentIndicatorPathExtensions.contains(pathExtension) {
-            return true
-        }
-
-        guard let host = url.host?.lowercased() else { return false }
-        let path = url.path.lowercased()
-
-        if host == "docs.google.com" || host.hasSuffix(".docs.google.com") {
-            return path.hasPrefix("/document/")
-                || path.hasPrefix("/spreadsheets/")
-                || path.hasPrefix("/presentation/")
-                || path.hasPrefix("/drawings/")
-                || path.hasPrefix("/forms/")
-        }
-
-        if host == "drive.google.com" || host.hasSuffix(".drive.google.com") {
-            return path.hasPrefix("/file/")
-        }
-
-        if host == "1drv.ms" || host.hasSuffix(".1drv.ms") {
-            return true
-        }
-
-        if host.hasSuffix(".sharepoint.com") || host == "sharepoint.com" {
-            return pathExtension.isEmpty == false
-        }
-
-        return false
-    }
-
-    nonisolated private static var documentIndicatorPathExtensions: Set<String> {
-        [
-            "csv",
-            "doc",
-            "docx",
-            "ics",
-            "key",
-            "numbers",
-            "pages",
-            "pdf",
-            "ppt",
-            "pptx",
-            "rtf",
-            "txt",
-            "xls",
-            "xlsx",
-            "zip",
-        ]
-    }
-
-    nonisolated static func urlsMatch(_ left: URL, _ right: URL?) -> Bool {
-        guard let right else { return false }
-        return normalizedURLString(left) == normalizedURLString(right)
-    }
-
-    nonisolated private static func normalizedURLString(_ url: URL) -> String {
-        let rawString = url.absoluteString.removingPercentEncoding ?? url.absoluteString
-        return rawString.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
     func dueDate(for reminder: EKReminder) -> Date? {

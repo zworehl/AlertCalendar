@@ -7,15 +7,13 @@ extension MenuContentView {
     @ViewBuilder
     func actionRow(
         item: UpcomingItem,
-        actions: [MenuAction],
-        trailingActionInset: CGFloat = 0
+        actions: [MenuAction]
     ) -> some View {
         MenuContentHoverContainer { isHovered in
             actionRowContent(
                 item: item,
                 actions: actions,
-                isHovered: isHovered,
-                trailingActionInset: trailingActionInset
+                isHovered: isHovered
             )
         }
     }
@@ -24,13 +22,13 @@ extension MenuContentView {
     func actionRowContent(
         item: UpcomingItem,
         actions: [MenuAction],
-        isHovered: Bool,
-        trailingActionInset: CGFloat = 0
+        isHovered: Bool
     ) -> some View {
-        let resolvedTrailingActionInset = max(0, trailingActionInset)
-        let reservedTrailingWidth = isHovered
-            ? hoverActionRowWidth(for: item, trailingInset: resolvedTrailingActionInset)
-            : 0
+        let reservedTrailingWidth = actionRowPrimaryTrailingReservation(
+            for: item,
+            actions: actions,
+            isHovered: isHovered
+        )
         let now = displayReferenceDate
 
         ZStack(alignment: .trailing) {
@@ -47,6 +45,8 @@ extension MenuContentView {
                     )
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Complete \(item.title)")
+                .help("Complete reminder")
             } else {
                 rowPrimaryContent(
                     for: item,
@@ -57,36 +57,42 @@ extension MenuContentView {
                 )
             }
 
-            if isHovered {
-                HStack(spacing: 4) {
-                    if item.meetingURL != nil {
-                        joinActionButton(for: item)
-                    }
+            MenuActionButtonGroup {
+                if item.meetingURL != nil {
+                    joinActionButton(for: item)
+                }
 
-                    ForEach(actions.indices, id: \.self) { index in
-                        switch actions[index] {
-                        case .skip:
-                            skipActionButton(for: item)
-                        case .complete:
-                            Button {
-                                monitor.markReminderCompleted(item)
-                            } label: {
-                                reminderCompletionActionLabel(color: Color(nsColor: item.calendarColor.nsColor))
-                            }
-                            .buttonStyle(.plain)
-                            .controlSize(.small)
-                            .help("Complete")
-                        }
+                ForEach(actions.indices, id: \.self) { index in
+                    switch actions[index] {
+                    case .skip:
+                        skipActionButton(for: item)
+                    case .complete:
+                        completeActionButton(for: item)
                     }
                 }
-                .frame(minWidth: 30, alignment: .trailing)
-                .padding(.trailing, 2 + resolvedTrailingActionInset)
             }
+            .frame(minWidth: MenuActionControlMetrics.minimumHitTargetSize, alignment: .trailing)
+            .padding(.trailing, MenuActionControlMetrics.trailingInset)
+            .opacity(isHovered ? 1 : 0)
+            .allowsHitTesting(isHovered)
+            .accessibilityHidden(!isHovered)
+            .disabled(!isHovered)
         }
         .font(.caption)
         .padding(.vertical, 0)
+        .frame(minHeight: MenuActionControlMetrics.minimumHitTargetSize, alignment: .center)
         .fixedSize(horizontal: false, vertical: true)
         .contentShape(Rectangle())
+    }
+
+    func actionRowTrailingReservation(
+        for item: UpcomingItem,
+        actions: [MenuAction]
+    ) -> CGFloat {
+        hoverActionRowWidth(
+            for: item,
+            actions: actions
+        )
     }
 
     @ViewBuilder
@@ -149,8 +155,13 @@ extension MenuContentView {
             } else {
                 Capsule()
                     .fill(Color(nsColor: item.calendarColor.nsColor))
-                    .frame(width: 4)
-                    .padding(.vertical, 1)
+                    .frame(
+                        width: 4,
+                        height: Self.dropdownCalendarMarkerHeight(
+                            rowMinimumHeight: minimumRowHeight
+                        )
+                    )
+                    .padding(.top, MenuMarkerMetrics.markerFirstLineTopPadding)
             }
 
             if usesEventStyleLayout {
@@ -185,8 +196,8 @@ extension MenuContentView {
                             }
 
                             titleLine(
-                                title: item.title,
-                                symbolNames: accessorySymbolNames,
+                                title: monitor.eventTitle(for: item, inDropdown: true),
+                                symbolNames: [],
                                 titleFont: titleFont,
                                 iconFont: detailIconFont,
                                 titleColor: titleColor.opacity(participationTextOpacity),
@@ -231,6 +242,17 @@ extension MenuContentView {
                             }
                         }
                     }
+                    .padding(
+                        .trailing,
+                        Self.dropdownAccessorySymbolsTrailingReservation(accessorySymbolNames)
+                    )
+                    .overlay(alignment: .trailing) {
+                        dropdownAccessorySymbols(
+                            symbolNames: accessorySymbolNames,
+                            iconFont: detailIconFont,
+                            iconColor: detailTextColor.opacity(participationTextOpacity)
+                        )
+                    }
 
                     if showRightTimeColumn && !hideTimeDetails {
                         Spacer(minLength: 6)
@@ -264,6 +286,7 @@ extension MenuContentView {
                                     .lineLimit(1)
                             }
                         }
+                        .padding(.top, MenuMarkerMetrics.detailFirstLineTopPadding)
                     }
                 }
             } else {
@@ -271,7 +294,7 @@ extension MenuContentView {
                     HStack(alignment: .top, spacing: 6) {
                         VStack(alignment: .leading, spacing: 0) {
                             titleLine(
-                                title: item.title,
+                                title: monitor.eventTitle(for: item, inDropdown: true),
                                 symbolNames: accessorySymbolNames,
                                 titleFont: titleFont,
                                 iconFont: detailIconFont,
@@ -333,12 +356,13 @@ extension MenuContentView {
                                     .font(detailFont)
                                     .foregroundStyle(detailTextColor)
                             }
+                            .padding(.top, MenuMarkerMetrics.detailFirstLineTopPadding)
                         }
                     }
                 } else {
                     VStack(alignment: .leading, spacing: 0) {
                         titleLine(
-                            title: item.title,
+                            title: monitor.eventTitle(for: item, inDropdown: true),
                             symbolNames: accessorySymbolNames,
                             titleFont: titleFont,
                             iconFont: detailIconFont,
@@ -367,7 +391,8 @@ extension MenuContentView {
             }
         }
         .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .padding(.top, MenuMarkerMetrics.rowContentTopPadding)
+        .padding(.bottom, MenuMarkerMetrics.rowContentBottomPadding)
         .padding(.trailing, reservedTrailingWidth)
         .frame(maxWidth: .infinity, minHeight: minimumRowHeight, alignment: .leading)
         .background(alignment: .leading) {
@@ -375,7 +400,7 @@ extension MenuContentView {
 
             if isHovered {
                 RoundedRectangle(cornerRadius: 7)
-                    .fill(Color.accentColor.opacity(0.10))
+                    .fill(Color(nsColor: .unemphasizedSelectedContentBackgroundColor))
             }
 
             if visual.color.alphaComponent > 0.01 {
@@ -432,19 +457,11 @@ extension MenuContentView {
             if !symbolNames.isEmpty {
                 Spacer(minLength: 8)
 
-                HStack(spacing: 4) {
-                    ForEach(symbolNames, id: \.self) { symbolName in
-                        Image(systemName: symbolName)
-                            .font(iconFont)
-                            .frame(
-                                width: MenuMarkerMetrics.symbolSize,
-                                height: MenuMarkerMetrics.symbolSize,
-                                alignment: .center
-                            )
-                            .foregroundStyle(iconColor)
-                            .accessibilityHidden(true)
-                    }
-                }
+                dropdownAccessorySymbols(
+                    symbolNames: symbolNames,
+                    iconFont: iconFont,
+                    iconColor: iconColor
+                )
                 .fixedSize()
                 .layoutPriority(1)
             }
@@ -452,48 +469,24 @@ extension MenuContentView {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-}
-
-private struct CalendarParticipationTexture: View {
-    let status: EventParticipationStatus?
-
-    var body: some View {
-        if let status, status.usesTexturedFill {
-            Canvas { context, size in
-                var path = Path()
-                let spacing = max(4, status.appleCalendarStripeSpacing)
-                var currentX = -size.height
-
-                while currentX <= size.width + size.height {
-                    path.move(to: CGPoint(x: currentX, y: size.height))
-                    path.addLine(to: CGPoint(x: currentX + size.height, y: 0))
-                    currentX += spacing
-                }
-
-                context.stroke(
-                    path,
-                    with: .color(.black.opacity(Double(status.appleCalendarStripeAlpha))),
-                    lineWidth: 1.5
-                )
+    @ViewBuilder
+    func dropdownAccessorySymbols(
+        symbolNames: [String],
+        iconFont: Font,
+        iconColor: Color
+    ) -> some View {
+        HStack(spacing: 4) {
+            ForEach(symbolNames, id: \.self) { symbolName in
+                Image(systemName: symbolName)
+                    .font(iconFont)
+                    .frame(
+                        width: MenuMarkerMetrics.symbolSize,
+                        height: MenuMarkerMetrics.symbolSize,
+                        alignment: .center
+                    )
+                    .foregroundStyle(iconColor)
+                    .accessibilityHidden(true)
             }
-            .allowsHitTesting(false)
         }
-    }
-}
-
-struct MenuContentHoverContainer<Content: View>: View {
-    let content: (Bool) -> Content
-    @State private var isHovered = false
-
-    init(@ViewBuilder content: @escaping (Bool) -> Content) {
-        self.content = content
-    }
-
-    var body: some View {
-        content(isHovered)
-            .onHover { hovering in
-                guard isHovered != hovering else { return }
-                isHovered = hovering
-            }
     }
 }

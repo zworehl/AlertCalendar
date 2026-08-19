@@ -239,26 +239,6 @@ final class MenuContextualActionTests: AlertCalendarModelTestCase {
         )
     }
 
-    func testContainsOnlyAstronomyItemsDetectsTransientAstronomyOnlyQueue() {
-        let now = Date(timeIntervalSince1970: 1_720_000_000)
-        let astronomyItems = [
-            makeUpcomingItem(id: "sunset", title: "Sunset", startDate: now, endDate: now.addingTimeInterval(60)),
-            makeUpcomingItem(id: "solar-midnight", title: "Solar Midnight", startDate: now, endDate: now.addingTimeInterval(60)),
-            makeUpcomingItem(id: "sunrise", title: "Sunrise", startDate: now, endDate: now.addingTimeInterval(60)),
-            makeUpcomingItem(id: "solar-noon", title: "Solar Noon", startDate: now, endDate: now.addingTimeInterval(60)),
-        ]
-        let meeting = makeUpcomingItem(
-            id: "meeting",
-            title: "Replatform QA Check In",
-            startDate: now,
-            endDate: now.addingTimeInterval(30 * 60)
-        )
-
-        XCTAssertTrue(MenuContentView.containsOnlyAstronomyItems(astronomyItems))
-        XCTAssertFalse(MenuContentView.containsOnlyAstronomyItems(astronomyItems + [meeting]))
-        XCTAssertFalse(MenuContentView.containsOnlyAstronomyItems([]))
-    }
-
     func testFootballContextualContentLevelCountsRegularConcurrentEvents() {
         let now = Date(timeIntervalSince1970: 1_720_000_000)
         let footballItem = makeFootballUpcomingItem(

@@ -11,7 +11,7 @@ extension SettingsView {
         let isComplete = !draft.slackStatusSyncRules[index].connectionID.isEmpty &&
             !draft.slackStatusSyncRules[index].calendarID.isEmpty
 
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             slackStatusSyncRuleHeader(index: index, rule: rule, isComplete: isComplete)
 
             if slackShouldUseWideRuleEditors {
@@ -29,21 +29,12 @@ extension SettingsView {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white.opacity(0.035))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
-        )
+        .settingsInsetSurface()
     }
 
     @ViewBuilder
     func slackStatusSyncRuleHeader(index: Int, rule: SlackStatusSyncRule, isComplete: Bool) -> some View {
-        if slackShouldUseWideRuleEditors {
+        if slackShouldUseInlineRuleEditorRows {
             HStack(alignment: .top, spacing: 14) {
                 slackStatusSyncRuleDragHandle(for: rule)
 
@@ -53,10 +44,7 @@ extension SettingsView {
                 slackStatusRuleStatusPreviews(for: rule)
                     .layoutPriority(1)
 
-                Spacer(minLength: 12)
-
-                slackStatusSyncRuleWideTimingControls(index: index)
-                    .frame(width: 280, alignment: .leading)
+                Spacer(minLength: 8)
 
                 slackStatusSyncRuleActionBar(index: index, rule: rule, isComplete: isComplete)
                     .fixedSize(horizontal: true, vertical: false)
@@ -124,40 +112,72 @@ extension SettingsView {
 
     @ViewBuilder
     func slackStatusSyncRuleEditors(index: Int) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if slackShouldUseInlineRuleEditorRows {
-                HStack(alignment: .top, spacing: 10) {
-                    slackStatusSyncRuleConnectionPicker(index: index)
-                        .frame(minWidth: 220, maxWidth: .infinity, alignment: .leading)
+        if slackShouldUseInlineRuleEditorRows {
+            HStack(alignment: .top, spacing: 14) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Calendar Mapping")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
 
-                    slackStatusSyncRuleCalendarPicker(index: index)
-                        .frame(minWidth: 220, maxWidth: .infinity, alignment: .leading)
+                    HStack(alignment: .top, spacing: 8) {
+                        slackStatusSyncRuleConnectionPicker(index: index)
+                            .frame(width: 144, alignment: .leading)
+
+                        slackStatusSyncRuleCalendarPicker(index: index)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
-            } else {
+                .frame(minWidth: 280, maxWidth: .infinity, alignment: .topLeading)
+
+                Divider()
+                    .padding(.vertical, 4)
+
                 VStack(alignment: .leading, spacing: 8) {
-                    slackStatusSyncRuleConnectionPicker(index: index)
-                    slackStatusSyncRuleCalendarPicker(index: index)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Active Status")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+
+                        HStack(alignment: .top, spacing: 8) {
+                            slackStatusSyncRuleTextSourcePicker(index: index)
+                                .frame(width: 176, alignment: .leading)
+
+                            if draft.slackStatusSyncRules[index].statusTextSource == .fixed {
+                                slackStatusSyncRuleTextField(index: index)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            } else {
+                                Spacer(minLength: 0)
+                            }
+
+                            slackStatusSyncRuleEmojiField(index: index)
+                                .frame(width: 64, alignment: .leading)
+                        }
+                    }
+
+                    slackStatusSyncRuleTimingEditor(index: index)
                 }
+                .frame(minWidth: 380, maxWidth: .infinity, alignment: .topLeading)
             }
-            if slackShouldUseInlineRuleEditorRows {
-                HStack(alignment: .top, spacing: 10) {
-                    slackStatusSyncRuleTextSourcePicker(index: index)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                slackStatusSyncRuleConnectionPicker(index: index)
+                slackStatusSyncRuleCalendarPicker(index: index)
+
+                slackStatusSyncRuleTextSourcePicker(index: index)
+
+                HStack(alignment: .top, spacing: 8) {
                     if draft.slackStatusSyncRules[index].statusTextSource == .fixed {
                         slackStatusSyncRuleTextField(index: index)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    slackStatusSyncRuleEmojiField(index: index)
-                }
-            } else {
-                VStack(alignment: .leading, spacing: 8) {
-                    slackStatusSyncRuleTextSourcePicker(index: index)
-                    if draft.slackStatusSyncRules[index].statusTextSource == .fixed {
-                        slackStatusSyncRuleTextField(index: index)
-                    }
-                    slackStatusSyncRuleEmojiField(index: index)
-                }
-            }
 
-            slackStatusSyncRuleTimingEditor(index: index)
+                    slackStatusSyncRuleEmojiField(index: index)
+                        .frame(width: 88, alignment: .leading)
+                }
+
+                slackStatusSyncRuleTimingEditor(index: index)
+            }
         }
     }
 
@@ -178,61 +198,58 @@ extension SettingsView {
 
     @ViewBuilder
     func slackStatusSyncRuleWideEditors(index: Int) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 16) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Calendar Mapping")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
+        HStack(alignment: .top, spacing: 14) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Calendar Mapping")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
 
-                    HStack(alignment: .top, spacing: 10) {
-                        slackStatusSyncRuleConnectionPicker(index: index)
-                            .frame(width: 220, alignment: .leading)
+                HStack(alignment: .top, spacing: 8) {
+                    slackStatusSyncRuleConnectionPicker(index: index)
+                        .frame(width: 170, alignment: .leading)
 
-                        slackStatusSyncRuleCalendarPicker(index: index)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-                .frame(width: 580, alignment: .leading)
-
-                Divider()
-                    .padding(.vertical, 4)
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Active Status")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
-
-                    HStack(alignment: .top, spacing: 10) {
-                        slackStatusSyncRuleTextSourcePicker(index: index)
-                            .frame(width: 180, alignment: .leading)
-
-                        if draft.slackStatusSyncRules[index].statusTextSource == .fixed {
-                            slackStatusSyncRuleTextField(index: index)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        } else {
-                            Spacer(minLength: 0)
-                        }
-
-                        slackStatusSyncRuleEmojiField(index: index)
-                            .frame(width: 100, alignment: .leading)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            if draft.slackStatusSyncRules[index].startsBeforeEvent {
-                Divider()
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Pre-event Status")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
-
-                    slackStatusSyncRuleWidePreEventEditors(index: index)
+                    slackStatusSyncRuleCalendarPicker(index: index)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
+            .frame(minWidth: 330, maxWidth: .infinity, alignment: .topLeading)
+
+            Divider()
+                .padding(.vertical, 4)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Active Status")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                HStack(alignment: .top, spacing: 8) {
+                    slackStatusSyncRuleTextSourcePicker(index: index)
+                        .frame(width: 176, alignment: .leading)
+
+                    if draft.slackStatusSyncRules[index].statusTextSource == .fixed {
+                        slackStatusSyncRuleTextField(index: index)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        Spacer(minLength: 0)
+                    }
+
+                    slackStatusSyncRuleEmojiField(index: index)
+                        .frame(width: 80, alignment: .leading)
+                }
+            }
+            .frame(minWidth: 400, maxWidth: .infinity, alignment: .topLeading)
+
+            Divider()
+                .padding(.vertical, 4)
+
+            VStack(alignment: .leading, spacing: 6) {
+                slackStatusSyncRuleWideTimingControls(index: index)
+
+                if draft.slackStatusSyncRules[index].startsBeforeEvent {
+                    slackStatusSyncRuleWidePreEventEditors(index: index)
+                }
+            }
+            .frame(minWidth: 280, maxWidth: .infinity, alignment: .topLeading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -246,7 +263,7 @@ extension SettingsView {
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.secondary)
 
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 Toggle(
                     "Set before event",
                     isOn: $draft.slackStatusSyncRules[index].startsBeforeEvent
@@ -264,7 +281,7 @@ extension SettingsView {
                 }
                 .pickerStyle(.menu)
                 .labelsHidden()
-                .frame(width: 92)
+                .frame(width: 82)
                 .disabled(!startsBeforeEvent)
                 .opacity(startsBeforeEvent ? 1 : 0.55)
             }
@@ -274,7 +291,7 @@ extension SettingsView {
 
     @ViewBuilder
     func slackStatusSyncRuleWidePreEventEditors(index: Int) -> some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: 8) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Pre-event Text")
                     .font(.caption2.weight(.semibold))
@@ -299,7 +316,7 @@ extension SettingsView {
                 )
                 .textFieldStyle(.roundedBorder)
             }
-            .frame(width: 100, alignment: .leading)
+            .frame(width: 80, alignment: .leading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

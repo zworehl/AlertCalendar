@@ -24,4 +24,16 @@ final class AlertCalendarProcessRunnerTests: XCTestCase {
 
         XCTAssertEqual(result, 7)
     }
+
+    func testRunCapturingOutputAvoidsPipeBackpressure() throws {
+        let result = try XCTUnwrap(
+            AlertCalendarProcessRunner.runCapturingOutput(
+                executableURL: URL(fileURLWithPath: "/bin/sh"),
+                arguments: ["-c", "printf output; printf error >&2; exit 4"]
+            )
+        )
+
+        XCTAssertEqual(result.terminationStatus, 4)
+        XCTAssertEqual(String(decoding: result.output, as: UTF8.self), "outputerror")
+    }
 }

@@ -10,9 +10,14 @@ struct SettingsView: View {
 
     @StateObject var settingsWindowCloseGuard = SettingsWindowCloseGuard()
     @State var draft = SettingsDraft.empty
+    @State var pendingChanges = SettingsPendingChanges()
+    @State var isApplyingChanges = false
     @State var didLoad = false
-    @State var selectedTab: SettingsTab = .general
-    @State var selectedFeedsSubsection: FeedsSubsection = .atmosphere
+    @AppStorage(SettingsNavigationPersistence.selectedTabKey)
+    var selectedTab: SettingsTab = .general
+    @AppStorage(SettingsNavigationPersistence.selectedFeedsSubsectionKey)
+    var selectedFeedsSubsection: FeedsSubsection = .atmosphere
+    @State var settingsSearchQuery = ""
     @State var activePermissionRequests: Set<SettingsPermissionKind> = []
     @State var permissionActionMessages: [SettingsPermissionKind: String] = [:]
     @State var hasEventsAccess = false
@@ -33,6 +38,7 @@ struct SettingsView: View {
     @State var lastAstronomyLocationRefreshDate: Date?
     @State var lastSlackStatusSyncDate: Date?
     @State var refreshDiagnostics = CalendarMonitorRefreshDiagnostics()
+    @State var isManualSettingsRefreshInProgress = false
     @State var externalFeedDiagnostics = ExternalFeedDiagnostics()
     @State var isShowingPermissionDiagnostics = false
     @State var slackUserTokenDraft = ""
@@ -40,6 +46,8 @@ struct SettingsView: View {
     @State var slackConnectErrorMessage: String?
     @State var slackConnectionStatusMessage: String?
     @State var slackRuntimeStatusDescription: String?
+    @State var agendaSummaryAvailability = AgendaSummaryAvailability.unsupportedSystem
+    @State var agendaSummaryGenerationErrorDescription: String?
     @State var isRefreshingSlackConnectionMetadata = false
     @State var didAttemptSlackConnectionMetadataRefresh = false
     @State var draggingSlackStatusRuleID: String?
@@ -50,55 +58,34 @@ struct SettingsView: View {
         for: MeetingBrowserCatalog.installedBrowsers()
     )
     @State var browserProfileAuthorizationErrorMessage: String?
-    @State var settingsWindowWidth: CGFloat = 1040
+    @State var settingsWindowWidth: CGFloat = 976
+    @State var settingsColumnVisibility: NavigationSplitViewVisibility = .all
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            settingsNavigationControls
-                .padding(.bottom, 2)
-
-            Group {
-                if selectedTab == .feeds,
-                   selectedFeedsSubsection == .football || selectedFeedsSubsection == .holidays {
-                    activeSettingsContent
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                } else {
-                    ScrollView(.vertical, showsIndicators: true) {
-                        LazyVStack(alignment: .leading, spacing: 16) {
-                            activeSettingsContent
-                        }
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                }
-            }
-
-            settingsActionBar
-        }
+        settingsNavigationLayout
+        .disabled(isApplyingChanges)
+        .environment(\.controlSize, .regular)
         .contentShape(Rectangle())
         .simultaneousGesture(
             TapGesture().onEnded {
                 activateSettingsWindowIfNeeded()
             }
         )
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(20)
-        .background(Color(nsColor: .windowBackgroundColor))
         .background(
             SettingsWindowAccessor(
                 onResolve: { window in
                     guard let appDelegate = NSApp.delegate as? AppDelegate else { return }
                     appDelegate.prepareForSettingsPresentation()
                     appDelegate.configureSettingsWindow(window, closeGuard: settingsWindowCloseGuard)
-                },
-                onResize: { width in
-                    settingsWindowWidth = width
                 }
             )
         )
-        .frame(minWidth: 760, idealWidth: 1040, minHeight: 720, idealHeight: 820)
+        .frame(minWidth: 980, idealWidth: 1240, minHeight: 720, idealHeight: 840)
         .onAppear {
             activateSettingsWindowIfNeeded()
+            monitor.refreshAgendaSummaryAvailability()
+            agendaSummaryAvailability = monitor.agendaSummaryAvailability
+            agendaSummaryGenerationErrorDescription = monitor.agendaSummaryGenerationErrorDescription
             monitor.refreshAvailableCalendars()
             synchronizeSettingsStateFromMonitor(refreshBrowserProfiles: true)
             synchronizeDraftWithStoredSettings(force: true)
@@ -133,10 +120,17 @@ struct SettingsView: View {
         .onReceive(monitor.$slackRuntimeStatusDescription.removeDuplicates()) { description in
             slackRuntimeStatusDescription = description
         }
+        .onReceive(monitor.$agendaSummaryAvailability.removeDuplicates()) { availability in
+            agendaSummaryAvailability = availability
+        }
+        .onReceive(monitor.$agendaSummaryGenerationErrorDescription.removeDuplicates()) { description in
+            agendaSummaryGenerationErrorDescription = description
+        }
         .onReceive(monitor.$astronomyLocationStatus.removeDuplicates()) { status in
             astronomyLocationStatus = status
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            monitor.refreshAgendaSummaryAvailability()
             eventAuthorizationStatus = SettingsPermissionKind.currentEventAuthorizationStatus()
             reminderAuthorizationStatus = SettingsPermissionKind.currentReminderAuthorizationStatus()
             locationAuthorizationStatus = SettingsPermissionKind.currentLocationAuthorizationStatus()
@@ -205,6 +199,10 @@ struct SettingsView: View {
             if normalizedMenuBarMinutes != draft.menuBarRotationWindowMinutes {
                 draft.menuBarRotationWindowMinutes = normalizedMenuBarMinutes
             }
+        }
+        .onPreferenceChange(SettingsDetailWidthPreferenceKey.self) { width in
+            guard width > 0 else { return }
+            settingsWindowWidth = width
         }
     }
 }

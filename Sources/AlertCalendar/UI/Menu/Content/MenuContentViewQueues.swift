@@ -7,7 +7,7 @@ extension MenuContentView {
     func contextualActionSection(snapshot: LayoutSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             calendarSectionContainer(
-                height: splitContextualPanelMinimumHeight(snapshot: snapshot),
+                height: splitContextualPanelHeight(snapshot: snapshot),
                 bottomPadding: snapshot.shouldUseSplitDropdownLayout ? splitPanelBottomPadding : nil
             ) {
                 if snapshot.shouldUseSplitDropdownLayout {
@@ -61,40 +61,64 @@ extension MenuContentView {
     }
 
     func upcomingSection(snapshot: LayoutSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            calendarSectionContainer(
-                height: upcomingSplitPanelHeight(snapshot: snapshot),
-                bottomPadding: snapshot.shouldUseSplitDropdownLayout ? splitPanelBottomPadding : nil
-            ) {
-                if snapshot.queueItemsForActions.isEmpty {
-                    upcomingQueueRows(snapshot: snapshot)
-                } else if shouldScrollUpcomingSplitPanel(snapshot: snapshot) {
-                    ScrollView(.vertical, showsIndicators: shouldScrollUpcomingSplitPanel(snapshot: snapshot)) {
-                        upcomingQueueRows(snapshot: snapshot)
-                            .frame(width: upcomingPanelContentWidth(snapshot: snapshot), alignment: .topLeading)
-                    }
-                    .frame(width: upcomingPanelContentWidth(snapshot: snapshot), alignment: .topLeading)
-                    .frame(height: upcomingSplitPanelContentHeight(snapshot: snapshot), alignment: .top)
-                    .clipped()
-                } else if shouldScrollUpcomingSplitPanel(snapshot: snapshot) || !snapshot.shouldUseSplitDropdownLayout {
-                    ScrollView(.vertical, showsIndicators: true) {
-                        upcomingQueueRows(snapshot: snapshot)
-                            .frame(width: upcomingPanelContentWidth(snapshot: snapshot), alignment: .topLeading)
-                    }
-                    .frame(width: upcomingPanelContentWidth(snapshot: snapshot), alignment: .topLeading)
-                    .frame(
-                        maxHeight: snapshot.shouldUseSplitDropdownLayout ? .infinity : upcomingListMaxHeight,
-                        alignment: .top
-                    )
-                    .clipped()
-                } else {
+        calendarSectionContainer(
+            height: upcomingSplitPanelHeight(snapshot: snapshot),
+            bottomPadding: snapshot.shouldUseSplitDropdownLayout ? splitPanelBottomPadding : nil
+        ) {
+            if snapshot.queueItemsForActions.isEmpty {
+                upcomingQueueRows(snapshot: snapshot)
+            } else if shouldScrollUpcomingSplitPanel(snapshot: snapshot) {
+                ScrollView(.vertical, showsIndicators: shouldScrollUpcomingSplitPanel(snapshot: snapshot)) {
                     upcomingQueueRows(snapshot: snapshot)
                         .frame(width: upcomingPanelContentWidth(snapshot: snapshot), alignment: .topLeading)
                 }
+                .frame(width: upcomingPanelContentWidth(snapshot: snapshot), alignment: .topLeading)
+                .frame(height: upcomingSplitPanelContentHeight(snapshot: snapshot), alignment: .top)
+                .clipped()
+            } else if shouldScrollUpcomingSplitPanel(snapshot: snapshot) || !snapshot.shouldUseSplitDropdownLayout {
+                ScrollView(.vertical, showsIndicators: true) {
+                    upcomingQueueRows(snapshot: snapshot)
+                        .frame(width: upcomingPanelContentWidth(snapshot: snapshot), alignment: .topLeading)
+                }
+                .frame(width: upcomingPanelContentWidth(snapshot: snapshot), alignment: .topLeading)
+                .frame(
+                    maxHeight: snapshot.shouldUseSplitDropdownLayout ? .infinity : upcomingListMaxHeight,
+                    alignment: .top
+                )
+                .clipped()
+            } else {
+                upcomingQueueRows(snapshot: snapshot)
+                    .frame(width: upcomingPanelContentWidth(snapshot: snapshot), alignment: .topLeading)
             }
         }
         .frame(width: upcomingPanelOuterWidth(snapshot: snapshot), alignment: .topLeading)
         .clipped()
+    }
+
+    @ViewBuilder
+    func dropdownSummarySections(snapshot: LayoutSnapshot) -> some View {
+        if settings.showAgendaSummary,
+           monitor.agendaSummaryAvailability.isAvailable,
+           monitor.agendaSummaryState != .unavailable {
+            if snapshot.shouldUseSplitDropdownLayout {
+                ScrollView(.vertical, showsIndicators: true) {
+                    dropdownSummarySectionContent(snapshot: snapshot)
+                }
+                .frame(width: upcomingPanelOuterWidth(snapshot: snapshot), alignment: .topLeading)
+                .frame(maxHeight: min(260, splitDropdownColumnHeightLimit * 0.52), alignment: .top)
+                .clipped()
+            } else {
+                dropdownSummarySectionContent(snapshot: snapshot)
+            }
+        }
+    }
+
+    private func dropdownSummarySectionContent(snapshot: LayoutSnapshot) -> some View {
+        agendaSummarySection(snapshot: snapshot)
+        .frame(
+            width: upcomingPanelOuterWidth(snapshot: snapshot),
+            alignment: .topLeading
+        )
     }
 
     func contextualActionPanelContent(snapshot: LayoutSnapshot) -> some View {
@@ -117,22 +141,30 @@ extension MenuContentView {
         }
     }
 
-    func upcomingQueueRows(snapshot: LayoutSnapshot) -> some View {
-        let trailingActionInset = upcomingActionTrailingInset(snapshot: snapshot)
+    func upcomingQueueRows(snapshot: LayoutSnapshot) -> AnyView {
+        let entries = Self.upcomingQueueEntries(
+            from: snapshot.queueItemsForActions,
+            birthdayCalendarIDs: monitor.birthdayCalendarIDs
+        )
 
-        return VStack(spacing: 0) {
-            if snapshot.queueItemsForActions.isEmpty {
+        return AnyView(VStack(spacing: 0) {
+            if entries.isEmpty {
                 emptySectionRow("No upcoming items")
             } else {
-                ForEach(Array(snapshot.queueItemsForActions.enumerated()), id: \.element.notificationKey) { index, item in
+                ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
                     if index > 0 {
                         Divider()
                     }
-                    actionRow(
-                        item: item,
-                        actions: [.skip],
-                        trailingActionInset: trailingActionInset
-                    )
+
+                    switch entry {
+                    case .item(let item):
+                        actionRow(
+                            item: item,
+                            actions: [.skip]
+                        )
+                    case .birthdayGroup(let group):
+                        birthdayGroupRows(group)
+                    }
                 }
             }
         }
@@ -143,7 +175,7 @@ extension MenuContentView {
                     value: proxy.size.height + panelTopPadding + (snapshot.shouldUseSplitDropdownLayout ? splitPanelBottomPadding : panelBottomPadding)
                 )
             }
-        )
+        ))
     }
 
     var filteredAlertDescriptions: [String] {

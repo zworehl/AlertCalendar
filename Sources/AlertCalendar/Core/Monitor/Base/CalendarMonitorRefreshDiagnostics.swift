@@ -13,6 +13,7 @@ enum CalendarMonitorRefreshReason: String, CaseIterable, Hashable {
     case itemAction
     case footballCalendarAction
     case slackConnectionChanged
+    case calendarSync
 
     var title: String {
         switch self {
@@ -40,6 +41,8 @@ enum CalendarMonitorRefreshReason: String, CaseIterable, Hashable {
             return "Football calendar action"
         case .slackConnectionChanged:
             return "Slack connection changed"
+        case .calendarSync:
+            return "Calendar sync"
         }
     }
 
@@ -47,7 +50,7 @@ enum CalendarMonitorRefreshReason: String, CaseIterable, Hashable {
         switch self {
         case .launch, .manual, .settingsChanged, .eventStoreChanged, .workspaceResumed, .periodic, .footballHeartbeat, .footballCalendarAction:
             return true
-        case .locationChanged, .calendarSelectionChanged, .itemAction, .slackConnectionChanged:
+        case .locationChanged, .calendarSelectionChanged, .itemAction, .slackConnectionChanged, .calendarSync:
             return false
         }
     }
@@ -56,13 +59,17 @@ enum CalendarMonitorRefreshReason: String, CaseIterable, Hashable {
         switch self {
         case .launch, .manual, .settingsChanged, .workspaceResumed, .periodic, .footballHeartbeat:
             return true
-        case .eventStoreChanged, .locationChanged, .calendarSelectionChanged, .itemAction, .footballCalendarAction, .slackConnectionChanged:
+        case .eventStoreChanged, .locationChanged, .calendarSelectionChanged, .itemAction, .footballCalendarAction, .slackConnectionChanged, .calendarSync:
             return false
         }
     }
 
     var forcesExternalFeedRefresh: Bool {
         self == .manual
+    }
+
+    var refreshesCalendarStateOnly: Bool {
+        self == .calendarSync
     }
 }
 

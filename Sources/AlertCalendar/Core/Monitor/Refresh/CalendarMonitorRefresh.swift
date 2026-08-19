@@ -11,19 +11,21 @@ extension CalendarMonitor {
         refreshAvailableCalendars()
         let now = fixedSecondNow()
         let settings = pruneNonWorkingDateKeysIfNeeded(now: now, settings: snapshotSettings())
-        let forceExternalRefresh = reason.forcesExternalFeedRefresh
-        await refreshFootballDataIfNeeded(
-            now: now,
-            force: forceExternalRefresh,
-            reason: reason
-        )
-        await refreshGameSales(
-            forceRefresh: forceExternalRefresh,
-            refreshCalendarState: reason == .eventStoreChanged
-        )
-        await refreshGoogleHolidays(forceRefresh: forceExternalRefresh)
-        if reason != .footballHeartbeat {
-            applyCalendarAlertRules(now: now, settings: settings, reason: reason)
+        if !reason.refreshesCalendarStateOnly {
+            let forceExternalRefresh = reason.forcesExternalFeedRefresh
+            await refreshFootballDataIfNeeded(
+                now: now,
+                force: forceExternalRefresh,
+                reason: reason
+            )
+            await refreshGameSales(
+                forceRefresh: forceExternalRefresh,
+                refreshCalendarState: reason == .eventStoreChanged
+            )
+            await refreshGoogleHolidays(forceRefresh: forceExternalRefresh)
+            if reason != .footballHeartbeat {
+                applyCalendarAlertRules(now: now, settings: settings, reason: reason)
+            }
         }
         let fetchedLookAheadHours = max(
             settings.lookAheadHours,
@@ -79,6 +81,7 @@ extension CalendarMonitor {
 
         upcomingItems = visibleTimedItems
         allDayEventItems = visibleAllDayItems
+        scheduleEventTitleRewritesIfNeeded(now: now, settings: settings)
         if isInitialLoadInProgress {
             isInitialLoadInProgress = false
         }

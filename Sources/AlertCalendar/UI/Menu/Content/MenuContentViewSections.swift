@@ -33,68 +33,105 @@ extension MenuContentView {
     }
 
     var headerView: some View {
-        HStack(alignment: .center, spacing: 8) {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(headerTitle)
-                    .font(.title3.weight(.semibold))
-            }
+        let isRefreshing = monitor.isInitialLoadInProgress || isManualDropdownRefreshInProgress
+
+        return HStack(alignment: .center, spacing: 4) {
+            Text(headerTitle)
+                .font(.headline)
+                .lineLimit(1)
+                .accessibilityAddTraits(.isHeader)
 
             Spacer()
 
-            if monitor.isInitialLoadInProgress {
+            ZStack {
                 ProgressView()
                     .controlSize(.small)
+                    .hidden()
+
+                if isRefreshing {
+                    ProgressView()
+                        .controlSize(.small)
+                }
             }
+            .padding(.horizontal, 4)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Refreshing Alert Calendar")
+            .accessibilityHidden(!isRefreshing)
 
             Button {
-                monitor.refreshNow(reason: .manual)
+                refreshDropdownManually()
             } label: {
-                Image(systemName: "arrow.clockwise")
+                Label("Refresh", systemImage: "arrow.clockwise")
+                    .labelStyle(.iconOnly)
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .help("Refresh")
+            .buttonStyle(MenuToolbarButtonStyle())
+            .allowsHitTesting(!isRefreshing)
+            .keyboardShortcut("r", modifiers: .command)
+            .help(isRefreshing ? "Refreshing" : "Refresh")
 
             Button {
                 openSettingsWindowFromDropdown()
             } label: {
-                Image(systemName: "gearshape")
+                Label("Settings", systemImage: "gearshape")
+                    .labelStyle(.iconOnly)
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
+            .buttonStyle(MenuToolbarButtonStyle())
+            .keyboardShortcut(",", modifiers: .command)
             .help("Settings")
 
-            if monitor.hasSkippedItems() {
-                Button {
-                    monitor.restoreSkippedItems()
-                } label: {
-                    Image(systemName: "arrow.uturn.backward")
+            Menu {
+                if monitor.hasSkippedItems() {
+                    Button {
+                        monitor.restoreSkippedItems()
+                    } label: {
+                        Label("Restore Skipped Items", systemImage: "arrow.uturn.backward")
+                    }
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .help("Restore Skipped")
-            }
 
-            if shouldShowSilenceButton {
-                Button {
-                    monitor.silenceCurrentAlert()
-                } label: {
-                    Image(systemName: "bell.slash")
+                if shouldShowSilenceButton {
+                    Button {
+                        monitor.silenceCurrentAlert()
+                    } label: {
+                        Label("Silence Current Alert", systemImage: "bell.slash")
+                    }
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .help("Silence Alert")
-            }
 
-            Button {
-                NSApplication.shared.terminate(nil)
+                if monitor.hasSkippedItems() || shouldShowSilenceButton {
+                    Divider()
+                }
+
+                Button {
+                    openAboutPanelFromDropdown()
+                } label: {
+                    Label("About Alert Calendar", systemImage: "info.circle")
+                }
+
+                Divider()
+
+                Button {
+                    NSApplication.shared.terminate(nil)
+                } label: {
+                    Label("Quit Alert Calendar", systemImage: "power")
+                }
+                .keyboardShortcut("q", modifiers: .command)
             } label: {
-                Image(systemName: "power")
+                Label("More Actions", systemImage: "ellipsis.circle")
+                    .labelStyle(.iconOnly)
+                    .font(.system(size: MenuContentNativeMetrics.toolbarSymbolSize, weight: .medium))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.secondary)
+                    .frame(
+                        width: MenuContentNativeMetrics.toolbarButtonSize,
+                        height: MenuContentNativeMetrics.toolbarButtonSize
+                    )
+                    .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .help("Quit")
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("More Actions")
         }
+        .frame(minHeight: MenuContentNativeMetrics.toolbarButtonSize)
     }
 
     var initialLoadingSection: some View {
@@ -122,29 +159,25 @@ extension MenuContentView {
         }
     }
 
-    func shouldShowTransientRefreshLoading(snapshot: LayoutSnapshot) -> Bool {
+    func refreshDropdownManually() {
         guard !monitor.isInitialLoadInProgress,
-              monitor.refreshDiagnostics.isInProgress,
-              shouldExpectCalendarBackedItemsDuringRefresh,
-              snapshot.displayedContextualActionItems.isEmpty,
-              snapshot.queueItemsForActions.isEmpty || Self.containsOnlyAstronomyItems(snapshot.queueItemsForActions) else {
-            return false
+              !isManualDropdownRefreshInProgress else {
+            return
         }
 
-        return true
-    }
+        isManualDropdownRefreshInProgress = true
+        Task { @MainActor in
+            let startedAt = Date()
+            await monitor.enqueueRefreshAndWait(reason: .manual)
 
-    var shouldExpectCalendarBackedItemsDuringRefresh: Bool {
-        (settings.includeEvents && monitor.hasEventsAccess)
-            || (settings.includeReminders && monitor.hasRemindersAccess)
-            || !monitor.managedFootballMatchIDs.isEmpty
-            || !monitor.managedFootballMatches.isEmpty
-            || monitor.footballLiveAndNextDaySection.isLoading
-            || monitor.footballMenuSections.contains { $0.isLoading }
-    }
-
-    nonisolated static func containsOnlyAstronomyItems(_ items: [UpcomingItem]) -> Bool {
-        !items.isEmpty && items.allSatisfy { AstronomyMoment(eventTitle: $0.title) != nil }
+            let remainingPresentationTime = max(0, 0.5 - Date().timeIntervalSince(startedAt))
+            if remainingPresentationTime > 0 {
+                try? await Task.sleep(
+                    nanoseconds: UInt64(remainingPresentationTime * 1_000_000_000)
+                )
+            }
+            isManualDropdownRefreshInProgress = false
+        }
     }
 
     func calendarSectionContainer<Content: View>(
@@ -165,12 +198,11 @@ extension MenuContentView {
         .frame(minHeight: minimumHeight, alignment: .topLeading)
         .clipped()
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(Color.primary.opacity(0.10), lineWidth: 1)
-                )
+            RoundedRectangle(
+                cornerRadius: MenuContentNativeMetrics.sectionCornerRadius,
+                style: .continuous
+            )
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.64))
         )
     }
 
@@ -191,6 +223,18 @@ extension MenuContentView {
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
             openWindow(id: WindowMetadata.preferencesID)
+        }
+    }
+
+    func openAboutPanelFromDropdown() {
+        let sourceWindow = NSApp.keyWindow
+        sourceWindow?.orderOut(nil)
+
+        DispatchQueue.main.async {
+            NSRunningApplication.current.activate(
+                options: [.activateAllWindows, .activateIgnoringOtherApps]
+            )
+            NSApplication.shared.orderFrontStandardAboutPanel(nil)
         }
     }
 

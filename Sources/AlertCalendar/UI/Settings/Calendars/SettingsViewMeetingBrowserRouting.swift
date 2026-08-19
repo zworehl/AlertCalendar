@@ -42,15 +42,9 @@ extension SettingsView {
                     .controlSize(.small)
                 }
             }
-            .padding(SettingsVisualMetrics.panelPadding)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color.orange.opacity(0.09))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(Color.orange.opacity(0.3), lineWidth: 1)
-                    )
+            .settingsPanelSurface(
+                fill: Color.orange.opacity(0.09),
+                borderColor: Color.orange.opacity(0.3)
             )
         }
     }
@@ -126,14 +120,7 @@ extension SettingsView {
             .font(.caption.weight(.semibold))
             .padding(.horizontal, 8)
             .frame(height: 28)
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color.primary.opacity(0.06))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .stroke(Color.primary.opacity(0.10), lineWidth: 1)
-                    )
-            )
+            .background(SettingsControlChrome())
         }
         .frame(width: 220)
         .menuStyle(.borderlessButton)

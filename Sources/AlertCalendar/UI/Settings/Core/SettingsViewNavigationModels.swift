@@ -1,6 +1,11 @@
 import SwiftUI
 
 extension SettingsView {
+    enum SettingsSidebarDestination: Hashable {
+        case tab(SettingsTab)
+        case feed(FeedsSubsection)
+    }
+
     enum SettingsTab: String, CaseIterable, Identifiable {
         case general = "General"
         case feeds = "Feeds"
@@ -24,53 +29,60 @@ extension SettingsView {
                 return "lock.shield"
             }
         }
+
+        var subtitle: String {
+            switch self {
+            case .general:
+                return "Configure alerts, the menu bar, and upcoming-item previews."
+            case .feeds:
+                return "Add useful external moments and events to your schedule."
+            case .calendars:
+                return "Choose sources and define how each calendar behaves."
+            case .integrations:
+                return "Connect services that react to your calendar activity."
+            case .access:
+                return "Review permissions, location, and refresh diagnostics."
+            }
+        }
+
+        var tint: Color {
+            switch self {
+            case .general:
+                return Color(nsColor: .systemGray)
+            case .feeds:
+                return Color(nsColor: .systemOrange)
+            case .calendars:
+                return Color(nsColor: .systemRed)
+            case .integrations:
+                return Color(nsColor: .systemPurple)
+            case .access:
+                return Color(nsColor: .systemTeal)
+            }
+        }
     }
 
     enum SettingsIntegrationKind: String, CaseIterable, Identifiable {
         case slackStatusSync
 
         var id: String { rawValue }
-
-        var title: String {
-            switch self {
-            case .slackStatusSync:
-                return "Slack Status Sync"
-            }
-        }
-
-        var summary: String {
-            switch self {
-            case .slackStatusSync:
-                return "Publish customizable Slack statuses before and during selected calendar events."
-            }
-        }
-
-        var fallbackSymbolName: String {
-            switch self {
-            case .slackStatusSync:
-                return "message.badge.waveform"
-            }
-        }
-
-        var appIconPath: String {
-            switch self {
-            case .slackStatusSync:
-                return "/Applications/Slack.app"
-            }
-        }
-
+        var title: String { "Slack Status Sync" }
+        var summary: String { "Publish Slack statuses around selected calendar events." }
+        var fallbackSymbolName: String { "message.badge.waveform" }
+        var appIconPath: String { "/Applications/Slack.app" }
         var accentGradient: LinearGradient {
-            switch self {
-            case .slackStatusSync:
-                return LinearGradient(
-                    colors: [
-                        Color(red: 0.26, green: 0.76, blue: 0.52),
-                        Color(red: 0.91, green: 0.23, blue: 0.47),
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            }
+            LinearGradient(
+                colors: [
+                    Color(red: 0.26, green: 0.76, blue: 0.52),
+                    Color(red: 0.91, green: 0.23, blue: 0.47),
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
         }
     }
+}
+
+enum SettingsNavigationPersistence {
+    static let selectedTabKey = "settings.navigation.selectedTab"
+    static let selectedFeedsSubsectionKey = "settings.navigation.selectedFeedsSubsection"
 }

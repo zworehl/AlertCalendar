@@ -49,7 +49,7 @@ extension SettingsView {
                                 Button {
                                     authorizeBrowserProfileAccess(for: issue)
                                 } label: {
-                                    Label("Choose \(issue.browser.title) Data", systemImage: "doc.badge.plus")
+                                    Label("Choose \(issue.browser.title) Data…", systemImage: "doc.badge.plus")
                                 }
                                 .buttonStyle(.borderedProminent)
                                 .controlSize(.small)
@@ -96,7 +96,7 @@ extension SettingsView {
             Button {
                 openFullDiskAccessSettings()
             } label: {
-                Label("Open Full Disk Access", systemImage: "gearshape")
+                Label("Open Full Disk Access…", systemImage: "gearshape")
             }
             .buttonStyle(.bordered)
         }

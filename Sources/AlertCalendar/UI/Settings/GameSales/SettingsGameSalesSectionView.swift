@@ -43,6 +43,7 @@ struct SettingsGameSalesSectionView: View {
     @Binding var calendarAlertOption: GameSaleCalendarAlertOption
     @Binding var enableAutoAddNotifications: Bool
     @Binding var autoAddStores: Set<GameStore>
+    @Binding var pendingCalendarChanges: [String: SettingsPendingItemChange<GameSaleEvent>]
 
     @State var browseMode: BrowseMode = .upcoming
     @State var storeFilter: StoreFilter = .all
@@ -51,8 +52,6 @@ struct SettingsGameSalesSectionView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            introductionPanel
-
             if !monitor.hasEventsAccess {
                 feedbackPanel(
                     title: "Calendar access required",
@@ -69,6 +68,9 @@ struct SettingsGameSalesSectionView: View {
                 )
             } else {
                 controlsPanel
+
+                SettingsSectionDivider()
+
                 salesContent
             }
         }
@@ -98,7 +100,7 @@ struct SettingsGameSalesSectionView: View {
             .filter { $0.endDateExclusive > visibleNow }
             .filter { storeFilter.includes($0.store) }
             .filter { sale in
-                browseMode != .added || monitor.isGameSalePresent(sale)
+                browseMode != .added || effectiveGameSalePresence(sale)
             }
             .sorted { lhs, rhs in
                 let lhsIsActive = lhs.startDate <= visibleNow
@@ -119,5 +121,17 @@ struct SettingsGameSalesSectionView: View {
 
     func synchronizeCalendarConfiguration() {
         writableCalendars = monitor.writableGameSaleTargetCalendars()
+    }
+
+    func effectiveGameSalePresence(_ sale: GameSaleEvent) -> Bool {
+        pendingCalendarChanges[sale.id]?.mutation.makesItemPresent
+            ?? monitor.isGameSalePresent(sale)
+    }
+
+    func togglePendingGameSale(_ sale: GameSaleEvent) {
+        var changes = SettingsPendingChanges()
+        changes.gameSales = pendingCalendarChanges
+        changes.toggleGameSale(sale, persistedIsPresent: monitor.isGameSaleManaged(sale))
+        pendingCalendarChanges = changes.gameSales
     }
 }

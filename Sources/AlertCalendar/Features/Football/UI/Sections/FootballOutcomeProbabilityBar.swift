@@ -234,7 +234,7 @@ struct FootballOutcomeProbabilityBar: View {
             case .compact:
                 return .system(size: 8, weight: .semibold)
             case .contextual:
-                return .caption2.weight(.semibold)
+                return MenuMarkerMetrics.compactMetadataFont
             }
         }
 
@@ -243,7 +243,7 @@ struct FootballOutcomeProbabilityBar: View {
             case .compact:
                 return .system(size: 9, weight: .semibold)
             case .contextual:
-                return .caption2.weight(.semibold)
+                return MenuMarkerMetrics.compactMetadataFont
             }
         }
 
@@ -286,7 +286,7 @@ struct FootballOutcomeProbabilityBar: View {
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
                 .font(style.scopeFont)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.65)
 

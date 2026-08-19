@@ -139,13 +139,6 @@ struct GoogleHolidayEvent: Codable, Equatable, Identifiable, Sendable {
         return flags.isEmpty ? title : "\(flags) \(title)"
     }
 
-    var countryNames: [String] {
-        countryIDs.compactMap { GoogleHolidayCountry.byID[$0]?.englishName }
-    }
-
-    var sourceURL: URL? {
-        countryIDs.compactMap { GoogleHolidayCountry.byID[$0]?.feedURL }.first
-    }
 }
 
 struct ManagedGoogleHolidayEventRecord: Codable, Equatable, Sendable {

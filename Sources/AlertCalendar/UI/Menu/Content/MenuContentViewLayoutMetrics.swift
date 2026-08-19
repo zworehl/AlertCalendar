@@ -185,6 +185,10 @@ extension MenuContentView {
             sectionHeights.append(estimatedContextualPanelHeight(for: contextualItems))
         }
 
+        let summaryHeight = estimatedDropdownSummaryHeight
+        if summaryHeight > 0 {
+            sectionHeights.append(summaryHeight)
+        }
         sectionHeights.append(estimatedUpcomingPanelHeight(for: queueItems))
 
         let childCount = 1 + sectionHeights.count
@@ -193,6 +197,12 @@ extension MenuContentView {
             + headerHeight
             + sectionHeights.reduce(0, +)
             + verticalGaps
+    }
+
+    var estimatedDropdownSummaryHeight: CGFloat {
+        settings.showAgendaSummary
+            && monitor.agendaSummaryAvailability.isAvailable
+            && monitor.agendaSummaryState != .unavailable ? 78 : 0
     }
 
     func estimatedContextualPanelHeight(for items: [UpcomingItem]) -> CGFloat {
@@ -309,8 +319,12 @@ extension MenuContentView {
 
     func estimatedUpcomingPanelHeight(for items: [UpcomingItem]) -> CGFloat {
         let rowHeight: CGFloat = 46
-        let dividerHeight = CGFloat(max(0, items.count - 1))
-        let contentHeight = items.isEmpty ? 34 : (CGFloat(items.count) * rowHeight) + dividerHeight
+        let entryCount = Self.upcomingQueueEntries(
+            from: items,
+            birthdayCalendarIDs: monitor.birthdayCalendarIDs
+        ).count
+        let dividerHeight = CGFloat(max(0, entryCount - 1))
+        let contentHeight = entryCount == 0 ? 34 : (CGFloat(entryCount) * rowHeight) + dividerHeight
         return min(contentHeight, upcomingListMaxHeight) + panelTopPadding + panelBottomPadding
     }
 
@@ -320,7 +334,7 @@ extension MenuContentView {
         return min(splitDropdownColumnHeightLimit, measuredHeight)
     }
 
-    func splitContextualPanelMinimumHeight(
+    func splitContextualPanelHeight(
         snapshot: LayoutSnapshot,
         measuredRightColumnHeight: CGFloat? = nil,
         measuredContextualPanelHeight: CGFloat? = nil
@@ -328,13 +342,43 @@ extension MenuContentView {
         guard snapshot.shouldUseSplitDropdownLayout else { return nil }
         let rightColumnHeight = measuredRightColumnHeight ?? splitRightColumnHeight
         let contextualPanelHeight = measuredContextualPanelHeight ?? splitContextualCompactPanelHeight
-        let requiredHeight = max(rightColumnHeight, contextualPanelHeight)
-        guard requiredHeight > 0 else { return nil }
-        return requiredHeight
+        guard contextualPanelHeight > 0 else { return nil }
+
+        // Contextual previews should normally keep their intrinsic height. Stretching
+        // every left-hand card to match a longer queue leaves a large, opaque empty
+        // region that works against the popover's native material. The one useful
+        // exception is an attendee list with additional rows to reveal.
+        let shouldUseAvailableQueueHeight = expandableAttendeePreviewKey(snapshot: snapshot) != nil
+        let requestedHeight = shouldUseAvailableQueueHeight
+            ? max(rightColumnHeight, contextualPanelHeight)
+            : contextualPanelHeight
+
+        return splitPanelHeight(
+            measuredHeight: requestedHeight,
+            snapshot: snapshot
+        )
     }
 
     func upcomingSplitPanelHeight(snapshot: LayoutSnapshot) -> CGFloat? {
-        splitPanelHeight(measuredHeight: splitUpcomingPanelHeight, snapshot: snapshot)
+        guard snapshot.shouldUseSplitDropdownLayout else { return nil }
+        guard splitUpcomingPanelHeight > 0 else { return nil }
+
+        let summaryHeight = splitSummaryPanelHeight > 0
+            ? splitSummaryPanelHeight
+            : estimatedDropdownSummaryHeight
+        let summarySpacing: CGFloat = summaryHeight > 0 ? 8 : 0
+        let alertHeight: CGFloat
+        if snapshot.filteredAlertDescriptions.isEmpty {
+            alertHeight = 0
+        } else {
+            alertHeight = CGFloat(snapshot.filteredAlertDescriptions.count) * 26 + 24
+        }
+        let availableUpcomingHeight = max(
+            120,
+            splitDropdownColumnHeightLimit - summaryHeight - summarySpacing - alertHeight
+        )
+
+        return min(splitUpcomingPanelHeight, availableUpcomingHeight)
     }
 
     func upcomingSplitPanelContentHeight(snapshot: LayoutSnapshot) -> CGFloat {
@@ -352,35 +396,6 @@ extension MenuContentView {
         }
 
         return splitUpcomingPanelHeight > upcomingSplitPanelHeight + 0.5
-    }
-
-    func shouldShowUpcomingScrollIndicator(snapshot: LayoutSnapshot) -> Bool {
-        guard !snapshot.queueItemsForActions.isEmpty else { return false }
-
-        if snapshot.shouldUseSplitDropdownLayout {
-            return shouldScrollUpcomingSplitPanel(snapshot: snapshot)
-        }
-
-        let contentHeight = max(
-            0,
-            splitUpcomingPanelHeight - panelTopPadding - panelBottomPadding
-        )
-        return contentHeight > upcomingListMaxHeight + 0.5
-    }
-
-    func upcomingActionTrailingInset(snapshot: LayoutSnapshot) -> CGFloat {
-        Self.actionTrailingInset(
-            showsVerticalScrollIndicator: shouldShowUpcomingScrollIndicator(snapshot: snapshot),
-            scrollerWidth: NSScroller.scrollerWidth(for: .regular, scrollerStyle: .overlay)
-        )
-    }
-
-    nonisolated static func actionTrailingInset(
-        showsVerticalScrollIndicator: Bool,
-        scrollerWidth: CGFloat
-    ) -> CGFloat {
-        guard showsVerticalScrollIndicator else { return 0 }
-        return ceil(max(0, scrollerWidth))
     }
 
     var shouldUseSplitDropdownLayout: Bool {

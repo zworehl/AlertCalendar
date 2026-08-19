@@ -66,7 +66,7 @@ struct SlackWorkspaceAvatarPair: View, Equatable {
     private func fallbackImage(text: String, symbol: String) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white.opacity(0.08))
+                .fill(Color.accentColor.opacity(0.82))
 
             if !text.isEmpty {
                 Text(text)

@@ -63,7 +63,11 @@ extension MenuContentView {
     }
 
     func astronomyMarkerImage(for moment: AstronomyMoment) -> NSImage {
-        if let image = AstronomyIconProvider.image(for: moment, pointSize: MenuMarkerMetrics.symbolSize) {
+        if let image = AstronomyIconProvider.monochromeImage(
+            for: moment,
+            pointSize: MenuMarkerMetrics.symbolSize,
+            tintColor: .labelColor
+        ) {
             return image
         }
         return NSImage(
@@ -78,7 +82,7 @@ extension MenuContentView {
         if let gameStore = item.gameStore {
             return Self.gameStoreMarkerTopPadding(for: gameStore)
         }
-        return item.kind == .reminder ? 0 : 2
+        return MenuMarkerMetrics.markerFirstLineTopPadding
     }
 
     nonisolated static func gameStoreMarkerTopPadding(for store: GameStore) -> CGFloat {
@@ -220,7 +224,7 @@ extension MenuContentView {
 
     func hoverActionRowWidth(
         for item: UpcomingItem,
-        trailingInset: CGFloat = 0
+        actions: [MenuAction] = [.skip]
     ) -> CGFloat {
         var widths: [CGFloat] = []
 
@@ -228,11 +232,18 @@ extension MenuContentView {
             widths.append(joinActionPillWidth())
         }
 
-        widths.append(skipActionPillWidth())
+        for action in actions {
+            switch action {
+            case .skip:
+                widths.append(skipActionPillWidth())
+            case .complete:
+                widths.append(MenuActionControlMetrics.minimumHitTargetSize)
+            }
+        }
 
         return actionButtonOverlayWidth(
             for: widths,
-            trailingPadding: 2 + max(0, trailingInset)
+            trailingPadding: MenuActionControlMetrics.trailingInset
         )
     }
 
@@ -241,50 +252,59 @@ extension MenuContentView {
         locationText: String?,
         showsJoinButton: Bool
     ) -> CGFloat {
-        var widths: [CGFloat] = [skipActionPillWidth()]
+        var widths: [CGFloat] = []
 
         if showsJoinButton, item.meetingURL != nil {
-            widths.insert(joinActionPillWidth(), at: 0)
+            widths.append(joinActionPillWidth())
         }
 
-        if let locationText,
-           !locationText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if Self.hasUsableContextualLocation(locationText) {
             widths.append(mapActionPillWidth())
         }
 
-        return actionButtonOverlayWidth(for: widths, trailingPadding: 6)
+        widths.append(skipActionPillWidth())
+
+        return actionButtonOverlayWidth(
+            for: widths,
+            trailingPadding: MenuActionControlMetrics.trailingInset
+        )
     }
 
     func joinActionPillWidth() -> CGFloat {
-        let pillHorizontalPadding: CGFloat = 12
         let joinTextFont = MenuMarkerMetrics.actionLabelNSFont
         let joinTextWidth = Self.measuredTextWidth("Join", font: joinTextFont)
-        return joinTextWidth + pillHorizontalPadding
+        return actionPillWidth(textWidth: joinTextWidth)
     }
 
     func mapActionPillWidth() -> CGFloat {
-        let pillHorizontalPadding: CGFloat = 12
         let mapTextFont = MenuMarkerMetrics.actionLabelNSFont
         let mapTextWidth = Self.measuredTextWidth("Map", font: mapTextFont)
-        let mapIconWidth: CGFloat = 11
-        let mapInnerSpacing: CGFloat = 4
-        return mapIconWidth + mapInnerSpacing + mapTextWidth + pillHorizontalPadding
+        return actionPillWidth(textWidth: mapTextWidth)
     }
 
     func skipActionPillWidth() -> CGFloat {
-        let pillHorizontalPadding: CGFloat = 12
         let skipTextFont = MenuMarkerMetrics.actionLabelNSFont
         let skipTextWidth = Self.measuredTextWidth("Skip", font: skipTextFont)
-        return skipTextWidth + pillHorizontalPadding
+        return actionPillWidth(textWidth: skipTextWidth)
+    }
+
+    func actionPillWidth(textWidth: CGFloat) -> CGFloat {
+        max(
+            MenuActionControlMetrics.minimumHitTargetSize,
+            MenuActionControlMetrics.symbolSize
+                + MenuActionControlMetrics.labelSpacing
+                + textWidth
+                + MenuActionControlMetrics.horizontalChrome
+        )
     }
 
     func actionButtonOverlayWidth(for widths: [CGFloat], trailingPadding: CGFloat) -> CGFloat {
-        let pillHeight: CGFloat = 18
-        let pillSpacing: CGFloat = 4
-
         guard !widths.isEmpty else { return 0 }
-        let totalSpacing = pillSpacing * CGFloat(max(widths.count - 1, 0))
-        return widths.reduce(0, +) + totalSpacing + trailingPadding + pillHeight
+        let totalSpacing = MenuActionControlMetrics.controlSpacing * CGFloat(max(widths.count - 1, 0))
+        return widths.reduce(0, +)
+            + totalSpacing
+            + trailingPadding
+            + MenuActionControlMetrics.leadingClearance
     }
 
     var contextualActionCandidates: [UpcomingItem] {

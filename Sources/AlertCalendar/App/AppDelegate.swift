@@ -121,6 +121,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
+    @objc
+    func openSettingsFromMainMenu(_ sender: Any?) {
+        if let window = resolvedSettingsWindow(sender: sender) {
+            prepareForSettingsPresentation()
+            configureSettingsWindow(window)
+            window.makeKeyAndOrderFront(nil)
+            window.makeMain()
+            return
+        }
+
+        NotificationCenter.default.post(name: .alertCalendarOpenSettingsRequested, object: nil)
+    }
+
     func restoreAccessoryActivationPolicyIfNeeded() {
         guard !hasVisibleSettingsWindow else { return }
         ensureAccessoryActivationPolicy()
@@ -161,6 +174,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let appMenuItem = NSMenuItem()
         let appMenu = NSMenu()
         appMenu.addItem(withTitle: "About \(ProcessInfo.processInfo.processName)", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(NSMenuItem.separator())
+        let settingsItem = NSMenuItem(
+            title: "Settings…",
+            action: #selector(openSettingsFromMainMenu(_:)),
+            keyEquivalent: ","
+        )
+        settingsItem.keyEquivalentModifierMask = [.command]
+        settingsItem.target = self
+        appMenu.addItem(settingsItem)
         appMenu.addItem(NSMenuItem.separator())
         appMenu.addItem(withTitle: "Hide \(ProcessInfo.processInfo.processName)", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         let hideOthersItem = NSMenuItem(title: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
@@ -214,7 +236,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.collectionBehavior.remove(.fullScreenNone)
         window.collectionBehavior.insert([.fullScreenPrimary, .fullScreenAllowsTiling])
         window.tabbingMode = .disallowed
-        window.minSize = NSSize(width: 760, height: 720)
+        let minimumSettingsSize = NSSize(width: 980, height: 720)
+        window.minSize = minimumSettingsSize
+        if window.frame.width < minimumSettingsSize.width || window.frame.height < minimumSettingsSize.height {
+            window.setContentSize(
+                NSSize(
+                    width: max(window.frame.width, minimumSettingsSize.width),
+                    height: max(window.frame.height, minimumSettingsSize.height)
+                )
+            )
+        }
         window.setFrameAutosaveName(WindowMetadata.preferencesID)
         window.titleVisibility = .visible
         if let zoomButton = window.standardWindowButton(.zoomButton) {

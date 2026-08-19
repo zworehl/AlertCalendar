@@ -90,6 +90,12 @@ extension CalendarMonitor {
         return shouldShowTimedEventNowState(for: item, now: now)
     }
 
+    nonisolated static func shouldBlinkOverdueTimedEvent(_ item: UpcomingItem, now: Date) -> Bool {
+        item.kind == .event
+            && !item.isAllDay
+            && item.date < now
+    }
+
     nonisolated static func shouldAlertForItem(_ item: UpcomingItem, now: Date, settings: AppSettings) -> Bool {
         guard AstronomyMoment(eventTitle: item.title) == nil else { return false }
 
@@ -169,15 +175,23 @@ extension CalendarMonitor {
                     simplified: settings.useSimplifiedCountdown,
                     activeEventDisplayMode: settings.activeEventDisplayMode,
                     useEventTitleEllipsis: settings.useEventTitleEllipsis,
-                    eventTitleMaxCharacters: settings.eventTitleMaxCharacters
+                    eventTitleMaxCharacters: settings.eventTitleMaxCharacters,
+                    rewrittenTitle: settings.rewriteEventTitlesWithAppleIntelligence
+                        ? rewrittenEventTitlesByItemKey[$0.notificationKey]
+                        : nil
                 )
             }
             let alertedSegmentIndex: Int?
             let alertTextOpacity: CGFloat
+            let activeAlertIndex = activeAlertItem.flatMap { activeAlertItem in
+                previewItems.firstIndex(where: { $0.notificationKey == activeAlertItem.notificationKey })
+            }
+            let overdueEventIndex = previewItems.firstIndex(where: {
+                Self.shouldBlinkOverdueTimedEvent($0, now: now)
+            })
             if settings.enableBlinkAlert,
-               let activeAlertItem,
-               let alertIndex = previewItems.firstIndex(where: { $0.notificationKey == activeAlertItem.notificationKey }) {
-                alertedSegmentIndex = alertIndex
+               let blinkingIndex = activeAlertIndex ?? overdueEventIndex {
+                alertedSegmentIndex = blinkingIndex
                 alertTextOpacity = Self.alertBlinkTextOpacity(now: now)
             } else {
                 alertedSegmentIndex = nil
@@ -252,6 +266,9 @@ extension CalendarMonitor {
             activeEventDisplayMode: settings.activeEventDisplayMode,
             useEventTitleEllipsis: settings.useEventTitleEllipsis,
             eventTitleMaxCharacters: settings.eventTitleMaxCharacters,
+            rewrittenTitle: settings.rewriteEventTitlesWithAppleIntelligence
+                ? nextEvent.flatMap { rewrittenEventTitlesByItemKey[$0.notificationKey] }
+                : nil,
             fallback: "No events"
         ))
 
@@ -262,6 +279,9 @@ extension CalendarMonitor {
             activeEventDisplayMode: settings.activeEventDisplayMode,
             useEventTitleEllipsis: settings.useEventTitleEllipsis,
             eventTitleMaxCharacters: settings.eventTitleMaxCharacters,
+            rewrittenTitle: settings.rewriteEventTitlesWithAppleIntelligence
+                ? nextReminder.flatMap { rewrittenEventTitlesByItemKey[$0.notificationKey] }
+                : nil,
             fallback: "No reminders"
         ))
     }

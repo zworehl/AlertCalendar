@@ -139,7 +139,9 @@ struct SettingsCalendarAlertRuleEditor: View {
             } label: {
                 Label("Add alert", systemImage: "plus")
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .frame(minHeight: SettingsVisualMetrics.minimumInteractiveControlSize)
             .disabled(!rule.isEnabled)
         }
         .disabled(!rule.isEnabled)
@@ -174,11 +176,19 @@ private struct SettingsCalendarAlertItemEditor: View {
             HStack(spacing: 8) {
                 timingMenu
 
-                Button(action: onRemove) {
-                    Image(systemName: "minus.circle.fill")
+                Button {
+                    onRemove()
+                } label: {
+                    Image(systemName: "minus.circle")
                         .foregroundStyle(.secondary)
+                        .frame(
+                            width: SettingsVisualMetrics.minimumInteractiveControlSize,
+                            height: SettingsVisualMetrics.minimumInteractiveControlSize
+                        )
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Remove alert")
                 .help("Remove alert")
             }
 
@@ -186,11 +196,7 @@ private struct SettingsCalendarAlertItemEditor: View {
                 customTimingControls
             }
         }
-        .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.primary.opacity(0.045))
-        )
+        .settingsInsetSurface(padding: 10)
     }
 
     private var timingMenu: some View {

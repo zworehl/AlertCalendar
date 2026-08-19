@@ -21,13 +21,20 @@ extension SettingsDraft {
         )
         settings.alertLeadMinutes = alertLeadMinutes
         settings.concurrentEventRotationSeconds = concurrentEventRotationSeconds
-        settings.maxListItems = maxListItems
+        settings.maxListItems = AppSettingsRules.normalizedMaximumDropdownItems(maxListItems)
+        settings.showAgendaSummary = showAgendaSummary
+        settings.agendaSummaryMaximumWords = AppSettingsRules.normalizedAgendaSummaryMaximumWords(
+            agendaSummaryMaximumWords
+        )
+        settings.useLinkedPagePreviewsInAgendaSummary = useLinkedPagePreviewsInAgendaSummary
         settings.enableBlinkAlert = enableBlinkAlert
         settings.menuBarFontSize = menuBarFontSize
         settings.useSimplifiedCountdown = useSimplifiedCountdown
         settings.activeEventDisplayMode = activeEventDisplayMode
         settings.useEventTitleEllipsis = useEventTitleEllipsis
         settings.eventTitleMaxCharacters = eventTitleMaxCharacters
+        settings.rewriteEventTitlesWithAppleIntelligence = rewriteEventTitlesWithAppleIntelligence
+        settings.useRewrittenEventTitlesInDropdown = useRewrittenEventTitlesInDropdown
         settings.includeAstronomy = includeAstronomy
         settings.includeSunriseSunset = includeSunriseSunset
         settings.includeSolarNoonMidnight = includeSolarNoonMidnight

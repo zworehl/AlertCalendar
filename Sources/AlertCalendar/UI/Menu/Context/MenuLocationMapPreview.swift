@@ -14,6 +14,7 @@ private enum MiniLocationMapPreviewSnapshot {
 
 private struct MiniLocationMapSnapshotRequest: Hashable, Sendable {
     let locationText: String
+    let locationCoordinate: ResolvedLocationCoordinate?
     let width: Int
     let height: Int
 
@@ -24,6 +25,7 @@ private struct MiniLocationMapSnapshotRequest: Hashable, Sendable {
 
 struct MiniLocationMapView: View {
     let locationText: String
+    let locationCoordinate: ResolvedLocationCoordinate?
     let preferredHeight: CGFloat
 
     @State private var snapshotData: Data?
@@ -35,7 +37,7 @@ struct MiniLocationMapView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Location Preview")
-                .font(.caption.weight(.semibold))
+                .font(MenuMarkerMetrics.compactMetadataFont)
                 .foregroundStyle(.secondary)
 
             GeometryReader { proxy in
@@ -77,6 +79,7 @@ struct MiniLocationMapView: View {
     private func snapshotRequest(for size: CGSize) -> MiniLocationMapSnapshotRequest {
         MiniLocationMapSnapshotRequest(
             locationText: locationText,
+            locationCoordinate: locationCoordinate,
             width: max(Int(MiniLocationMapPreviewSnapshot.minimumWidth), Int(size.width.rounded(.toNearestOrAwayFromZero))),
             height: max(80, Int(size.height.rounded(.toNearestOrAwayFromZero)))
         )
@@ -125,7 +128,10 @@ struct MiniLocationMapView: View {
             }
         }
         resolveTask = Task {
-            let coordinate = await LocationCoordinateResolver.shared.coordinate(for: request.locationText)
+            let coordinate = await LocationCoordinateResolver.shared.coordinate(
+                for: request.locationText,
+                preferring: request.locationCoordinate
+            )
             let imageData: Data?
             if Task.isCancelled {
                 imageData = nil

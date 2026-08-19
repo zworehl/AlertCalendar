@@ -31,16 +31,24 @@ struct SettingsAstronomySectionView: View {
                         HStack(alignment: .top, spacing: 14) {
                             astronomyTimesSection
                                 .frame(maxWidth: .infinity, alignment: .leading)
+
+                            SettingsVerticalDivider()
+
                             orbitalHighlightsSection
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
 
                         VStack(alignment: .leading, spacing: 10) {
                             astronomyTimesSection
+
+                            SettingsSectionDivider()
+
                             orbitalHighlightsSection
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
+
+                    SettingsSectionDivider()
 
                     lunarPhasesSection
                 }
@@ -141,16 +149,7 @@ struct SettingsAstronomySectionView: View {
 
             content()
         }
-        .padding(12)
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-                )
-        )
     }
 
     @ViewBuilder
@@ -177,17 +176,8 @@ struct SettingsAstronomySectionView: View {
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Color.white.opacity(0.06))
-                )
-        )
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     @ViewBuilder

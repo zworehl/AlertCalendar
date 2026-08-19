@@ -30,9 +30,9 @@ enum SettingsCalendarCardAction {
     var helpText: String {
         switch self {
         case .add:
-            return "Add this event to Apple Calendar"
+            return "Stage this event to be added when you click Apply"
         case .remove:
-            return "Remove this event from Apple Calendar"
+            return "Stage this event to be removed when you click Apply"
         case .open:
             return "Open this event in Apple Calendar"
         }
@@ -47,32 +47,22 @@ struct SettingsCalendarCardActionButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: calendarAction.systemImage)
-                .font(.system(size: SettingsVisualMetrics.cardActionIconSize, weight: .bold))
-                .foregroundStyle(calendarAction.tint)
+                .font(.system(size: SettingsVisualMetrics.cardActionIconSize, weight: .semibold))
                 .frame(
                     width: SettingsVisualMetrics.cardActionButtonSize,
                     height: SettingsVisualMetrics.cardActionButtonSize
                 )
-                .background(
-                    RoundedRectangle(
-                        cornerRadius: SettingsVisualMetrics.cardActionCornerRadius,
-                        style: .continuous
-                    )
-                    .fill(calendarAction.tint.opacity(0.14))
-                )
-                .overlay(
-                    RoundedRectangle(
-                        cornerRadius: SettingsVisualMetrics.cardActionCornerRadius,
-                        style: .continuous
-                    )
-                    .stroke(calendarAction.tint.opacity(0.28), lineWidth: 1)
-                )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.roundedRectangle)
+        .controlSize(.small)
+        .tint(calendarAction.tint)
         .help(calendarAction.helpText)
+        .accessibilityLabel(calendarAction.helpText)
         .opacity(isVisible ? 1 : 0)
         .scaleEffect(isVisible ? 1 : 0.94)
         .allowsHitTesting(isVisible)
+        .accessibilityHidden(!isVisible)
         .animation(.easeInOut(duration: 0.14), value: isVisible)
     }
 }

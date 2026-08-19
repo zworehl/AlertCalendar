@@ -17,7 +17,6 @@ struct SettingsCalendarColumnsView: View {
     @Binding var calendarAlertRules: [CalendarAlertRule]
     @Binding var meetingBrowserRouting: MeetingBrowserRoutingSettings
 
-    private let rowHoverBackground = Color.primary.opacity(0.08)
     private let headingColor = Color.secondary
     private let disabledColor = Color.secondary.opacity(0.8)
 
@@ -27,35 +26,27 @@ struct SettingsCalendarColumnsView: View {
                 eventSourcesCard
                     .frame(maxWidth: .infinity, alignment: .topLeading)
 
-                rightSourcesColumn
+                reminderSourcesCard
                     .frame(maxWidth: .infinity, alignment: .topLeading)
             }
 
             VStack(alignment: .leading, spacing: 16) {
                 eventSourcesCard
-                rightSourcesColumn
+                reminderSourcesCard
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-
-    private var primaryEventCalendars: [AvailableCalendar] {
-        availableEventCalendars.filter { !isOtherAccountTitle($0.accountTitle) }
-    }
-
-    private var otherEventCalendars: [AvailableCalendar] {
-        availableEventCalendars.filter { isOtherAccountTitle($0.accountTitle) }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     private var eventSourcesCard: some View {
         sourceCard(
-            title: "Calendars",
+            title: "Event Calendars",
             subtitle: "Choose event sources and configure alert rules independently for each calendar."
         ) {
             if includeEvents || includeAllDayEvents {
                 sourceSection(
-                    title: "Event Calendars",
-                    calendars: primaryEventCalendars,
+                    title: "Accounts",
+                    calendars: availableEventCalendars,
                     selectedIDs: $selectedEventCalendarIDs,
                     weekdayOnlyIDs: $weekdayOnlyEventCalendarIDs,
                     showsMeetingBrowserControls: true
@@ -66,24 +57,14 @@ struct SettingsCalendarColumnsView: View {
         }
     }
 
-    private var rightSourcesColumn: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            reminderSourcesCard
-
-            if includeEvents || includeAllDayEvents, !otherEventCalendars.isEmpty {
-                otherEventSourcesCard
-            }
-        }
-    }
-
     private var reminderSourcesCard: some View {
         sourceCard(
-            title: "Reminders",
+            title: "Reminder Lists",
             subtitle: "Pick the reminder lists that can appear in Alert Calendar."
         ) {
             if includeReminders {
                 sourceSection(
-                    title: "Reminder Lists",
+                    title: "Accounts",
                     calendars: availableReminderCalendars,
                     selectedIDs: $selectedReminderCalendarIDs,
                     weekdayOnlyIDs: $weekdayOnlyReminderCalendarIDs,
@@ -92,22 +73,6 @@ struct SettingsCalendarColumnsView: View {
             } else {
                 disabledSection(title: "Reminder Lists", message: "Reminders are disabled.")
             }
-        }
-    }
-
-    private var otherEventSourcesCard: some View {
-        sourceCard(
-            title: "Others",
-            subtitle: "Event calendars that are not attached to a named calendar account."
-        ) {
-            accountGroup(
-                title: "Event Calendars",
-                ruleTitle: "Other Account",
-                items: sortedCalendars(otherEventCalendars),
-                selectedIDs: $selectedEventCalendarIDs,
-                weekdayOnlyIDs: $weekdayOnlyEventCalendarIDs,
-                showsMeetingBrowserControls: true
-            )
         }
     }
 
@@ -123,16 +88,7 @@ struct SettingsCalendarColumnsView: View {
 
             content()
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.clear)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-                )
-        )
+        .settingsPanelSurface()
     }
 
     @ViewBuilder
@@ -256,7 +212,6 @@ struct SettingsCalendarColumnsView: View {
                     selectedIDs: selectedIDs,
                     weekdayOnlyIDs: weekdayOnlyIDs,
                     onSelectionChanged: onSelectionChanged,
-                    rowHoverBackground: rowHoverBackground,
                     calendarAlertRules: showsMeetingBrowserControls ? $calendarAlertRules : nil
                 )
             }
@@ -265,12 +220,5 @@ struct SettingsCalendarColumnsView: View {
 
     private func sortedCalendars(_ calendars: [AvailableCalendar]) -> [AvailableCalendar] {
         calendars.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
-    }
-
-    private func isOtherAccountTitle(_ title: String) -> Bool {
-        let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return normalizedTitle == "other"
-            || normalizedTitle == "others"
-            || normalizedTitle == "other account"
     }
 }

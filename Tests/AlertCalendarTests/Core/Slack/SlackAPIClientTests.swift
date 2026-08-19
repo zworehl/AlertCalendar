@@ -192,4 +192,5 @@ final class SlackAPIClientTests: SlackStatusSyncTestCase {
         XCTAssertEqual(firstSnapshot, expectedSnapshot)
         XCTAssertEqual(secondSnapshot, expectedSnapshot)
     }
+
 }

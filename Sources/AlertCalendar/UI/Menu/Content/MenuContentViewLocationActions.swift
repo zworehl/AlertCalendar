@@ -75,7 +75,10 @@ extension MenuContentView {
         }
 
         Task {
-            if let coordinate = await LocationCoordinateResolver.shared.coordinate(for: locationText),
+            if let coordinate = await LocationCoordinateResolver.shared.coordinate(
+                for: locationText,
+                preferring: item.locationCoordinate
+            ),
                let preciseURL = preciseMapURL(for: coordinate, label: label) {
                 _ = await MainActor.run {
                     AlertCalendarWorkspace.open(preciseURL)

@@ -7,8 +7,14 @@ final class SettingsDraftReducerTests: XCTestCase {
         draft.lookAheadHours = 4
         draft.contextualPreviewLeadMinutes = 194
         draft.menuBarRotationWindowMinutes = 110
+        draft.maxListItems = 98
         draft.astronomyLatitude = 18.1234567
         draft.astronomyLongitude = -66.7654321
+        draft.showAgendaSummary = false
+        draft.agendaSummaryMaximumWords = 76
+        draft.useLinkedPagePreviewsInAgendaSummary = true
+        draft.rewriteEventTitlesWithAppleIntelligence = true
+        draft.useRewrittenEventTitlesInDropdown = true
 
         let settings = draft.applied(
             to: .defaults,
@@ -18,8 +24,14 @@ final class SettingsDraftReducerTests: XCTestCase {
         XCTAssertEqual(settings.lookAheadHours, 4)
         XCTAssertEqual(settings.contextualPreviewLeadMinutes, 180)
         XCTAssertEqual(settings.menuBarRotationWindowMinutes, 120)
+        XCTAssertEqual(settings.maxListItems, 100)
         XCTAssertEqual(settings.astronomyLatitude, 18.12)
         XCTAssertEqual(settings.astronomyLongitude, -66.77)
+        XCTAssertFalse(settings.showAgendaSummary)
+        XCTAssertEqual(settings.agendaSummaryMaximumWords, 80)
+        XCTAssertTrue(settings.useLinkedPagePreviewsInAgendaSummary)
+        XCTAssertTrue(settings.rewriteEventTitlesWithAppleIntelligence)
+        XCTAssertTrue(settings.useRewrittenEventTitlesInDropdown)
     }
 
     func testAppliedSettingsNormalizesSlackRulesAgainstKnownConnectionsAndCalendars() {

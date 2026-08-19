@@ -10,12 +10,17 @@ struct SettingsDraft: Equatable {
     var alertLeadMinutes: Int
     var concurrentEventRotationSeconds: Int
     var maxListItems: Int
+    var showAgendaSummary: Bool
+    var agendaSummaryMaximumWords: Int
+    var useLinkedPagePreviewsInAgendaSummary: Bool
     var enableBlinkAlert: Bool
     var menuBarFontSize: Double
     var useSimplifiedCountdown: Bool
     var activeEventDisplayMode: ActiveEventDisplayMode
     var useEventTitleEllipsis: Bool
     var eventTitleMaxCharacters: Int
+    var rewriteEventTitlesWithAppleIntelligence: Bool
+    var useRewrittenEventTitlesInDropdown: Bool
     var includeAstronomy: Bool
     var includeSunriseSunset: Bool
     var includeSolarNoonMidnight: Bool
@@ -63,12 +68,17 @@ struct SettingsDraft: Equatable {
         alertLeadMinutes = settings.alertLeadMinutes
         concurrentEventRotationSeconds = settings.concurrentEventRotationSeconds
         maxListItems = settings.maxListItems
+        showAgendaSummary = settings.showAgendaSummary
+        agendaSummaryMaximumWords = settings.agendaSummaryMaximumWords
+        useLinkedPagePreviewsInAgendaSummary = settings.useLinkedPagePreviewsInAgendaSummary
         enableBlinkAlert = settings.enableBlinkAlert
         menuBarFontSize = settings.menuBarFontSize
         useSimplifiedCountdown = settings.useSimplifiedCountdown
         activeEventDisplayMode = settings.activeEventDisplayMode
         useEventTitleEllipsis = settings.useEventTitleEllipsis
         eventTitleMaxCharacters = settings.eventTitleMaxCharacters
+        rewriteEventTitlesWithAppleIntelligence = settings.rewriteEventTitlesWithAppleIntelligence
+        useRewrittenEventTitlesInDropdown = settings.useRewrittenEventTitlesInDropdown
         includeAstronomy = settings.includeAstronomy
         includeSunriseSunset = settings.includeSunriseSunset
         includeSolarNoonMidnight = settings.includeSolarNoonMidnight

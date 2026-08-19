@@ -15,8 +15,6 @@ struct SettingsGoogleHolidaysSectionView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            introductionPanel
-
             if !hasEventsAccess {
                 feedbackPanel(
                     title: "Calendar access required",
@@ -33,7 +31,7 @@ struct SettingsGoogleHolidaysSectionView: View {
                 countrySelectionPanel
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
         .onAppear(perform: synchronizeViewState)
         .onReceive(monitor.$hasEventsAccess.removeDuplicates()) { value in
             hasEventsAccess = value
@@ -47,17 +45,6 @@ struct SettingsGoogleHolidaysSectionView: View {
         .onReceive(monitor.$googleHolidaySyncErrorDescription.removeDuplicates()) { description in
             googleHolidaySyncErrorDescription = description
         }
-    }
-
-    private var introductionPanel: some View {
-        SettingsSectionHeaderView(
-            title: "Google Holidays",
-            subtitle: "Combine Google holiday feeds from multiple countries and territories into one writable Apple Calendar. Holidays with the same name on the same date become one event with every matching country flag.",
-            systemImage: "flag.2.crossed"
-        )
-        .padding(SettingsVisualMetrics.panelPadding)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(panelChrome)
     }
 
     private var targetCalendarControl: some View {
@@ -76,30 +63,28 @@ struct SettingsGoogleHolidaysSectionView: View {
 
             synchronizationFeedback
 
-            Divider()
+            SettingsSectionDivider()
 
-            ScrollView(.vertical, showsIndicators: true) {
-                LazyVGrid(
-                    columns: [
-                        GridItem(.adaptive(minimum: 190, maximum: 280), alignment: .leading),
-                    ],
-                    alignment: .leading,
-                    spacing: 10
-                ) {
-                    ForEach(filteredCountries) { country in
-                        Toggle(
-                            "\(country.flag) \(country.displayName)",
-                            isOn: countryBinding(country.id)
-                        )
-                        .toggleStyle(.checkbox)
-                        .controlSize(.small)
-                        .help("Google Calendar: Holidays in \(country.englishName)")
-                    }
+            LazyVGrid(
+                columns: [
+                    GridItem(.adaptive(minimum: 190, maximum: 280), alignment: .leading),
+                ],
+                alignment: .leading,
+                spacing: 10
+            ) {
+                ForEach(filteredCountries) { country in
+                    Toggle(
+                        "\(country.flag) \(country.displayName)",
+                        isOn: countryBinding(country.id)
+                    )
+                    .toggleStyle(.checkbox)
+                    .controlSize(.small)
+                    .help("Google Calendar: Holidays in \(country.englishName)")
                 }
-                .padding(.vertical, 2)
-                .padding(.trailing, 8)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .padding(.vertical, 2)
+            .padding(.trailing, 8)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
             .accessibilityLabel("Google holiday countries and territories")
 
             if filteredCountries.isEmpty {
@@ -109,9 +94,7 @@ struct SettingsGoogleHolidaysSectionView: View {
                     .padding(.vertical, 8)
             }
         }
-        .padding(SettingsVisualMetrics.panelPadding)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(panelChrome)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     private var countrySelectionControls: some View {
@@ -203,8 +186,7 @@ struct SettingsGoogleHolidaysSectionView: View {
 
     private var countrySelectionHeader: some View {
         SettingsSectionHeaderView(
-            title: "Countries & Territories",
-            subtitle: "\(selectedCountryIDs.count) of \(GoogleHolidayCountry.all.count) selected"
+            title: "Countries & Territories"
         )
     }
 
@@ -284,12 +266,6 @@ struct SettingsGoogleHolidaysSectionView: View {
             systemImage: systemImage,
             iconColor: .orange
         )
-        .padding(SettingsVisualMetrics.panelPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(panelChrome)
-    }
-
-    private var panelChrome: some View {
-        SettingsPanelChrome()
     }
 }

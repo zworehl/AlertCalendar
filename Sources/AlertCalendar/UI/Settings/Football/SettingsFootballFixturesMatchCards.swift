@@ -41,16 +41,14 @@ extension SettingsFootballFixturesSectionView {
 
     @ViewBuilder
     func matchCardActions(_ match: FootballFixtureMatch, isVisible: Bool) -> some View {
-        if managedFootballMatchIDs.contains(match.id) {
+        if effectiveFootballFixturePresence(match) {
             removeMatchButton(match, isVisible: isVisible)
         } else {
             SettingsCalendarCardActionButton(
                 calendarAction: .add,
                 isVisible: isVisible
             ) {
-                Task {
-                    await monitor.addFootballMatchToCalendar(match)
-                }
+                togglePendingFootballFixture(match)
             }
             .disabled(footballTargetCalendarID.isEmpty)
         }
@@ -61,8 +59,28 @@ extension SettingsFootballFixturesSectionView {
             calendarAction: .remove,
             isVisible: isVisible
         ) {
-            monitor.removeFootballMatchFromCalendar(match)
+            togglePendingFootballFixture(match)
         }
+    }
+
+    func persistedFootballFixturePresence(_ match: FootballFixtureMatch) -> Bool {
+        managedFootballMatchIDs.contains(match.id)
+    }
+
+    func effectiveFootballFixturePresence(_ match: FootballFixtureMatch) -> Bool {
+        let key = SettingsPendingChanges.footballFixtureKey(for: match)
+        return pendingCalendarChanges[key]?.mutation.makesItemPresent
+            ?? persistedFootballFixturePresence(match)
+    }
+
+    func togglePendingFootballFixture(_ match: FootballFixtureMatch) {
+        var changes = SettingsPendingChanges()
+        changes.footballFixtures = pendingCalendarChanges
+        changes.toggleFootballFixture(
+            match,
+            persistedIsPresent: persistedFootballFixturePresence(match)
+        )
+        pendingCalendarChanges = changes.footballFixtures
     }
 
     @ViewBuilder

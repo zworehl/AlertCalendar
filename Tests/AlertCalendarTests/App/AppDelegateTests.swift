@@ -39,7 +39,6 @@ final class AppDelegateTests: XCTestCase {
             defer: false
         )
         window.collectionBehavior.insert(.fullScreenNone)
-
         appDelegate.configureSettingsWindow(window)
 
         XCTAssertEqual(window.identifier, NSUserInterfaceItemIdentifier(WindowMetadata.preferencesID))
@@ -47,12 +46,12 @@ final class AppDelegateTests: XCTestCase {
         XCTAssertTrue(window.collectionBehavior.contains(.fullScreenPrimary))
         XCTAssertTrue(window.collectionBehavior.contains(.fullScreenAllowsTiling))
         XCTAssertEqual(window.frameAutosaveName, WindowMetadata.preferencesID)
-
         let zoomButton = try XCTUnwrap(window.standardWindowButton(.zoomButton))
         XCTAssertFalse(zoomButton.isHidden)
         XCTAssertTrue(zoomButton.isEnabled)
         XCTAssertEqual(zoomButton.action, #selector(AppDelegate.toggleSettingsFullScreen(_:)))
         XCTAssertTrue((zoomButton.target as AnyObject?) === appDelegate)
+
     }
 
     func testApplyingPendingSettingsRunsApplyClosureAndAllowsExit() {

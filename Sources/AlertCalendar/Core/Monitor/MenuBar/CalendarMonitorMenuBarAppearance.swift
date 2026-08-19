@@ -33,7 +33,7 @@ extension CalendarMonitor {
             return .reminder(item.calendarColor)
         }
         if isBirthdayItem(item) {
-            return .birthday(item.calendarColor)
+            return .color(item.calendarColor)
         }
         if let gameStore = item.gameStore {
             return .gameStore(gameStore)
@@ -235,6 +235,11 @@ extension CalendarMonitor {
     ) -> String {
         let startDay = calendar.startOfDay(for: startDate)
         if startDay > now {
+            let today = calendar.startOfDay(for: now)
+            if let tomorrow = calendar.date(byAdding: .day, value: 1, to: today),
+               startDay == tomorrow {
+                return "tomorrow"
+            }
             return "in \(formattedRelativeCountdown(to: startDay, from: now, simplified: simplified))"
         }
 
@@ -267,10 +272,12 @@ extension CalendarMonitor {
         return .systemBlue
     }
 
+    nonisolated static func trimmedTitle(_ title: String, maxLength: Int) -> String {
+        EventTitleRewriteResolver.locallyTrimmedTitle(title, maximumCharacters: maxLength)
+    }
+
     func trimmedTitle(_ title: String, maxLength: Int) -> String {
-        guard title.count > maxLength else { return title }
-        let end = title.index(title.startIndex, offsetBy: maxLength - 1)
-        return String(title[..<end])
+        Self.trimmedTitle(title, maxLength: maxLength)
     }
 
     nonisolated static func formattedRelativeCountdown(to targetDate: Date, from sourceDate: Date, simplified: Bool) -> String {

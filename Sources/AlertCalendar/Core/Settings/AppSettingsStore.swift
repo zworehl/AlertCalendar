@@ -74,7 +74,16 @@ struct AppSettingsStore {
             concurrentEventRotationSeconds: AppSettingsRules.normalizedConcurrentEventRotationSeconds(
                 defaults.integer(forKey: DefaultsKeys.concurrentEventRotationSeconds)
             ),
-            maxListItems: max(1, defaults.integer(forKey: DefaultsKeys.maxListItems)),
+            maxListItems: AppSettingsRules.normalizedMaximumDropdownItems(
+                defaults.integer(forKey: DefaultsKeys.maxListItems)
+            ),
+            showAgendaSummary: defaults.bool(forKey: DefaultsKeys.showAgendaSummary),
+            agendaSummaryMaximumWords: AppSettingsRules.normalizedAgendaSummaryMaximumWords(
+                defaults.integer(forKey: DefaultsKeys.agendaSummaryMaximumWords)
+            ),
+            useLinkedPagePreviewsInAgendaSummary: defaults.bool(
+                forKey: DefaultsKeys.useLinkedPagePreviewsInAgendaSummary
+            ),
             enableBlinkAlert: defaults.bool(forKey: DefaultsKeys.enableBlinkAlert),
             menuBarFontSize: defaults.double(forKey: DefaultsKeys.menuBarFontSize),
             useSimplifiedCountdown: defaults.bool(forKey: DefaultsKeys.useSimplifiedCountdown),
@@ -84,6 +93,12 @@ struct AppSettingsStore {
             useEventTitleEllipsis: defaults.bool(forKey: DefaultsKeys.useEventTitleEllipsis),
             eventTitleMaxCharacters: AppSettingsRules.normalizedEventTitleMaxCharacters(
                 defaults.integer(forKey: DefaultsKeys.eventTitleMaxCharacters)
+            ),
+            rewriteEventTitlesWithAppleIntelligence: defaults.bool(
+                forKey: DefaultsKeys.rewriteEventTitlesWithAppleIntelligence
+            ),
+            useRewrittenEventTitlesInDropdown: defaults.bool(
+                forKey: DefaultsKeys.useRewrittenEventTitlesInDropdown
             ),
             footballTargetCalendarID: defaults.string(forKey: DefaultsKeys.footballTargetCalendarID) ?? defaultSettings.footballTargetCalendarID,
             footballAutoAddCompetitionSlugs: Set(
@@ -176,7 +191,19 @@ struct AppSettingsStore {
             AppSettingsRules.normalizedConcurrentEventRotationSeconds(settings.concurrentEventRotationSeconds),
             forKey: DefaultsKeys.concurrentEventRotationSeconds
         )
-        defaults.set(max(1, settings.maxListItems), forKey: DefaultsKeys.maxListItems)
+        defaults.set(
+            AppSettingsRules.normalizedMaximumDropdownItems(settings.maxListItems),
+            forKey: DefaultsKeys.maxListItems
+        )
+        defaults.set(settings.showAgendaSummary, forKey: DefaultsKeys.showAgendaSummary)
+        defaults.set(
+            AppSettingsRules.normalizedAgendaSummaryMaximumWords(settings.agendaSummaryMaximumWords),
+            forKey: DefaultsKeys.agendaSummaryMaximumWords
+        )
+        defaults.set(
+            settings.useLinkedPagePreviewsInAgendaSummary,
+            forKey: DefaultsKeys.useLinkedPagePreviewsInAgendaSummary
+        )
         defaults.set(settings.enableBlinkAlert, forKey: DefaultsKeys.enableBlinkAlert)
         defaults.set(settings.menuBarFontSize, forKey: DefaultsKeys.menuBarFontSize)
         defaults.set(settings.useSimplifiedCountdown, forKey: DefaultsKeys.useSimplifiedCountdown)
@@ -185,6 +212,14 @@ struct AppSettingsStore {
         defaults.set(
             AppSettingsRules.normalizedEventTitleMaxCharacters(settings.eventTitleMaxCharacters),
             forKey: DefaultsKeys.eventTitleMaxCharacters
+        )
+        defaults.set(
+            settings.rewriteEventTitlesWithAppleIntelligence,
+            forKey: DefaultsKeys.rewriteEventTitlesWithAppleIntelligence
+        )
+        defaults.set(
+            settings.useRewrittenEventTitlesInDropdown,
+            forKey: DefaultsKeys.useRewrittenEventTitlesInDropdown
         )
         defaults.set(settings.footballTargetCalendarID, forKey: DefaultsKeys.footballTargetCalendarID)
         defaults.set(
@@ -339,11 +374,16 @@ struct AppSettingsStore {
             DefaultsKeys.alertLeadMinutes: defaultSettings.alertLeadMinutes,
             DefaultsKeys.concurrentEventRotationSeconds: defaultSettings.concurrentEventRotationSeconds,
             DefaultsKeys.maxListItems: defaultSettings.maxListItems,
+            DefaultsKeys.showAgendaSummary: defaultSettings.showAgendaSummary,
+            DefaultsKeys.agendaSummaryMaximumWords: defaultSettings.agendaSummaryMaximumWords,
+            DefaultsKeys.useLinkedPagePreviewsInAgendaSummary: defaultSettings.useLinkedPagePreviewsInAgendaSummary,
             DefaultsKeys.enableBlinkAlert: defaultSettings.enableBlinkAlert,
             DefaultsKeys.useSimplifiedCountdown: defaultSettings.useSimplifiedCountdown,
             DefaultsKeys.activeEventDisplayMode: defaultSettings.activeEventDisplayMode.rawValue,
             DefaultsKeys.useEventTitleEllipsis: defaultSettings.useEventTitleEllipsis,
             DefaultsKeys.eventTitleMaxCharacters: defaultSettings.eventTitleMaxCharacters,
+            DefaultsKeys.rewriteEventTitlesWithAppleIntelligence: defaultSettings.rewriteEventTitlesWithAppleIntelligence,
+            DefaultsKeys.useRewrittenEventTitlesInDropdown: defaultSettings.useRewrittenEventTitlesInDropdown,
             DefaultsKeys.menuBarFontSize: defaultSettings.menuBarFontSize,
             DefaultsKeys.skippedItemKeys: [],
             DefaultsKeys.footballTargetCalendarID: defaultSettings.footballTargetCalendarID,

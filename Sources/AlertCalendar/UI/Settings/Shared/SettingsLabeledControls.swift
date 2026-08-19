@@ -34,6 +34,7 @@ struct SettingsControlLabel: View {
         }
         .font(style == .inline ? SettingsTypography.inlineFieldLabel : .caption2.weight(.semibold))
         .foregroundStyle(style == .inline ? Color.primary : Color.secondary)
+        .lineLimit(style == .inline ? 1 : nil)
     }
 }
 
@@ -84,7 +85,7 @@ struct SettingsLabeledCheckboxGroup<Content: View>: View {
     private var inlineContent: some View {
         HStack(alignment: .center, spacing: SettingsVisualMetrics.inlineFieldSpacing) {
             groupLabel
-                .frame(width: SettingsVisualMetrics.inlineFieldLabelWidth, alignment: .leading)
+                .frame(minWidth: SettingsVisualMetrics.inlineFieldLabelWidth, alignment: .leading)
 
             HStack(alignment: .center, spacing: SettingsVisualMetrics.checkboxGroupItemSpacing) {
                 content
@@ -130,6 +131,14 @@ struct SettingsVerticalDivider: View {
             .overlay(Color.primary.opacity(0.04))
             .frame(height: height)
             .padding(.vertical, height == nil ? 2 : 0)
+            .accessibilityHidden(true)
+    }
+}
+
+struct SettingsSectionDivider: View {
+    var body: some View {
+        Divider()
+            .overlay(Color.primary.opacity(0.04))
             .accessibilityHidden(true)
     }
 }

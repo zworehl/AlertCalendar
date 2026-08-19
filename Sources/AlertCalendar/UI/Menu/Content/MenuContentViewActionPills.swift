@@ -3,15 +3,39 @@ import CoreLocation
 import MapKit
 import SwiftUI
 
+enum MenuActionControlMetrics {
+    static let minimumHitTargetSize: CGFloat = 28
+    static let symbolSize: CGFloat = 11
+    static let labelSpacing: CGFloat = 4
+    static let horizontalChrome: CGFloat = 12
+    static let controlSpacing: CGFloat = 4
+    static let leadingClearance: CGFloat = 16
+    static let trailingInset: CGFloat = 6
+}
+
+struct MenuActionButtonGroup<Content: View>: View {
+    private let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        HStack(spacing: MenuActionControlMetrics.controlSpacing) {
+            content
+        }
+    }
+}
+
 extension MenuContentView {
     func sectionHeader(_ title: String) -> some View {
         HStack {
-            Text(title)
-                .font(.caption.weight(.semibold))
+            Text(title.localizedCapitalized)
+                .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
-                .tracking(0.5)
             Spacer()
         }
+        .accessibilityAddTraits(.isHeader)
     }
 
     func emptySectionRow(_ text: String) -> some View {
@@ -32,33 +56,19 @@ extension MenuContentView {
     }
 
     @ViewBuilder
-    func actionPill<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        content()
-            .frame(height: 18)
-            .padding(.horizontal, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(.regularMaterial)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(Color.primary.opacity(0.18), lineWidth: 1)
-                    )
-            )
-    }
-
-    @ViewBuilder
     func joinActionButton(for item: UpcomingItem) -> some View {
         Button {
             openMeetingFromDropdown(item)
         } label: {
-            actionPill {
-                Text("Join")
-                    .font(MenuMarkerMetrics.actionLabelFont)
-            }
+            contextualActionLabel(title: "Join", systemImage: "video")
         }
-        .buttonStyle(.borderless)
+        .buttonStyle(.bordered)
         .controlSize(.small)
-        .help("Join")
+        .frame(minHeight: MenuActionControlMetrics.minimumHitTargetSize)
+        .contentShape(Rectangle())
+        .disabled(item.meetingURL == nil)
+        .accessibilityLabel("Join meeting")
+        .help("Join meeting")
     }
 
     func openMeetingFromDropdown(_ item: UpcomingItem) {
@@ -73,14 +83,14 @@ extension MenuContentView {
         Button {
             monitor.skipItem(item)
         } label: {
-            actionPill {
-                Text("Skip")
-                    .font(MenuMarkerMetrics.actionLabelFont)
-            }
+            contextualActionLabel(title: "Skip", systemImage: "forward.end")
         }
-        .buttonStyle(.borderless)
+        .buttonStyle(.bordered)
         .controlSize(.small)
-        .help("Skip")
+        .frame(minHeight: MenuActionControlMetrics.minimumHitTargetSize)
+        .contentShape(Rectangle())
+        .accessibilityLabel("Skip \(item.title)")
+        .help("Skip this item")
     }
 
     @ViewBuilder
@@ -88,34 +98,60 @@ extension MenuContentView {
         Button {
             openMap(for: item, locationText: locationText)
         } label: {
-            actionPill {
-                HStack(spacing: 4) {
-                    Image(systemName: "map")
-                        .font(MenuMarkerMetrics.actionLabelFont)
-                    Text("Map")
-                        .font(MenuMarkerMetrics.actionLabelFont)
-                }
-            }
+            contextualActionLabel(title: "Map", systemImage: "map")
         }
-        .buttonStyle(.borderless)
+        .buttonStyle(.bordered)
         .controlSize(.small)
-        .help("Map")
+        .frame(minHeight: MenuActionControlMetrics.minimumHitTargetSize)
+        .contentShape(Rectangle())
+        .disabled(!Self.hasUsableContextualLocation(locationText))
+        .accessibilityLabel("Open \(displayLocationName(from: locationText)) in Maps")
+        .help("Open in Maps")
+    }
+
+    @ViewBuilder
+    func completeActionButton(for item: UpcomingItem) -> some View {
+        Button {
+            monitor.markReminderCompleted(item)
+        } label: {
+            reminderCompletionActionLabel(color: Color(nsColor: item.calendarColor.nsColor))
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .frame(
+            width: MenuActionControlMetrics.minimumHitTargetSize,
+            height: MenuActionControlMetrics.minimumHitTargetSize
+        )
+        .contentShape(Rectangle())
+        .accessibilityLabel("Complete \(item.title)")
+        .help("Complete reminder")
+    }
+
+    func contextualActionLabel(title: String, systemImage: String) -> some View {
+        HStack(spacing: MenuActionControlMetrics.labelSpacing) {
+            Image(systemName: systemImage)
+                .font(.system(size: MenuActionControlMetrics.symbolSize, weight: .medium))
+
+            Text(title)
+                .font(MenuMarkerMetrics.actionLabelFont)
+        }
+        .lineLimit(1)
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     func reminderCompletionActionLabel(color: Color) -> some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 4.5, style: .continuous)
-                .fill(Color.primary.opacity(0.08))
+        Image(systemName: "checkmark")
+            .font(.system(size: MenuActionControlMetrics.symbolSize, weight: .semibold))
+            .foregroundStyle(color)
+            .frame(
+                width: MenuActionControlMetrics.symbolSize,
+                height: MenuActionControlMetrics.symbolSize
+            )
+    }
 
-            Circle()
-                .stroke(color.opacity(0.96), lineWidth: 1.8)
-                .padding(1.2)
-
-            Circle()
-                .fill(color.opacity(0.98))
-                .padding(4.5)
-        }
-        .frame(width: 18, height: 18)
+    nonisolated static func hasUsableContextualLocation(_ locationText: String?) -> Bool {
+        guard let locationText else { return false }
+        return !locationText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     static let menuTimeFormatter: DateFormatter = {

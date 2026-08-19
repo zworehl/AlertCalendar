@@ -253,7 +253,12 @@ final class FootballContextualLayoutTests: AlertCalendarModelTestCase {
         )
     }
 
-    func testScrollableUpcomingActionsReserveScrollbarHitArea() {
+    func testUpcomingAndContextualActionsShareEdgeAlignmentAndContentClearance() {
+        XCTAssertEqual(MenuActionControlMetrics.leadingClearance, 16)
+        XCTAssertEqual(MenuActionControlMetrics.trailingInset, 6)
+    }
+
+    func testContextualActionControlsKeepNativeMinimumHitTarget() {
         let menu = MenuContentView(kindFilter: nil, headerTitle: "Alert Calendar")
         let now = Date(timeIntervalSince1970: 1_720_000_000)
         let item = dropdownHeightItem(
@@ -261,29 +266,119 @@ final class FootballContextualLayoutTests: AlertCalendarModelTestCase {
             endDate: now.addingTimeInterval(30 * 60),
             isAllDay: false
         )
-        let scrollbarInset = MenuContentView.actionTrailingInset(
-            showsVerticalScrollIndicator: true,
-            scrollerWidth: 17
-        )
-        let rowWidth: CGFloat = 320
-        let baseTrailingPadding: CGFloat = 2
-        let actionRightEdge = rowWidth - baseTrailingPadding - scrollbarInset
-        let scrollbarLeftEdge = rowWidth - 17
 
-        XCTAssertEqual(scrollbarInset, 17)
-        XCTAssertLessThan(actionRightEdge, scrollbarLeftEdge)
-        XCTAssertEqual(scrollbarLeftEdge - actionRightEdge, baseTrailingPadding)
+        let skipButtonSize = fittingSize(
+            of: menu.skipActionButton(for: item),
+            width: 160
+        )
+
+        XCTAssertGreaterThanOrEqual(MenuActionControlMetrics.minimumHitTargetSize, 28)
+        XCTAssertGreaterThanOrEqual(skipButtonSize.height, MenuActionControlMetrics.minimumHitTargetSize)
+        XCTAssertGreaterThan(menu.skipActionPillWidth(), MenuActionControlMetrics.minimumHitTargetSize)
+        XCTAssertGreaterThan(menu.joinActionPillWidth(), MenuActionControlMetrics.minimumHitTargetSize)
+        XCTAssertGreaterThan(menu.mapActionPillWidth(), MenuActionControlMetrics.minimumHitTargetSize)
+    }
+
+    func testDaylightHeaderReservesItsHoverGeometryBeforePointerEntry() {
+        let menu = MenuContentView(kindFilter: nil, headerTitle: "Alert Calendar")
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let item = dropdownHeightItem(
+            startDate: now,
+            endDate: now.addingTimeInterval(30 * 60),
+            isAllDay: false
+        )
+        let actionWidth = menu.contextualActionRowWidth(
+            for: item,
+            locationText: nil,
+            showsJoinButton: false
+        )
+        let timeWidth = MenuContentView.measuredTextWidth(
+            MenuContentView.timeText(item.date),
+            font: MenuMarkerMetrics.rowDetailNSFont
+        )
+        let reservedWidth = menu.contextualDaylightHeaderTrailingReservation(for: item)
+
+        XCTAssertEqual(MenuContentView.contextualDaylightHeaderHeight, 36)
+        XCTAssertGreaterThanOrEqual(reservedWidth, actionWidth)
+        XCTAssertGreaterThanOrEqual(reservedWidth, timeWidth)
+    }
+
+    func testHoverActionWidthTracksTheActionsActuallyRendered() {
+        let menu = MenuContentView(kindFilter: nil, headerTitle: "Alert Calendar")
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let item = dropdownHeightItem(
+            startDate: now,
+            endDate: now.addingTimeInterval(30 * 60),
+            isAllDay: false
+        )
+        let completeOnlyWidth = menu.hoverActionRowWidth(for: item, actions: [.complete])
+        let skipOnlyWidth = menu.hoverActionRowWidth(for: item, actions: [.skip])
+        let combinedWidth = menu.hoverActionRowWidth(for: item, actions: [.complete, .skip])
+
         XCTAssertEqual(
-            MenuContentView.actionTrailingInset(
-                showsVerticalScrollIndicator: false,
-                scrollerWidth: 17
+            completeOnlyWidth,
+            MenuActionControlMetrics.minimumHitTargetSize
+                + MenuActionControlMetrics.leadingClearance
+                + MenuActionControlMetrics.trailingInset
+        )
+        XCTAssertGreaterThan(skipOnlyWidth, completeOnlyWidth)
+        XCTAssertEqual(
+            combinedWidth,
+            completeOnlyWidth
+                + menu.skipActionPillWidth()
+                + MenuActionControlMetrics.controlSpacing
+        )
+        XCTAssertEqual(
+            menu.actionRowTrailingReservation(for: item, actions: [.complete, .skip]),
+            combinedWidth
+        )
+        XCTAssertEqual(
+            menu.actionRowPrimaryTrailingReservation(
+                for: item,
+                actions: [.complete, .skip],
+                isHovered: false
             ),
-            0
+            0,
+            "A hidden hover action must not shift the normal time column"
         )
         XCTAssertEqual(
-            menu.hoverActionRowWidth(for: item, trailingInset: scrollbarInset),
-            menu.hoverActionRowWidth(for: item) + scrollbarInset
+            menu.actionRowPrimaryTrailingReservation(
+                for: item,
+                actions: [.complete, .skip],
+                isHovered: true
+            ),
+            combinedWidth
         )
+    }
+
+    func testContextualMapActionIgnoresBlankLocationsInLayoutReservation() {
+        let menu = MenuContentView(kindFilter: nil, headerTitle: "Alert Calendar")
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let item = dropdownHeightItem(
+            startDate: now,
+            endDate: now.addingTimeInterval(30 * 60),
+            isAllDay: false
+        )
+        let withoutMap = menu.contextualActionRowWidth(
+            for: item,
+            locationText: nil,
+            showsJoinButton: false
+        )
+        let withBlankMap = menu.contextualActionRowWidth(
+            for: item,
+            locationText: "   \n",
+            showsJoinButton: false
+        )
+        let withMap = menu.contextualActionRowWidth(
+            for: item,
+            locationText: "San José",
+            showsJoinButton: false
+        )
+
+        XCTAssertFalse(MenuContentView.hasUsableContextualLocation("  \n"))
+        XCTAssertTrue(MenuContentView.hasUsableContextualLocation("San José"))
+        XCTAssertEqual(withBlankMap, withoutMap)
+        XCTAssertGreaterThan(withMap, withoutMap)
     }
 
     func testDropdownHoverHeightPreservationOnlyAppliesToTimedEventsCrossingDays() {
@@ -295,6 +390,11 @@ final class FootballContextualLayoutTests: AlertCalendarModelTestCase {
         let timedSameDay = dropdownHeightItem(
             startDate: startDate,
             endDate: sameDayEndDate,
+            isAllDay: false
+        )
+        let singleLineTimedEvent = dropdownHeightItem(
+            startDate: startDate,
+            endDate: startDate,
             isAllDay: false
         )
         let timedCrossDay = dropdownHeightItem(
@@ -312,12 +412,21 @@ final class FootballContextualLayoutTests: AlertCalendarModelTestCase {
         XCTAssertTrue(MenuContentView.shouldPreserveDropdownHoverHeight(for: timedCrossDay))
         XCTAssertFalse(MenuContentView.shouldPreserveDropdownHoverHeight(for: allDayCrossDay))
 
-        XCTAssertNil(
+        XCTAssertEqual(
+            menu.rowPrimaryContentMinimumHeight(
+                for: singleLineTimedEvent,
+                showsTravelTime: false,
+                showRightTimeColumn: true
+            ),
+            34
+        )
+        XCTAssertEqual(
             menu.rowPrimaryContentMinimumHeight(
                 for: timedSameDay,
                 showsTravelTime: false,
                 showRightTimeColumn: true
-            )
+            ),
+            44
         )
         XCTAssertEqual(
             menu.rowPrimaryContentMinimumHeight(
@@ -327,12 +436,40 @@ final class FootballContextualLayoutTests: AlertCalendarModelTestCase {
             ),
             44
         )
-        XCTAssertNil(
+        XCTAssertEqual(
             menu.rowPrimaryContentMinimumHeight(
                 for: allDayCrossDay,
                 showsTravelTime: false,
                 showRightTimeColumn: true
-            )
+            ),
+            34
+        )
+        XCTAssertEqual(
+            MenuContentView.dropdownCalendarMarkerHeight(rowMinimumHeight: 34),
+            MenuMarkerMetrics.compactCalendarMarkerHeight
+        )
+        XCTAssertEqual(
+            MenuContentView.dropdownCalendarMarkerHeight(rowMinimumHeight: 44),
+            MenuMarkerMetrics.detailedCalendarMarkerHeight
+        )
+        XCTAssertEqual(
+            MenuContentView.dropdownCalendarMarkerHeight(rowMinimumHeight: 60),
+            MenuMarkerMetrics.calendarMarkerHeight(lineCount: 3)
+        )
+        XCTAssertGreaterThan(
+            MenuMarkerMetrics.detailedCalendarMarkerHeight,
+            MenuMarkerMetrics.compactCalendarMarkerHeight
+        )
+        XCTAssertEqual(
+            MenuMarkerMetrics.detailedCalendarMarkerHeight,
+            MenuMarkerMetrics.rowTitleLineHeight
+                + MenuMarkerMetrics.rowDetailLineHeight
+                - (MenuMarkerMetrics.markerFirstLineTopPadding * 2)
+        )
+        XCTAssertGreaterThan(
+            MenuContentView.dropdownCalendarMarkerHeight(rowMinimumHeight: 60),
+            MenuMarkerMetrics.detailedCalendarMarkerHeight,
+            "A three-line event marker should reach its location line"
         )
     }
 
@@ -379,7 +516,7 @@ final class FootballContextualLayoutTests: AlertCalendarModelTestCase {
             menu.splitDropdownColumnHeightLimit
         )
         XCTAssertEqual(
-            menu.splitContextualPanelMinimumHeight(
+            menu.splitContextualPanelHeight(
                 snapshot: snapshot,
                 measuredRightColumnHeight: 480,
                 measuredContextualPanelHeight: 500
@@ -387,15 +524,24 @@ final class FootballContextualLayoutTests: AlertCalendarModelTestCase {
             500
         )
         XCTAssertEqual(
-            menu.splitContextualPanelMinimumHeight(
+            menu.splitContextualPanelHeight(
                 snapshot: snapshot,
                 measuredRightColumnHeight: 480,
                 measuredContextualPanelHeight: 10_000
             ),
-            10_000
+            menu.splitDropdownColumnHeightLimit
+        )
+        XCTAssertEqual(
+            menu.splitContextualPanelHeight(
+                snapshot: snapshot,
+                measuredRightColumnHeight: 480,
+                measuredContextualPanelHeight: 220
+            ),
+            220,
+            "A compact contextual card should not stretch to the queue height"
         )
         XCTAssertNil(
-            menu.splitContextualPanelMinimumHeight(
+            menu.splitContextualPanelHeight(
                 snapshot: snapshot,
                 measuredRightColumnHeight: 0,
                 measuredContextualPanelHeight: 0

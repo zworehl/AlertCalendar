@@ -210,6 +210,20 @@ enum AstronomyMoment: String, CaseIterable {
 }
 
 enum AstronomyIconProvider {
+    @MainActor
+    static func monochromeImage(
+        for moment: AstronomyMoment,
+        pointSize: CGFloat,
+        tintColor: NSColor
+    ) -> NSImage? {
+        MenuSymbolImageProvider.tintedSystemSymbol(
+            named: moment.fallbackSymbolName,
+            pointSize: pointSize,
+            weight: .regular,
+            tintColor: tintColor
+        )
+    }
+
     static func image(for moment: AstronomyMoment, pointSize: CGFloat) -> NSImage? {
         if let svgAssetName = moment.svgAssetName,
            let svg = svgImage(named: svgAssetName) {

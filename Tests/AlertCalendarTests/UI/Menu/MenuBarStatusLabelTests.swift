@@ -4,8 +4,50 @@ import XCTest
 
 @MainActor
 final class MenuBarStatusLabelTests: XCTestCase {
+    func testAstronomyMenuMarkersUseMonochromeSystemSymbols() throws {
+        for moment in AstronomyMoment.allCases {
+            let image = try XCTUnwrap(
+                AstronomyIconProvider.monochromeImage(
+                    for: moment,
+                    pointSize: 14,
+                    tintColor: .white
+                ),
+                "Missing monochrome marker for \(moment.rawValue)"
+            )
+
+            XCTAssertFalse(image.isTemplate)
+            XCTAssertGreaterThan(image.size.width, 0)
+            XCTAssertGreaterThan(image.size.height, 0)
+            XCTAssertTrue(
+                try imageHasOnlyWhiteVisiblePixels(image),
+                "Marker is not monochrome white for \(moment.rawValue)"
+            )
+        }
+    }
+
     func testInitialLoadingIndicatorUsesACompactMenuBarSize() {
         XCTAssertEqual(MenuBarLoadingIndicator.size, 16)
+        XCTAssertEqual(MenuBarLoadingIndicator.frames.count, MenuBarLoadingIndicator.frameCount)
+        XCTAssertTrue(MenuBarLoadingIndicator.frames.allSatisfy { !$0.isTemplate })
+        XCTAssertTrue(MenuBarLoadingIndicator.frames.allSatisfy { $0.size == NSSize(width: 16, height: 16) })
+    }
+
+    func testInitialLoadingIndicatorTransitionsFromGreenThroughWhite() {
+        let green = MenuBarLoadingIndicator.loadingColor(forFrame: 0).usingColorSpace(.sRGB)
+        let mixed = MenuBarLoadingIndicator.loadingColor(
+            forFrame: MenuBarLoadingIndicator.frameCount / 4
+        ).usingColorSpace(.sRGB)
+        let white = MenuBarLoadingIndicator.loadingColor(
+            forFrame: MenuBarLoadingIndicator.frameCount / 2
+        ).usingColorSpace(.sRGB)
+
+        XCTAssertEqual(green?.redComponent ?? 0, 0.20, accuracy: 0.001)
+        XCTAssertEqual(green?.greenComponent ?? 0, 0.88, accuracy: 0.001)
+        XCTAssertGreaterThan(mixed?.redComponent ?? 0, green?.redComponent ?? 0)
+        XCTAssertLessThan(mixed?.redComponent ?? 0, white?.redComponent ?? 0)
+        XCTAssertEqual(white?.redComponent ?? 0, 1, accuracy: 0.001)
+        XCTAssertEqual(white?.greenComponent ?? 0, 1, accuracy: 0.001)
+        XCTAssertEqual(white?.blueComponent ?? 0, 1, accuracy: 0.001)
     }
 
     func testFootballLogoIsAvailableImmediatelyFromLocalPath() throws {
@@ -154,5 +196,28 @@ final class MenuBarStatusLabelTests: XCTestCase {
         return try XCTUnwrap(
             attributed.attribute(.foregroundColor, at: range.location, effectiveRange: nil) as? NSColor
         )
+    }
+
+    private func imageHasOnlyWhiteVisiblePixels(_ image: NSImage) throws -> Bool {
+        let data = try XCTUnwrap(image.tiffRepresentation)
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(data: data))
+        var foundVisiblePixel = false
+
+        for y in 0..<bitmap.pixelsHigh {
+            for x in 0..<bitmap.pixelsWide {
+                guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB),
+                      color.alphaComponent > 0.01 else {
+                    continue
+                }
+                foundVisiblePixel = true
+                guard color.redComponent > 0.99,
+                      color.greenComponent > 0.99,
+                      color.blueComponent > 0.99 else {
+                    return false
+                }
+            }
+        }
+
+        return foundVisiblePixel
     }
 }

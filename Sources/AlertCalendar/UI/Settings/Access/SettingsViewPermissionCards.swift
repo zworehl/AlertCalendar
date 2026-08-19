@@ -45,24 +45,13 @@ extension SettingsView {
                 )
             }
 
-            Spacer(minLength: 0)
-
             permissionActionButtons(
                 for: permission,
                 grantState: grantState,
                 isRequesting: isRequesting
             )
         }
-        .padding(SettingsVisualMetrics.panelPadding)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(permissionBorderColor(for: grantState), lineWidth: 1)
-                )
-        )
+        .settingsPanelSurface(borderColor: permissionBorderColor(for: grantState))
     }
 
     @ViewBuilder
@@ -147,37 +136,7 @@ extension SettingsView {
     func integrationActionCard(for integration: SettingsIntegrationKind) -> some View {
         let badgeState = integrationBadgeState(for: integration)
 
-        if integration == .slackStatusSync {
-            slackIntegrationActionCard(badgeState: badgeState)
-        } else {
-            VStack(alignment: .leading, spacing: 14) {
-                integrationActionCardHeader(for: integration, badgeState: badgeState)
-
-                Text(integration.summary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Text(integrationDescription(for: integration))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Spacer(minLength: 0)
-
-                integrationActionButtons(for: integration)
-            }
-            .padding(SettingsVisualMetrics.panelPadding)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color(nsColor: .controlBackgroundColor))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(badgeState.tint.opacity(0.24), lineWidth: 1)
-                    )
-            )
-        }
+        slackIntegrationActionCard(badgeState: badgeState)
     }
 
     @ViewBuilder
@@ -260,31 +219,28 @@ extension SettingsView {
     }
 
     @ViewBuilder
-    func integrationActionButtons(for integration: SettingsIntegrationKind) -> some View {
-        switch integration {
-        case .slackStatusSync:
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 10) {
-                    slackIntegrationPrimaryButton
+    func integrationActionButtons(for _: SettingsIntegrationKind) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) {
+                slackIntegrationPrimaryButton
 
-                    Button {
-                        extractSlackTokenFromClipboard()
-                    } label: {
-                        Label("Extract Token", systemImage: "doc.on.clipboard")
-                    }
-                    .buttonStyle(.bordered)
+                Button {
+                    extractSlackTokenFromClipboard()
+                } label: {
+                    Label("Extract Token", systemImage: "doc.on.clipboard")
                 }
+                .buttonStyle(.bordered)
+            }
 
-                VStack(alignment: .leading, spacing: 10) {
-                    slackIntegrationPrimaryButton
+            VStack(alignment: .leading, spacing: 10) {
+                slackIntegrationPrimaryButton
 
-                    Button {
-                        extractSlackTokenFromClipboard()
-                    } label: {
-                        Label("Extract Token", systemImage: "doc.on.clipboard")
-                    }
-                    .buttonStyle(.bordered)
+                Button {
+                    extractSlackTokenFromClipboard()
+                } label: {
+                    Label("Extract Token", systemImage: "doc.on.clipboard")
                 }
+                .buttonStyle(.bordered)
             }
         }
     }
@@ -300,6 +256,7 @@ extension SettingsView {
         }
         .buttonStyle(.borderedProminent)
         .disabled(slackUserTokenDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        .help("Stage this Slack connection. It will connect when you click Apply.")
     }
 
     var slackIntegrationPrimaryButtonTitle: String {
