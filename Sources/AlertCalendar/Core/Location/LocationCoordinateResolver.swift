@@ -40,7 +40,7 @@ actor LocationCoordinateResolver {
         case timedOut
     }
 
-    private var cache: [String: CacheEntry] = [:]
+    private var cache = AlertCalendarLRUCache<String, CacheEntry>(capacity: 256)
 
     func coordinate(for rawText: String) async -> ResolvedLocationCoordinate? {
         await location(for: rawText, mode: .coordinate)?.coordinate
@@ -70,7 +70,7 @@ actor LocationCoordinateResolver {
 
         guard !normalizedCacheText.isEmpty else { return nil }
 
-        if let cached = cache[cacheKey] {
+        if let cached = cache.value(forKey: cacheKey) {
             switch cached {
             case .found(let location):
                 return location
@@ -80,7 +80,7 @@ actor LocationCoordinateResolver {
         }
 
         if let knownLocation = Self.knownLocation(for: rawText) {
-            cache[cacheKey] = .found(knownLocation)
+            cache.insert(.found(knownLocation), forKey: cacheKey)
             return knownLocation
         }
 
@@ -89,13 +89,13 @@ actor LocationCoordinateResolver {
             allowsLooseFallbacks: mode.allowsLooseFallbacks
         )
         guard !queries.isEmpty else {
-            cache[cacheKey] = .notFound
+            cache.insert(.notFound, forKey: cacheKey)
             return nil
         }
 
         if let parsed = queries.compactMap(Self.parseCoordinatePair).first {
             let location = ResolvedLocation(coordinate: parsed, timeZoneIdentifier: nil)
-            cache[cacheKey] = .found(location)
+            cache.insert(.found(location), forKey: cacheKey)
             return location
         }
 
@@ -104,7 +104,7 @@ actor LocationCoordinateResolver {
             switch await Self.localSearchLocation(for: query) {
             case .found(let location):
                 if location.timeZoneIdentifier != nil {
-                    cache[cacheKey] = .found(location)
+                    cache.insert(.found(location), forKey: cacheKey)
                     return location
                 }
 
@@ -114,7 +114,7 @@ actor LocationCoordinateResolver {
                         coordinate: location.coordinate,
                         timeZoneIdentifier: geocodedLocation.timeZoneIdentifier
                     )
-                    cache[cacheKey] = .found(locationWithTimeZone)
+                    cache.insert(.found(locationWithTimeZone), forKey: cacheKey)
                     return locationWithTimeZone
                 case .timedOut:
                     return location
@@ -122,7 +122,7 @@ actor LocationCoordinateResolver {
                     break
                 }
 
-                cache[cacheKey] = .found(location)
+                cache.insert(.found(location), forKey: cacheKey)
                 return location
             case .timedOut:
                 return nil
@@ -132,7 +132,7 @@ actor LocationCoordinateResolver {
 
             switch await Self.geocodeLocation(for: query) {
             case .found(let location):
-                cache[cacheKey] = .found(location)
+                cache.insert(.found(location), forKey: cacheKey)
                 return location
             case .timedOut:
                 return nil
@@ -141,7 +141,7 @@ actor LocationCoordinateResolver {
             }
         }
 
-        cache[cacheKey] = .notFound
+        cache.insert(.notFound, forKey: cacheKey)
         return nil
     }
 

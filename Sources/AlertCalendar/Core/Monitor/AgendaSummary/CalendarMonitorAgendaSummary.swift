@@ -1,7 +1,18 @@
 import Foundation
 
 extension CalendarMonitor {
-    func requestAgendaSummary(_ request: AgendaSummaryRequest, force: Bool = false) {
+    nonisolated private static let agendaSummaryRetryIntervals: [TimeInterval] = [
+        60,
+        5 * 60,
+        15 * 60,
+    ]
+
+    nonisolated static func agendaSummaryRetryDelay(forAttempt attempt: Int) -> TimeInterval? {
+        guard agendaSummaryRetryIntervals.indices.contains(attempt) else { return nil }
+        return agendaSummaryRetryIntervals[attempt]
+    }
+
+    func requestAgendaSummary(_ request: AgendaSummaryRequest) {
         guard currentSettings.showAgendaSummary else {
             cancelAgendaSummary()
             return
@@ -14,26 +25,40 @@ extension CalendarMonitor {
         }
 
         let usesLinkedPagePreviews = currentSettings.useLinkedPagePreviewsInAgendaSummary
-        var fingerprintHasher = Hasher()
-        fingerprintHasher.combine(request.fingerprint)
-        fingerprintHasher.combine(usesLinkedPagePreviews)
-        let requestFingerprint = fingerprintHasher.finalize()
+        let requestFingerprint = request.generationFingerprint(
+            usesLinkedPagePreviews: usesLinkedPagePreviews
+        )
 
         if request.items.isEmpty {
             agendaSummaryTask?.cancel()
             agendaSummaryTask = nil
+            resetAgendaSummaryRetryState()
             agendaSummaryRequestFingerprint = requestFingerprint
             agendaSummaryState = .ready("Nothing is scheduled in this window.")
             return
         }
 
-        guard force || agendaSummaryRequestFingerprint != requestFingerprint else {
+        guard agendaSummaryRequestFingerprint != requestFingerprint else {
             return
         }
 
         agendaSummaryTask?.cancel()
+        resetAgendaSummaryRetryState()
         agendaSummaryRequestFingerprint = requestFingerprint
-        agendaSummaryState = .loading
+        generateAgendaSummary(
+            request,
+            requestFingerprint: requestFingerprint,
+            usesLinkedPagePreviews: usesLinkedPagePreviews
+        )
+    }
+
+    private func generateAgendaSummary(
+        _ request: AgendaSummaryRequest,
+        requestFingerprint: Int,
+        usesLinkedPagePreviews: Bool
+    ) {
+        let immediateSummary = AgendaSummaryFallback.summary(for: request)
+        agendaSummaryState = .ready(immediateSummary)
         agendaSummaryGenerationErrorDescription = nil
         let client = agendaSummaryClient
         let linkPreviewProvider = agendaSummaryLinkPreviewProvider
@@ -55,6 +80,7 @@ extension CalendarMonitor {
                 }
                 self.agendaSummaryState = .ready(summary)
                 self.agendaSummaryGenerationErrorDescription = nil
+                self.resetAgendaSummaryRetryState()
                 self.agendaSummaryTask = nil
             } catch {
                 guard !Task.isCancelled,
@@ -66,13 +92,77 @@ extension CalendarMonitor {
                     "Could not generate the local agenda summary: \(String(describing: error), privacy: .public)"
                 )
                 self.refreshAgendaSummaryAvailability()
-                self.agendaSummaryState = .unavailable
-                if self.agendaSummaryAvailability.isAvailable {
-                    self.agendaSummaryGenerationErrorDescription = "Apple Intelligence couldn't generate the latest agenda summary. It will try again when the visible agenda changes."
+                guard self.agendaSummaryAvailability.isAvailable else {
+                    self.agendaSummaryTask = nil
+                    return
+                }
+
+                self.agendaSummaryState = .ready(immediateSummary)
+                let retryAttempt = self.agendaSummaryRetryAttempt
+                if let retryDelay = Self.agendaSummaryRetryDelay(forAttempt: retryAttempt) {
+                    self.agendaSummaryGenerationErrorDescription = Self.agendaSummaryRetryDescription(
+                        delay: retryDelay
+                    )
+                    self.scheduleAgendaSummaryRetry(
+                        request,
+                        requestFingerprint: requestFingerprint,
+                        usesLinkedPagePreviews: usesLinkedPagePreviews,
+                        retryAttempt: retryAttempt,
+                        delay: retryDelay
+                    )
+                } else {
+                    self.agendaSummaryGenerationErrorDescription = "Apple Intelligence couldn't generate the latest agenda summary. It will try again after the visible agenda changes."
                 }
                 self.agendaSummaryTask = nil
             }
         }
+    }
+
+    private func scheduleAgendaSummaryRetry(
+        _ request: AgendaSummaryRequest,
+        requestFingerprint: Int,
+        usesLinkedPagePreviews: Bool,
+        retryAttempt: Int,
+        delay: TimeInterval
+    ) {
+        agendaSummaryRetryTask?.cancel()
+        agendaSummaryRetryAttempt = retryAttempt + 1
+        agendaSummaryRetryTask = Task { [weak self] in
+            do {
+                try await Task.sleep(
+                    nanoseconds: CalendarMonitorTime.nanoseconds(forDelay: delay)
+                )
+            } catch {
+                return
+            }
+
+            guard !Task.isCancelled, let self else { return }
+            self.agendaSummaryRetryTask = nil
+            guard self.currentSettings.useLinkedPagePreviewsInAgendaSummary == usesLinkedPagePreviews,
+                  self.currentSettings.agendaSummaryMaximumWords == request.maximumWords,
+                  self.currentSettings.showAgendaSummary,
+                  self.agendaSummaryAvailability.isAvailable,
+                  self.agendaSummaryRequestFingerprint == requestFingerprint else {
+                return
+            }
+
+            self.generateAgendaSummary(
+                request,
+                requestFingerprint: requestFingerprint,
+                usesLinkedPagePreviews: usesLinkedPagePreviews
+            )
+        }
+    }
+
+    nonisolated private static func agendaSummaryRetryDescription(delay: TimeInterval) -> String {
+        let minutes = max(1, Int(delay / 60))
+        return "Apple Intelligence couldn't generate the latest agenda summary. It will retry automatically in about \(minutes) minute\(minutes == 1 ? "" : "s")."
+    }
+
+    private func resetAgendaSummaryRetryState() {
+        agendaSummaryRetryTask?.cancel()
+        agendaSummaryRetryTask = nil
+        agendaSummaryRetryAttempt = 0
     }
 
     func refreshAgendaSummaryAvailability() {
@@ -88,7 +178,11 @@ extension CalendarMonitor {
     func cancelAgendaSummary() {
         agendaSummaryTask?.cancel()
         agendaSummaryTask = nil
+        resetAgendaSummaryRetryState()
         agendaSummaryRequestFingerprint = nil
-        agendaSummaryState = .idle
+        if agendaSummaryState != .idle {
+            agendaSummaryState = .idle
+        }
+        agendaSummaryGenerationErrorDescription = nil
     }
 }

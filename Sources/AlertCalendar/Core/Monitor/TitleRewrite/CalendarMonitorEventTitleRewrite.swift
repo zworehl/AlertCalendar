@@ -56,7 +56,10 @@ extension CalendarMonitor {
         }
 
         let eligibleCandidates = candidates.filter {
-            !AppleIntelligenceEventTitleRewriter.normalized($0.title).isEmpty
+            EventTitleRewriteResolver.shouldRequestRewrite(
+                for: $0.title,
+                maximumCharacters: maximumCharacters
+            )
                 && $0.footballMatch == nil
                 && AstronomyMoment(eventTitle: $0.title) == nil
         }
@@ -90,7 +93,7 @@ extension CalendarMonitor {
                 )
 
                 let rewrittenTitle: String
-                if let cachedTitle = eventTitleRewriteCache[cacheKey] {
+                if let cachedTitle = eventTitleRewriteCache.value(forKey: cacheKey) {
                     rewrittenTitle = cachedTitle
                 } else {
                     do {
@@ -104,7 +107,7 @@ extension CalendarMonitor {
                             originalTitle: item.title,
                             maximumCharacters: maximumCharacters
                         )
-                        eventTitleRewriteCache[cacheKey] = rewrittenTitle
+                        eventTitleRewriteCache.insert(rewrittenTitle, forKey: cacheKey)
                     } catch is CancellationError {
                         return
                     } catch {
@@ -127,6 +130,10 @@ extension CalendarMonitor {
               AppSettingsRules.allowsAppleIntelligenceTitleRewrite(
                 maximumCharacters: settings.eventTitleMaxCharacters
               ),
+              EventTitleRewriteResolver.shouldRequestRewrite(
+                for: item.title,
+                maximumCharacters: settings.eventTitleMaxCharacters
+              ),
               (!inDropdown || settings.useRewrittenEventTitlesInDropdown) else {
             return item.title
         }
@@ -135,6 +142,21 @@ extension CalendarMonitor {
             originalTitle: item.title,
             maximumCharacters: settings.eventTitleMaxCharacters
         )
+    }
+
+    func rewrittenEventTitle(for item: UpcomingItem, settings: AppSettings) -> String? {
+        guard settings.useEventTitleEllipsis,
+              settings.rewriteEventTitlesWithAppleIntelligence,
+              AppSettingsRules.allowsAppleIntelligenceTitleRewrite(
+                maximumCharacters: settings.eventTitleMaxCharacters
+              ),
+              EventTitleRewriteResolver.shouldRequestRewrite(
+                for: item.title,
+                maximumCharacters: settings.eventTitleMaxCharacters
+              ) else {
+            return nil
+        }
+        return rewrittenEventTitlesByItemKey[item.notificationKey]
     }
 
     private func cancelEventTitleRewrites(clearDisplayedTitles: Bool) {

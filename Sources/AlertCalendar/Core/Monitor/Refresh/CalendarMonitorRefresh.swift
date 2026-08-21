@@ -79,8 +79,12 @@ extension CalendarMonitor {
         let visibleTimedItems = deduplicatedTimedItems.filter { !skippedItemKeys.contains($0.notificationKey) }
         let visibleAllDayItems = deduplicatedAllDayItems.filter { !skippedItemKeys.contains($0.notificationKey) }
 
-        upcomingItems = visibleTimedItems
-        allDayEventItems = visibleAllDayItems
+        if upcomingItems != visibleTimedItems {
+            upcomingItems = visibleTimedItems
+        }
+        if allDayEventItems != visibleAllDayItems {
+            allDayEventItems = visibleAllDayItems
+        }
         scheduleEventTitleRewritesIfNeeded(now: now, settings: settings)
         if isInitialLoadInProgress {
             isInitialLoadInProgress = false
@@ -89,6 +93,7 @@ extension CalendarMonitor {
         pruneAlertCaches(using: visibleTimedItems)
         evaluateAlert(now: now, settings: settings)
         updateMenuBarState(now: now, settings: settings)
+        rescheduleHeartbeat()
         requestSlackStatusSyncEvaluation(now: now, settings: settings)
         externalFeedDiagnostics = await ExternalFeedMetrics.shared.snapshot()
     }

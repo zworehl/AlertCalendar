@@ -34,6 +34,20 @@ enum AgendaSummaryAvailability: Equatable, Sendable {
     }
 }
 
+enum AgendaSummaryPresentationAction: Equatable, Sendable {
+    case request(fingerprint: Int)
+    case cancel
+
+    static func resolve(
+        isEnabled: Bool,
+        availability: AgendaSummaryAvailability,
+        requestFingerprint: Int
+    ) -> Self {
+        guard isEnabled, availability.isAvailable else { return .cancel }
+        return .request(fingerprint: requestFingerprint)
+    }
+}
+
 struct AgendaSummaryRequest: Equatable, Sendable {
     struct Item: Equatable, Sendable {
         let sourceKey: String
@@ -50,7 +64,7 @@ struct AgendaSummaryRequest: Equatable, Sendable {
         let urlCount: Int
         let urlHosts: [String]
         let linkedPageURLs: [URL]
-        var linkedPagePreview: String?
+        var linkedPagePreviews: [String]
         let hasMeetingURL: Bool
         let travelTimeMinutes: Int?
         let location: String?
@@ -106,7 +120,7 @@ struct AgendaSummaryRequest: Equatable, Sendable {
                     urlCount: item.urlCount,
                     urlHosts: item.urlHosts.map { Self.bounded($0, maximumLength: 100) },
                     linkedPageURLs: item.agendaSummaryURLCandidates,
-                    linkedPagePreview: nil,
+                    linkedPagePreviews: [],
                     hasMeetingURL: item.meetingURL != nil,
                     travelTimeMinutes: item.travelTimeMinutes,
                     location: Self.boundedOptional(item.locationText, maximumLength: 180),
@@ -142,7 +156,7 @@ struct AgendaSummaryRequest: Equatable, Sendable {
             hasher.combine(item.urlCount)
             hasher.combine(item.urlHosts)
             hasher.combine(item.linkedPageURLs)
-            hasher.combine(item.linkedPagePreview)
+            hasher.combine(item.linkedPagePreviews)
             hasher.combine(item.hasMeetingURL)
             hasher.combine(item.travelTimeMinutes)
             hasher.combine(item.location)
@@ -152,14 +166,20 @@ struct AgendaSummaryRequest: Equatable, Sendable {
         return hasher.finalize()
     }
 
-    func addingLinkedPagePreviews(_ previewsByItemKey: [String: String]) -> Self {
+    func generationFingerprint(usesLinkedPagePreviews: Bool) -> Int {
+        var hasher = Hasher()
+        hasher.combine(fingerprint)
+        hasher.combine(usesLinkedPagePreviews)
+        return hasher.finalize()
+    }
+
+    func addingLinkedPagePreviews(_ previewsByItemKey: [String: [String]]) -> Self {
         var enrichedRequest = self
         enrichedRequest.items = items.map { item in
             var enrichedItem = item
-            enrichedItem.linkedPagePreview = Self.boundedOptional(
-                previewsByItemKey[item.sourceKey],
-                maximumLength: 420
-            )
+            enrichedItem.linkedPagePreviews = (previewsByItemKey[item.sourceKey] ?? []).compactMap {
+                Self.boundedOptional($0, maximumLength: 420)
+            }
             return enrichedItem
         }
         return enrichedRequest

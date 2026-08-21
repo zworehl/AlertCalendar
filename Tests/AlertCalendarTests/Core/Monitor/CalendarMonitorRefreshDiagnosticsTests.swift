@@ -90,6 +90,7 @@ final class CalendarMonitorRefreshDiagnosticsTests: XCTestCase {
         XCTAssertFalse(CalendarMonitorRefreshReason.calendarSync.triggersFootballAutoAddSync)
         XCTAssertFalse(CalendarMonitorRefreshReason.calendarSync.forcesExternalFeedRefresh)
         XCTAssertEqual(CalendarMonitorRefreshReason.calendarSync.title, "Calendar sync")
-        XCTAssertEqual(CalendarMonitorCadence.calendarStateRefreshInterval, 60)
+        XCTAssertEqual(CalendarMonitorCadence.calendarStateRefreshInterval, 10 * 60)
+        XCTAssertEqual(CalendarMonitorCadence.maximumHeartbeatInterval, 60)
     }
 }

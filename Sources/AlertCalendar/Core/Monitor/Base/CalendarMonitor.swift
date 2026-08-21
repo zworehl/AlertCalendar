@@ -7,33 +7,38 @@ extension EKReminder: @retroactive @unchecked Sendable {}
 
 @MainActor
 final class CalendarMonitor: ObservableObject {
-    @Published var isInitialLoadInProgress = true
-    @Published var combinedMenuBarLabel = "Loading..."
-    @Published var combinedMenuBarColor: NSColor = .systemGray
-    @Published var combinedMenuBarAlertedSegmentIndex: Int?
-    @Published var combinedMenuBarAlertTextOpacity: CGFloat = 0
-    @Published var combinedMenuBarDotColors: [NSColor] = [.systemGray]
-    @Published var combinedMenuBarMarkerStyles: [MenuMarkerStyle] = [.color(.systemGray)]
-    @Published var combinedMenuBarSegments: [String] = ["Loading..."]
-    @Published var combinedMenuBarSegmentBackgroundColors: [NSColor] = [.clear]
-    @Published var combinedMenuBarSegmentBackgroundProgresses: [CGFloat] = [0]
-    @Published var combinedMenuBarSegmentParticipationStatuses: [EventParticipationStatus?] = [nil]
-    @Published var combinedMenuBarSegmentTextureStatuses: [EventParticipationStatus?] = [nil]
-    @Published var combinedMenuBarSegmentAccessorySymbolNames: [[String]] = [[]]
-    @Published var combinedMenuBarFootballDisplay: FootballMenuBarDisplay?
-    @Published var combinedMenuBarFootballTrailingText: String?
-    @Published var combinedMenuBarFootballStatusText: String?
-    @Published var combinedMenuBarFootballStatusColor: NSColor = .systemGreen
-    @Published var combinedMenuBarFootballGoalHighlightSide: FootballScoreSide?
-    @Published var combinedMenuBarFootballGoalHighlightTextOpacity: CGFloat = 0
+    @Published var isInitialLoadInProgress = true {
+        didSet {
+            menuBarPresentationModel.setLoading(isInitialLoadInProgress)
+        }
+    }
+    let menuBarPresentationModel = MenuBarPresentationModel()
+    var combinedMenuBarLabel = "Loading..."
+    var combinedMenuBarColor: NSColor = .systemGray
+    var combinedMenuBarAlertedSegmentIndex: Int?
+    var combinedMenuBarAlertTextOpacity: CGFloat = 0
+    var combinedMenuBarDotColors: [NSColor] = [.systemGray]
+    var combinedMenuBarMarkerStyles: [MenuMarkerStyle] = [.color(.systemGray)]
+    var combinedMenuBarSegments: [String] = ["Loading..."]
+    var combinedMenuBarSegmentBackgroundColors: [NSColor] = [.clear]
+    var combinedMenuBarSegmentBackgroundProgresses: [CGFloat] = [0]
+    var combinedMenuBarSegmentParticipationStatuses: [EventParticipationStatus?] = [nil]
+    var combinedMenuBarSegmentTextureStatuses: [EventParticipationStatus?] = [nil]
+    var combinedMenuBarSegmentAccessorySymbolNames: [[String]] = [[]]
+    var combinedMenuBarFootballDisplay: FootballMenuBarDisplay?
+    var combinedMenuBarFootballTrailingText: String?
+    var combinedMenuBarFootballStatusText: String?
+    var combinedMenuBarFootballStatusColor: NSColor = .systemGreen
+    var combinedMenuBarFootballGoalHighlightSide: FootballScoreSide?
+    var combinedMenuBarFootballGoalHighlightTextOpacity: CGFloat = 0
     @Published var hasEventsAccess = false
     @Published var hasRemindersAccess = false
     @Published var availableEventCalendars: [AvailableCalendar] = []
     @Published var availableReminderCalendars: [AvailableCalendar] = []
-    @Published var eventsMenuBarLabel = "No events"
-    @Published var remindersMenuBarLabel = "No reminders"
-    @Published var eventsMenuBarColor: NSColor = .systemGray
-    @Published var remindersMenuBarColor: NSColor = .systemGray
+    var eventsMenuBarLabel = "No events"
+    var remindersMenuBarLabel = "No reminders"
+    var eventsMenuBarColor: NSColor = .systemGray
+    var remindersMenuBarColor: NSColor = .systemGray
     @Published var upcomingItems: [UpcomingItem] = []
     @Published var activeAlertItem: UpcomingItem?
     @Published var calendarAccessDescription = "Requesting access..."
@@ -81,16 +86,16 @@ final class CalendarMonitor: ObservableObject {
         AppSettingsStore(defaults: defaults)
     }
 
-    var heartbeatCancellable: AnyCancellable?
+    var heartbeatTask: Task<Void, Never>?
     var menuBarAnimationCancellable: AnyCancellable?
     var defaultsObserver: AnyCancellable?
     var eventStoreObserver: AnyCancellable?
     var appActivationObserver: AnyCancellable?
     var workspaceResumeObserver: AnyCancellable?
     let refreshCoordinator = CalendarMonitorRefreshCoordinator()
-    var tickCount = 0
     var lastCalendarStateRefreshDate: Date?
     var lastPeriodicRefreshDate: Date?
+    var lastAgendaSummaryAvailabilityCheckDate: Date?
     var birthdayCalendarIDs: Set<String> = []
     var allDayEventItems: [UpcomingItem] = []
     var alreadyNotified: Set<String> = []
@@ -106,10 +111,13 @@ final class CalendarMonitor: ObservableObject {
     var calendarAlertFullSyncToken: UUID?
     var calendarAlertFullSyncFingerprintInProgress: String?
     var agendaSummaryTask: Task<Void, Never>?
+    var agendaSummaryRetryTask: Task<Void, Never>?
+    var agendaSummaryRetryAttempt = 0
     var agendaSummaryRequestFingerprint: Int?
     var eventTitleRewriteTask: Task<Void, Never>?
     var eventTitleRewriteFingerprint: Int?
-    var eventTitleRewriteCache: [EventTitleRewriteCacheKey: String] = [:]
+    var eventTitleRewriteCache = AlertCalendarLRUCache<EventTitleRewriteCacheKey, String>(capacity: 256)
+    var virtualLocationTextCache = AlertCalendarLRUCache<String, Bool>(capacity: 256)
 
     init(
         eventStore: EKEventStore = EKEventStore(),
@@ -262,7 +270,13 @@ final class CalendarMonitor: ObservableObject {
 
     func reloadCurrentSettings() {
         let settings = settingsStore.load()
+        let shouldInvalidateAgendaSummary = currentSettings.showAgendaSummary != settings.showAgendaSummary
+            || currentSettings.agendaSummaryMaximumWords != settings.agendaSummaryMaximumWords
+            || currentSettings.useLinkedPagePreviewsInAgendaSummary != settings.useLinkedPagePreviewsInAgendaSummary
         currentSettings = settings
+        if shouldInvalidateAgendaSummary {
+            cancelAgendaSummary()
+        }
         prepareFootballNotificationAuthorizationIfNeeded(settings: settings)
         prepareGameSaleNotificationAuthorizationIfNeeded()
     }

@@ -16,6 +16,7 @@ extension MenuContentView {
         let queueItemsForSplitLayout: [UpcomingItem]
         let queueItemsForActions: [UpcomingItem]
         let shouldUseSplitDropdownLayout: Bool
+        let showsAgendaSummary: Bool
         let dropdownMinimumWidth: CGFloat
         let sharedContextualFootballMatches: [FootballFixtureMatch]?
         let sharedContextualFootballCompetitionTitle: String?
@@ -184,6 +185,7 @@ extension MenuContentView {
             queueItemsForSplitLayout: splitQueueItems,
             queueItemsForActions: displayedQueueItems,
             shouldUseSplitDropdownLayout: usesSplitLayout,
+            showsAgendaSummary: shouldDisplayAgendaSummary,
             dropdownMinimumWidth: dropdownMinimumWidth,
             sharedContextualFootballMatches: footballMatches,
             sharedContextualFootballCompetitionTitle: sharedCompetitionTitle,

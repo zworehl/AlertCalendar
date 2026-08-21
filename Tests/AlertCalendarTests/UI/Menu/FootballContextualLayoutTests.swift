@@ -230,6 +230,7 @@ final class FootballContextualLayoutTests: AlertCalendarModelTestCase {
             queueItemsForSplitLayout: [],
             queueItemsForActions: [],
             shouldUseSplitDropdownLayout: false,
+            showsAgendaSummary: false,
             dropdownMinimumWidth: dropdownMinimumWidth,
             sharedContextualFootballMatches: nil,
             sharedContextualFootballCompetitionTitle: nil,
@@ -518,6 +519,7 @@ final class FootballContextualLayoutTests: AlertCalendarModelTestCase {
             queueItemsForSplitLayout: [],
             queueItemsForActions: [],
             shouldUseSplitDropdownLayout: true,
+            showsAgendaSummary: false,
             dropdownMinimumWidth: 708,
             sharedContextualFootballMatches: nil,
             sharedContextualFootballCompetitionTitle: nil,
@@ -572,6 +574,57 @@ final class FootballContextualLayoutTests: AlertCalendarModelTestCase {
             width: 336
         )
         XCTAssertEqual(stretchedPanelSize.height, 564, accuracy: 1)
+    }
+
+    func testSplitSummaryReservesFullWidthSpaceAboveThePrimaryColumnMinimum() {
+        XCTAssertEqual(
+            MenuContentView.resolvedSplitPrimaryColumnsHeightLimit(
+                totalHeightLimit: 520,
+                summaryHeight: 84
+            ),
+            428
+        )
+        XCTAssertEqual(
+            MenuContentView.resolvedSplitPrimaryColumnsHeightLimit(
+                totalHeightLimit: 520,
+                summaryHeight: 0
+            ),
+            520
+        )
+        XCTAssertEqual(
+            MenuContentView.resolvedSplitPrimaryColumnsHeightLimit(
+                totalHeightLimit: 520,
+                summaryHeight: 400
+            ),
+            280
+        )
+    }
+
+    func testSplitUpcomingPanelUsesTheRemainingPrimaryColumnHeightBeforeMeasurement() {
+        XCTAssertEqual(
+            MenuContentView.resolvedSplitUpcomingPanelHeight(
+                measuredHeight: 0,
+                columnHeightLimit: 428,
+                reservedAlertHeight: 0
+            ),
+            428
+        )
+        XCTAssertEqual(
+            MenuContentView.resolvedSplitUpcomingPanelHeight(
+                measuredHeight: 260,
+                columnHeightLimit: 428,
+                reservedAlertHeight: 0
+            ),
+            260
+        )
+        XCTAssertEqual(
+            MenuContentView.resolvedSplitUpcomingPanelHeight(
+                measuredHeight: 900,
+                columnHeightLimit: 428,
+                reservedAlertHeight: 0
+            ),
+            428
+        )
     }
 
     func testSplitAttendeePreviewUsesRemainingHeightAlongsideLocationPreview() {
@@ -640,6 +693,7 @@ final class FootballContextualLayoutTests: AlertCalendarModelTestCase {
             queueItemsForSplitLayout: [],
             queueItemsForActions: [],
             shouldUseSplitDropdownLayout: true,
+            showsAgendaSummary: false,
             dropdownMinimumWidth: 708,
             sharedContextualFootballMatches: nil,
             sharedContextualFootballCompetitionTitle: nil,

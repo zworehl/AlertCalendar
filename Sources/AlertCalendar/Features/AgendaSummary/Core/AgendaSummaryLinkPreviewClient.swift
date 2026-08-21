@@ -17,10 +17,9 @@ actor AgendaSummaryLinkPreviewClient: AgendaSummaryLinkPreviewProviding {
         let expiresAt: Date
     }
 
-    private static let maximumLinksPerSummary = 3
     private static let maximumResponseBytes = 64 * 1_024
     private static let maximumRedirects = 2
-    private static let requestTimeout: TimeInterval = 5
+    private static let requestTimeout: TimeInterval = 15
     private static let successCacheLifetime: TimeInterval = 30 * 60
     private static let failureCacheLifetime: TimeInterval = 5 * 60
     private static let maximumCacheEntries = 48
@@ -96,11 +95,11 @@ actor AgendaSummaryLinkPreviewClient: AgendaSummaryLinkPreviewProviding {
         }
         trimCacheIfNeeded()
 
-        var previewsByItemKey: [String: String] = [:]
+        var previewsByItemKey: [String: [String]] = [:]
         for selection in selections {
             guard let preview = previewsByURL[selection.url.absoluteString] else { continue }
             for itemKey in selection.itemKeys {
-                previewsByItemKey[itemKey] = preview
+                previewsByItemKey[itemKey, default: []].append(preview)
             }
         }
         return request.addingLinkedPagePreviews(previewsByItemKey)
@@ -115,13 +114,13 @@ actor AgendaSummaryLinkPreviewClient: AgendaSummaryLinkPreviewProviding {
                 guard let url = AgendaSummaryLinkPreviewURLPolicy.eligibleURL(rawURL) else { continue }
                 let key = url.absoluteString
                 if let index = indexByURL[key] {
-                    selections[index].itemKeys.append(item.sourceKey)
-                    break
+                    if !selections[index].itemKeys.contains(item.sourceKey) {
+                        selections[index].itemKeys.append(item.sourceKey)
+                    }
+                    continue
                 }
-                guard selections.count < maximumLinksPerSummary else { break }
                 indexByURL[key] = selections.count
                 selections.append(Selection(url: url, itemKeys: [item.sourceKey]))
-                break
             }
         }
         return selections

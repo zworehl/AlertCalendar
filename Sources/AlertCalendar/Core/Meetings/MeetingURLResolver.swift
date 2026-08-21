@@ -2,6 +2,7 @@ import Foundation
 
 enum MeetingURLResolver {
     private static let linkDetectorThreadKey = "AlertCalendar.MeetingURLResolver.linkDetector"
+    private static let detectedURLCache = MeetingURLDetectionCache()
 
     private static let assetExtensions: Set<String> = [
         "png", "jpg", "jpeg", "gif", "svg", "webp", "bmp", "ico", "tif", "tiff", "heic", "avif",
@@ -51,6 +52,9 @@ enum MeetingURLResolver {
     }
 
     static func allURLs(in text: String) -> [URL] {
+        if let cached = detectedURLCache.value(for: text) {
+            return cached
+        }
         guard let detector = linkDetector() else {
             return []
         }
@@ -66,6 +70,7 @@ enum MeetingURLResolver {
             }
         }
 
+        detectedURLCache.insert(urls, for: text)
         return urls
     }
 
@@ -292,6 +297,31 @@ enum MeetingURLResolver {
             || host.contains("meet.jit.si")
             || host.contains("chime.aws")
             || host.contains("amazonchime.")
+    }
+}
+
+private final class MeetingURLDetectionCache: @unchecked Sendable {
+    private final class URLList: NSObject {
+        let urls: [URL]
+
+        init(_ urls: [URL]) {
+            self.urls = urls
+        }
+    }
+
+    private let cache: NSCache<NSString, URLList> = {
+        let cache = NSCache<NSString, URLList>()
+        cache.countLimit = 256
+        cache.totalCostLimit = 2 * 1024 * 1024
+        return cache
+    }()
+
+    func value(for text: String) -> [URL]? {
+        cache.object(forKey: text as NSString)?.urls
+    }
+
+    func insert(_ urls: [URL], for text: String) {
+        cache.setObject(URLList(urls), forKey: text as NSString, cost: text.utf8.count)
     }
 }
 

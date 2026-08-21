@@ -10,6 +10,7 @@ struct MenuContentView: View {
     let headerTitle: String
 
     @State var dropdownReferenceDate = AlertCalendarClock.nowRoundedToSecond()
+    @State var isDropdownVisible = false
     @State var splitUpcomingPanelHeight: CGFloat = 0
     @State var splitRightColumnHeight: CGFloat = 0
     @State var splitContextualCompactPanelHeight: CGFloat = 0
@@ -36,9 +37,13 @@ struct MenuContentView: View {
     var body: some View {
         let snapshot = layoutSnapshot
         let summaryRequest = agendaSummaryRequest(snapshot: snapshot)
-        let shouldGenerateSummary = settings.showAgendaSummary
-            && monitor.agendaSummaryAvailability.isAvailable
-        let summaryTaskID: Int? = shouldGenerateSummary ? summaryRequest.fingerprint : nil
+        let summaryPresentationAction = AgendaSummaryPresentationAction.resolve(
+            isEnabled: settings.showAgendaSummary,
+            availability: monitor.agendaSummaryAvailability,
+            requestFingerprint: summaryRequest.generationFingerprint(
+                usesLinkedPagePreviews: settings.useLinkedPagePreviewsInAgendaSummary
+            )
+        )
         let resolvedDropdownWidth = snapshot.dropdownMinimumWidth
         let shouldShowLoading = monitor.isInitialLoadInProgress
 
@@ -58,40 +63,42 @@ struct MenuContentView: View {
                     }
 
                     if snapshot.shouldUseSplitDropdownLayout {
-                        HStack(alignment: .top, spacing: splitColumnSpacing) {
-                            contextualActionSection(snapshot: snapshot)
-                            .frame(
-                                width: contextualPanelOuterWidth(snapshot: snapshot),
-                                alignment: .topLeading
-                            )
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(alignment: .top, spacing: splitColumnSpacing) {
+                                contextualActionSection(snapshot: snapshot)
+                                .frame(
+                                    width: contextualPanelOuterWidth(snapshot: snapshot),
+                                    alignment: .topLeading
+                                )
 
-                            VStack(alignment: .leading, spacing: 8) {
-                                if !snapshot.filteredAlertDescriptions.isEmpty {
-                                    alertBannerSection(alertDescriptions: snapshot.filteredAlertDescriptions)
+                                VStack(alignment: .leading, spacing: 8) {
+                                    if !snapshot.filteredAlertDescriptions.isEmpty {
+                                        alertBannerSection(alertDescriptions: snapshot.filteredAlertDescriptions)
+                                    }
+
+                                    upcomingSection(snapshot: snapshot)
                                 }
-
-                                upcomingSection(snapshot: snapshot)
-
-                                dropdownSummarySections(snapshot: snapshot)
-                                    .background(
-                                        GeometryReader { proxy in
-                                            Color.clear.preference(
-                                                key: SplitSummaryPanelHeightPreferenceKey.self,
-                                                value: proxy.size.height
-                                            )
-                                        }
-                                    )
+                                .frame(width: upcomingPanelOuterWidth(snapshot: snapshot), alignment: .topLeading)
+                                .clipped()
+                                .background(
+                                    GeometryReader { proxy in
+                                        Color.clear.preference(
+                                            key: SplitRightColumnHeightPreferenceKey.self,
+                                            value: splitUpcomingPanelHeight > 0 ? proxy.size.height : 0
+                                        )
+                                    }
+                                )
                             }
-                            .frame(width: upcomingPanelOuterWidth(snapshot: snapshot), alignment: .topLeading)
-                            .clipped()
-                            .background(
-                                GeometryReader { proxy in
-                                    Color.clear.preference(
-                                        key: SplitRightColumnHeightPreferenceKey.self,
-                                        value: splitUpcomingPanelHeight > 0 ? proxy.size.height : 0
-                                    )
-                                }
-                            )
+
+                            dropdownSummarySections(snapshot: snapshot)
+                                .background(
+                                    GeometryReader { proxy in
+                                        Color.clear.preference(
+                                            key: SplitSummaryPanelHeightPreferenceKey.self,
+                                            value: proxy.size.height
+                                        )
+                                    }
+                                )
                         }
                     } else {
                         if !snapshot.displayedContextualActionItems.isEmpty {
@@ -107,24 +114,39 @@ struct MenuContentView: View {
             .padding(dropdownOuterPadding)
         }
         .background {
-            MenuPopoverVisualEffect()
-                .accessibilityHidden(true)
+            ZStack {
+                MenuPopoverVisualEffect()
+                    .accessibilityHidden(true)
+                MenuWindowVisibilityObserver(isVisible: $isDropdownVisible)
+                    .frame(width: 0, height: 0)
+                    .accessibilityHidden(true)
+            }
         }
         .environment(\.controlSize, .small)
         .fixedSize(horizontal: false, vertical: !snapshot.shouldUseSplitDropdownLayout)
         .frame(width: resolvedDropdownWidth, alignment: .leading)
         .clipped()
         .onAppear {
+            isDropdownVisible = true
             prepareDropdownPresentation()
         }
-        .task(id: summaryTaskID) {
-            if shouldGenerateSummary {
+        .onDisappear {
+            isDropdownVisible = false
+        }
+        .onChange(of: isDropdownVisible) { isVisible in
+            guard isVisible else { return }
+            prepareDropdownPresentation()
+        }
+        .task(id: summaryPresentationAction) {
+            switch summaryPresentationAction {
+            case .request:
                 monitor.requestAgendaSummary(summaryRequest)
-            } else {
+            case .cancel:
                 monitor.cancelAgendaSummary()
             }
         }
-        .task {
+        .task(id: isDropdownVisible) {
+            guard isDropdownVisible else { return }
             await keepDropdownReferenceDateFresh()
         }
         .onPreferenceChange(SplitUpcomingPanelHeightPreferenceKey.self) { height in

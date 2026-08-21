@@ -45,6 +45,12 @@ extension MenuContentView {
         panelContentWidth(forOuterWidth: upcomingPanelOuterWidth(snapshot: snapshot))
     }
 
+    func splitContentOuterWidth(snapshot: LayoutSnapshot) -> CGFloat {
+        contextualPanelOuterWidth(snapshot: snapshot)
+            + splitColumnSpacing
+            + upcomingPanelOuterWidth(snapshot: snapshot)
+    }
+
     private func singleColumnPanelOuterWidth(snapshot: LayoutSnapshot) -> CGFloat {
         max(
             minimumSingleColumnDropdownWidth - (dropdownOuterPadding * 2),
@@ -200,9 +206,7 @@ extension MenuContentView {
     }
 
     var estimatedDropdownSummaryHeight: CGFloat {
-        settings.showAgendaSummary
-            && monitor.agendaSummaryAvailability.isAvailable
-            && monitor.agendaSummaryState != .unavailable ? 78 : 0
+        shouldDisplayAgendaSummary ? 84 : 0
     }
 
     func estimatedContextualPanelHeight(for items: [UpcomingItem]) -> CGFloat {
@@ -331,7 +335,25 @@ extension MenuContentView {
     func splitPanelHeight(measuredHeight: CGFloat, snapshot: LayoutSnapshot) -> CGFloat? {
         guard snapshot.shouldUseSplitDropdownLayout else { return nil }
         guard measuredHeight > 0 else { return nil }
-        return min(splitDropdownColumnHeightLimit, measuredHeight)
+        return min(splitPrimaryColumnsHeightLimit(snapshot: snapshot), measuredHeight)
+    }
+
+    func splitPrimaryColumnsHeightLimit(snapshot: LayoutSnapshot) -> CGFloat {
+        let summaryHeight = snapshot.showsAgendaSummary
+            ? max(splitSummaryPanelHeight, estimatedDropdownSummaryHeight)
+            : 0
+        return Self.resolvedSplitPrimaryColumnsHeightLimit(
+            totalHeightLimit: splitDropdownColumnHeightLimit,
+            summaryHeight: summaryHeight
+        )
+    }
+
+    nonisolated static func resolvedSplitPrimaryColumnsHeightLimit(
+        totalHeightLimit: CGFloat,
+        summaryHeight: CGFloat
+    ) -> CGFloat {
+        let summarySpacing: CGFloat = summaryHeight > 0 ? 8 : 0
+        return max(280, totalHeightLimit - summaryHeight - summarySpacing)
     }
 
     func splitContextualPanelHeight(
@@ -361,24 +383,38 @@ extension MenuContentView {
 
     func upcomingSplitPanelHeight(snapshot: LayoutSnapshot) -> CGFloat? {
         guard snapshot.shouldUseSplitDropdownLayout else { return nil }
-        guard splitUpcomingPanelHeight > 0 else { return nil }
 
-        let summaryHeight = splitSummaryPanelHeight > 0
-            ? splitSummaryPanelHeight
-            : estimatedDropdownSummaryHeight
-        let summarySpacing: CGFloat = summaryHeight > 0 ? 8 : 0
         let alertHeight: CGFloat
         if snapshot.filteredAlertDescriptions.isEmpty {
             alertHeight = 0
         } else {
             alertHeight = CGFloat(snapshot.filteredAlertDescriptions.count) * 26 + 24
         }
+
+        return Self.resolvedSplitUpcomingPanelHeight(
+            measuredHeight: splitUpcomingPanelHeight,
+            columnHeightLimit: splitPrimaryColumnsHeightLimit(snapshot: snapshot),
+            reservedAlertHeight: alertHeight
+        )
+    }
+
+    nonisolated static func resolvedSplitUpcomingPanelHeight(
+        measuredHeight: CGFloat,
+        columnHeightLimit: CGFloat,
+        reservedAlertHeight: CGFloat
+    ) -> CGFloat {
         let availableUpcomingHeight = max(
             120,
-            splitDropdownColumnHeightLimit - summaryHeight - summarySpacing - alertHeight
+            columnHeightLimit
+                - reservedAlertHeight
         )
 
-        return min(splitUpcomingPanelHeight, availableUpcomingHeight)
+        // On the first layout pass the queue has not published its measured
+        // height yet. Reserving the remaining column height immediately keeps
+        // the summary below it inside the popover instead of letting an
+        // unconstrained queue push the summary beyond a shorter screen.
+        guard measuredHeight > 0 else { return availableUpcomingHeight }
+        return min(measuredHeight, availableUpcomingHeight)
     }
 
     func upcomingSplitPanelContentHeight(snapshot: LayoutSnapshot) -> CGFloat {

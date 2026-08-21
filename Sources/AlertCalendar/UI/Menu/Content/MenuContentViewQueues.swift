@@ -97,28 +97,25 @@ extension MenuContentView {
 
     @ViewBuilder
     func dropdownSummarySections(snapshot: LayoutSnapshot) -> some View {
-        if settings.showAgendaSummary,
-           monitor.agendaSummaryAvailability.isAvailable,
-           monitor.agendaSummaryState != .unavailable {
-            if snapshot.shouldUseSplitDropdownLayout {
-                ScrollView(.vertical, showsIndicators: true) {
-                    dropdownSummarySectionContent(snapshot: snapshot)
-                }
-                .frame(width: upcomingPanelOuterWidth(snapshot: snapshot), alignment: .topLeading)
-                .frame(maxHeight: min(260, splitDropdownColumnHeightLimit * 0.52), alignment: .top)
-                .clipped()
-            } else {
-                dropdownSummarySectionContent(snapshot: snapshot)
-            }
+        if snapshot.showsAgendaSummary {
+            dropdownSummarySectionContent(snapshot: snapshot)
         }
     }
 
     private func dropdownSummarySectionContent(snapshot: LayoutSnapshot) -> some View {
         agendaSummarySection(snapshot: snapshot)
         .frame(
-            width: upcomingPanelOuterWidth(snapshot: snapshot),
+            width: snapshot.shouldUseSplitDropdownLayout
+                ? splitContentOuterWidth(snapshot: snapshot)
+                : upcomingPanelOuterWidth(snapshot: snapshot),
             alignment: .topLeading
         )
+    }
+
+    var shouldDisplayAgendaSummary: Bool {
+        settings.showAgendaSummary
+            && monitor.agendaSummaryAvailability.isAvailable
+            && monitor.agendaSummaryState != .unavailable
     }
 
     func contextualActionPanelContent(snapshot: LayoutSnapshot) -> some View {
@@ -160,7 +157,11 @@ extension MenuContentView {
                     case .item(let item):
                         actionRow(
                             item: item,
-                            actions: [.skip]
+                            actions: [.skip],
+                            listPosition: MenuListRowPosition.position(
+                                for: index,
+                                itemCount: entries.count
+                            )
                         )
                     case .birthdayGroup(let group):
                         birthdayGroupRows(group)

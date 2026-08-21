@@ -1,7 +1,8 @@
 import AppKit
+import Combine
 import Foundation
 
-struct MenuBarPresentationState {
+struct MenuBarPresentationState: Equatable {
     var label: String
     var color: NSColor
     var alertedSegmentIndex: Int?
@@ -63,5 +64,51 @@ struct MenuBarPresentationState {
             footballGoalHighlightSide: nil,
             footballGoalHighlightTextOpacity: 0
         )
+    }
+
+    static func == (lhs: MenuBarPresentationState, rhs: MenuBarPresentationState) -> Bool {
+        lhs.label == rhs.label
+            && lhs.color.isEqual(rhs.color)
+            && lhs.alertedSegmentIndex == rhs.alertedSegmentIndex
+            && lhs.alertTextOpacity == rhs.alertTextOpacity
+            && colorsAreEqual(lhs.dotColors, rhs.dotColors)
+            && lhs.markerStyles == rhs.markerStyles
+            && lhs.segments == rhs.segments
+            && colorsAreEqual(lhs.segmentBackgroundColors, rhs.segmentBackgroundColors)
+            && lhs.segmentBackgroundProgresses == rhs.segmentBackgroundProgresses
+            && lhs.segmentParticipationStatuses == rhs.segmentParticipationStatuses
+            && lhs.segmentTextureStatuses == rhs.segmentTextureStatuses
+            && lhs.segmentAccessorySymbolNames == rhs.segmentAccessorySymbolNames
+            && lhs.footballDisplay == rhs.footballDisplay
+            && lhs.footballTrailingText == rhs.footballTrailingText
+            && lhs.footballStatusText == rhs.footballStatusText
+            && lhs.footballStatusColor.isEqual(rhs.footballStatusColor)
+            && lhs.footballGoalHighlightSide == rhs.footballGoalHighlightSide
+            && lhs.footballGoalHighlightTextOpacity == rhs.footballGoalHighlightTextOpacity
+    }
+
+    private static func colorsAreEqual(_ lhs: [NSColor], _ rhs: [NSColor]) -> Bool {
+        lhs.count == rhs.count && zip(lhs, rhs).allSatisfy { $0.isEqual($1) }
+    }
+}
+
+@MainActor
+final class MenuBarPresentationModel: ObservableObject {
+    @Published private(set) var state: MenuBarPresentationState = .loading
+    @Published private(set) var isLoading = true
+
+    func apply(_ state: MenuBarPresentationState) {
+        guard self.state != state else { return }
+        self.state = state
+    }
+
+    func setLoading(_ isLoading: Bool) {
+        guard self.isLoading != isLoading else { return }
+        self.isLoading = isLoading
+    }
+
+    func setAlertTextOpacity(_ opacity: CGFloat) {
+        guard state.alertTextOpacity != opacity else { return }
+        state.alertTextOpacity = opacity
     }
 }

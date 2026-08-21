@@ -10,6 +10,74 @@ enum MenuContentNativeMetrics {
     static let rowCornerRadius: CGFloat = 6
 }
 
+enum MenuListRowPosition {
+    case only
+    case first
+    case middle
+    case last
+
+    static func position(for index: Int, itemCount: Int) -> Self {
+        guard itemCount > 1 else { return .only }
+        if index == 0 { return .first }
+        return index == itemCount - 1 ? .last : .middle
+    }
+}
+
+struct MenuListRowBackgroundShape: Shape {
+    let position: MenuListRowPosition
+    let cornerRadius: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let radius = min(cornerRadius, min(rect.width, rect.height) / 2)
+        guard radius > 0 else {
+            var path = Path()
+            path.addRect(rect)
+            return path
+        }
+
+        switch position {
+        case .only:
+            return RoundedRectangle(cornerRadius: radius, style: .continuous).path(in: rect)
+        case .middle:
+            var path = Path()
+            path.addRect(rect)
+            return path
+        case .first:
+            var path = Path()
+            path.move(to: CGPoint(x: rect.minX, y: rect.maxY))
+            path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + radius))
+            path.addQuadCurve(
+                to: CGPoint(x: rect.minX + radius, y: rect.minY),
+                control: CGPoint(x: rect.minX, y: rect.minY)
+            )
+            path.addLine(to: CGPoint(x: rect.maxX - radius, y: rect.minY))
+            path.addQuadCurve(
+                to: CGPoint(x: rect.maxX, y: rect.minY + radius),
+                control: CGPoint(x: rect.maxX, y: rect.minY)
+            )
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+            path.closeSubpath()
+            return path
+        case .last:
+            var path = Path()
+            path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - radius))
+            path.addQuadCurve(
+                to: CGPoint(x: rect.maxX - radius, y: rect.maxY),
+                control: CGPoint(x: rect.maxX, y: rect.maxY)
+            )
+            path.addLine(to: CGPoint(x: rect.minX + radius, y: rect.maxY))
+            path.addQuadCurve(
+                to: CGPoint(x: rect.minX, y: rect.maxY - radius),
+                control: CGPoint(x: rect.minX, y: rect.maxY)
+            )
+            path.closeSubpath()
+            return path
+        }
+    }
+}
+
 /// `MenuBarExtraStyle.window` supplies the native panel behavior. An AppKit
 /// popover material keeps its content visually consistent with system extras and
 /// automatically follows the window's active state, appearance, contrast and

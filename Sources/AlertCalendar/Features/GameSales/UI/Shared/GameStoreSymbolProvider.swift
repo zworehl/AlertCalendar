@@ -2,9 +2,20 @@ import AppKit
 import SwiftUI
 
 enum GameStoreSymbolProvider {
+    @MainActor private static let imageCache: NSCache<NSString, NSImage> = {
+        let cache = NSCache<NSString, NSImage>()
+        cache.countLimit = 32
+        return cache
+    }()
+
     @MainActor
     static func image(for store: GameStore, size: CGFloat) -> NSImage? {
         let resolvedSize = max(8, size)
+        let cacheKey = NSString(string: "\(store.rawValue)|\(resolvedSize)")
+        if let cached = imageCache.object(forKey: cacheKey) {
+            return cached
+        }
+
         guard let assetURL = assetURL(for: store),
               let sourceImage = NSImage(contentsOf: assetURL) else {
             return nil
@@ -23,6 +34,7 @@ enum GameStoreSymbolProvider {
         bounds.fill(using: .sourceAtop)
 
         image.isTemplate = false
+        imageCache.setObject(image, forKey: cacheKey)
         return image
     }
 

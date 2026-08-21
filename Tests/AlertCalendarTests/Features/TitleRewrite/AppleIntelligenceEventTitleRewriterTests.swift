@@ -2,19 +2,38 @@ import XCTest
 @testable import AlertCalendar
 
 final class AppleIntelligenceEventTitleRewriterTests: XCTestCase {
-    func testShortTitleStillUsesModelWhenRewriteIsRequested() async throws {
+    func testRewriteUsesModelWhenTitleNeedsCompression() async throws {
         let client = AppleIntelligenceEventTitleRewriter(
             availabilityProvider: { .available },
             responder: { instructions, prompt in
                 XCTAssertTrue(instructions.contains("event or reminder title"))
-                XCTAssertTrue(prompt.contains("20 characters"))
-                return .init(title: "Team sync")
+                XCTAssertFalse(instructions.contains("even when the original already fits"))
+                XCTAssertTrue(prompt.contains("30 characters"))
+                return .init(title: "Create PR sync RQA")
             }
         )
 
-        let title = try await client.rewriteTitle("Team sync", maximumCharacters: 20)
+        let title = try await client.rewriteTitle(
+            "Create a PR to synchronize RQA with staging",
+            maximumCharacters: 30
+        )
 
-        XCTAssertEqual(title, "Team sync")
+        XCTAssertEqual(title, "Create PR sync RQA")
+    }
+
+    func testResolverRequestsRewriteOnlyWhenTitleExceedsLimit() {
+        XCTAssertFalse(
+            EventTitleRewriteResolver.shouldRequestRewrite(
+                for: "Create a PR to synchronize RQA",
+                maximumCharacters: 30
+            )
+        )
+        XCTAssertTrue(
+            EventTitleRewriteResolver.shouldRequestRewrite(
+                for: "Create a PR to synchronize RQA",
+                maximumCharacters: 29
+            )
+        )
     }
 
     func testResolvedRewrittenTitleFallsBackToLocalCharacterLimit() {

@@ -117,6 +117,7 @@ final class AgendaSummaryLinkPreviewTests: XCTestCase {
         AgendaSummaryLinkPreviewMockURLProtocol.requestHandler = { request in
             XCTAssertEqual(request.url, sourceURL)
             XCTAssertEqual(request.value(forHTTPHeaderField: "Range"), "bytes=0-65535")
+            XCTAssertEqual(request.timeoutInterval, 15)
             let response = try XCTUnwrap(
                 HTTPURLResponse(
                     url: sourceURL,
@@ -133,20 +134,63 @@ final class AgendaSummaryLinkPreviewTests: XCTestCase {
             session: session,
             hostEligibilityProvider: { _ in true }
         )
-        let item = makeItem(url: sourceURL)
+        let item = makeItem(urls: [sourceURL])
         let request = AgendaSummaryRequest(now: item.date, upcomingItems: [item])
         let enriched = await client.requestByAddingLinkedPagePreviews(request)
 
         XCTAssertEqual(
-            enriched.items.first?.linkedPagePreview,
-            "Page title: Launch brief. Page description: Review the final checklist."
+            enriched.items.first?.linkedPagePreviews,
+            ["Page title: Launch brief. Page description: Review the final checklist."]
         )
-        XCTAssertFalse(enriched.items.first?.linkedPagePreview?.contains(sourceURL.absoluteString) == true)
+        XCTAssertFalse(enriched.items.first?.linkedPagePreviews.joined().contains(sourceURL.absoluteString) == true)
     }
 
-    private func makeItem(url: URL) -> UpcomingItem {
+    func testClientFetchesEveryEligibleURLFromEveryEvent() async throws {
+        let firstURL = URL(string: "https://example.com/first")!
+        let secondURL = URL(string: "https://example.com/second")!
+        let thirdURL = URL(string: "https://example.com/third")!
+        let fourthURL = URL(string: "https://example.com/fourth")!
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [AgendaSummaryLinkPreviewMockURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        AgendaSummaryLinkPreviewMockURLProtocol.requestHandler = { request in
+            let title = request.url?.lastPathComponent ?? "unknown"
+            let response = try XCTUnwrap(
+                HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["Content-Type": "text/html"]
+                )
+            )
+            return (response, Data("<title>\(title)</title>".utf8))
+        }
+
+        let client = AgendaSummaryLinkPreviewClient(
+            session: session,
+            hostEligibilityProvider: { _ in true }
+        )
+        let firstItem = makeItem(id: "first-event", urls: [firstURL, secondURL])
+        let secondItem = makeItem(id: "second-event", urls: [thirdURL, fourthURL])
+        let request = AgendaSummaryRequest(
+            now: firstItem.date,
+            upcomingItems: [firstItem, secondItem]
+        )
+        let enriched = await client.requestByAddingLinkedPagePreviews(request)
+
+        XCTAssertEqual(
+            enriched.items.first?.linkedPagePreviews,
+            ["Page title: first.", "Page title: second."]
+        )
+        XCTAssertEqual(
+            enriched.items.last?.linkedPagePreviews,
+            ["Page title: third.", "Page title: fourth."]
+        )
+    }
+
+    private func makeItem(id: String = "launch", urls: [URL]) -> UpcomingItem {
         UpcomingItem(
-            id: "launch",
+            id: id,
             title: "Launch review",
             date: Date(timeIntervalSince1970: 1_776_427_200),
             endDate: nil,
@@ -157,7 +201,7 @@ final class AgendaSummaryLinkPreviewTests: XCTestCase {
             meetingURL: nil,
             urlCount: 1,
             urlHosts: ["example.com"],
-            agendaSummaryURLCandidates: [url],
+            agendaSummaryURLCandidates: urls,
             calendarID: "work",
             calendarName: "Work",
             calendarColor: .systemBlue,

@@ -47,7 +47,7 @@ extension CalendarMonitor {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 guard let self else { return }
-                self.synchronizeCalendarState()
+                self.synchronizeCalendarStateIfNeeded()
                 self.scheduleAutomaticAstronomyLocationRefresh(trigger: .appActivation)
             }
 
@@ -79,45 +79,172 @@ extension CalendarMonitor {
 
     func startHeartbeat() {
         let now = fixedSecondNow()
-        lastCalendarStateRefreshDate = now
-        lastPeriodicRefreshDate = now
-        heartbeatCancellable = Timer.publish(
-            every: CalendarMonitorCadence.heartbeatInterval,
-            on: .main,
-            in: .common
-        )
-            .autoconnect()
-            .sink { [weak self] _ in
-                guard let self else { return }
+        lastCalendarStateRefreshDate = lastCalendarStateRefreshDate ?? now
+        lastPeriodicRefreshDate = lastPeriodicRefreshDate ?? now
+        lastAgendaSummaryAvailabilityCheckDate = lastAgendaSummaryAvailabilityCheckDate ?? now
+        restartHeartbeatTask()
+    }
 
-                tickCount += 1
-                if tickCount.isMultiple(of: 10) {
-                    refreshAgendaSummaryAvailability()
-                }
+    func rescheduleHeartbeat() {
+        guard heartbeatTask != nil else { return }
+        restartHeartbeatTask()
+    }
+
+    private func restartHeartbeatTask() {
+        heartbeatTask?.cancel()
+        heartbeatTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
                 let now = fixedSecondNow()
                 let settings = snapshotSettings()
+                let delay = nextHeartbeatInterval(now: now, settings: settings)
 
-                evaluateAlert(now: now, settings: settings)
-                updateMenuBarState(now: now, settings: settings)
-                evaluateSlackStatusSyncOnHeartbeatIfNeeded(now: now, settings: settings)
-                scheduleHourlyAutomaticAstronomyLocationRefreshIfNeeded(now: now)
-
-                if CalendarMonitorTime.hasElapsed(
-                    since: lastCalendarStateRefreshDate,
-                    now: now,
-                    interval: CalendarMonitorCadence.calendarStateRefreshInterval
-                ) {
-                    synchronizeCalendarState()
+                do {
+                    try await Task.sleep(nanoseconds: CalendarMonitorTime.nanoseconds(forDelay: delay))
+                } catch {
+                    return
                 }
 
-                let periodicRefreshInterval = CalendarMonitorCadence.periodicRefreshInterval
-                if CalendarMonitorTime.hasElapsed(since: lastPeriodicRefreshDate, now: now, interval: periodicRefreshInterval) {
-                    lastPeriodicRefreshDate = now
-                    enqueueRefresh(reason: .periodic)
-                } else if shouldRefreshFootballOnHeartbeat(now: now) {
-                    enqueueRefresh(reason: .footballHeartbeat)
+                guard !Task.isCancelled else { return }
+                performHeartbeat(now: fixedSecondNow(), settings: snapshotSettings())
+            }
+        }
+    }
+
+    private func performHeartbeat(now: Date, settings: AppSettings) {
+        if CalendarMonitorTime.hasElapsed(
+            since: lastAgendaSummaryAvailabilityCheckDate,
+            now: now,
+            interval: CalendarMonitorCadence.agendaSummaryAvailabilityRefreshInterval
+        ) {
+            lastAgendaSummaryAvailabilityCheckDate = now
+            refreshAgendaSummaryAvailability()
+        }
+
+        evaluateAlert(now: now, settings: settings)
+        updateMenuBarState(now: now, settings: settings)
+        evaluateSlackStatusSyncOnHeartbeatIfNeeded(now: now, settings: settings)
+        scheduleHourlyAutomaticAstronomyLocationRefreshIfNeeded(now: now)
+
+        if CalendarMonitorTime.hasElapsed(
+            since: lastCalendarStateRefreshDate,
+            now: now,
+            interval: CalendarMonitorCadence.calendarStateRefreshInterval
+        ) {
+            synchronizeCalendarState()
+        }
+
+        if CalendarMonitorTime.hasElapsed(
+            since: lastPeriodicRefreshDate,
+            now: now,
+            interval: CalendarMonitorCadence.periodicRefreshInterval
+        ) {
+            lastPeriodicRefreshDate = now
+            enqueueRefresh(reason: .periodic)
+        } else if shouldRefreshFootballOnHeartbeat(now: now) {
+            enqueueRefresh(reason: .footballHeartbeat)
+        }
+    }
+
+    func nextHeartbeatInterval(now: Date, settings: AppSettings) -> TimeInterval {
+        var delay = nextPresentationRefreshInterval(now: now, settings: settings)
+
+        func includeDeadline(lastDate: Date?, interval: TimeInterval) {
+            guard let lastDate else {
+                delay = CalendarMonitorCadence.minimumHeartbeatInterval
+                return
+            }
+            let remaining = interval - now.timeIntervalSince(lastDate)
+            delay = min(delay, max(CalendarMonitorCadence.minimumHeartbeatInterval, remaining))
+        }
+
+        includeDeadline(
+            lastDate: lastAgendaSummaryAvailabilityCheckDate,
+            interval: CalendarMonitorCadence.agendaSummaryAvailabilityRefreshInterval
+        )
+        includeDeadline(
+            lastDate: lastCalendarStateRefreshDate,
+            interval: CalendarMonitorCadence.calendarStateRefreshInterval
+        )
+        includeDeadline(
+            lastDate: lastPeriodicRefreshDate,
+            interval: CalendarMonitorCadence.periodicRefreshInterval
+        )
+
+        if !managedFootballMatchIDs.isEmpty {
+            let trackedMatches = managedFootballMatchIDs.compactMap { footballMatchesByID[$0] }
+            let footballInterval = Self.footballManagedRefreshInterval(
+                for: trackedMatches,
+                hasMissingTrackedMatches: trackedMatches.count < managedFootballMatchIDs.count,
+                now: now
+            )
+            includeDeadline(lastDate: lastFootballManagedSyncDate, interval: footballInterval)
+        }
+
+        return min(
+            max(delay, CalendarMonitorCadence.minimumHeartbeatInterval),
+            CalendarMonitorCadence.maximumHeartbeatInterval
+        )
+    }
+
+    func nextPresentationRefreshInterval(now: Date, settings: AppSettings) -> TimeInterval {
+        var delay = CalendarMonitorCadence.maximumHeartbeatInterval
+        let secondInMinute = now.timeIntervalSince1970.truncatingRemainder(dividingBy: 60)
+        delay = min(delay, secondInMinute == 0 ? 60 : 60 - secondInMinute)
+
+        if activeFootballGoalHighlight != nil {
+            return CalendarMonitorCadence.minimumHeartbeatInterval
+        }
+
+        let alertLeadSeconds = TimeInterval(max(1, settings.alertLeadMinutes) * 60)
+        let menuBarWindowSeconds = TimeInterval(max(5, settings.menuBarRotationWindowMinutes) * 60)
+        var needsProgressRefresh = false
+
+        for item in upcomingItems + allDayEventItems {
+            let travelStart = Self.travelStartDate(for: item)
+            let transitionDates = [
+                item.date.addingTimeInterval(-alertLeadSeconds),
+                item.date.addingTimeInterval(-menuBarWindowSeconds),
+                travelStart,
+                item.date,
+                item.date.addingTimeInterval(Self.timedEventStartAlertDuration),
+                item.endDate
+            ].compactMap { $0 }
+
+            for transitionDate in transitionDates {
+                let remaining = transitionDate.timeIntervalSince(now)
+                if remaining > 0 {
+                    delay = min(delay, remaining)
                 }
             }
+
+            let countdownTargets = [travelStart, item.date, item.endDate].compactMap { $0 }
+            if countdownTargets.contains(where: { abs($0.timeIntervalSince(now)) < 60 }) {
+                return CalendarMonitorCadence.minimumHeartbeatInterval
+            }
+
+            let hasActiveEventProgress = item.kind == .event
+                && !item.isAllDay
+                && item.date <= now
+                && item.endDate.map { now < $0 } == true
+            let hasActiveTravelProgress = travelStart.map { $0 <= now && now < item.date } == true
+            needsProgressRefresh = needsProgressRefresh || hasActiveEventProgress || hasActiveTravelProgress
+        }
+
+        if needsProgressRefresh {
+            delay = min(delay, CalendarMonitorCadence.activeProgressRefreshInterval)
+        }
+
+        if let rotationStartedAt = menuBarRotationState.startedAt {
+            let rotationInterval = TimeInterval(max(5, settings.concurrentEventRotationSeconds))
+            let remaining = rotationInterval - now.timeIntervalSince(rotationStartedAt)
+            delay = min(delay, max(CalendarMonitorCadence.minimumHeartbeatInterval, remaining))
+        }
+
+        return min(
+            max(delay, CalendarMonitorCadence.minimumHeartbeatInterval),
+            CalendarMonitorCadence.maximumHeartbeatInterval
+        )
     }
 
     func synchronizeCalendarState(reason: CalendarMonitorRefreshReason = .calendarSync) {
@@ -126,6 +253,20 @@ extension CalendarMonitor {
         eventStore.refreshSourcesIfNecessary()
         lastCalendarStateRefreshDate = fixedSecondNow()
         enqueueRefresh(reason: reason)
+    }
+
+    func synchronizeCalendarStateIfNeeded(
+        minimumInterval: TimeInterval = CalendarMonitorCadence.agendaSummaryAvailabilityRefreshInterval
+    ) {
+        let now = fixedSecondNow()
+        guard CalendarMonitorTime.hasElapsed(
+            since: lastCalendarStateRefreshDate,
+            now: now,
+            interval: minimumInterval
+        ) else {
+            return
+        }
+        synchronizeCalendarState()
     }
 
     func setMenuBarAlertAnimationEnabled(_ isEnabled: Bool) {
@@ -154,10 +295,13 @@ extension CalendarMonitor {
         else {
             setMenuBarAlertAnimationEnabled(false)
             setIfChanged(\.combinedMenuBarAlertTextOpacity, to: 0)
+            menuBarPresentationModel.setAlertTextOpacity(0)
             return
         }
 
-        setIfChanged(\.combinedMenuBarAlertTextOpacity, to: Self.alertBlinkTextOpacity(now: now))
+        let opacity = Self.alertBlinkTextOpacity(now: now)
+        setIfChanged(\.combinedMenuBarAlertTextOpacity, to: opacity)
+        menuBarPresentationModel.setAlertTextOpacity(opacity)
     }
 
     func requestCalendarAccess() async {

@@ -34,7 +34,7 @@ struct AlertCalendarApp: App {
             MenuContentView(kindFilter: nil, headerTitle: "Alert Calendar")
                 .environmentObject(monitor)
         } label: {
-            MenuBarMonitorStatusLabel(monitor: monitor)
+            MenuBarMonitorStatusLabel(presentation: monitor.menuBarPresentationModel)
         }
         .menuBarExtraStyle(.window)
 
@@ -61,34 +61,35 @@ private final class CalendarMonitorOwner: ObservableObject {
 }
 
 private struct MenuBarMonitorStatusLabel: View {
-    @ObservedObject var monitor: CalendarMonitor
+    @ObservedObject var presentation: MenuBarPresentationModel
     @Environment(\.openWindow) private var openWindow
 
     @ViewBuilder
     var body: some View {
         Group {
-            if monitor.isInitialLoadInProgress {
+            if presentation.isLoading {
                 MenuBarLoadingIndicator()
             } else {
+                let state = presentation.state
                 MenuBarStatusLabel(
-                    text: monitor.combinedMenuBarLabel,
-                    color: monitor.combinedMenuBarColor,
-                    alertedSegmentIndex: monitor.combinedMenuBarAlertedSegmentIndex,
-                    alertTextOpacity: monitor.combinedMenuBarAlertTextOpacity,
-                    dotColors: monitor.combinedMenuBarDotColors,
-                    markerStyles: monitor.combinedMenuBarMarkerStyles,
-                    segments: monitor.combinedMenuBarSegments,
-                    segmentBackgroundColors: monitor.combinedMenuBarSegmentBackgroundColors,
-                    segmentBackgroundProgresses: monitor.combinedMenuBarSegmentBackgroundProgresses,
-                    segmentParticipationStatuses: monitor.combinedMenuBarSegmentParticipationStatuses,
-                    segmentTextureStatuses: monitor.combinedMenuBarSegmentTextureStatuses,
-                    segmentAccessorySymbolNames: monitor.combinedMenuBarSegmentAccessorySymbolNames,
-                    footballDisplay: monitor.combinedMenuBarFootballDisplay,
-                    footballTrailingText: monitor.combinedMenuBarFootballTrailingText,
-                    footballStatusText: monitor.combinedMenuBarFootballStatusText,
-                    footballStatusColor: monitor.combinedMenuBarFootballStatusColor,
-                    footballGoalHighlightSide: monitor.combinedMenuBarFootballGoalHighlightSide,
-                    footballGoalHighlightTextOpacity: monitor.combinedMenuBarFootballGoalHighlightTextOpacity
+                    text: state.label,
+                    color: state.color,
+                    alertedSegmentIndex: state.alertedSegmentIndex,
+                    alertTextOpacity: state.alertTextOpacity,
+                    dotColors: state.dotColors,
+                    markerStyles: state.markerStyles,
+                    segments: state.segments,
+                    segmentBackgroundColors: state.segmentBackgroundColors,
+                    segmentBackgroundProgresses: state.segmentBackgroundProgresses,
+                    segmentParticipationStatuses: state.segmentParticipationStatuses,
+                    segmentTextureStatuses: state.segmentTextureStatuses,
+                    segmentAccessorySymbolNames: state.segmentAccessorySymbolNames,
+                    footballDisplay: state.footballDisplay,
+                    footballTrailingText: state.footballTrailingText,
+                    footballStatusText: state.footballStatusText,
+                    footballStatusColor: state.footballStatusColor,
+                    footballGoalHighlightSide: state.footballGoalHighlightSide,
+                    footballGoalHighlightTextOpacity: state.footballGoalHighlightTextOpacity
                 )
             }
         }

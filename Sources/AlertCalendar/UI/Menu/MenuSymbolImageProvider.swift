@@ -1,6 +1,12 @@
 import AppKit
 
 enum MenuSymbolImageProvider {
+    @MainActor private static let imageCache: NSCache<NSString, NSImage> = {
+        let cache = NSCache<NSString, NSImage>()
+        cache.countLimit = 128
+        return cache
+    }()
+
     @MainActor
     static func tintedSystemSymbol(
         named symbolName: String,
@@ -8,6 +14,14 @@ enum MenuSymbolImageProvider {
         weight: NSFont.Weight,
         tintColor: NSColor
     ) -> NSImage? {
+        let tint = AlertCalendarColor(nsColor: tintColor)
+        let cacheKey = NSString(
+            string: "\(symbolName)|\(pointSize)|\(weight.rawValue)|\(tint.red)|\(tint.green)|\(tint.blue)|\(tint.alpha)"
+        )
+        if let cached = imageCache.object(forKey: cacheKey) {
+            return cached
+        }
+
         let configuration = NSImage.SymbolConfiguration(pointSize: pointSize, weight: weight)
         guard let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
             .withSymbolConfiguration(configuration) else {
@@ -25,6 +39,7 @@ enum MenuSymbolImageProvider {
         tintColor.setFill()
         bounds.fill(using: .sourceAtop)
         image.isTemplate = false
+        imageCache.setObject(image, forKey: cacheKey)
         return image
     }
 }

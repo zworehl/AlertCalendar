@@ -8,7 +8,7 @@ actor FootballImageStore {
     private let fileManager: FileManager
     private let session: URLSession
     private let baseDirectoryURL: URL
-    private var failedRequestDates: [String: Date] = [:]
+    private var failedRequestDates = AlertCalendarLRUCache<String, Date>(capacity: 256)
     private var lastCleanupDate: Date?
     private static let requestTimeout: TimeInterval = 6
     private static let resourceTimeout: TimeInterval = 12
@@ -54,7 +54,7 @@ actor FootballImageStore {
         }
 
         let requestKey = remoteURL.absoluteString
-        if let failedAt = failedRequestDates[requestKey],
+        if let failedAt = failedRequestDates.value(forKey: requestKey),
            now.timeIntervalSince(failedAt) < Self.failedRequestRetryInterval {
             await ExternalFeedMetrics.shared.recordCacheHit(source: "football.images.negative")
             return nil
@@ -65,7 +65,7 @@ actor FootballImageStore {
             request.timeoutInterval = Self.requestTimeout
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else {
-                failedRequestDates[requestKey] = now
+                failedRequestDates.insert(now, forKey: requestKey)
                 await ExternalFeedMetrics.shared.recordTransportFailure(source: "football.images")
                 return nil
             }
@@ -75,16 +75,16 @@ actor FootballImageStore {
                 responseBytes: data.count
             )
             guard (200...299).contains(http.statusCode), !data.isEmpty else {
-                failedRequestDates[requestKey] = now
+                failedRequestDates.insert(now, forKey: requestKey)
                 return nil
             }
 
             let imageData = Self.normalizedImageData(from: data, remoteURL: remoteURL)
             try imageData.write(to: destinationURL, options: [.atomic])
-            failedRequestDates[requestKey] = nil
+            failedRequestDates.removeValue(forKey: requestKey)
             return destinationURL
         } catch {
-            failedRequestDates[requestKey] = now
+            failedRequestDates.insert(now, forKey: requestKey)
             await ExternalFeedMetrics.shared.recordTransportFailure(source: "football.images")
             return nil
         }

@@ -1,86 +1,17 @@
 import AppKit
 import SwiftUI
 
-struct MenuBarLoadingIndicator: View {
-    nonisolated static let size: CGFloat = 16
-    nonisolated static let segmentCount = 12
-    nonisolated static let frameCount = 36
-    nonisolated static let frameIntervalNanoseconds: UInt64 = 50_000_000
-    nonisolated static let loadingGreen = NSColor(
-        srgbRed: 0.20,
-        green: 0.88,
-        blue: 0.42,
-        alpha: 1
-    )
-    @State private var frameIndex = 0
-
-    var body: some View {
-        Image(nsImage: Self.frames[frameIndex])
-            .renderingMode(.original)
-            .frame(width: Self.size, height: Self.size)
-            .accessibilityLabel("Loading Alert Calendar")
-            .help("Loading Alert Calendar")
-            .task {
-                while !Task.isCancelled {
-                    try? await Task.sleep(nanoseconds: Self.frameIntervalNanoseconds)
-                    guard !Task.isCancelled else { return }
-                    frameIndex = (frameIndex + 1) % Self.frameCount
-                }
-            }
-    }
-
-    nonisolated static let frames: [NSImage] = (0..<frameCount).map { frameIndex in
-        makeFrame(frameIndex: frameIndex)
-    }
-
-    nonisolated private static func makeFrame(frameIndex: Int) -> NSImage {
-        let image = NSImage(size: NSSize(width: size, height: size))
-        image.lockFocus()
-
-        let center = NSPoint(x: size / 2, y: size / 2)
-        let color = loadingColor(forFrame: frameIndex)
-        let rotationFrame = frameIndex % segmentCount
-        for segmentIndex in 0..<segmentCount {
-            let phase = (segmentIndex - rotationFrame + segmentCount) % segmentCount
-            let opacity = 0.16 + (CGFloat(phase) / CGFloat(segmentCount - 1)) * 0.84
-            color.withAlphaComponent(opacity).setStroke()
-
-            let startAngle = CGFloat(segmentIndex) * (360 / CGFloat(segmentCount)) - 4
-            let segment = NSBezierPath()
-            segment.appendArc(
-                withCenter: center,
-                radius: 5.25,
-                startAngle: startAngle,
-                endAngle: startAngle + 18
-            )
-            segment.lineWidth = 2
-            segment.lineCapStyle = .round
-            segment.stroke()
-        }
-
-        image.unlockFocus()
-        image.isTemplate = false
-        return image
-    }
-
-    nonisolated static func loadingColor(forFrame frameIndex: Int) -> NSColor {
-        let normalizedFrame = ((frameIndex % frameCount) + frameCount) % frameCount
-        let angle = (Double(normalizedFrame) / Double(frameCount)) * 2 * Double.pi
-        let whiteFraction = CGFloat((1 - cos(angle)) / 2)
-        let green = loadingGreen.usingColorSpace(.sRGB) ?? loadingGreen
-        let white = NSColor.white.usingColorSpace(.sRGB) ?? .white
-
-        return NSColor(
-            srgbRed: green.redComponent + ((white.redComponent - green.redComponent) * whiteFraction),
-            green: green.greenComponent + ((white.greenComponent - green.greenComponent) * whiteFraction),
-            blue: green.blueComponent + ((white.blueComponent - green.blueComponent) * whiteFraction),
-            alpha: 1
-        )
-    }
-}
-
 struct MenuBarStatusLabel: View {
     static let sharedPillCornerRadius: CGFloat = 2
+
+    private struct BadgeCacheKey: Equatable {
+        let state: MenuBarPresentationState
+        let fontSize: CGFloat
+        let footballLogoRevision: Int
+    }
+
+    @MainActor private static var cachedBadgeKey: BadgeCacheKey?
+    @MainActor private static var cachedBadgeImage: NSImage?
 
     let text: String
     let color: NSColor
@@ -185,8 +116,36 @@ struct MenuBarStatusLabel: View {
         fontSize: CGFloat,
         footballLogoRevision: Int
     ) -> NSImage {
-        _ = footballLogoRevision
+        let state = MenuBarPresentationState(
+            label: text,
+            color: color,
+            alertedSegmentIndex: alertedSegmentIndex,
+            alertTextOpacity: alertTextOpacity,
+            dotColors: dotColors,
+            markerStyles: markerStyles,
+            segments: segments,
+            segmentBackgroundColors: segmentBackgroundColors,
+            segmentBackgroundProgresses: segmentBackgroundProgresses,
+            segmentParticipationStatuses: segmentParticipationStatuses,
+            segmentTextureStatuses: segmentTextureStatuses,
+            segmentAccessorySymbolNames: segmentAccessorySymbolNames,
+            footballDisplay: footballDisplay,
+            footballTrailingText: footballTrailingText,
+            footballStatusText: footballStatusText,
+            footballStatusColor: footballStatusColor,
+            footballGoalHighlightSide: footballGoalHighlightSide,
+            footballGoalHighlightTextOpacity: footballGoalHighlightTextOpacity
+        )
         let clampedFontSize = min(max(fontSize, 10), 18)
+        let cacheKey = BadgeCacheKey(
+            state: state,
+            fontSize: clampedFontSize,
+            footballLogoRevision: footballLogoRevision
+        )
+        if cachedBadgeKey == cacheKey, let cachedBadgeImage {
+            return cachedBadgeImage
+        }
+
         let font = NSFont.systemFont(ofSize: clampedFontSize, weight: .semibold)
         let defaultTextColor = NSColor.white.withAlphaComponent(0.97)
         let baseTextAttributes: [NSAttributedString.Key: Any] = [
@@ -388,6 +347,8 @@ struct MenuBarStatusLabel: View {
             currentX += segmentSpacing
         }
 
+        cachedBadgeKey = cacheKey
+        cachedBadgeImage = image
         return image
     }
 

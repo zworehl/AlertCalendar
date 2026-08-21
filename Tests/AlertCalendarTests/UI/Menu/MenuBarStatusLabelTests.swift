@@ -25,29 +25,22 @@ final class MenuBarStatusLabelTests: XCTestCase {
         }
     }
 
-    func testInitialLoadingIndicatorUsesACompactMenuBarSize() {
-        XCTAssertEqual(MenuBarLoadingIndicator.size, 16)
-        XCTAssertEqual(MenuBarLoadingIndicator.frames.count, MenuBarLoadingIndicator.frameCount)
-        XCTAssertTrue(MenuBarLoadingIndicator.frames.allSatisfy { !$0.isTemplate })
-        XCTAssertTrue(MenuBarLoadingIndicator.frames.allSatisfy { $0.size == NSSize(width: 16, height: 16) })
+    func testInitialLoadingIndicatorUsesTheAlertCalendarIconWithACompactBadge() {
+        XCTAssertEqual(MenuBarLoadingIndicator.iconSize, 18)
+        XCTAssertEqual(MenuBarLoadingIndicator.badgeDiameter, 9)
+        XCTAssertEqual(MenuBarLoadingIndicator.canvasSize, NSSize(width: 20, height: 18))
+        XCTAssertGreaterThan(MenuBarLoadingIndicator.appIcon.size.width, 0)
+        XCTAssertGreaterThan(MenuBarLoadingIndicator.appIcon.size.height, 0)
     }
 
-    func testInitialLoadingIndicatorTransitionsFromGreenThroughWhite() {
-        let green = MenuBarLoadingIndicator.loadingColor(forFrame: 0).usingColorSpace(.sRGB)
-        let mixed = MenuBarLoadingIndicator.loadingColor(
-            forFrame: MenuBarLoadingIndicator.frameCount / 4
-        ).usingColorSpace(.sRGB)
-        let white = MenuBarLoadingIndicator.loadingColor(
-            forFrame: MenuBarLoadingIndicator.frameCount / 2
-        ).usingColorSpace(.sRGB)
+    func testInitialLoadingIndicatorHasDistinctSpinnerFrames() throws {
+        XCTAssertEqual(MenuBarLoadingIndicator.frames.count, MenuBarLoadingIndicator.frameCount)
+        XCTAssertTrue(MenuBarLoadingIndicator.frames.allSatisfy { !$0.isTemplate })
+        XCTAssertTrue(MenuBarLoadingIndicator.frames.allSatisfy { $0.size == MenuBarLoadingIndicator.canvasSize })
 
-        XCTAssertEqual(green?.redComponent ?? 0, 0.20, accuracy: 0.001)
-        XCTAssertEqual(green?.greenComponent ?? 0, 0.88, accuracy: 0.001)
-        XCTAssertGreaterThan(mixed?.redComponent ?? 0, green?.redComponent ?? 0)
-        XCTAssertLessThan(mixed?.redComponent ?? 0, white?.redComponent ?? 0)
-        XCTAssertEqual(white?.redComponent ?? 0, 1, accuracy: 0.001)
-        XCTAssertEqual(white?.greenComponent ?? 0, 1, accuracy: 0.001)
-        XCTAssertEqual(white?.blueComponent ?? 0, 1, accuracy: 0.001)
+        let firstFrame = try XCTUnwrap(MenuBarLoadingIndicator.frames.first?.tiffRepresentation)
+        let laterFrame = try XCTUnwrap(MenuBarLoadingIndicator.frames[4].tiffRepresentation)
+        XCTAssertNotEqual(firstFrame, laterFrame)
     }
 
     func testFootballLogoIsAvailableImmediatelyFromLocalPath() throws {

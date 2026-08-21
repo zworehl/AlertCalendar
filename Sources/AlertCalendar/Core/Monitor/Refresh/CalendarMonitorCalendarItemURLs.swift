@@ -67,8 +67,7 @@ extension CalendarMonitor {
                     && !urlsMatch(candidate, meetingURL)
                     && !MeetingURLResolver.isKnownMeetingURL(candidate)
                     && candidate.scheme?.lowercased() == "https"
-            }
-            .prefix(8))
+            })
     }
 
     nonisolated private static func calendarItemURLs(

@@ -1,7 +1,7 @@
 import Foundation
 
-extension AppleIntelligenceAgendaSummaryClient {
-    static func deterministicFallback(for request: AgendaSummaryRequest) -> String {
+enum AgendaSummaryFallback {
+    static func summary(for request: AgendaSummaryRequest) -> String {
         let timeZone = TimeZone(identifier: request.timeZoneIdentifier) ?? .autoupdatingCurrent
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
@@ -97,9 +97,9 @@ extension AppleIntelligenceAgendaSummaryClient {
     }
 
     private static func fallbackDetail(for item: AgendaSummaryRequest.Item) -> String? {
-        let rawDetails = [
-            item.description,
-            item.linkedPagePreview,
+        let rawDetails = [item.description]
+            + item.linkedPagePreviews
+            + [
             item.location.map { location in
                 if let travelTimeMinutes = item.travelTimeMinutes {
                     return "At \(location); allow \(travelTimeMinutes) minutes for travel"

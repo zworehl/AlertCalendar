@@ -43,7 +43,7 @@ extension FootballDataAPIClient {
         let trimmedID = athleteID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedID.isEmpty else { return nil }
 
-        if let cached = athleteCountryCache[trimmedID] {
+        if let cached = athleteCountryCache.value(forKey: trimmedID) {
             return cached
         }
         if missingAthleteCountryIDs.contains(trimmedID) {
@@ -51,7 +51,7 @@ extension FootballDataAPIClient {
         }
 
         guard let url = Self.athleteURL(athleteID: trimmedID) else {
-            missingAthleteCountryIDs.insert(trimmedID)
+            missingAthleteCountryIDs.insert(true, forKey: trimmedID)
             return nil
         }
 
@@ -64,7 +64,7 @@ extension FootballDataAPIClient {
             }
             guard (200...299).contains(http.statusCode) else {
                 if http.statusCode == 404 {
-                    missingAthleteCountryIDs.insert(trimmedID)
+                    missingAthleteCountryIDs.insert(true, forKey: trimmedID)
                 }
                 return nil
             }
@@ -74,11 +74,11 @@ extension FootballDataAPIClient {
                 ?? (root["athlete"] as? [String: Any]).flatMap(Self.athleteCountryName)
 
             guard let countryName else {
-                missingAthleteCountryIDs.insert(trimmedID)
+                missingAthleteCountryIDs.insert(true, forKey: trimmedID)
                 return nil
             }
 
-            athleteCountryCache[trimmedID] = countryName
+            athleteCountryCache.insert(countryName, forKey: trimmedID)
             return countryName
         } catch {
             return nil

@@ -48,7 +48,7 @@ final class AppleIntelligenceAgendaSummaryClientTests: XCTestCase {
                 XCTAssertFalse(prompt.contains("https://docs.google.com/document/d/brief"))
                 XCTAssertTrue(prompt.contains("\"urlCount\":2"))
                 XCTAssertTrue(prompt.contains("\"urlHosts\":[\"docs.google.com\",\"zoom.us\"]"))
-                XCTAssertTrue(prompt.contains("\"linkedPagePreview\":\"Page title: Launch planning brief.\""))
+                XCTAssertTrue(prompt.contains("\"linkedPagePreviews\":[\"Page title: Launch planning brief.\"]"))
                 XCTAssertTrue(prompt.contains("\"hasMeetingURL\":true"))
                 XCTAssertTrue(prompt.contains("\"travelTimeMinutes\":18"))
                 XCTAssertTrue(prompt.contains("\"location\":\"Downtown clinic\""))
@@ -218,6 +218,44 @@ final class AppleIntelligenceAgendaSummaryClientTests: XCTestCase {
         )
     }
 
+    func testPresentationPolicyRequestsAvailableSummary() {
+        XCTAssertEqual(
+            AgendaSummaryPresentationAction.resolve(
+                isEnabled: true,
+                availability: .available,
+                requestFingerprint: 42
+            ),
+            .request(fingerprint: 42)
+        )
+    }
+
+    func testPresentationPolicyCancelsOnlyWhenSummaryCannotBeUsed() {
+        XCTAssertEqual(
+            AgendaSummaryPresentationAction.resolve(
+                isEnabled: false,
+                availability: .available,
+                requestFingerprint: 42
+            ),
+            .cancel
+        )
+        XCTAssertEqual(
+            AgendaSummaryPresentationAction.resolve(
+                isEnabled: true,
+                availability: .modelNotReady,
+                requestFingerprint: 42
+            ),
+            .cancel
+        )
+    }
+
+    func testAgendaSummaryRetriesUseBoundedBackoff() {
+        XCTAssertEqual(CalendarMonitor.agendaSummaryRetryDelay(forAttempt: 0), 60)
+        XCTAssertEqual(CalendarMonitor.agendaSummaryRetryDelay(forAttempt: 1), 5 * 60)
+        XCTAssertEqual(CalendarMonitor.agendaSummaryRetryDelay(forAttempt: 2), 15 * 60)
+        XCTAssertNil(CalendarMonitor.agendaSummaryRetryDelay(forAttempt: 3))
+        XCTAssertNil(CalendarMonitor.agendaSummaryRetryDelay(forAttempt: -1))
+    }
+
     func testAgendaSummaryRequestSortsAllItemsAndKeepsFingerprintUntilVisibleListChanges() {
         let now = Date(timeIntervalSince1970: 1_776_427_200)
         let items = (0..<20).reversed().map { index in
@@ -272,6 +310,19 @@ final class AppleIntelligenceAgendaSummaryClientTests: XCTestCase {
 
         XCTAssertEqual(AgendaSummaryRequest(now: now, upcomingItems: [item]).maximumWords, 60)
         XCTAssertNotEqual(shortRequest.fingerprint, longRequest.fingerprint)
+    }
+
+    func testAgendaSummaryGenerationFingerprintTracksLinkedPagePreviewSetting() {
+        let request = makeRequest()
+
+        XCTAssertEqual(
+            request.generationFingerprint(usesLinkedPagePreviews: false),
+            request.generationFingerprint(usesLinkedPagePreviews: false)
+        )
+        XCTAssertNotEqual(
+            request.generationFingerprint(usesLinkedPagePreviews: false),
+            request.generationFingerprint(usesLinkedPagePreviews: true)
+        )
     }
 
     func testAgendaSummaryFingerprintChangesWhenEventMetadataChanges() {
@@ -373,6 +424,28 @@ final class AppleIntelligenceAgendaSummaryClientTests: XCTestCase {
         XCTAssertEqual(candidates, [documentURL])
     }
 
+    func testAgendaSummaryURLCandidatesKeepsEveryEligibleLink() {
+        let eventURL = URL(string: "https://example.com/event")!
+        let firstNoteURL = URL(string: "https://example.com/first")!
+        let secondNoteURL = URL(string: "https://example.com/second")!
+        let thirdNoteURL = URL(string: "https://example.com/third")!
+        let fourthNoteURL = URL(string: "https://example.com/fourth")!
+
+        let candidates = CalendarMonitor.agendaSummaryURLCandidates(
+            eventURL: eventURL,
+            notes: """
+            \(firstNoteURL.absoluteString) \(secondNoteURL.absoluteString)
+            \(thirdNoteURL.absoluteString) \(fourthNoteURL.absoluteString)
+            """,
+            meetingURL: nil
+        )
+
+        XCTAssertEqual(
+            candidates,
+            [eventURL, firstNoteURL, secondNoteURL, thirdNoteURL, fourthNoteURL]
+        )
+    }
+
     private func makeRequest() -> AgendaSummaryRequest {
         let now = Date(timeIntervalSince1970: 1_776_427_200)
         let sprintReview = makeItem(
@@ -407,7 +480,7 @@ final class AppleIntelligenceAgendaSummaryClientTests: XCTestCase {
             ]
         )
         return request.addingLinkedPagePreviews([
-            sprintReview.notificationKey: "Page title: Launch planning brief.",
+            sprintReview.notificationKey: ["Page title: Launch planning brief."],
         ])
     }
 

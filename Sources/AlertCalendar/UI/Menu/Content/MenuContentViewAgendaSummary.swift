@@ -70,7 +70,9 @@ extension MenuContentView {
     }
 
     func agendaSummarySection(snapshot: LayoutSnapshot) -> some View {
-        calendarSectionContainer {
+        calendarSectionContainer(
+            minimumHeight: snapshot.shouldUseSplitDropdownLayout ? 84 : nil
+        ) {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .center, spacing: 6) {
                     Image(systemName: "text.append")
@@ -81,23 +83,15 @@ extension MenuContentView {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
 
-                    Spacer(minLength: 8)
-
-                    if monitor.agendaSummaryState == .idle || monitor.agendaSummaryState == .loading {
-                        ProgressView()
-                            .controlSize(.small)
-                            .accessibilityLabel("Summarizing your schedule")
-                    }
                 }
 
                 switch monitor.agendaSummaryState {
                 case .idle, .loading:
-                    Text("Reviewing your upcoming schedule…")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    AgendaSummaryLoadingSkeleton()
                 case .ready(let summary):
                     Text(summary)
-                        .font(.caption)
+                        .font(.callout)
+                        .lineSpacing(2)
                         .foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)
                         .textSelection(.enabled)
@@ -106,7 +100,31 @@ extension MenuContentView {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(1)
             .animation(.easeInOut(duration: 0.18), value: monitor.agendaSummaryState)
         }
+    }
+}
+
+private struct AgendaSummaryLoadingSkeleton: View {
+    private let lineHeight: CGFloat = 8
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            placeholderLine()
+            placeholderLine(trailingInset: 22)
+            placeholderLine(trailingInset: 78)
+        }
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Summarizing your schedule")
+    }
+
+    private func placeholderLine(trailingInset: CGFloat = 0) -> some View {
+        Capsule()
+            .fill(.primary.opacity(0.12))
+            .frame(maxWidth: .infinity)
+            .frame(height: lineHeight)
+            .padding(.trailing, trailingInset)
     }
 }

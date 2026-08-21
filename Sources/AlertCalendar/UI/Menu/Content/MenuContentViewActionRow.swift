@@ -7,13 +7,15 @@ extension MenuContentView {
     @ViewBuilder
     func actionRow(
         item: UpcomingItem,
-        actions: [MenuAction]
+        actions: [MenuAction],
+        listPosition: MenuListRowPosition = .only
     ) -> some View {
         MenuContentHoverContainer { isHovered in
             actionRowContent(
                 item: item,
                 actions: actions,
-                isHovered: isHovered
+                isHovered: isHovered,
+                listPosition: listPosition
             )
         }
     }
@@ -22,7 +24,8 @@ extension MenuContentView {
     func actionRowContent(
         item: UpcomingItem,
         actions: [MenuAction],
-        isHovered: Bool
+        isHovered: Bool,
+        listPosition: MenuListRowPosition
     ) -> some View {
         let reservedTrailingWidth = actionRowPrimaryTrailingReservation(
             for: item,
@@ -41,7 +44,8 @@ extension MenuContentView {
                         now: now,
                         isHovered: isHovered,
                         hideTimeDetails: isHovered,
-                        reservedTrailingWidth: reservedTrailingWidth
+                        reservedTrailingWidth: reservedTrailingWidth,
+                        listPosition: listPosition
                     )
                 }
                 .buttonStyle(.plain)
@@ -53,7 +57,8 @@ extension MenuContentView {
                     now: now,
                     isHovered: isHovered,
                     hideTimeDetails: isHovered,
-                    reservedTrailingWidth: reservedTrailingWidth
+                    reservedTrailingWidth: reservedTrailingWidth,
+                    listPosition: listPosition
                 )
             }
 
@@ -101,7 +106,8 @@ extension MenuContentView {
         now: Date,
         isHovered: Bool = false,
         hideTimeDetails: Bool = false,
-        reservedTrailingWidth: CGFloat = 0
+        reservedTrailingWidth: CGFloat = 0,
+        listPosition: MenuListRowPosition = .only
     ) -> some View {
         let accentColor = Color(nsColor: item.calendarColor.nsColor)
         let titleColor: Color = .primary
@@ -138,6 +144,7 @@ extension MenuContentView {
             showsTravelTime: showTravelTime,
             showRightTimeColumn: showRightTimeColumn
         )
+        let rowShape = MenuListRowBackgroundShape(position: listPosition, cornerRadius: 7)
         let textBlock = HStack(alignment: .top, spacing: 8) {
             if let markerSymbol = markerSymbolName(for: item) {
                 Image(systemName: markerSymbol)
@@ -399,12 +406,12 @@ extension MenuContentView {
             let visual = monitor.segmentBackgroundVisual(for: item, now: now, settings: settings)
 
             if isHovered {
-                RoundedRectangle(cornerRadius: 7)
+                rowShape
                     .fill(Color(nsColor: .unemphasizedSelectedContentBackgroundColor))
             }
 
             if visual.color.alphaComponent > 0.01 {
-                RoundedRectangle(cornerRadius: 7)
+                rowShape
                     .fill(
                         Color(nsColor: visual.color)
                             .opacity(activeTextureStatus != nil ? 0.55 : 0.08)
@@ -412,7 +419,7 @@ extension MenuContentView {
 
                 if activeTextureStatus != nil {
                     CalendarParticipationTexture(status: activeTextureStatus)
-                        .clipShape(RoundedRectangle(cornerRadius: 7))
+                        .clipShape(rowShape)
                 }
             }
         }
@@ -420,19 +427,19 @@ extension MenuContentView {
             if let progress = monitor.activeEventProgress(for: item, now: now, settings: settings), progress > 0 {
                 GeometryReader { proxy in
                     ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 7)
+                        rowShape
                             .fill(Color(nsColor: item.calendarColor.nsColor).opacity(0.22))
 
                         if activeTextureStatus != nil {
                             CalendarParticipationTexture(status: activeTextureStatus)
-                                .clipShape(RoundedRectangle(cornerRadius: 7))
+                                .clipShape(rowShape)
                         }
                     }
                     .frame(width: max(10, proxy.size.width * progress))
                 }
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .clipShape(MenuListRowBackgroundShape(position: listPosition, cornerRadius: 7))
 
         textBlock
     }

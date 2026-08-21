@@ -7,14 +7,14 @@ actor FootballDataAPIClient {
     var teamCacheFetchedAt: [String: Date] = [:]
     var scoreboardPageCache: [String: ScoreboardPageCacheEntry] = [:]
     var scoreboardPageTasks: [String: Task<[FootballFixtureMatch], Error>] = [:]
-    var scoreboardPageFailures: [String: (count: Int, nextRetryAt: Date)] = [:]
-    var goalScorersCache: [String: FootballMatchGoalScorers] = [:]
-    var athleteCountryCache: [String: String] = [:]
-    var missingAthleteCountryIDs: Set<String> = []
-    var statisticsCache: [String: [FootballMatchStatistic]] = [:]
+    var scoreboardPageFailures = AlertCalendarLRUCache<String, (count: Int, nextRetryAt: Date)>(capacity: 320)
+    var goalScorersCache = AlertCalendarLRUCache<String, FootballMatchGoalScorers>(capacity: 160)
+    var athleteCountryCache = AlertCalendarLRUCache<String, String>(capacity: 320)
+    var missingAthleteCountryIDs = AlertCalendarLRUCache<String, Bool>(capacity: 320)
+    var statisticsCache = AlertCalendarLRUCache<String, [FootballMatchStatistic]>(capacity: 160)
     var summaryRootCache: [String: SummaryRootCacheEntry] = [:]
     var summaryRootTasks: [String: Task<Data?, Error>] = [:]
-    var summaryRootFailures: [String: (count: Int, nextRetryAt: Date)] = [:]
+    var summaryRootFailures = AlertCalendarLRUCache<String, (count: Int, nextRetryAt: Date)>(capacity: 120)
 
     init(
         session: URLSession? = nil,
@@ -110,7 +110,7 @@ actor FootballDataAPIClient {
         }
 
         if !forceRefresh,
-           let failure = scoreboardPageFailures[cacheKey],
+           let failure = scoreboardPageFailures.value(forKey: cacheKey),
            now < failure.nextRetryAt {
             if let cached = scoreboardPageCache[cacheKey] {
                 await ExternalFeedMetrics.shared.recordCacheHit(source: "football.scoreboard.\(slug).stale")
@@ -139,14 +139,17 @@ actor FootballDataAPIClient {
                 matches = try await task.value
             }
 
-            scoreboardPageFailures[cacheKey] = nil
+            scoreboardPageFailures.removeValue(forKey: cacheKey)
             cacheScoreboardMatchesPage(matches, for: cacheKey, fetchedAt: now)
             return matches
         } catch {
-            let failureCount = (scoreboardPageFailures[cacheKey]?.count ?? 0) + 1
-            scoreboardPageFailures[cacheKey] = (
-                failureCount,
-                now.addingTimeInterval(Self.scoreboardRetryDelay(forFailureCount: failureCount))
+            let failureCount = (scoreboardPageFailures.value(forKey: cacheKey)?.count ?? 0) + 1
+            scoreboardPageFailures.insert(
+                (
+                    failureCount,
+                    now.addingTimeInterval(Self.scoreboardRetryDelay(forFailureCount: failureCount))
+                ),
+                forKey: cacheKey
             )
             if let cached = scoreboardPageCache[cacheKey] {
                 return cached.matches
@@ -192,7 +195,7 @@ actor FootballDataAPIClient {
             return cached.root
         }
 
-        if let failure = summaryRootFailures[cacheKey], now < failure.nextRetryAt {
+        if let failure = summaryRootFailures.value(forKey: cacheKey), now < failure.nextRetryAt {
             if let cached = summaryRootCache[cacheKey],
                Self.summaryRoot(cached.root, satisfies: requirement, match: match) {
                 await ExternalFeedMetrics.shared.recordCacheHit(source: "football.summary.stale")
@@ -217,14 +220,17 @@ actor FootballDataAPIClient {
 
             guard let data else { return nil }
             let root = try Self.jsonDictionary(from: data)
-            summaryRootFailures[cacheKey] = nil
+            summaryRootFailures.removeValue(forKey: cacheKey)
             cacheSummaryRoot(root, for: cacheKey, fetchedAt: now)
             return root
         } catch {
-            let count = (summaryRootFailures[cacheKey]?.count ?? 0) + 1
-            summaryRootFailures[cacheKey] = (
-                count,
-                now.addingTimeInterval(Self.scoreboardRetryDelay(forFailureCount: count))
+            let count = (summaryRootFailures.value(forKey: cacheKey)?.count ?? 0) + 1
+            summaryRootFailures.insert(
+                (
+                    count,
+                    now.addingTimeInterval(Self.scoreboardRetryDelay(forFailureCount: count))
+                ),
+                forKey: cacheKey
             )
             if let cached = summaryRootCache[cacheKey],
                Self.summaryRoot(cached.root, satisfies: requirement, match: match) {
@@ -255,7 +261,7 @@ actor FootballDataAPIClient {
         guard match.totalGoals > 0 else { return nil }
 
         let cacheKey = Self.goalScorersCacheKey(for: match)
-        if let cached = goalScorersCache[cacheKey] {
+        if let cached = goalScorersCache.value(forKey: cacheKey) {
             return cached
         }
 
@@ -286,7 +292,7 @@ actor FootballDataAPIClient {
 
                 if candidateCount >= match.totalGoals {
                     let enrichedCandidate = await enrichedGoalScorers(candidate)
-                    goalScorersCache[cacheKey] = enrichedCandidate
+                    goalScorersCache.insert(enrichedCandidate, forKey: cacheKey)
                     return enrichedCandidate
                 }
             } catch {
@@ -309,7 +315,7 @@ actor FootballDataAPIClient {
         guard match.statusState != .scheduled else { return [] }
 
         let cacheKey = Self.statisticsCacheKey(for: match)
-        if let cached = statisticsCache[cacheKey] {
+        if let cached = statisticsCache.value(forKey: cacheKey) {
             return cached
         }
 
@@ -335,7 +341,7 @@ actor FootballDataAPIClient {
                 }
 
                 if candidate.count >= 10 {
-                    statisticsCache[cacheKey] = candidate
+                    statisticsCache.insert(candidate, forKey: cacheKey)
                     return candidate
                 }
             } catch {
@@ -344,7 +350,7 @@ actor FootballDataAPIClient {
         }
 
         if !bestStatistics.isEmpty {
-            statisticsCache[cacheKey] = bestStatistics
+            statisticsCache.insert(bestStatistics, forKey: cacheKey)
             return bestStatistics
         }
 

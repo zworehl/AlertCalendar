@@ -70,6 +70,10 @@ extension CalendarMonitor {
         setIfChanged(\.combinedMenuBarFootballGoalHighlightSide, to: state.footballGoalHighlightSide)
         setIfChanged(\.combinedMenuBarFootballGoalHighlightTextOpacity, to: state.footballGoalHighlightTextOpacity)
         setMenuBarAlertAnimationEnabled(shouldAnimateAlert)
+
+        var publishedState = state
+        publishedState.alertTextOpacity = combinedMenuBarAlertTextOpacity
+        menuBarPresentationModel.apply(publishedState)
     }
 
     nonisolated static let alertBlinkPeriod: TimeInterval = 2
@@ -176,9 +180,7 @@ extension CalendarMonitor {
                     activeEventDisplayMode: settings.activeEventDisplayMode,
                     useEventTitleEllipsis: settings.useEventTitleEllipsis,
                     eventTitleMaxCharacters: settings.eventTitleMaxCharacters,
-                    rewrittenTitle: settings.rewriteEventTitlesWithAppleIntelligence
-                        ? rewrittenEventTitlesByItemKey[$0.notificationKey]
-                        : nil
+                    rewrittenTitle: rewrittenEventTitle(for: $0, settings: settings)
                 )
             }
             let alertedSegmentIndex: Int?
@@ -213,7 +215,9 @@ extension CalendarMonitor {
                let highlight = activeFootballGoalHighlight,
                selectedItem?.footballMatch?.id == highlight.matchID {
                 footballGoalHighlightSide = highlight.scoringSide
-                footballGoalHighlightTextOpacity = tickCount.isMultiple(of: 2) ? 1.0 : 0.0
+                footballGoalHighlightTextOpacity = Int(now.timeIntervalSinceReferenceDate).isMultiple(of: 2)
+                    ? 1.0
+                    : 0.0
             } else {
                 footballGoalHighlightSide = nil
                 footballGoalHighlightTextOpacity = 0
@@ -266,9 +270,7 @@ extension CalendarMonitor {
             activeEventDisplayMode: settings.activeEventDisplayMode,
             useEventTitleEllipsis: settings.useEventTitleEllipsis,
             eventTitleMaxCharacters: settings.eventTitleMaxCharacters,
-            rewrittenTitle: settings.rewriteEventTitlesWithAppleIntelligence
-                ? nextEvent.flatMap { rewrittenEventTitlesByItemKey[$0.notificationKey] }
-                : nil,
+            rewrittenTitle: nextEvent.flatMap { rewrittenEventTitle(for: $0, settings: settings) },
             fallback: "No events"
         ))
 
@@ -279,9 +281,7 @@ extension CalendarMonitor {
             activeEventDisplayMode: settings.activeEventDisplayMode,
             useEventTitleEllipsis: settings.useEventTitleEllipsis,
             eventTitleMaxCharacters: settings.eventTitleMaxCharacters,
-            rewrittenTitle: settings.rewriteEventTitlesWithAppleIntelligence
-                ? nextReminder.flatMap { rewrittenEventTitlesByItemKey[$0.notificationKey] }
-                : nil,
+            rewrittenTitle: nextReminder.flatMap { rewrittenEventTitle(for: $0, settings: settings) },
             fallback: "No reminders"
         ))
     }

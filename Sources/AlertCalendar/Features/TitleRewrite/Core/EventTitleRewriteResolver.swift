@@ -1,6 +1,15 @@
 import Foundation
 
 enum EventTitleRewriteResolver {
+    static func shouldRequestRewrite(
+        for originalTitle: String,
+        maximumCharacters: Int
+    ) -> Bool {
+        let maximumCharacters = AppSettingsRules.normalizedEventTitleMaxCharacters(maximumCharacters)
+        let normalizedTitle = AppleIntelligenceEventTitleRewriter.normalized(originalTitle)
+        return !normalizedTitle.isEmpty && normalizedTitle.count > maximumCharacters
+    }
+
     static func resolvedTitle(
         _ rewrittenTitle: String?,
         originalTitle: String,
