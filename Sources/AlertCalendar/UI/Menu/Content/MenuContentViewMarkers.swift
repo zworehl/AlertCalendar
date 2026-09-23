@@ -4,6 +4,73 @@ import MapKit
 import SwiftUI
 
 extension MenuContentView {
+    @ViewBuilder
+    func menuMarkerColumn(
+        for item: UpcomingItem,
+        isHovered: Bool = false,
+        rowMinimumHeight: CGFloat = MenuMarkerMetrics.singleLineRowMinimumHeight,
+        allowsReminderCompletion: Bool = false
+    ) -> some View {
+        MenuMarkerColumn {
+            if item.kind == .reminder, allowsReminderCompletion {
+                reminderCompletionMarkerButton(for: item, isHovered: isHovered)
+            } else if let markerSymbol = markerSymbolName(for: item) {
+                Image(systemName: markerSymbol)
+                    .font(.system(size: MenuMarkerMetrics.symbolSize, weight: .regular))
+                    .frame(
+                        width: MenuMarkerMetrics.symbolSize,
+                        height: MenuMarkerMetrics.symbolSize
+                    )
+                    .foregroundStyle(Color(nsColor: item.calendarColor.nsColor))
+                    .padding(.top, markerTopPadding(for: item))
+            } else if let image = markerImage(for: item, isReminderFilled: isHovered) {
+                let markerSize = markerImageSize(for: item)
+                Image(nsImage: image)
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: markerSize.width, height: markerSize.height)
+                    .padding(.top, markerTopPadding(for: item))
+            } else {
+                Capsule()
+                    .fill(Color(nsColor: item.calendarColor.nsColor))
+                    .frame(
+                        width: 4,
+                        height: Self.dropdownCalendarMarkerHeight(
+                            rowMinimumHeight: rowMinimumHeight
+                        )
+                    )
+                    .padding(.top, MenuMarkerMetrics.markerFirstLineTopPadding)
+            }
+        }
+    }
+
+    @ViewBuilder
+    func reminderCompletionMarkerButton(
+        for item: UpcomingItem,
+        isHovered: Bool
+    ) -> some View {
+        let markerSize = markerImageSize(for: item)
+
+        Button {
+            monitor.markReminderCompleted(item)
+        } label: {
+            Image(
+                nsImage: reminderMarkerImage(
+                    color: item.calendarColor.nsColor,
+                    isFilled: isHovered
+                )
+            )
+            .resizable()
+            .interpolation(.high)
+            .frame(width: markerSize.width, height: markerSize.height)
+            .padding(.top, markerTopPadding(for: item))
+        }
+        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+        .accessibilityLabel("Complete \(item.title)")
+        .help("Complete reminder")
+    }
+
     func markerImage(for item: UpcomingItem, isReminderFilled: Bool = false) -> NSImage? {
         if let gameStore = item.gameStore {
             return GameStoreSymbolProvider.image(for: gameStore, size: MenuMarkerMetrics.symbolSize)
@@ -52,6 +119,28 @@ extension MenuContentView {
         )
     }
 
+    nonisolated static func reminderScheduleText(
+        for item: UpcomingItem,
+        now: Date,
+        simplified: Bool,
+        timedText: String,
+        calendar: Calendar = .current
+    ) -> String {
+        guard item.hasExplicitTime else {
+            return AlertCalendarRelativeTimeFormatter.calendarDayRelativeText(
+                for: item.date,
+                relativeTo: now,
+                calendar: calendar
+            )
+        }
+        guard item.date <= now else { return timedText }
+        return reminderDueText(
+            dueDate: item.date,
+            now: now,
+            simplified: simplified
+        )
+    }
+
     func markerSymbolName(for item: UpcomingItem) -> String? {
         if monitor.isBirthdayItem(item) {
             return "gift.circle.fill"
@@ -89,7 +178,9 @@ extension MenuContentView {
         switch store {
         case .steam:
             return 1
-        case .xbox, .playStation, .nintendoSwitch:
+        case .nintendoSwitch:
+            return MenuMarkerMetrics.markerFirstLineTopPadding
+        case .xbox, .playStation:
             return 0
         }
     }
@@ -236,80 +327,24 @@ extension MenuContentView {
             )
     }
 
-    func hoverActionRowWidth(
-        for item: UpcomingItem,
-        actions: [MenuAction] = [.skip]
-    ) -> CGFloat {
-        var widths: [CGFloat] = []
-
-        if item.meetingURL != nil {
-            widths.append(joinActionPillWidth())
-        }
-
-        for action in actions {
-            switch action {
-            case .skip:
-                widths.append(skipActionPillWidth())
-            case .complete:
-                widths.append(MenuActionControlMetrics.minimumHitTargetSize)
-            }
-        }
-
-        return actionButtonOverlayWidth(
-            for: widths,
-            trailingPadding: MenuActionControlMetrics.trailingInset
-        )
-    }
-
-    func contextualActionRowWidth(
-        for item: UpcomingItem,
-        locationText: String?,
-        showsJoinButton: Bool
-    ) -> CGFloat {
-        var widths: [CGFloat] = []
-
-        if showsJoinButton, item.meetingURL != nil {
-            widths.append(joinActionPillWidth())
-        }
-
-        if Self.hasUsableContextualLocation(locationText) {
-            widths.append(mapActionPillWidth())
-        }
-
-        widths.append(skipActionPillWidth())
-
-        return actionButtonOverlayWidth(
-            for: widths,
-            trailingPadding: MenuActionControlMetrics.trailingInset
-        )
-    }
-
     func joinActionPillWidth() -> CGFloat {
-        let joinTextFont = MenuMarkerMetrics.actionLabelNSFont
-        let joinTextWidth = Self.measuredTextWidth("Join", font: joinTextFont)
-        return actionPillWidth(textWidth: joinTextWidth)
+        MenuActionControlMetrics.minimumHitTargetSize
     }
 
     func mapActionPillWidth() -> CGFloat {
-        let mapTextFont = MenuMarkerMetrics.actionLabelNSFont
-        let mapTextWidth = Self.measuredTextWidth("Map", font: mapTextFont)
-        return actionPillWidth(textWidth: mapTextWidth)
+        MenuActionControlMetrics.minimumHitTargetSize
+    }
+
+    func openLinkActionPillWidth() -> CGFloat {
+        MenuActionControlMetrics.minimumHitTargetSize
     }
 
     func skipActionPillWidth() -> CGFloat {
-        let skipTextFont = MenuMarkerMetrics.actionLabelNSFont
-        let skipTextWidth = Self.measuredTextWidth("Skip", font: skipTextFont)
-        return actionPillWidth(textWidth: skipTextWidth)
+        MenuActionControlMetrics.minimumHitTargetSize
     }
 
-    func actionPillWidth(textWidth: CGFloat) -> CGFloat {
-        max(
-            MenuActionControlMetrics.minimumHitTargetSize,
-            MenuActionControlMetrics.symbolSize
-                + MenuActionControlMetrics.labelSpacing
-                + textWidth
-                + MenuActionControlMetrics.horizontalChrome
-        )
+    func completeActionPillWidth() -> CGFloat {
+        MenuActionControlMetrics.minimumHitTargetSize
     }
 
     func actionButtonOverlayWidth(for widths: [CGFloat], trailingPadding: CGFloat) -> CGFloat {

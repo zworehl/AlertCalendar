@@ -2,7 +2,6 @@ import AppKit
 import CoreLocation
 import EventKit
 import Foundation
-
 extension CalendarMonitor {
     func footballMatchStatusText(_ match: FootballFixtureMatch) -> String {
         if match.statusReliability == .awaitingLiveData || match.statusReliability == .delayedLiveData {
@@ -17,24 +16,6 @@ extension CalendarMonitor {
         case .scheduled, .unknown:
             return Self.footballKickoffStatusText(for: match.startDate)
         }
-    }
-
-    func shouldRefreshFootballOnHeartbeat(now: Date) -> Bool {
-        guard !managedFootballMatchIDs.isEmpty else {
-            return false
-        }
-
-        let trackedMatches = managedFootballMatchIDs.compactMap { footballMatchesByID[$0] }
-        let hasMissingTrackedMatches = trackedMatches.count < managedFootballMatchIDs.count
-        return CalendarMonitorTime.hasElapsed(
-            since: lastFootballManagedSyncDate,
-            now: now,
-            interval: Self.footballManagedRefreshInterval(
-                for: trackedMatches,
-                hasMissingTrackedMatches: hasMissingTrackedMatches,
-                now: now
-            )
-        )
     }
 
     nonisolated static func footballManagedRefreshInterval(
@@ -141,6 +122,22 @@ extension CalendarMonitor {
                 return match.id
             }
         )
+    }
+
+    nonisolated static func footballManagedMatchIDsNeedingVenueBackfill(
+        _ matches: [FootballFixtureMatch],
+        trackedMatchIDs: Set<String>,
+        cachedMatchesByID: [String: FootballFixtureMatch]
+    ) -> Set<String> {
+        Set(matches.compactMap { match in
+            guard trackedMatchIDs.contains(match.id),
+                  FootballCalendarLocation.resolvedText(
+                      reported: match.locationText,
+                      existing: cachedMatchesByID[match.id]?.locationText,
+                      structuredTitle: nil
+                  ) == nil else { return nil }
+            return match.id
+        })
     }
 
     func trackedFootballEvents(now: Date) -> [ManagedFootballEventSnapshot] {
@@ -305,6 +302,15 @@ extension CalendarMonitor {
         footballMatchesByID = footballMatchesByID.filter { matchID, match in
             preservedMatchIDs.contains(matchID)
                 || (match.startDate >= cacheStart && match.startDate <= cacheEnd)
+        }
+        if let footballMatchCacheStore {
+            let snapshot = FootballMatchCacheSnapshot(
+                fetchedAt: now,
+                matches: footballMatchesByID.values.sorted {
+                    $0.startDate == $1.startDate ? $0.id < $1.id : $0.startDate < $1.startDate
+                }
+            )
+            scheduleFootballMatchCacheWrite(snapshot, store: footballMatchCacheStore)
         }
 
         let teams = matches
@@ -489,8 +495,6 @@ extension CalendarMonitor {
     }
 
     nonisolated static func defaultFootballCompetitionSection(for preset: FootballCompetitionPreset) -> FootballMenuCompetitionSection {
-        return .placeholder(for: preset)
+        .placeholder(for: preset)
     }
-
-
 }

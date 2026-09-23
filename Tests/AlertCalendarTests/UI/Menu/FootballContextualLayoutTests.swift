@@ -219,7 +219,6 @@ final class FootballContextualLayoutTests: AlertCalendarModelTestCase {
 
     private func layoutSnapshot(dropdownMinimumWidth: CGFloat) -> MenuContentView.LayoutSnapshot {
         MenuContentView.LayoutSnapshot(
-            filteredAlertDescriptions: [],
             contextualActionCandidates: [],
             contextualPreviewActionItems: [],
             footballContextualActionItems: [],
@@ -292,9 +291,9 @@ final class FootballContextualLayoutTests: AlertCalendarModelTestCase {
 
         XCTAssertGreaterThanOrEqual(MenuActionControlMetrics.minimumHitTargetSize, 28)
         XCTAssertGreaterThanOrEqual(skipButtonSize.height, MenuActionControlMetrics.minimumHitTargetSize)
-        XCTAssertGreaterThan(menu.skipActionPillWidth(), MenuActionControlMetrics.minimumHitTargetSize)
-        XCTAssertGreaterThan(menu.joinActionPillWidth(), MenuActionControlMetrics.minimumHitTargetSize)
-        XCTAssertGreaterThan(menu.mapActionPillWidth(), MenuActionControlMetrics.minimumHitTargetSize)
+        XCTAssertEqual(menu.skipActionPillWidth(), MenuActionControlMetrics.minimumHitTargetSize)
+        XCTAssertEqual(menu.joinActionPillWidth(), MenuActionControlMetrics.minimumHitTargetSize)
+        XCTAssertEqual(menu.mapActionPillWidth(), MenuActionControlMetrics.minimumHitTargetSize)
     }
 
     func testDaylightHeaderReservesItsHoverGeometryBeforePointerEntry() {
@@ -335,11 +334,11 @@ final class FootballContextualLayoutTests: AlertCalendarModelTestCase {
 
         XCTAssertEqual(
             completeOnlyWidth,
-            MenuActionControlMetrics.minimumHitTargetSize
+            menu.completeActionPillWidth()
                 + MenuActionControlMetrics.leadingClearance
                 + MenuActionControlMetrics.trailingInset
         )
-        XCTAssertGreaterThan(skipOnlyWidth, completeOnlyWidth)
+        XCTAssertEqual(completeOnlyWidth, skipOnlyWidth)
         XCTAssertEqual(
             combinedWidth,
             completeOnlyWidth
@@ -394,6 +393,7 @@ final class FootballContextualLayoutTests: AlertCalendarModelTestCase {
         )
 
         XCTAssertFalse(MenuContentView.hasUsableContextualLocation("  \n"))
+        XCTAssertFalse(MenuContentView.hasUsableContextualLocation("https://events.example.com/session/123"))
         XCTAssertTrue(MenuContentView.hasUsableContextualLocation("San José"))
         XCTAssertEqual(withBlankMap, withoutMap)
         XCTAssertGreaterThan(withMap, withoutMap)
@@ -414,6 +414,19 @@ final class FootballContextualLayoutTests: AlertCalendarModelTestCase {
             startDate: startDate,
             endDate: startDate,
             isAllDay: false
+        )
+        let linkedSingleLineTimedEvent = dropdownHeightItem(
+            startDate: startDate,
+            endDate: startDate,
+            isAllDay: false,
+            openLinkURL: URL(string: "https://github.com/example/project")
+        )
+        let locatedLinkedSingleLineTimedEvent = dropdownHeightItem(
+            startDate: startDate,
+            endDate: startDate,
+            isAllDay: false,
+            locationText: "Apple Park Visitor Center",
+            openLinkURL: URL(string: "https://github.com/example/project")
         )
         let timedCrossDay = dropdownHeightItem(
             startDate: startDate,
@@ -437,6 +450,39 @@ final class FootballContextualLayoutTests: AlertCalendarModelTestCase {
                 showRightTimeColumn: true
             ),
             34
+        )
+        XCTAssertEqual(
+            menu.rowPrimaryContentMinimumHeight(
+                for: linkedSingleLineTimedEvent,
+                showsTravelTime: false,
+                showRightTimeColumn: true
+            ),
+            34,
+            "A generic link action must not add a permanent detail row"
+        )
+        XCTAssertGreaterThan(
+            menu.hoverActionRowWidth(for: linkedSingleLineTimedEvent),
+            menu.hoverActionRowWidth(for: singleLineTimedEvent),
+            "The hidden link should remain available as a hover action"
+        )
+        XCTAssertEqual(
+            menu.hoverActionRowWidth(for: locatedLinkedSingleLineTimedEvent),
+            menu.hoverActionRowWidth(for: linkedSingleLineTimedEvent),
+            "A physical location must keep the generic Open Link action available"
+        )
+        XCTAssertEqual(
+            menu.contextualActionRowWidth(
+                for: locatedLinkedSingleLineTimedEvent,
+                locationText: "Apple Park Visitor Center",
+                showsJoinButton: false
+            ),
+            menu.contextualActionRowWidth(
+                for: singleLineTimedEvent,
+                locationText: "Apple Park Visitor Center",
+                showsJoinButton: false
+            )
+                + menu.openLinkActionPillWidth()
+                + MenuActionControlMetrics.controlSpacing
         )
         XCTAssertEqual(
             menu.rowPrimaryContentMinimumHeight(
@@ -508,7 +554,6 @@ final class FootballContextualLayoutTests: AlertCalendarModelTestCase {
         _ = NSApplication.shared
         let menu = MenuContentView(kindFilter: nil, headerTitle: "Alert Calendar")
         let snapshot = MenuContentView.LayoutSnapshot(
-            filteredAlertDescriptions: [],
             contextualActionCandidates: [],
             contextualPreviewActionItems: [],
             footballContextualActionItems: [],
@@ -604,24 +649,21 @@ final class FootballContextualLayoutTests: AlertCalendarModelTestCase {
         XCTAssertEqual(
             MenuContentView.resolvedSplitUpcomingPanelHeight(
                 measuredHeight: 0,
-                columnHeightLimit: 428,
-                reservedAlertHeight: 0
+                columnHeightLimit: 428
             ),
             428
         )
         XCTAssertEqual(
             MenuContentView.resolvedSplitUpcomingPanelHeight(
                 measuredHeight: 260,
-                columnHeightLimit: 428,
-                reservedAlertHeight: 0
+                columnHeightLimit: 428
             ),
             260
         )
         XCTAssertEqual(
             MenuContentView.resolvedSplitUpcomingPanelHeight(
                 measuredHeight: 900,
-                columnHeightLimit: 428,
-                reservedAlertHeight: 0
+                columnHeightLimit: 428
             ),
             428
         )
@@ -679,7 +721,6 @@ final class FootballContextualLayoutTests: AlertCalendarModelTestCase {
             footballMenuBarDisplay: nil
         )
         let snapshot = MenuContentView.LayoutSnapshot(
-            filteredAlertDescriptions: [],
             contextualActionCandidates: [firstItem, secondItem],
             contextualPreviewActionItems: [firstItem, secondItem],
             footballContextualActionItems: [],
@@ -735,7 +776,9 @@ final class FootballContextualLayoutTests: AlertCalendarModelTestCase {
     private func dropdownHeightItem(
         startDate: Date,
         endDate: Date,
-        isAllDay: Bool
+        isAllDay: Bool,
+        locationText: String? = nil,
+        openLinkURL: URL? = nil
     ) -> UpcomingItem {
         UpcomingItem(
             id: UUID().uuidString,
@@ -745,8 +788,9 @@ final class FootballContextualLayoutTests: AlertCalendarModelTestCase {
             isAllDay: isAllDay,
             showsMutedBackground: false,
             travelTimeMinutes: nil,
-            locationText: nil,
+            locationText: locationText,
             meetingURL: nil,
+            openLinkURL: openLinkURL,
             calendarID: "school",
             calendarName: "School",
             calendarColor: .systemBlue,

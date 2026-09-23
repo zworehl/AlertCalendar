@@ -24,6 +24,14 @@ extension CalendarMonitor {
         let statusText: String
         let statusEmoji: String
         let expiration: Int
+        let priority: Int
+
+        init(statusText: String, statusEmoji: String, expiration: Int, priority: Int = 5) {
+            self.statusText = statusText
+            self.statusEmoji = statusEmoji
+            self.expiration = expiration
+            self.priority = priority
+        }
     }
 
     enum SlackRuleActivityPhase: Int {
@@ -33,6 +41,7 @@ extension CalendarMonitor {
 
     struct SlackRuleStateCandidate {
         let priority: Int
+        let order: Int
         let phase: SlackRuleActivityPhase
         let statusText: String
         let statusEmoji: String
@@ -70,19 +79,20 @@ extension CalendarMonitor {
             do {
                 try await restoreSlackStatusIfNeeded(for: connection)
             } catch {
-                slackStatusSyncErrorDescription = error.localizedDescription
+                slackStatusSyncErrorDescription = AlertCalendarLanguage.errorMessage(error)
             }
         }
 
         do {
             try await slackClient.removeStoredToken(for: connection.id)
         } catch {
-            slackStatusSyncErrorDescription = error.localizedDescription
+            slackStatusSyncErrorDescription = AlertCalendarLanguage.errorMessage(error)
         }
 
         var settings = snapshotSettings()
         settings.slackConnections.removeAll { $0.id == connection.id }
         settings.slackStatusSyncRules.removeAll { $0.connectionID == connection.id }
+        settings.appleMusicStatus.connectionIDs.remove(connection.id)
         persistSettings(settings)
         if settings.slackConnections.isEmpty {
             slackConnectionStatusMessage = nil
@@ -136,7 +146,7 @@ extension CalendarMonitor {
                 _ = try await validateSlackConnection(connection)
                 refreshedConnectionIDs.insert(connection.id)
             } catch {
-                errors.append("\(connection.displayLabel): \(error.localizedDescription)")
+                errors.append("\(connection.displayLabel): \(AlertCalendarLanguage.errorMessage(error))")
             }
         }
 

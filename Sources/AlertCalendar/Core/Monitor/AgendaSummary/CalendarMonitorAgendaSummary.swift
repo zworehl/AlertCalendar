@@ -61,17 +61,21 @@ extension CalendarMonitor {
         agendaSummaryState = .ready(immediateSummary)
         agendaSummaryGenerationErrorDescription = nil
         let client = agendaSummaryClient
+        let attachmentPreviewProvider = agendaSummaryAttachmentPreviewProvider
         let linkPreviewProvider = agendaSummaryLinkPreviewProvider
 
         agendaSummaryTask = Task { [weak self] in
+            var fallbackSummary = immediateSummary
             do {
-                let generationRequest: AgendaSummaryRequest
+                var generationRequest = await attachmentPreviewProvider
+                    .requestByAddingAttachmentPreviews(request)
+                try Task.checkCancellation()
                 if usesLinkedPagePreviews {
-                    generationRequest = await linkPreviewProvider.requestByAddingLinkedPagePreviews(request)
+                    generationRequest = await linkPreviewProvider
+                        .requestByAddingLinkedPagePreviews(generationRequest)
                     try Task.checkCancellation()
-                } else {
-                    generationRequest = request
                 }
+                fallbackSummary = AgendaSummaryFallback.summary(for: generationRequest)
                 let summary = try await client.generateSummary(for: generationRequest)
                 try Task.checkCancellation()
                 guard let self,
@@ -97,7 +101,7 @@ extension CalendarMonitor {
                     return
                 }
 
-                self.agendaSummaryState = .ready(immediateSummary)
+                self.agendaSummaryState = .ready(fallbackSummary)
                 let retryAttempt = self.agendaSummaryRetryAttempt
                 if let retryDelay = Self.agendaSummaryRetryDelay(forAttempt: retryAttempt) {
                     self.agendaSummaryGenerationErrorDescription = Self.agendaSummaryRetryDescription(

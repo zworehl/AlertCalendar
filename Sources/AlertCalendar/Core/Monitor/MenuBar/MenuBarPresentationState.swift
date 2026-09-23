@@ -21,6 +21,7 @@ struct MenuBarPresentationState: Equatable {
     var footballStatusColor: NSColor
     var footballGoalHighlightSide: FootballScoreSide?
     var footballGoalHighlightTextOpacity: CGFloat
+    var fullTitleText: String? = nil
 
     static let loading = MenuBarPresentationState(
         label: "Loading...",
@@ -68,6 +69,7 @@ struct MenuBarPresentationState: Equatable {
 
     static func == (lhs: MenuBarPresentationState, rhs: MenuBarPresentationState) -> Bool {
         lhs.label == rhs.label
+            && lhs.fullTitleText == rhs.fullTitleText
             && lhs.color.isEqual(rhs.color)
             && lhs.alertedSegmentIndex == rhs.alertedSegmentIndex
             && lhs.alertTextOpacity == rhs.alertTextOpacity
@@ -95,16 +97,16 @@ struct MenuBarPresentationState: Equatable {
 @MainActor
 final class MenuBarPresentationModel: ObservableObject {
     @Published private(set) var state: MenuBarPresentationState = .loading
-    @Published private(set) var isLoading = true
+    @Published private(set) var isInitialLoading = true
 
     func apply(_ state: MenuBarPresentationState) {
         guard self.state != state else { return }
         self.state = state
     }
 
-    func setLoading(_ isLoading: Bool) {
-        guard self.isLoading != isLoading else { return }
-        self.isLoading = isLoading
+    func setInitialLoading(_ isLoading: Bool) {
+        guard isInitialLoading != isLoading else { return }
+        isInitialLoading = isLoading
     }
 
     func setAlertTextOpacity(_ opacity: CGFloat) {

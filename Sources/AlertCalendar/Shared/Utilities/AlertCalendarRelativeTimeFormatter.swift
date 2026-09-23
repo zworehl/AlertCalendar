@@ -41,6 +41,47 @@ enum AlertCalendarRelativeTimeFormatter {
         "\(elapsedText(from: startDate, to: endDate, simplified: simplified)) ago"
     }
 
+    static func calendarDayRelativeText(
+        for targetDate: Date,
+        relativeTo now: Date,
+        calendar: Calendar = .current
+    ) -> String {
+        let targetDay = calendar.startOfDay(for: targetDate)
+        let currentDay = calendar.startOfDay(for: now)
+        let dayOffset = calendar.dateComponents([.day], from: currentDay, to: targetDay).day ?? 0
+
+        if dayOffset == 0 { return "today" }
+        if dayOffset == 1 { return "tomorrow" }
+
+        let isFuture = dayOffset > 0
+        let absoluteDayOffset = abs(dayOffset)
+        let (amount, unit): (Int, String)
+
+        let earlierDay = isFuture ? currentDay : targetDay
+        let laterDay = isFuture ? targetDay : currentDay
+        let yearOffset = calendar.dateComponents([.year], from: earlierDay, to: laterDay).year ?? 0
+        let monthOffset = calendar.dateComponents([.month], from: earlierDay, to: laterDay).month ?? 0
+
+        if yearOffset >= 1 {
+            amount = yearOffset
+            unit = yearOffset == 1 ? "year" : "years"
+        } else if monthOffset >= 1 {
+            amount = monthOffset
+            unit = monthOffset == 1 ? "month" : "months"
+        } else if absoluteDayOffset >= 7 {
+            amount = max(1, absoluteDayOffset / 7)
+            unit = amount == 1 ? "week" : "weeks"
+        } else {
+            amount = absoluteDayOffset
+            unit = amount == 1 ? "day" : "days"
+        }
+
+        if isFuture {
+            return "in \(amount) \(unit)"
+        }
+        return "\(amount) \(unit) ago"
+    }
+
     static func singleUnitDurationText(seconds: Int) -> String {
         let clampedSeconds = max(0, seconds)
         if clampedSeconds < 60 { return "\(clampedSeconds)s" }
@@ -55,12 +96,17 @@ enum AlertCalendarRelativeTimeFormatter {
     }
 
     static func leadTimeDescription(for title: String, targetDate: Date, now: Date) -> String {
-        let remainingSeconds = max(Int(targetDate.timeIntervalSince(now)), 0)
-        if remainingSeconds < 60 {
-            return "\(title) starts in \(remainingSeconds)s."
-        }
+        "\(title) starts in \(leadTimeText(targetDate: targetDate, now: now))."
+    }
 
+    static func dueTimeDescription(for title: String, targetDate: Date, now: Date) -> String {
+        "\(title) — due in \(leadTimeText(targetDate: targetDate, now: now))."
+    }
+
+    private static func leadTimeText(targetDate: Date, now: Date) -> String {
+        let remainingSeconds = max(Int(targetDate.timeIntervalSince(now)), 0)
+        if remainingSeconds < 60 { return "\(remainingSeconds)s" }
         let remainingMinutes = max(1, Int(ceil(Double(remainingSeconds) / 60.0)))
-        return "\(title) starts in \(remainingMinutes) minute\(remainingMinutes == 1 ? "" : "s")."
+        return "\(remainingMinutes) minute\(remainingMinutes == 1 ? "" : "s")"
     }
 }

@@ -36,7 +36,9 @@ struct MeetingAttendeesPreview: View {
     }
 
     var displayedAttendees: [MeetingAttendee] {
-        presentedAttendees.isEmpty ? attendees : presentedAttendees
+        MeetingAttendee.normalized(
+            presentedAttendees.isEmpty ? attendees : presentedAttendees
+        )
     }
 
     var resolverKey: String {
@@ -151,7 +153,7 @@ struct MeetingAttendeesPreview: View {
 
     func resolveContacts() {
         presentedOrganizer = organizer
-        presentedAttendees = attendees
+        presentedAttendees = MeetingAttendee.normalized(attendees)
         resolveTask?.cancel()
 
         resolveTask = Task {

@@ -78,12 +78,7 @@ extension MenuContentView {
     }
 
     nonisolated static func compactBirthdayTitle(_ title: String) -> String {
-        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        let birthdaySuffix = " birthday"
-        guard trimmedTitle.lowercased().hasSuffix(birthdaySuffix) else { return trimmedTitle }
-
-        return String(trimmedTitle.dropLast(birthdaySuffix.count))
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        EventTitlePresentationResolver.birthdayName(from: title)
     }
 
     nonisolated static func birthdayGroupShowsChevron(isHovered: Bool) -> Bool {
@@ -150,11 +145,15 @@ extension MenuContentView {
     func birthdayExpandedItemRow(_ item: UpcomingItem) -> some View {
         return MenuContentHoverContainer { isHovered in
             HStack(alignment: .center, spacing: 8) {
-                Text(Self.compactBirthdayTitle(item.title))
+                Text(settings.useEventTitleEllipsis && settings.useRewrittenEventTitlesInDropdown
+                     ? (EventBirthdayTitle.parse(item.title, knownBirthday: true)?
+                        .compactName(maximumCharacters: settings.eventTitleMaxCharacters) ?? item.title) : item.title)
                     .font(MenuMarkerMetrics.rowTitleFont)
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                     .truncationMode(.tail)
+                    .help(item.title)
+                    .accessibilityLabel(item.title)
 
                 Spacer(minLength: 8)
 

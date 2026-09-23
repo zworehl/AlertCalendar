@@ -60,6 +60,9 @@ struct AgendaSummaryRequest: Equatable, Sendable {
         let attention: String
         let isRecurring: Bool
         let hasAttachment: Bool
+        let attachmentReferences: [AgendaSummaryAttachmentReference]
+        let attachmentNames: [String]
+        var attachmentPreviews: [String]
         let description: String?
         let urlCount: Int
         let urlHosts: [String]
@@ -90,7 +93,7 @@ struct AgendaSummaryRequest: Equatable, Sendable {
         self.timeZoneIdentifier = timeZone.identifier
         self.uses24HourTime = Self.localeUses24HourTime(locale)
         self.maximumWords = AppSettingsRules.normalizedAgendaSummaryMaximumWords(maximumWords)
-        self.items = upcomingItems
+        let relevantItems = upcomingItems
             .filter { item in
                 (item.kind == .event || item.kind == .reminder)
                     && Self.isRelevantForSummary(item)
@@ -101,7 +104,11 @@ struct AgendaSummaryRequest: Equatable, Sendable {
                 }
                 return left.notificationKey < right.notificationKey
             }
-            .map { item in
+        let descriptionBudget = min(
+            1_600,
+            max(400, 5_000 / max(1, relevantItems.count))
+        )
+        self.items = relevantItems.map { item in
                 Item(
                     sourceKey: item.notificationKey,
                     title: Self.bounded(item.title, maximumLength: 180),
@@ -112,10 +119,18 @@ struct AgendaSummaryRequest: Equatable, Sendable {
                     calendarName: Self.bounded(item.calendarName, maximumLength: 80),
                     attention: Self.attentionLevel(for: item),
                     isRecurring: item.isRecurring,
-                    hasAttachment: item.hasDocumentIndicator,
-                    description: Self.boundedDescription(
+                    hasAttachment: item.hasDocumentIndicator
+                        || !item.agendaSummaryAttachments.isEmpty,
+                    attachmentReferences: item.agendaSummaryAttachments,
+                    attachmentNames: item.agendaSummaryAttachments.map {
+                        Self.bounded($0.fileName, maximumLength: 120)
+                    },
+                    attachmentPreviews: [],
+                    description: Self.relevantDescription(
                         item.descriptionText,
-                        maximumLength: 320
+                        referenceText: [item.title, item.locationText, item.calendarName]
+                            .compactMap { $0 },
+                        maximumLength: descriptionBudget
                     ),
                     urlCount: item.urlCount,
                     urlHosts: item.urlHosts.map { Self.bounded($0, maximumLength: 100) },
@@ -152,6 +167,9 @@ struct AgendaSummaryRequest: Equatable, Sendable {
             hasher.combine(item.attention)
             hasher.combine(item.isRecurring)
             hasher.combine(item.hasAttachment)
+            hasher.combine(item.attachmentReferences)
+            hasher.combine(item.attachmentNames)
+            hasher.combine(item.attachmentPreviews)
             hasher.combine(item.description)
             hasher.combine(item.urlCount)
             hasher.combine(item.urlHosts)
@@ -185,6 +203,18 @@ struct AgendaSummaryRequest: Equatable, Sendable {
         return enrichedRequest
     }
 
+    func addingAttachmentPreviews(_ previewsByItemKey: [String: [String]]) -> Self {
+        var enrichedRequest = self
+        enrichedRequest.items = items.map { item in
+            var enrichedItem = item
+            enrichedItem.attachmentPreviews = (previewsByItemKey[item.sourceKey] ?? []).compactMap {
+                Self.boundedOptional($0, maximumLength: 2_400)
+            }
+            return enrichedItem
+        }
+        return enrichedRequest
+    }
+
     private static func bounded(_ value: String, maximumLength: Int) -> String {
         let normalized = value
             .components(separatedBy: .whitespacesAndNewlines)
@@ -200,21 +230,20 @@ struct AgendaSummaryRequest: Equatable, Sendable {
         return boundedValue.isEmpty ? nil : boundedValue
     }
 
-    private static func boundedDescription(_ value: String?, maximumLength: Int) -> String? {
-        guard let value else { return nil }
-        var redactedValue = value
-        let urlStrings = MeetingURLResolver.allURLs(in: value)
-            .flatMap { url in
-                [url.absoluteString, url.absoluteString.removingPercentEncoding]
-                    .compactMap { $0 }
-            }
-            .sorted { $0.count > $1.count }
-
-        for urlString in urlStrings where !urlString.isEmpty {
-            redactedValue = redactedValue.replacingOccurrences(of: urlString, with: "[link]")
+    private static func relevantDescription(
+        _ value: String?,
+        referenceText: [String],
+        maximumLength: Int
+    ) -> String? {
+        guard let selectedText = RelevantContextSelector.selectedText(
+            from: value,
+            referenceText: referenceText,
+            maximumCharacters: maximumLength,
+            maximumSegments: 14
+        ) else {
+            return nil
         }
-
-        return boundedOptional(redactedValue, maximumLength: maximumLength)
+        return boundedOptional(selectedText, maximumLength: maximumLength)
     }
 
     private static func attentionLevel(for item: UpcomingItem) -> String {

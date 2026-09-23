@@ -2,6 +2,15 @@ import EventKit
 import Foundation
 
 extension CalendarMonitor {
+    func startGameSalesConnectivityRecovery() {
+        guard gameSalesState.connectivityObserver == nil else { return }
+        gameSalesState.connectivityObserver = NetworkRecoveryObserver { [weak self] in
+            Task { @MainActor [weak self] in
+                await self?.refreshGameSales(connectivityRestored: true)
+            }
+        }
+    }
+
     nonisolated static func shouldRefreshGameSales(
         lastAttemptDate: Date?,
         lastAttemptFailed: Bool = false,
@@ -19,26 +28,45 @@ extension CalendarMonitor {
 
     func refreshGameSales(
         forceRefresh: Bool = false,
-        refreshCalendarState: Bool = false
+        refreshCalendarState: Bool = false,
+        connectivityRestored: Bool = false
     ) async {
+        gameSalesState.refreshDemand.merge(GameSalesRefreshDemand(
+            forceRefresh: forceRefresh,
+            refreshCalendarState: refreshCalendarState,
+            connectivityRestored: connectivityRestored
+        ))
         guard !isRefreshingGameSales else { return }
+        let demand = gameSalesState.refreshDemand.take()
+        isRefreshingGameSales = true
+        defer {
+            isRefreshingGameSales = false
+            // Coalesce manual requests and network recovery that arrive in flight.
+            if gameSalesState.refreshDemand.isPending {
+                Task { @MainActor [weak self] in await self?.refreshGameSales() }
+            }
+        }
+
+        if demand.connectivityRestored {
+            if await gameSalesClient.retryAfterConnectivityRecovery() {
+                lastGameSalesRefreshAttemptDate = nil
+            }
+        }
 
         let now = fixedSecondNow()
         guard Self.shouldRefreshGameSales(
             lastAttemptDate: lastGameSalesRefreshAttemptDate,
             lastAttemptFailed: lastGameSalesRefreshAttemptFailed,
             now: now,
-            forceRefresh: forceRefresh
+            forceRefresh: demand.forceRefresh
         ) else {
-            if refreshCalendarState {
+            if demand.refreshCalendarState {
                 refreshGameSaleTrackingSnapshot(now: now)
             }
             return
         }
 
         lastGameSalesRefreshAttemptDate = now
-        isRefreshingGameSales = true
-        defer { isRefreshingGameSales = false }
 
         let calendarSnapshots = gameSaleCalendarSnapshots(now: now)
         cleanupEndedGameSales(now: now, calendarSnapshots: calendarSnapshots)
@@ -46,20 +74,26 @@ extension CalendarMonitor {
         do {
             let fetched = try await gameSalesClient.fetchScheduledSales(
                 now: now,
-                forceRefresh: forceRefresh
+                forceRefresh: demand.forceRefresh
             )
             fetchedGameSales = fetched
             gameSalesErrorDescription = nil
-            lastGameSalesRefreshAttemptFailed = false
-            markGameSalesRefreshed(at: now)
+            lastGameSalesRefreshAttemptFailed = await gameSalesClient.hasPendingRefreshFailures
+            if let validatedAt = await gameSalesClient.lastSuccessfulRefreshDate {
+                markGameSalesRefreshed(at: validatedAt)
+            }
+        } catch is CancellationError {
+            return
         } catch {
-            gameSalesErrorDescription = error.localizedDescription
+            gameSalesErrorDescription = AlertCalendarLanguage.errorMessage(error)
             lastGameSalesRefreshAttemptFailed = true
         }
 
         reconcileManagedGameSalesWithFetchedSchedule()
         refreshGameSaleTrackingSnapshot(now: now, calendarSnapshots: calendarSnapshots)
         await autoAddGameSalesIfNeeded(now: now, existingSnapshots: calendarSnapshots)
+        // Publish recovery immediately, including a retry triggered by network changes.
+        await updateDataRefreshHealth(now: fixedSecondNow())
     }
 
     func reconcileManagedGameSalesWithFetchedSchedule() {

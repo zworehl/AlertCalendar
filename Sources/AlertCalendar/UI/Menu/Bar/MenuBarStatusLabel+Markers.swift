@@ -154,7 +154,7 @@ extension MenuBarStatusLabel {
         NSBezierPath(roundedRect: backgroundRect, xRadius: cornerRadius, yRadius: cornerRadius).addClip()
         color.setFill()
         NSBezierPath(rect: fillRect).fill()
-        if textureStatus?.usesTexturedFill == true {
+        if textureStatus?.appleCalendarStyle.usesTexture == true {
             drawParticipationTexture(
                 in: backgroundRect,
                 participationStatus: textureStatus,
@@ -169,29 +169,30 @@ extension MenuBarStatusLabel {
         participationStatus: EventParticipationStatus?,
         cornerRadius: CGFloat
     ) {
-        guard let participationStatus,
-              participationStatus.usesTexturedFill else {
+        guard let style = participationStatus?.appleCalendarStyle,
+              style.usesTexture,
+              let context = NSGraphicsContext.current?.cgContext else {
             return
         }
 
-        NSGraphicsContext.saveGraphicsState()
-        NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius).addClip()
-
-        let stripePath = NSBezierPath()
-        stripePath.lineWidth = 1.5
-        stripePath.lineCapStyle = .square
-
-        let spacing = max(4, participationStatus.appleCalendarStripeSpacing)
-        var currentX = rect.minX - rect.height
-        while currentX <= rect.maxX + rect.height {
-            stripePath.move(to: NSPoint(x: currentX, y: rect.minY))
-            stripePath.line(to: NSPoint(x: currentX + rect.height, y: rect.maxY))
-            currentX += spacing
-        }
-
-        NSColor.black.withAlphaComponent(participationStatus.appleCalendarStripeAlpha).setStroke()
-        stripePath.stroke()
-        NSGraphicsContext.restoreGraphicsState()
+        context.saveGState()
+        context.addPath(
+            CGPath(
+                roundedRect: rect,
+                cornerWidth: cornerRadius,
+                cornerHeight: cornerRadius,
+                transform: nil
+            )
+        )
+        context.clip()
+        context.translateBy(x: rect.minX, y: rect.maxY)
+        context.scaleBy(x: 1, y: -1)
+        context.addPath(
+            CalendarParticipationTexturePattern.path(in: rect.size, style: style)
+        )
+        context.setFillColor(NSColor.black.withAlphaComponent(style.stripeAlpha).cgColor)
+        context.fillPath()
+        context.restoreGState()
     }
 
     static func drawAstronomyMarker(moment: AstronomyMoment, x: CGFloat, height: CGFloat, markerWidth: CGFloat, markerHeight: CGFloat) {

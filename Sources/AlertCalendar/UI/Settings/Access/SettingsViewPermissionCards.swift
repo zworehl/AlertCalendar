@@ -16,7 +16,7 @@ extension SettingsView {
         let grantState = permissionGrantState(for: permission)
         let isRequesting = activePermissionRequests.contains(permission)
 
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 10) {
             permissionActionCardHeader(for: permission, grantState: grantState)
 
             Text(permission.summary)
@@ -29,21 +29,15 @@ extension SettingsView {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if let message = permissionActionMessages[permission] {
+            if let message = permissionActionMessages[permission],
+               !(permission == .location && grantState == .allowed && message == "Access granted.") {
                 Label(message, systemImage: grantState == .allowed ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
                     .font(.caption)
                     .foregroundStyle(grantState == .allowed ? Color.green : Color.orange)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if permission == .location {
-                AstronomyCoordinatesCard(
-                    useAutomaticAstronomyLocation: $draft.useAutomaticAstronomyLocation,
-                    astronomyLatitude: $draft.astronomyLatitude,
-                    astronomyLongitude: $draft.astronomyLongitude,
-                    onDetectNow: detectLocation
-                )
-            }
+            Spacer(minLength: 0)
 
             permissionActionButtons(
                 for: permission,
@@ -51,13 +45,12 @@ extension SettingsView {
                 isRequesting: isRequesting
             )
         }
+        .frame(maxHeight: .infinity, alignment: .topLeading)
         .settingsPanelSurface(borderColor: permissionBorderColor(for: grantState))
     }
 
     @ViewBuilder
     func permissionActionCardHeader(for permission: SettingsPermissionKind, grantState: PermissionGrantState) -> some View {
-        let headerStatus = permissionHeaderStatusText(for: permission)
-
         ViewThatFits(in: .horizontal) {
             HStack(alignment: .center, spacing: 12) {
                 SettingsPermissionIconView(
@@ -75,11 +68,6 @@ extension SettingsView {
                     permissionStatusBadge(for: grantState)
                 }
 
-                if let headerStatus {
-                    Spacer(minLength: 12)
-
-                    permissionHeaderStatusLabel(headerStatus)
-                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -100,36 +88,8 @@ extension SettingsView {
                     }
                 }
 
-                if let headerStatus {
-                    permissionHeaderStatusLabel(headerStatus)
-                }
             }
         }
-    }
-
-    @ViewBuilder
-    func permissionHeaderStatusLabel(_ status: String) -> some View {
-        Text(status)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.secondary)
-            .multilineTextAlignment(.trailing)
-            .lineLimit(2)
-            .frame(maxWidth: .infinity, alignment: .trailing)
-    }
-
-    func permissionHeaderStatusText(for permission: SettingsPermissionKind) -> String? {
-        guard permission == .location else { return nil }
-        guard astronomyLocationStatus != "Manual coordinates" else { return nil }
-        guard draft.useAutomaticAstronomyLocation else { return astronomyLocationStatus }
-        return isAutomaticLocationResultStatus ? nil : astronomyLocationStatus
-    }
-
-    var isAutomaticLocationResultStatus: Bool {
-        astronomyLocationStatus.hasPrefix("Auto location:")
-            || astronomyLocationStatus.hasPrefix("Approximate auto location:")
-            || astronomyLocationStatus.hasPrefix("Detected location:")
-            || astronomyLocationStatus.hasPrefix("Detected approximate location:")
-            || astronomyLocationStatus.contains("Using saved coordinates:")
     }
 
     @ViewBuilder
@@ -189,19 +149,19 @@ extension SettingsView {
     ) -> some View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 10) {
-                Spacer(minLength: 0)
-
                 permissionPrimaryButton(
                     for: permission,
                     grantState: grantState,
                     isRequesting: isRequesting
                 )
+                .frame(maxWidth: .infinity)
 
                 if grantState != .denied && grantState != .restricted {
                     permissionSettingsButton(for: permission)
+                        .frame(maxWidth: .infinity)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .trailing)
+            .frame(maxWidth: .infinity)
 
             VStack(alignment: .leading, spacing: 8) {
                 permissionPrimaryButton(
@@ -209,12 +169,14 @@ extension SettingsView {
                     grantState: grantState,
                     isRequesting: isRequesting
                 )
+                .frame(maxWidth: .infinity)
 
                 if grantState != .denied && grantState != .restricted {
                     permissionSettingsButton(for: permission)
+                        .frame(maxWidth: .infinity)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity)
         }
     }
 

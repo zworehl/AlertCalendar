@@ -5,16 +5,59 @@ import Foundation
 
 extension CalendarMonitor {
     func bootstrap() async {
-        prepareFootballNotificationAuthorizationIfNeeded(settings: snapshotSettings())
-        prepareGameSaleNotificationAuthorizationIfNeeded()
+        await refreshFocusCalendarFilterStateFromSystem()
         await requestCalendarAccess()
-        if snapshotSettings().useAutomaticAstronomyLocation {
-            await refreshAutomaticAstronomyLocationIfNeeded(trigger: .launch)
+        await refreshUpcomingItems(reason: .launchSnapshot)
+
+        let settings = snapshotSettings()
+        let hasEnabledCalendarSourceAccess =
+            (hasEventsAccess && (settings.includeEvents || settings.includeAllDayEvents))
+            || (hasRemindersAccess && settings.includeReminders)
+        let shouldConfirmMenuBarSnapshot = Self.shouldConfirmInitialMenuBarSnapshot(
+            hasEnabledCalendarSourceAccess: hasEnabledCalendarSourceAccess,
+            menuBarQueueIsEmpty: unifiedMenuBarQueue(
+                now: fixedSecondNow(),
+                settings: settings
+            ).isEmpty
+        )
+        let initialReminderTask = reminderRefreshTask
+
+        if shouldConfirmMenuBarSnapshot {
+            await initialReminderTask?.value
+            eventStore.refreshSourcesIfNecessary()
+            await refreshUpcomingItems(reason: .launchConfirmation)
+            await refreshCoordinator.waitForCurrentTask()
+        }
+        finishInitialLoad()
+        startDeferredLaunchServices()
+    }
+
+    nonisolated static func shouldConfirmInitialMenuBarSnapshot(
+        hasEnabledCalendarSourceAccess: Bool,
+        menuBarQueueIsEmpty: Bool
+    ) -> Bool {
+        hasEnabledCalendarSourceAccess && menuBarQueueIsEmpty
+    }
+
+    func startDeferredLaunchServices() {
+        let settings = snapshotSettings()
+        startGameSalesConnectivityRecovery()
+        prepareNotificationAuthorizationIfNeeded(settings: settings)
+        updateWiFiNetworkMonitoring(isEnabled: settings.useAutomaticAstronomyLocation)
+
+        if settings.useAutomaticAstronomyLocation {
+            scheduleAutomaticAstronomyLocationRefresh(trigger: .launch)
         } else {
             astronomyLocationStatus = "Manual coordinates"
         }
-        refreshAvailableCalendars()
-        await refreshUpcomingItems(reason: .launch)
+        enqueueRefresh(reason: .launch)
+    }
+
+    func finishInitialLoad() {
+        guard isInitialLoadInProgress else { return }
+        isInitialLoadInProgress = false
+        let now = fixedSecondNow()
+        updateMenuBarState(now: now, settings: snapshotSettings())
     }
 
     func registerDefaultSettings() {
@@ -22,12 +65,16 @@ extension CalendarMonitor {
     }
 
     func startObservers() {
+        startFocusFilterObserver()
         defaultsObserver = NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
             .debounce(for: .milliseconds(150), scheduler: RunLoop.main)
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 guard let self else { return }
-                self.reloadCurrentSettings()
+                self.refreshFocusCalendarFilterStateFromDefaults()
+                let settings = self.settingsStore.load()
+                guard settings != self.currentSettings else { return }
+                self.reloadCurrentSettings(settings)
                 self.enqueueRefresh(reason: .settingsChanged)
             }
 
@@ -47,6 +94,7 @@ extension CalendarMonitor {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 guard let self else { return }
+                self.scheduleFocusFilterRefresh()
                 self.synchronizeCalendarStateIfNeeded()
                 self.scheduleAutomaticAstronomyLocationRefresh(trigger: .appActivation)
             }
@@ -62,10 +110,19 @@ extension CalendarMonitor {
             self?.handleWorkspaceResume()
         }
 
-        startWiFiNetworkMonitoring()
+        terminationObserver = NotificationCenter.default.publisher(
+            for: NSApplication.willTerminateNotification
+        )
+        .receive(on: RunLoop.main)
+        .sink { [weak self] _ in
+            self?.flushFootballMatchCache()
+        }
+
     }
 
     func handleWorkspaceResume() {
+        refreshFocusCalendarFilterStateFromDefaults()
+        scheduleFocusFilterRefresh()
         reloadCurrentSettings()
         refreshAgendaSummaryAvailability()
         let settings = snapshotSettings()
@@ -112,6 +169,7 @@ extension CalendarMonitor {
     }
 
     private func performHeartbeat(now: Date, settings: AppSettings) {
+        checkDataRefreshHealthIfNeeded(now: now)
         if CalendarMonitorTime.hasElapsed(
             since: lastAgendaSummaryAvailabilityCheckDate,
             now: now,
@@ -181,6 +239,13 @@ extension CalendarMonitor {
             includeDeadline(lastDate: lastFootballManagedSyncDate, interval: footballInterval)
         }
 
+        if settings.appleMusicStatus.isEnabled && !settings.appleMusicStatus.connectionIDs.isEmpty {
+            includeDeadline(
+                lastDate: lastSlackStatusSyncEvaluationDate,
+                interval: CalendarMonitorCadence.appleMusicStatusHeartbeatInterval
+            )
+        }
+
         return min(
             max(delay, CalendarMonitorCadence.minimumHeartbeatInterval),
             CalendarMonitorCadence.maximumHeartbeatInterval
@@ -223,10 +288,7 @@ extension CalendarMonitor {
                 return CalendarMonitorCadence.minimumHeartbeatInterval
             }
 
-            let hasActiveEventProgress = item.kind == .event
-                && !item.isAllDay
-                && item.date <= now
-                && item.endDate.map { now < $0 } == true
+            let hasActiveEventProgress = Self.isActiveTimedEvent(item, now: now)
             let hasActiveTravelProgress = travelStart.map { $0 <= now && now < item.date } == true
             needsProgressRefresh = needsProgressRefresh || hasActiveEventProgress || hasActiveTravelProgress
         }

@@ -66,6 +66,7 @@ extension SettingsView {
         reminderAuthorizationStatus = SettingsPermissionKind.currentReminderAuthorizationStatus()
         locationAuthorizationStatus = SettingsPermissionKind.currentLocationAuthorizationStatus()
         contactsAuthorizationStatus = SettingsPermissionKind.currentContactsAuthorizationStatus()
+        mailAutomationAuthorizationStatus = AppleMailAutomationPermission.currentStatus()
         lastRefreshDate = monitor.lastRefreshDate
         lastGameSalesRefreshDate = monitor.lastGameSalesRefreshDate
         googleHolidayLastRefreshDate = monitor.googleHolidayLastRefreshDate
@@ -195,7 +196,7 @@ extension SettingsView {
                 slackConnectionStatusMessage = "Slack token connected."
             } catch {
                 failedSlackTokens.append(token)
-                slackConnectErrorMessage = error.localizedDescription
+                slackConnectErrorMessage = AlertCalendarLanguage.errorMessage(error)
             }
         }
 
@@ -254,6 +255,7 @@ extension SettingsView {
         pendingChanges.stageSlackConnectionRemoval(connection)
         slackConnections.removeAll { $0.id == connection.id }
         draft.slackStatusSyncRules.removeAll { $0.connectionID == connection.id }
+        draft.appleMusicStatus.connectionIDs.remove(connection.id)
         syncSlackDraftSelectionIfNeeded()
         slackConnectionStatusMessage = "Workspace removal pending. Click Apply to disconnect."
     }
@@ -460,6 +462,7 @@ extension SettingsView {
                 pendingChanges.slackConnectionsToRemove[$0.id] == nil
             }
             draft.slackStatusSyncRules = monitor.currentSettings.slackStatusSyncRules
+            draft.appleMusicStatus.connectionIDs.formIntersection(Set(slackConnections.map(\.id)))
             syncSlackDraftSelectionIfNeeded()
             slackConnectionStatusMessage = monitor.slackConnectionStatusMessage
             isRefreshingSlackConnectionMetadata = false

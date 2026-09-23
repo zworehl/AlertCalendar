@@ -4,20 +4,36 @@ extension SettingsView {
     var settingsActionBar: some View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 12) {
-                settingsOperationalStatus
+                if hasUnsavedChanges {
+                    SettingsPendingChangesBanner(isApplying: isApplyingChanges)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    settingsOperationalStatus
+                }
 
                 Spacer(minLength: 12)
 
+                if hasUnsavedChanges {
+                    settingsOperationalStatus
+                }
                 refreshSettingsButton
                 settingsChangeStatus
                 settingsActionButtons
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                settingsOperationalStatus
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                if hasUnsavedChanges {
+                    SettingsPendingChangesBanner(isApplying: isApplyingChanges)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    settingsOperationalStatus
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
 
                 HStack(spacing: 12) {
+                    if hasUnsavedChanges {
+                        settingsOperationalStatus
+                    }
                     refreshSettingsButton
 
                     Spacer(minLength: 12)
@@ -35,6 +51,19 @@ extension SettingsView {
     private var settingsOperationalStatus: some View {
         HStack(spacing: 12) {
             pollingFreshnessLabel
+
+            if !dataRefreshIssues.isEmpty {
+                Button {
+                    selectedTab = .access
+                    isShowingPermissionDiagnostics = true
+                } label: {
+                    Label("Update issues (\(dataRefreshIssues.count))", systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                }
+                .buttonStyle(.plain)
+                .help("Some information could not be refreshed. View details and the last failed attempt.")
+                .accessibilityIdentifier("settings.updateIssues")
+            }
 
             if let calendarAlertRuleStatusDescription {
                 Label(

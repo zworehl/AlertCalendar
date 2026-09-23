@@ -1,18 +1,24 @@
 import Foundation
 
-struct EventTitleRewriteCacheKey: Hashable {
-    let title: String
-    let maximumCharacters: Int
-}
-
 extension CalendarMonitor {
+    nonisolated private static let eventTitleRewriteRetryIntervals: [TimeInterval] = [
+        10,
+        30,
+        60,
+        5 * 60,
+    ]
+
+    nonisolated static func eventTitleRewriteRetryDelay(forAttempt attempt: Int) -> TimeInterval {
+        let index = min(max(0, attempt), eventTitleRewriteRetryIntervals.count - 1)
+        return eventTitleRewriteRetryIntervals[index]
+    }
+
     func scheduleEventTitleRewritesIfNeeded(now: Date, settings: AppSettings) {
         guard settings.useEventTitleEllipsis,
               settings.rewriteEventTitlesWithAppleIntelligence,
               AppSettingsRules.allowsAppleIntelligenceTitleRewrite(
                 maximumCharacters: settings.eventTitleMaxCharacters
-              ),
-              eventTitleRewriter.availability.isAvailable else {
+              ) else {
             cancelEventTitleRewrites(clearDisplayedTitles: true)
             return
         }
@@ -55,130 +61,271 @@ extension CalendarMonitor {
             candidates = menuBarCandidates
         }
 
-        let eligibleCandidates = candidates.filter {
-            EventTitleRewriteResolver.shouldRequestRewrite(
-                for: $0.title,
-                maximumCharacters: maximumCharacters
-            )
-                && $0.footballMatch == nil
-                && AstronomyMoment(eventTitle: $0.title) == nil
-        }
+        let eligibleCandidates = candidates
+            .filter {
+                EventTitleRewriteResolver.shouldRequestRewrite(
+                    for: $0.title,
+                    maximumCharacters: maximumCharacters
+                )
+                    && $0.footballMatch == nil
+                    && !isBirthdayItem($0)
+                    && EventBirthdayTitle.parse($0.title) == nil
+                    && AstronomyMoment(eventTitle: $0.title) == nil
+            }
+            .sorted { left, right in
+                if left.isAllDay != right.isAllDay {
+                    return !left.isAllDay
+                }
+                if left.date != right.date {
+                    return left.date < right.date
+                }
+                return left.notificationKey < right.notificationKey
+            }
         let fingerprint = makeEventTitleRewriteFingerprint(
             candidates: eligibleCandidates,
             maximumCharacters: maximumCharacters,
-            includesDropdown: settings.useRewrittenEventTitlesInDropdown
+            includesDropdown: settings.useRewrittenEventTitlesInDropdown,
+            usesMailContext: settings.useMailContextForEventTitleRewrite
         )
-        guard eventTitleRewriteFingerprint != fingerprint else { return }
-
-        eventTitleRewriteTask?.cancel()
-        eventTitleRewriteFingerprint = fingerprint
-
         let eligibleKeys = Set(eligibleCandidates.map(\.notificationKey))
         rewrittenEventTitlesByItemKey = rewrittenEventTitlesByItemKey.filter {
             eligibleKeys.contains($0.key)
         }
         guard !eligibleCandidates.isEmpty else {
+            eventTitleRewriteTask?.cancel()
             eventTitleRewriteTask = nil
+            eventTitleRewriteFingerprint = fingerprint
+            resetEventTitleRewriteRetryState()
             return
         }
 
+        eventTitleRewriteRetryTask?.cancel()
+        eventTitleRewriteRetryTask = nil
+        guard eventTitleRewriteFingerprint != fingerprint else { return }
+
+        eventTitleRewriteTask?.cancel()
+        eventTitleRewriteFingerprint = fingerprint
+
+        let attachmentPreviewProvider = agendaSummaryAttachmentPreviewProvider
+        let mailContextProvider = eventMailContextProvider
+        let usesMailContext = settings.useMailContextForEventTitleRewrite
         eventTitleRewriteTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            var encounteredFailure = false
 
             for item in eligibleCandidates {
                 guard !Task.isCancelled else { return }
-                let cacheKey = EventTitleRewriteCacheKey(
-                    title: item.title,
-                    maximumCharacters: maximumCharacters
-                )
-
-                let rewrittenTitle: String
-                if let cachedTitle = eventTitleRewriteCache.value(forKey: cacheKey) {
-                    rewrittenTitle = cachedTitle
+                let itemKey = item.notificationKey
+                let mailContexts: [String]
+                if usesMailContext, item.kind == .event {
+                    mailContexts = await mailContextProvider.contexts(
+                        for: EventMailContextRequest(
+                            title: item.title,
+                            description: item.descriptionText,
+                            participantEmailAddresses: (
+                                [item.organizer?.emailAddress]
+                                    + item.attendees.map(\.emailAddress)
+                            ).compactMap { $0 }
+                        )
+                    )
                 } else {
-                    do {
-                        let generatedTitle = try await eventTitleRewriter.rewriteTitle(
-                            item.title,
-                            maximumCharacters: maximumCharacters
-                        )
-                        try Task.checkCancellation()
-                        rewrittenTitle = EventTitleRewriteResolver.resolvedTitle(
-                            generatedTitle,
-                            originalTitle: item.title,
-                            maximumCharacters: maximumCharacters
-                        )
-                        eventTitleRewriteCache.insert(rewrittenTitle, forKey: cacheKey)
-                    } catch is CancellationError {
-                        return
-                    } catch {
-                        continue
-                    }
+                    mailContexts = []
+                }
+                guard !Task.isCancelled else { return }
+                let sourceFingerprint = EventTitleRewriteSourceFingerprint.make(
+                    for: item,
+                    mailContexts: mailContexts
+                )
+                if !persistentEventTitleRewriteCache.hasMatchingSource(
+                    for: itemKey,
+                    sourceFingerprint: sourceFingerprint
+                ) {
+                    rewrittenEventTitlesByItemKey.removeValue(forKey: itemKey)
+                }
+                if let cachedTitle = persistentEventTitleRewriteCache.reusableTitle(
+                    for: itemKey,
+                    sourceFingerprint: sourceFingerprint,
+                    maximumCharacters: maximumCharacters,
+                    now: fixedSecondNow(),
+                    originalTitle: item.title
+                ) {
+                    rewrittenEventTitlesByItemKey[itemKey] = cachedTitle
+                    eventTitleRewriteCacheStore?.save(persistentEventTitleRewriteCache)
+                    updateMenuBarState(now: fixedSecondNow(), settings: snapshotSettings())
+                    continue
+                }
+                guard eventTitleRewriter.availability.isAvailable else {
+                    encounteredFailure = true
+                    continue
                 }
 
-                rewrittenEventTitlesByItemKey[item.notificationKey] = rewrittenTitle
+                let attachmentPreviews = await attachmentPreviewProvider.contexts(
+                    for: AttachmentContextRequest(
+                        references: item.agendaSummaryAttachments,
+                        referenceText: [
+                            item.title,
+                            item.descriptionText,
+                            item.locationText,
+                            item.calendarName,
+                            item.organizer?.displayText,
+                        ].compactMap { $0 }
+                            + item.attendees.map(\.displayText)
+                            + item.urlHosts,
+                        maximumCharactersPerAttachment: 2_400,
+                        maximumTotalCharacters: 7_200,
+                        maximumContexts: 6
+                    )
+                )
+                guard !Task.isCancelled else { return }
+                let request = EventTitleRewriteRequest(
+                    title: item.title,
+                    description: item.descriptionText,
+                    urlHosts: item.urlHosts,
+                    hasMeetingURL: item.meetingURL != nil,
+                    attachmentNames: item.agendaSummaryAttachments.map(\.fileName),
+                    attachmentPreviews: attachmentPreviews,
+                    mailContexts: mailContexts,
+                    itemKind: item.kind.rawValue,
+                    startsAt: item.date,
+                    endsAt: item.endDate,
+                    timeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier,
+                    isAllDay: item.isAllDay,
+                    location: item.locationText,
+                    calendarName: item.calendarName,
+                    isRecurring: item.isRecurring,
+                    organizerName: item.organizer?.displayText,
+                    attendeeNames: item.attendees.map(\.displayText),
+                    maximumCharacters: maximumCharacters
+                )
+                let rewrittenTitle: String
+                do {
+                    let generatedTitle = try await eventTitleRewriter.rewriteTitle(for: request)
+                    try Task.checkCancellation()
+                    rewrittenTitle = EventTitleRewriteResolver.resolvedTitle(
+                        generatedTitle,
+                        request: request
+                    )
+                    persistentEventTitleRewriteCache.record(
+                        title: rewrittenTitle,
+                        for: itemKey,
+                        sourceFingerprint: sourceFingerprint,
+                        maximumCharacters: maximumCharacters,
+                        now: fixedSecondNow()
+                    )
+                    eventTitleRewriteCacheStore?.save(persistentEventTitleRewriteCache)
+                } catch is CancellationError {
+                    return
+                } catch {
+                    encounteredFailure = true
+                    CalendarMonitorLog.titleRewrite.error(
+                        "Could not rewrite a calendar title: \(String(describing: error), privacy: .public)"
+                    )
+                    continue
+                }
+
+                rewrittenEventTitlesByItemKey[itemKey] = rewrittenTitle
                 updateMenuBarState(now: fixedSecondNow(), settings: snapshotSettings())
             }
 
+            guard eventTitleRewriteFingerprint == fingerprint else { return }
             eventTitleRewriteTask = nil
+            dataRefreshHealthState.titleRewriteError = encounteredFailure
+                ? "Apple Intelligence could not update some event titles. The original titles remain available." : nil
+            if encounteredFailure {
+                eventTitleRewriteFingerprint = nil
+                scheduleEventTitleRewriteRetry()
+            } else {
+                resetEventTitleRewriteRetryState()
+            }
         }
     }
 
     func eventTitle(for item: UpcomingItem, inDropdown: Bool) -> String {
         let settings = currentSettings
-        guard settings.useEventTitleEllipsis,
-              settings.rewriteEventTitlesWithAppleIntelligence,
-              AppSettingsRules.allowsAppleIntelligenceTitleRewrite(
-                maximumCharacters: settings.eventTitleMaxCharacters
-              ),
-              EventTitleRewriteResolver.shouldRequestRewrite(
-                for: item.title,
-                maximumCharacters: settings.eventTitleMaxCharacters
-              ),
-              (!inDropdown || settings.useRewrittenEventTitlesInDropdown) else {
+        guard !inDropdown || settings.useRewrittenEventTitlesInDropdown else {
             return item.title
         }
-        return EventTitleRewriteResolver.resolvedTitle(
-            rewrittenEventTitlesByItemKey[item.notificationKey],
-            originalTitle: item.title,
-            maximumCharacters: settings.eventTitleMaxCharacters
-        )
+        let presentation = eventTitlePresentation(for: item, settings: settings)
+        if inDropdown, settings.useEventTitleEllipsis, !presentation.usesResolvedTitle {
+            return trimmedTitle(presentation.title, maxLength: settings.eventTitleMaxCharacters)
+        }
+        return presentation.title
     }
 
-    func rewrittenEventTitle(for item: UpcomingItem, settings: AppSettings) -> String? {
-        guard settings.useEventTitleEllipsis,
-              settings.rewriteEventTitlesWithAppleIntelligence,
-              AppSettingsRules.allowsAppleIntelligenceTitleRewrite(
-                maximumCharacters: settings.eventTitleMaxCharacters
-              ),
-              EventTitleRewriteResolver.shouldRequestRewrite(
-                for: item.title,
-                maximumCharacters: settings.eventTitleMaxCharacters
-              ) else {
-            return nil
-        }
-        return rewrittenEventTitlesByItemKey[item.notificationKey]
+    func eventTitlePresentation(
+        for item: UpcomingItem,
+        settings: AppSettings
+    ) -> EventTitlePresentation {
+        EventTitlePresentationResolver.resolve(
+            originalTitle: item.title,
+            rewrittenTitle: rewrittenEventTitlesByItemKey[item.notificationKey],
+            maximumCharacters: settings.eventTitleMaxCharacters,
+            isEnabled: settings.useEventTitleEllipsis && item.footballMatch == nil
+                && AstronomyMoment(eventTitle: item.title) == nil,
+            isBirthday: isBirthdayItem(item),
+            usesModelRewrite: settings.rewriteEventTitlesWithAppleIntelligence,
+            otherBirthdayNames: (allDayEventItems + upcomingItems)
+                .filter { $0.notificationKey != item.notificationKey && isBirthdayItem($0) }
+                .compactMap { EventBirthdayTitle.parse($0.title, knownBirthday: true)?.name }
+        )
     }
 
     private func cancelEventTitleRewrites(clearDisplayedTitles: Bool) {
         eventTitleRewriteTask?.cancel()
         eventTitleRewriteTask = nil
+        resetEventTitleRewriteRetryState()
         eventTitleRewriteFingerprint = nil
         if clearDisplayedTitles, !rewrittenEventTitlesByItemKey.isEmpty {
             rewrittenEventTitlesByItemKey = [:]
         }
     }
 
+    private func scheduleEventTitleRewriteRetry() {
+        guard eventTitleRewriteRetryTask == nil else { return }
+        let attempt = eventTitleRewriteRetryAttempt
+        let delay = Self.eventTitleRewriteRetryDelay(forAttempt: attempt)
+        eventTitleRewriteRetryAttempt = attempt + 1
+        eventTitleRewriteRetryTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(
+                    nanoseconds: CalendarMonitorTime.nanoseconds(forDelay: delay)
+                )
+            } catch {
+                return
+            }
+
+            guard !Task.isCancelled, let self else { return }
+            self.eventTitleRewriteRetryTask = nil
+            self.eventTitleRewriteFingerprint = nil
+            self.scheduleEventTitleRewritesIfNeeded(
+                now: self.fixedSecondNow(),
+                settings: self.snapshotSettings()
+            )
+        }
+    }
+
+    private func resetEventTitleRewriteRetryState() {
+        eventTitleRewriteRetryTask?.cancel()
+        eventTitleRewriteRetryTask = nil
+        eventTitleRewriteRetryAttempt = 0
+    }
+
     private func makeEventTitleRewriteFingerprint(
         candidates: [UpcomingItem],
         maximumCharacters: Int,
-        includesDropdown: Bool
+        includesDropdown: Bool,
+        usesMailContext: Bool
     ) -> Int {
         var hasher = Hasher()
         hasher.combine(maximumCharacters)
         hasher.combine(includesDropdown)
+        hasher.combine(usesMailContext)
+        if usesMailContext {
+            hasher.combine(AppleMailAutomationPermission.currentStatus())
+        }
         for item in candidates {
             hasher.combine(item.notificationKey)
-            hasher.combine(item.title)
+            hasher.combine(EventTitleRewriteSourceFingerprint.make(for: item))
         }
         return hasher.finalize()
     }

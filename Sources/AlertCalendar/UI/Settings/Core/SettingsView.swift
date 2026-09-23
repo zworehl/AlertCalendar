@@ -9,6 +9,7 @@ struct SettingsView: View {
     let monitor: CalendarMonitor
 
     @StateObject var settingsWindowCloseGuard = SettingsWindowCloseGuard()
+    @StateObject var softwareUpdateController = SoftwareUpdateController.shared
     @State var draft = SettingsDraft.empty
     @State var pendingChanges = SettingsPendingChanges()
     @State var isApplyingChanges = false
@@ -31,6 +32,7 @@ struct SettingsView: View {
     @State var reminderAuthorizationStatus: EKAuthorizationStatus = .notDetermined
     @State var locationAuthorizationStatus: CLAuthorizationStatus = .notDetermined
     @State var contactsAuthorizationStatus: CNAuthorizationStatus = .notDetermined
+    @State var mailAutomationAuthorizationStatus: AppleMailAutomationAuthorizationStatus = .notDetermined
     @State var lastRefreshDate: Date?
     @State var lastGameSalesRefreshDate: Date?
     @State var googleHolidayLastRefreshDate: Date?
@@ -40,6 +42,7 @@ struct SettingsView: View {
     @State var refreshDiagnostics = CalendarMonitorRefreshDiagnostics()
     @State var isManualSettingsRefreshInProgress = false
     @State var externalFeedDiagnostics = ExternalFeedDiagnostics()
+    @State var dataRefreshIssues: [DataRefreshIssue] = []
     @State var isShowingPermissionDiagnostics = false
     @State var slackUserTokenDraft = ""
     @State var slackConnections: [SlackConnection] = []
@@ -62,7 +65,10 @@ struct SettingsView: View {
     @State var settingsColumnVisibility: NavigationSplitViewVisibility = .all
 
     var body: some View {
-        settingsNavigationLayout
+        GeometryReader { proxy in
+            settingsNavigationLayout
+                .frame(width: proxy.size.width, height: proxy.size.height)
+        }
         .disabled(isApplyingChanges)
         .environment(\.controlSize, .regular)
         .contentShape(Rectangle())
@@ -80,7 +86,14 @@ struct SettingsView: View {
                 }
             )
         )
-        .frame(minWidth: 980, idealWidth: 1240, minHeight: 720, idealHeight: 840)
+        .frame(
+            minWidth: 980,
+            idealWidth: 1240,
+            maxWidth: .infinity,
+            minHeight: 720,
+            idealHeight: 840,
+            maxHeight: .infinity
+        )
         .onAppear {
             activateSettingsWindowIfNeeded()
             monitor.refreshAgendaSummaryAvailability()
@@ -135,6 +148,12 @@ struct SettingsView: View {
             reminderAuthorizationStatus = SettingsPermissionKind.currentReminderAuthorizationStatus()
             locationAuthorizationStatus = SettingsPermissionKind.currentLocationAuthorizationStatus()
             contactsAuthorizationStatus = SettingsPermissionKind.currentContactsAuthorizationStatus()
+            let mailStatus = AppleMailAutomationPermission.currentStatus()
+            let didChangeMailAccess = mailStatus != mailAutomationAuthorizationStatus
+            mailAutomationAuthorizationStatus = mailStatus
+            if didChangeMailAccess {
+                monitor.refreshNow(reason: .manual)
+            }
             refreshMeetingBrowserProfiles()
         }
         .onReceive(monitor.$lastRefreshDate.removeDuplicates()) { date in
@@ -160,6 +179,9 @@ struct SettingsView: View {
         }
         .onReceive(monitor.$externalFeedDiagnostics.removeDuplicates()) { diagnostics in
             externalFeedDiagnostics = diagnostics
+        }
+        .onReceive(monitor.$dataRefreshIssues.removeDuplicates()) { issues in
+            dataRefreshIssues = issues
         }
         .onReceive(monitor.$slackConnectionStatusMessage.removeDuplicates()) { message in
             slackConnectionStatusMessage = message

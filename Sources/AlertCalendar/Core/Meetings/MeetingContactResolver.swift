@@ -67,7 +67,7 @@ actor MeetingContactResolver {
             )
         }
 
-        return resolvedAttendees
+        return MeetingAttendee.normalized(resolvedAttendees)
     }
 
     private func resolvedContact(for emailAddress: String) async -> ResolvedMeetingContact? {

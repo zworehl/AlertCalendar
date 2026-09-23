@@ -4,7 +4,6 @@ import SwiftUI
 struct SettingsCalendarRowView: View {
     let calendar: AvailableCalendar
     let selectedIDs: Binding<Set<String>>
-    let weekdayOnlyIDs: Binding<Set<String>>
     let onSelectionChanged: () -> Void
     var calendarAlertRules: Binding<[CalendarAlertRule]>?
     @State private var isHovered = false
@@ -12,7 +11,6 @@ struct SettingsCalendarRowView: View {
 
     var body: some View {
         let isSelected = selectedIDs.wrappedValue.contains(calendar.id)
-        let isWeekdayOnly = weekdayOnlyIDs.wrappedValue.contains(calendar.id)
 
         HStack(spacing: 8) {
             Button {
@@ -68,29 +66,7 @@ struct SettingsCalendarRowView: View {
                     }
                 }
 
-                Button {
-                    setWeekdayOnly(isWeekdayOnly: !isWeekdayOnly)
-                } label: {
-                    Text(isWeekdayOnly ? "Weekdays" : "Every day")
-                        .font(SettingsTypography.metadataEmphasized)
-                        .foregroundStyle(isWeekdayOnly ? .primary : .secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(
-                                    isWeekdayOnly
-                                        ? Color.accentColor.opacity(0.16)
-                                        : Color.secondary.opacity(0.12)
-                                )
-                        )
-                }
-                .buttonStyle(.plain)
-                .frame(minHeight: SettingsVisualMetrics.minimumInteractiveControlSize)
-                .contentShape(Rectangle())
-                .accessibilityLabel("Calendar schedule for \(calendar.title)")
-                .accessibilityValue(isWeekdayOnly ? "Weekdays" : "Every day")
-                .help("Toggle weekdays-only filtering for this calendar")
+
             }
         }
         .padding(.horizontal, 8)
@@ -125,16 +101,6 @@ struct SettingsCalendarRowView: View {
             selectedIDs.wrappedValue.insert(calendar.id)
         } else {
             selectedIDs.wrappedValue.remove(calendar.id)
-            weekdayOnlyIDs.wrappedValue.remove(calendar.id)
-        }
-        onSelectionChanged()
-    }
-
-    private func setWeekdayOnly(isWeekdayOnly: Bool) {
-        if isWeekdayOnly {
-            weekdayOnlyIDs.wrappedValue.insert(calendar.id)
-        } else {
-            weekdayOnlyIDs.wrappedValue.remove(calendar.id)
         }
         onSelectionChanged()
     }

@@ -143,7 +143,7 @@ extension SettingsView {
             browserProfileAuthorizationErrorMessage = nil
             refreshMeetingBrowserProfiles()
         } catch {
-            browserProfileAuthorizationErrorMessage = "AlertCalendar could not save \(issue.browser.title) access: \(error.localizedDescription)"
+            browserProfileAuthorizationErrorMessage = "AlertCalendar could not save \(issue.browser.title) access: \(AlertCalendarLanguage.errorMessage(error))"
         }
     }
 

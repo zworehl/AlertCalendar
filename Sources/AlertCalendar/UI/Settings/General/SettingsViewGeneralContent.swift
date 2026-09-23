@@ -13,58 +13,65 @@ extension SettingsView {
         )
 
         VStack(alignment: .leading, spacing: SettingsVisualMetrics.pageSpacing) {
-            settingsSection(
-                title: "Alert Behavior",
-                subtitle: "Control when upcoming items become urgent.",
-                systemImage: "bell.badge"
-            ) {
-                VStack(alignment: .leading, spacing: 12) {
-                    settingsControlRow(
-                        title: "Blinking alert",
-                        detail: "Turns near-start items and overdue timed events red so they stand out."
-                    ) {
-                        Toggle("Blinking alert", isOn: $draft.enableBlinkAlert)
-                            .labelsHidden()
-                            .toggleStyle(.switch)
-                            .accessibilityLabel(Text("Blinking alert"))
-                    }
-
-                    settingsDivider()
-
-                    settingsControlRow(
-                        title: "Alert lead time",
-                        detail: "Defines how early the urgent state begins before a meeting starts."
-                    ) {
-                        generalSettingStepperControl(
-                            valueText: Self.durationValueText(
-                                value: draft.alertLeadMinutes,
-                                singular: "minute",
-                                plural: "minutes"
-                            )
-                        ) {
-                            Stepper("", value: $draft.alertLeadMinutes, in: 1 ... 60)
-                                .labelsHidden()
-                        }
-                    }
-                }
-            }
-
             if settingsUsesTwoColumnLayout {
                 HStack(alignment: .top, spacing: SettingsVisualMetrics.pageSpacing) {
                     generalMenuBarSettingsSection
                         .frame(maxWidth: .infinity, alignment: .topLeading)
 
-                    generalDropdownSettingsSection(maxContextualPreviewLeadMinutes: maxContextualPreviewLeadMinutes)
+                    VStack(alignment: .leading, spacing: SettingsVisualMetrics.pageSpacing) {
+                        generalDropdownSettingsSection(maxContextualPreviewLeadMinutes: maxContextualPreviewLeadMinutes)
+                        generalAlertBehaviorSettingsSection
+                    }
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
             } else {
                 VStack(alignment: .leading, spacing: SettingsVisualMetrics.pageSpacing) {
                     generalMenuBarSettingsSection
                     generalDropdownSettingsSection(maxContextualPreviewLeadMinutes: maxContextualPreviewLeadMinutes)
+                    generalAlertBehaviorSettingsSection
                 }
             }
 
+            softwareUpdateSettingsSection
             generalSettingsPreviewSection
+        }
+    }
+
+    var generalAlertBehaviorSettingsSection: some View {
+        settingsSection(
+            title: "Alert Behavior",
+            subtitle: "Control when upcoming items become urgent.",
+            systemImage: "bell.badge"
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                settingsControlRow(
+                    title: "Blinking alert",
+                    detail: "Blinks red during the alert lead time, stopping when an event starts or a reminder becomes due."
+                ) {
+                    Toggle("Blinking alert", isOn: $draft.enableBlinkAlert)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .accessibilityLabel(Text("Blinking alert"))
+                }
+
+                settingsDivider()
+
+                settingsControlRow(
+                    title: "Alert lead time",
+                    detail: "Defines how early the urgent state begins before a meeting starts."
+                ) {
+                    generalSettingStepperControl(
+                        valueText: Self.durationValueText(
+                            value: draft.alertLeadMinutes,
+                            singular: "minute",
+                            plural: "minutes"
+                        )
+                    ) {
+                        Stepper("", value: $draft.alertLeadMinutes, in: 1 ... 60)
+                            .labelsHidden()
+                    }
+                }
+            }
         }
     }
 
@@ -107,6 +114,18 @@ extension SettingsView {
                 settingsDivider()
 
                 settingsControlRow(
+                    title: "Focus on active events",
+                    detail: "Shows only currently active timed events. If several overlap, the menu bar rotates between those events; otherwise normal rotation continues."
+                ) {
+                    Toggle("Focus on active events", isOn: $draft.focusMenuBarOnActiveEvents)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .accessibilityLabel(Text("Focus on active events"))
+                }
+
+                settingsDivider()
+
+                settingsControlRow(
                     title: "Queue rotation",
                     detail: "Controls how quickly concurrent items trade the same menu bar space."
                 ) {
@@ -140,7 +159,7 @@ extension SettingsView {
 
                 settingsControlRow(
                     title: "Shorten long titles",
-                    detail: "Keeps long event and reminder titles within a compact menu bar limit."
+                    detail: "Shortens English titles while preserving their purpose. Birthdays use Birthday or Bday as space allows."
                 ) {
                     Toggle("Shorten long titles", isOn: $draft.useEventTitleEllipsis)
                         .labelsHidden()
@@ -164,9 +183,21 @@ extension SettingsView {
                     settingsDivider()
 
                     settingsControlRow(
+                        title: "Also shorten dropdown titles",
+                        detail: "Uses the same abbreviations and character limit in the dropdown list. Leave off to show original titles there."
+                    ) {
+                        Toggle("Also shorten dropdown titles", isOn: useRewrittenEventTitlesInDropdownBinding)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .accessibilityLabel(Text("Also shorten dropdown titles"))
+                    }
+
+                    settingsDivider()
+
+                    settingsControlRow(
                         title: "Rewrite with Apple Intelligence",
                         detail: appleIntelligenceTitleRewriteIsAllowed
-                            ? "Rephrases visible event and reminder titles on device so each compact title stays within the character limit; standard truncation remains the fallback."
+                            ? "Rephrases English titles on device using event details and relevant attachment context. Local abbreviations work without Apple Intelligence."
                             : "Requires at least 10 characters so the rewritten title still has room to say something useful."
                     ) {
                         Toggle(
@@ -183,16 +214,16 @@ extension SettingsView {
                         settingsDivider()
 
                         settingsControlRow(
-                            title: "Also rewrite dropdown titles",
-                            detail: "Uses the same compact replacements in the dropdown list. Leave off to change only the menu bar."
+                            title: "Use related Mail context",
+                            detail: "Optionally asks Apple Mail for a few messages whose subjects match strong identifiers or the exact event title. Only bounded, redacted context is used on device."
                         ) {
                             Toggle(
-                                "Also rewrite dropdown titles",
-                                isOn: useRewrittenEventTitlesInDropdownBinding
+                                "Use related Apple Mail messages when rewriting titles",
+                                isOn: $draft.useMailContextForEventTitleRewrite
                             )
                             .labelsHidden()
                             .toggleStyle(.switch)
-                            .accessibilityLabel(Text("Also rewrite dropdown titles"))
+                            .accessibilityLabel(Text("Use related Mail context"))
                         }
                     }
 
@@ -302,7 +333,7 @@ extension SettingsView {
 
                 settingsControlRow(
                     title: "Agenda summary",
-                    detail: "Uses Apple Intelligence on device to generate a concise English overview."
+                    detail: "Uses Apple Intelligence on device to summarize the visible schedule, complete notes, and relevant context selected across supported local attachments."
                 ) {
                     Toggle("Show agenda summary", isOn: $draft.showAgendaSummary)
                         .labelsHidden()

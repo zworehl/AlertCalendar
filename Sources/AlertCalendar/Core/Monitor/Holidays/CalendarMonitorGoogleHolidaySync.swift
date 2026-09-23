@@ -83,7 +83,7 @@ extension CalendarMonitor {
                 forKey: DefaultsKeys.googleHolidayIdentityVersion
             )
         } catch {
-            googleHolidaySyncErrorDescription = error.localizedDescription
+            googleHolidaySyncErrorDescription = AlertCalendarLanguage.errorMessage(error)
         }
     }
 

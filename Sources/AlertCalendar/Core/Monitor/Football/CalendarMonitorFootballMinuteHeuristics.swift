@@ -375,10 +375,6 @@ extension CalendarMonitor {
         locale: Locale,
         timeZone: TimeZone
     ) -> DateFormatter {
-        let formatter = DateFormatter()
-        formatter.locale = locale
-        formatter.timeZone = timeZone
-        formatter.setLocalizedDateFormatFromTemplate(template)
-        return formatter
+        AlertCalendarLanguage.dateFormatter(template: template, clockLocale: locale, timeZone: timeZone)
     }
 }

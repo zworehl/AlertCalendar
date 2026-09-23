@@ -91,6 +91,8 @@ extension SettingsFootballFixturesSectionView {
 
             if section.isLoading && !section.hasLoaded && section.matches.isEmpty {
                 loadingState("Loading live and upcoming fixtures...")
+            } else if section.errorMessage != nil && visibleMatches.isEmpty {
+                EmptyView()
             } else if !section.hasLoaded && section.matches.isEmpty {
                 feedbackState(
                     title: "Nothing loaded yet",

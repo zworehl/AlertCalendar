@@ -85,12 +85,16 @@ extension FootballDataAPIClient {
     ) async throws -> Data? {
         var request = URLRequest(url: url)
         request.timeoutInterval = Self.requestTimeout
+        let requestStartedAt = Date()
         let data: Data
         let response: URLResponse
         do {
             (data, response) = try await session.data(for: request)
         } catch {
-            await ExternalFeedMetrics.shared.recordTransportFailure(source: "football.summary")
+            await ExternalFeedMetrics.shared.recordTransportFailure(
+                source: "football.summary",
+                duration: Date().timeIntervalSince(requestStartedAt)
+            )
             throw error
         }
         guard let http = response as? HTTPURLResponse else {
@@ -99,7 +103,8 @@ extension FootballDataAPIClient {
         await ExternalFeedMetrics.shared.recordNetworkResponse(
             source: "football.summary",
             statusCode: http.statusCode,
-            responseBytes: data.count
+            responseBytes: data.count,
+            duration: Date().timeIntervalSince(requestStartedAt)
         )
         guard (200...299).contains(http.statusCode) else {
             throw ClientError.unsuccessfulResponse(statusCode: http.statusCode)
@@ -131,34 +136,12 @@ extension FootballDataAPIClient {
         session: URLSession,
         competitionCategory: FootballCompetitionCategory? = nil
     ) async throws -> [FootballFixtureMatch] {
-        var request = URLRequest(url: url)
-        request.timeoutInterval = Self.requestTimeout
-        let data: Data
-        let response: URLResponse
-        do {
-            (data, response) = try await session.data(for: request)
-        } catch {
-            await ExternalFeedMetrics.shared.recordTransportFailure(source: "football.scoreboard.\(slug)")
-            throw error
-        }
-        guard let http = response as? HTTPURLResponse else {
-            throw ClientError.invalidResponse
-        }
-        await ExternalFeedMetrics.shared.recordNetworkResponse(
-            source: "football.scoreboard.\(slug)",
-            statusCode: http.statusCode,
-            responseBytes: data.count
-        )
-        guard (200...299).contains(http.statusCode) else {
-            throw ClientError.unsuccessfulResponse(statusCode: http.statusCode)
-        }
-
-        let root = try jsonDictionary(from: data)
+        let root = try await fetchScoreboardRoot(url: url, slug: slug, session: session)
         let league = (root["leagues"] as? [[String: Any]])?.first
         let resolvedCompetitionName = competitionDisplayName(from: league) ?? competitionName
         let competitionLogoURL = leagueLogoURL(from: league)
         let competitionStage = leagueStageName(from: league)
-        let events = root["events"] as? [[String: Any]] ?? []
+        guard let events = root["events"] as? [[String: Any]] else { throw ClientError.invalidResponse }
         let isNationalCompetition = (competitionCategory ?? FootballCompetitionPreset.category(forCompetitionSlug: slug)) == .nationalTeams
         return events.compactMap {
             liveMatch(
@@ -170,6 +153,42 @@ extension FootballDataAPIClient {
                 isNationalCompetition: isNationalCompetition
             )
         }
+    }
+
+    static func fetchScoreboardRoot(url: URL, slug: String, session: URLSession) async throws -> [String: Any] {
+        var request = URLRequest(url: url)
+        request.timeoutInterval = Self.requestTimeout
+        let requestStartedAt = Date()
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            await ExternalFeedMetrics.shared.recordTransportFailure(
+                source: "football.scoreboard.\(slug)",
+                duration: Date().timeIntervalSince(requestStartedAt)
+            )
+            throw error
+        }
+        guard let http = response as? HTTPURLResponse else {
+            throw ClientError.invalidResponse
+        }
+        await ExternalFeedMetrics.shared.recordNetworkResponse(
+            source: "football.scoreboard.\(slug)",
+            statusCode: http.statusCode,
+            responseBytes: data.count,
+            duration: Date().timeIntervalSince(requestStartedAt)
+        )
+        if http.statusCode == 429 {
+            throw ClientError.rateLimited(until: Self.rateLimitRetryDate(
+                header: http.value(forHTTPHeaderField: "Retry-After"), now: Date()
+            ))
+        }
+        guard (200...299).contains(http.statusCode) else {
+            throw ClientError.unsuccessfulResponse(statusCode: http.statusCode)
+        }
+
+        return try jsonDictionary(from: data)
     }
 
     static func fetchTeamDetails(teamID: String, session: URLSession) async -> TeamResponse? {
@@ -233,7 +252,10 @@ extension FootballDataAPIClient {
             teamName: displayName,
             teamAbbreviation: teamAbbreviation
         )
-        let inferredLeagueCountry = teamCountryNameFromVenueReference(stringValue(venue?["$ref"]))
+        let groups = root["groups"] as? [String: Any]
+        let inferredLeagueCountry = [root["$ref"], groups?["$ref"], venue?["$ref"]]
+            .compactMap { teamCountryNameFromVenueReference(stringValue($0)) }
+            .first
         let inferredNationalCountry = inferredNationalCountryName(
             displayName: displayName,
             location: location
@@ -242,6 +264,13 @@ extension FootballDataAPIClient {
 
         if isNational {
             return inferredNationalCountry ?? location ?? displayName ?? venueCountry ?? inferredLeagueCountry
+        }
+
+        if let verifiedCountry = FootballClubCountryResolver.countryName(
+            teamID: stringValue(root["id"]),
+            name: displayName
+        ) {
+            return verifiedCountry
         }
 
         return resolvedClubCountryName(

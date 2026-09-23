@@ -78,30 +78,6 @@ struct MenuListRowBackgroundShape: Shape {
     }
 }
 
-/// `MenuBarExtraStyle.window` supplies the native panel behavior. An AppKit
-/// popover material keeps its content visually consistent with system extras and
-/// automatically follows the window's active state, appearance, contrast and
-/// Reduce Transparency preferences.
-struct MenuPopoverVisualEffect: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        Self.makeVisualEffectView()
-    }
-
-    static func makeVisualEffectView() -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = .popover
-        view.blendingMode = .behindWindow
-        view.state = .followsWindowActiveState
-        return view
-    }
-
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
-        nsView.material = .popover
-        nsView.blendingMode = .behindWindow
-        nsView.state = .followsWindowActiveState
-    }
-}
-
 struct MenuToolbarButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         MenuToolbarButton(configuration: configuration)

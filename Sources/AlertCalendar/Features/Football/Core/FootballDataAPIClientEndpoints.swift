@@ -69,10 +69,12 @@ extension FootballDataAPIClient {
             formatter.locale = Locale(identifier: "en_US_POSIX")
             formatter.timeZone = .autoupdatingCurrent
             formatter.dateFormat = "yyyyMMdd"
+            let start = formatter.string(from: dateRange.0)
+            let end = formatter.string(from: dateRange.1)
             components?.queryItems = [
                 URLQueryItem(
                     name: "dates",
-                    value: "\(formatter.string(from: dateRange.0))-\(formatter.string(from: dateRange.1))"
+                    value: start == end ? start : "\(start)-\(end)"
                 ),
             ]
         }

@@ -146,6 +146,7 @@ extension SettingsFootballFixturesSectionView {
 
     func teamNameText(_ team: FootballTeamSummary) -> some View {
         Text(FootballFixtureFormatter.teamDisplayIdentifier(for: team))
+            .help(FootballFixtureFormatter.teamDisplayName(for: team))
             .lineLimit(1)
             .truncationMode(.tail)
             .fixedSize(horizontal: true, vertical: false)

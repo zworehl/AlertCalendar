@@ -6,9 +6,7 @@ import SwiftUI
 enum MenuActionControlMetrics {
     static let minimumHitTargetSize: CGFloat = 28
     static let symbolSize: CGFloat = 11
-    static let labelSpacing: CGFloat = 4
-    static let horizontalChrome: CGFloat = 12
-    static let controlSpacing: CGFloat = 4
+    static let controlSpacing: CGFloat = 0
     static let leadingClearance: CGFloat = 16
     static let trailingInset: CGFloat = 6
 }
@@ -23,6 +21,11 @@ struct MenuActionButtonGroup<Content: View>: View {
     var body: some View {
         HStack(spacing: MenuActionControlMetrics.controlSpacing) {
             content
+        }
+        .fixedSize(horizontal: true, vertical: true)
+        .background {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color(nsColor: .controlColor))
         }
     }
 }
@@ -57,18 +60,11 @@ extension MenuContentView {
 
     @ViewBuilder
     func joinActionButton(for item: UpcomingItem) -> some View {
-        Button {
+        MenuActionButton(systemImage: "video", toolTip: "Join meeting", accessibilityLabel: "Join meeting") {
             openMeetingFromDropdown(item)
-        } label: {
-            contextualActionLabel(title: "Join", systemImage: "video")
         }
-        .buttonStyle(.bordered)
-        .controlSize(.small)
-        .frame(minHeight: MenuActionControlMetrics.minimumHitTargetSize)
-        .contentShape(Rectangle())
+        .frame(width: MenuActionControlMetrics.minimumHitTargetSize, height: MenuActionControlMetrics.minimumHitTargetSize)
         .disabled(item.meetingURL == nil)
-        .accessibilityLabel("Join meeting")
-        .help("Join meeting")
     }
 
     func openMeetingFromDropdown(_ item: UpcomingItem) {
@@ -79,92 +75,68 @@ extension MenuContentView {
     }
 
     @ViewBuilder
-    func skipActionButton(for item: UpcomingItem) -> some View {
-        Button {
-            monitor.skipItem(item)
-        } label: {
-            contextualActionLabel(title: "Skip", systemImage: "forward.end")
+    func openLinkActionButton(for item: UpcomingItem) -> some View {
+        MenuActionButton(systemImage: "link", toolTip: "Open link", accessibilityLabel: "Open link for \(item.title)") {
+            openLinkFromDropdown(item)
         }
-        .buttonStyle(.bordered)
-        .controlSize(.small)
-        .frame(minHeight: MenuActionControlMetrics.minimumHitTargetSize)
-        .contentShape(Rectangle())
-        .accessibilityLabel("Skip \(item.title)")
-        .help("Skip this item")
+        .frame(width: MenuActionControlMetrics.minimumHitTargetSize, height: MenuActionControlMetrics.minimumHitTargetSize)
+        .disabled(item.openLinkURL == nil)
+    }
+
+    func openLinkFromDropdown(_ item: UpcomingItem) {
+        guard let url = item.openLinkURL else { return }
+        NSApp.keyWindow?.orderOut(nil)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            AlertCalendarWorkspace.open(url)
+        }
+    }
+
+    @ViewBuilder
+    func skipActionButton(for item: UpcomingItem) -> some View {
+        MenuActionButton(systemImage: "forward.end", toolTip: "Skip this item", accessibilityLabel: "Skip \(item.title)") {
+            monitor.skipItem(item)
+        }
+        .frame(width: MenuActionControlMetrics.minimumHitTargetSize, height: MenuActionControlMetrics.minimumHitTargetSize)
     }
 
     @ViewBuilder
     func mapActionButton(for item: UpcomingItem, locationText: String) -> some View {
-        Button {
+        MenuActionButton(
+            systemImage: "map",
+            toolTip: "Open in Maps",
+            accessibilityLabel: "Open \(displayLocationName(from: locationText)) in Maps"
+        ) {
             openMap(for: item, locationText: locationText)
-        } label: {
-            contextualActionLabel(title: "Map", systemImage: "map")
         }
-        .buttonStyle(.bordered)
-        .controlSize(.small)
-        .frame(minHeight: MenuActionControlMetrics.minimumHitTargetSize)
-        .contentShape(Rectangle())
+        .frame(width: MenuActionControlMetrics.minimumHitTargetSize, height: MenuActionControlMetrics.minimumHitTargetSize)
         .disabled(!Self.hasUsableContextualLocation(locationText))
-        .accessibilityLabel("Open \(displayLocationName(from: locationText)) in Maps")
-        .help("Open in Maps")
     }
 
     @ViewBuilder
     func completeActionButton(for item: UpcomingItem) -> some View {
-        Button {
+        MenuActionButton(systemImage: "checkmark.circle", toolTip: "Complete reminder", accessibilityLabel: "Complete \(item.title)") {
             monitor.markReminderCompleted(item)
-        } label: {
-            reminderCompletionActionLabel(color: Color(nsColor: item.calendarColor.nsColor))
         }
-        .buttonStyle(.bordered)
-        .controlSize(.small)
-        .frame(
-            width: MenuActionControlMetrics.minimumHitTargetSize,
-            height: MenuActionControlMetrics.minimumHitTargetSize
-        )
-        .contentShape(Rectangle())
-        .accessibilityLabel("Complete \(item.title)")
-        .help("Complete reminder")
-    }
-
-    func contextualActionLabel(title: String, systemImage: String) -> some View {
-        HStack(spacing: MenuActionControlMetrics.labelSpacing) {
-            Image(systemName: systemImage)
-                .font(.system(size: MenuActionControlMetrics.symbolSize, weight: .medium))
-
-            Text(title)
-                .font(MenuMarkerMetrics.actionLabelFont)
-        }
-        .lineLimit(1)
-        .fixedSize(horizontal: true, vertical: false)
-    }
-
-    func reminderCompletionActionLabel(color: Color) -> some View {
-        Image(systemName: "checkmark")
-            .font(.system(size: MenuActionControlMetrics.symbolSize, weight: .semibold))
-            .foregroundStyle(color)
-            .frame(
-                width: MenuActionControlMetrics.symbolSize,
-                height: MenuActionControlMetrics.symbolSize
-            )
+        .frame(width: MenuActionControlMetrics.minimumHitTargetSize, height: MenuActionControlMetrics.minimumHitTargetSize)
     }
 
     nonisolated static func hasUsableContextualLocation(_ locationText: String?) -> Bool {
         guard let locationText else { return false }
         return !locationText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !CalendarMonitor.containsWebURL(in: locationText)
     }
 
     static let menuTimeFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.locale = .autoupdatingCurrent
+        formatter.locale = AlertCalendarLanguage.english
         formatter.dateStyle = .none
-        formatter.timeStyle = .short
+        formatter.dateFormat = AlertCalendarLanguage.uses24HourTime() ? "HH:mm" : "h:mm a"
         return formatter
     }()
 
     static let menuDateTimeFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.locale = .autoupdatingCurrent
+        formatter.locale = AlertCalendarLanguage.english
         formatter.dateFormat = "MMM d HH:mm"
         return formatter
     }()
@@ -274,6 +246,10 @@ extension MenuContentView {
     func shouldShowLocationRow(locationName: String, meetingURL: URL?) -> Bool {
         let normalizedLocation = locationName.lowercased()
         guard !normalizedLocation.isEmpty else { return false }
+
+        if CalendarMonitor.containsWebURL(in: locationName) {
+            return false
+        }
 
         if monitor.isVirtualLocationText(locationName) {
             return false

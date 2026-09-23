@@ -1,18 +1,12 @@
 import Foundation
 
 extension CalendarMonitor {
-    func prepareGameSaleNotificationAuthorizationIfNeeded() {
-        guard defaults.bool(forKey: DefaultsKeys.enableGameSaleAutoAddNotifications) else { return }
-        Task {
-            await AlertCalendarUserNotifier.requestAuthorizationIfNeeded()
-        }
-    }
-
     nonisolated static func gameSaleAutoAddNotificationMessage(
         for sale: GameSaleEvent,
         calendar: Calendar = Calendar.current
     ) -> GameSaleNotificationMessage {
         let formatter = DateIntervalFormatter()
+        formatter.locale = AlertCalendarLanguage.english
         formatter.dateStyle = .medium
         formatter.timeStyle = .none
         formatter.calendar = calendar

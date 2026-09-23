@@ -71,13 +71,14 @@ extension CalendarMonitor {
     }
 
     func syncAutoAddedFootballMatchesIfNeeded(now: Date, force: Bool = false) async {
+        guard !footballState.isAutoAddRefreshing else { return }
         guard hasEventsAccess else { return }
         let enabledSlugs = footballAutoAddCompetitionSlugs()
         guard !enabledSlugs.isEmpty else { return }
         guard force || CalendarMonitorTime.hasElapsed(
             since: lastFootballAutoAddRefreshDate,
             now: now,
-            interval: Self.footballAutoAddRefreshInterval
+            interval: footballState.autoAddRefreshFailed ? 60 : Self.footballAutoAddRefreshInterval
         ) else {
             return
         }
@@ -85,6 +86,8 @@ extension CalendarMonitor {
         let presets = FootballCompetitionPreset.menuPresets.filter { enabledSlugs.contains($0.slug) }
         guard !presets.isEmpty else { return }
 
+        footballState.isAutoAddRefreshing = true
+        defer { footballState.isAutoAddRefreshing = false }
         lastFootballAutoAddRefreshDate = now
         do {
             let calendar = Calendar(identifier: .gregorian)
@@ -98,22 +101,29 @@ extension CalendarMonitor {
                 ).map { FootballScoreboardDateRange(start: $0.0, end: $0.1) }
                 return (preset.slug, ranges)
             })
-            let fetchedMatches = try await footballClient.fetchMatches(
+            let result = try await footballClient.fetchFixtureLoadResult(
                 for: presets,
                 dateRangesByCompetitionSlug: dateRangesBySlug,
-                forceRefresh: force
+                forceRefresh: force,
+                healthScope: "auto-add"
             )
+            let fetchedMatches = result.restoringCachedMatches(Array(footballMatchesByID.values))
             let refreshedMatches = await footballClient.refreshStatusesIfNeeded(for: fetchedMatches)
             let resolvedMatches = matchesPreservingKnownTimingContext(refreshedMatches)
             await cacheFootballMatches(resolvedMatches)
-            markFootballRefreshed(at: now)
+            footballState.autoAddRefreshFailed = !result.failures.isEmpty
+            if result.failures.isEmpty {
+                markFootballRefreshed(at: now)
+            }
             updateFootballCompetitionSectionsAfterAutoAddRefresh(
                 presets: presets,
                 matches: resolvedMatches,
-                now: now
+                now: now,
+                failures: result.failures
             )
             await autoAddFootballMatches(resolvedMatches, enabledCompetitionSlugs: enabledSlugs, now: now)
         } catch {
+            if !(error is CancellationError) { footballState.autoAddRefreshFailed = true }
             return
         }
     }
@@ -149,7 +159,8 @@ extension CalendarMonitor {
     func updateFootballCompetitionSectionsAfterAutoAddRefresh(
         presets: [FootballCompetitionPreset],
         matches: [FootballFixtureMatch],
-        now: Date
+        now: Date,
+        failures: [FootballFixtureLoadFailure] = []
     ) {
         ensureFootballCompetitionSections()
         let matchesByCompetitionSlug = Dictionary(grouping: matches, by: \.competitionSlug)
@@ -164,7 +175,7 @@ extension CalendarMonitor {
                 FootballMenuCompetitionSection(
                     competition: preset,
                     matches: sectionMatches,
-                    errorMessage: nil,
+                    errorMessage: FootballFixtureLoadResult(failures: failures.filter { $0.competitionSlug == preset.slug }).warning,
                     isLoading: false,
                     hasLoaded: true
                 )

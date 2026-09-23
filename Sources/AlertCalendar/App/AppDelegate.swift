@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private weak var settingsWindowCloseGuard: SettingsWindowCloseGuard?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        SoftwareUpdateController.shared.start()
         UNUserNotificationCenter.current().delegate = self
         NSApp.mainMenu = makeMainMenu()
         installEmojiShortcutMonitor()
@@ -184,6 +185,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         settingsItem.target = self
         appMenu.addItem(settingsItem)
         appMenu.addItem(NSMenuItem.separator())
+        let checkForUpdatesItem = NSMenuItem(
+            title: "Check for Updates…",
+            action: #selector(SoftwareUpdateController.checkForUpdates(_:)),
+            keyEquivalent: ""
+        )
+        checkForUpdatesItem.target = SoftwareUpdateController.shared
+        appMenu.addItem(checkForUpdatesItem)
+        appMenu.addItem(NSMenuItem.separator())
         appMenu.addItem(withTitle: "Hide \(ProcessInfo.processInfo.processName)", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         let hideOthersItem = NSMenuItem(title: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
         hideOthersItem.keyEquivalentModifierMask = [.command, .option]
@@ -310,6 +319,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 }
 
 extension AppDelegate: UNUserNotificationCenterDelegate {
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        if response.notification.request.identifier == CalendarMonitor.dataRefreshNotificationID,
+           response.actionIdentifier == UNNotificationDefaultActionIdentifier {
+            Task { @MainActor [weak self] in
+                UserDefaults.standard.set(SettingsView.SettingsTab.access.rawValue, forKey: SettingsNavigationPersistence.selectedTabKey)
+                self?.openSettingsFromMainMenu(nil)
+            }
+        }
+        completionHandler()
+    }
+
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,

@@ -35,36 +35,21 @@ extension MenuContentView {
         let now = displayReferenceDate
 
         ZStack(alignment: .trailing) {
-            if item.kind == .reminder {
-                Button {
-                    monitor.markReminderCompleted(item)
-                } label: {
-                    rowPrimaryContent(
-                        for: item,
-                        now: now,
-                        isHovered: isHovered,
-                        hideTimeDetails: isHovered,
-                        reservedTrailingWidth: reservedTrailingWidth,
-                        listPosition: listPosition
-                    )
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Complete \(item.title)")
-                .help("Complete reminder")
-            } else {
-                rowPrimaryContent(
-                    for: item,
-                    now: now,
-                    isHovered: isHovered,
-                    hideTimeDetails: isHovered,
-                    reservedTrailingWidth: reservedTrailingWidth,
-                    listPosition: listPosition
-                )
-            }
+            rowPrimaryContent(
+                for: item,
+                now: now,
+                isHovered: isHovered,
+                hideTimeDetails: isHovered,
+                reservedTrailingWidth: reservedTrailingWidth,
+                listPosition: listPosition
+            )
 
             MenuActionButtonGroup {
                 if item.meetingURL != nil {
                     joinActionButton(for: item)
+                }
+                if shouldShowOpenLinkAction(for: item) {
+                    openLinkActionButton(for: item)
                 }
 
                 ForEach(actions.indices, id: \.self) { index in
@@ -113,12 +98,8 @@ extension MenuContentView {
         let titleColor: Color = .primary
         let detailTextColor: Color = .secondary
         let tertiaryTextColor: Color = .secondary.opacity(0.85)
-        let participationTextOpacity = item.eventParticipationStatus?.appleCalendarTextAlpha ?? 1
-        let activeTextureStatus = monitor.activeParticipationTextureStatus(
-            for: item,
-            now: now,
-            settings: settings
-        )
+        let participationTextOpacity = item.eventParticipationStatus?.appleCalendarStyle.textAlpha ?? 1
+        let participationTextureStatus = monitor.participationTextureStatus(for: item)
         let titleFont = MenuMarkerMetrics.rowTitleFont
         let detailFont = MenuMarkerMetrics.rowDetailFont
         let detailIconFont = Font.system(size: MenuMarkerMetrics.symbolSize, weight: .regular)
@@ -146,30 +127,12 @@ extension MenuContentView {
         )
         let rowShape = MenuListRowBackgroundShape(position: listPosition, cornerRadius: 7)
         let textBlock = HStack(alignment: .top, spacing: 8) {
-            if let markerSymbol = markerSymbolName(for: item) {
-                Image(systemName: markerSymbol)
-                    .font(.system(size: MenuMarkerMetrics.symbolSize, weight: .regular))
-                    .frame(width: MenuMarkerMetrics.symbolSize, height: MenuMarkerMetrics.symbolSize)
-                    .foregroundStyle(accentColor)
-                    .padding(.top, markerTopPadding(for: item))
-            } else if let image = markerImage(for: item, isReminderFilled: isHovered) {
-                let markerSize = markerImageSize(for: item)
-                Image(nsImage: image)
-                    .resizable()
-                    .interpolation(.high)
-                    .frame(width: markerSize.width, height: markerSize.height)
-                    .padding(.top, markerTopPadding(for: item))
-            } else {
-                Capsule()
-                    .fill(Color(nsColor: item.calendarColor.nsColor))
-                    .frame(
-                        width: 4,
-                        height: Self.dropdownCalendarMarkerHeight(
-                            rowMinimumHeight: minimumRowHeight
-                        )
-                    )
-                    .padding(.top, MenuMarkerMetrics.markerFirstLineTopPadding)
-            }
+            menuMarkerColumn(
+                for: item,
+                isHovered: isHovered,
+                rowMinimumHeight: minimumRowHeight,
+                allowsReminderCompletion: true
+            )
 
             if usesEventStyleLayout {
                 HStack(alignment: .top, spacing: 6) {
@@ -204,6 +167,7 @@ extension MenuContentView {
 
                             titleLine(
                                 title: dropdownVisibleTitle(for: item),
+                                originalTitle: item.title,
                                 symbolNames: [],
                                 titleFont: titleFont,
                                 iconFont: detailIconFont,
@@ -232,21 +196,13 @@ extension MenuContentView {
                                 }
                             }
 
-                            if let meetingURL = item.meetingURL {
-                                HStack(alignment: .center, spacing: 4) {
-                                    Image(systemName: "video")
-                                        .font(detailIconFont)
-                                        .frame(
-                                            width: MenuMarkerMetrics.symbolSize,
-                                            height: MenuMarkerMetrics.symbolSize,
-                                            alignment: .center
-                                        )
-                                        .foregroundStyle(accentColor)
-                                    Text(meetingServiceName(for: meetingURL))
-                                        .font(detailFont)
-                                        .foregroundStyle(detailTextColor.opacity(participationTextOpacity))
-                                }
-                            }
+                            linkDetailRow(
+                                for: item,
+                                detailFont: detailFont,
+                                accentColor: accentColor,
+                                detailTextColor: detailTextColor.opacity(participationTextOpacity),
+                                isHovered: isHovered
+                            )
                         }
                     }
                     .padding(
@@ -302,6 +258,7 @@ extension MenuContentView {
                         VStack(alignment: .leading, spacing: 0) {
                             titleLine(
                                 title: dropdownVisibleTitle(for: item),
+                                originalTitle: item.title,
                                 symbolNames: accessorySymbolNames,
                                 titleFont: titleFont,
                                 iconFont: detailIconFont,
@@ -330,36 +287,25 @@ extension MenuContentView {
                                 }
                             }
 
-                            if let meetingURL = item.meetingURL {
-                                HStack(alignment: .center, spacing: 4) {
-                                    Image(systemName: "video")
-                                        .font(detailIconFont)
-                                        .frame(
-                                            width: MenuMarkerMetrics.symbolSize,
-                                            height: MenuMarkerMetrics.symbolSize,
-                                            alignment: .center
-                                        )
-                                        .foregroundStyle(accentColor)
-                                    Text(meetingServiceName(for: meetingURL))
-                                        .font(detailFont)
-                                        .foregroundStyle(detailTextColor)
-                                }
-                            }
+                            linkDetailRow(
+                                for: item,
+                                detailFont: detailFont,
+                                accentColor: accentColor,
+                                detailTextColor: detailTextColor,
+                                isHovered: isHovered
+                            )
                         }
 
                         Spacer(minLength: 4)
 
                         if !hideTimeDetails {
                             VStack(alignment: .trailing, spacing: 0) {
-                                Text(
-                                    item.date <= now
-                                        ? Self.reminderDueText(
-                                            dueDate: item.date,
-                                            now: now,
-                                            simplified: settings.useSimplifiedCountdown
-                                        )
-                                        : timeText(item.date)
-                                )
+                                Text(Self.reminderScheduleText(
+                                    for: item,
+                                    now: now,
+                                    simplified: settings.useSimplifiedCountdown,
+                                    timedText: timeText(item.date)
+                                ))
                                     .font(detailFont)
                                     .foregroundStyle(detailTextColor)
                             }
@@ -370,6 +316,7 @@ extension MenuContentView {
                     VStack(alignment: .leading, spacing: 0) {
                         titleLine(
                             title: dropdownVisibleTitle(for: item),
+                                originalTitle: item.title,
                             symbolNames: accessorySymbolNames,
                             titleFont: titleFont,
                             iconFont: detailIconFont,
@@ -414,11 +361,11 @@ extension MenuContentView {
                 rowShape
                     .fill(
                         Color(nsColor: visual.color)
-                            .opacity(activeTextureStatus != nil ? 0.55 : 0.08)
+                            .opacity(participationTextureStatus != nil ? 0.55 : 0.08)
                     )
 
-                if activeTextureStatus != nil {
-                    CalendarParticipationTexture(status: activeTextureStatus)
+                if participationTextureStatus != nil {
+                    CalendarParticipationTexture(status: participationTextureStatus)
                         .clipShape(rowShape)
                 }
             }
@@ -430,8 +377,8 @@ extension MenuContentView {
                         rowShape
                             .fill(Color(nsColor: item.calendarColor.nsColor).opacity(0.22))
 
-                        if activeTextureStatus != nil {
-                            CalendarParticipationTexture(status: activeTextureStatus)
+                        if participationTextureStatus != nil {
+                            CalendarParticipationTexture(status: participationTextureStatus)
                                 .clipShape(rowShape)
                         }
                     }
@@ -440,6 +387,9 @@ extension MenuContentView {
             }
         }
         .clipShape(MenuListRowBackgroundShape(position: listPosition, cornerRadius: 7))
+        // Keep the active-event progress fill composited inside the row while
+        // the menu's scroll view and window resize during dismissal.
+        .compositingGroup()
 
         textBlock
     }
@@ -447,6 +397,7 @@ extension MenuContentView {
     @ViewBuilder
     func titleLine(
         title: String,
+        originalTitle: String? = nil,
         symbolNames: [String],
         titleFont: Font,
         iconFont: Font,
@@ -455,6 +406,8 @@ extension MenuContentView {
     ) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             Text(title)
+                .help(originalTitle ?? title)
+                .accessibilityLabel(originalTitle ?? title)
                 .font(titleFont)
                 .foregroundStyle(titleColor)
                 .lineLimit(1)

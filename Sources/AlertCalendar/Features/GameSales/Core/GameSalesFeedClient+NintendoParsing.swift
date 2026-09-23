@@ -4,6 +4,10 @@ struct NintendoSaleArticleReference: Hashable, Sendable {
     let lastModified: Date
 }
 extension GameSalesFeedClient {
+    nonisolated static func isReadableNintendoArticle(_ html: String) -> Bool {
+        NintendoSaleParser.hasReadableArticleMetadata(html)
+    }
+
     nonisolated static func parseNintendoSitemap(
         _ xml: String,
         now: Date
@@ -186,6 +190,10 @@ private enum NintendoSaleParser {
             #"((?:ContentTag:|[\"']id[\"']\s*:\s*[\"'])articleCategoryPromotions\b)"#,
             in: html
         ) != nil
+    }
+
+    static func hasReadableArticleMetadata(_ html: String) -> Bool {
+        articleMetadata(in: html) != nil
     }
 
     private static func articleMetadata(in html: String) -> ArticleMetadata? {
@@ -443,10 +451,8 @@ private enum NintendoSaleParser {
 
     private static func captures(_ pattern: String, in value: String) -> [String] {
         guard let expression = expression(pattern) else { return [] }
-        return expression.matches(
-            in: value,
-            range: NSRange(value.startIndex..., in: value)
-        ).compactMap { capture(1, from: $0, in: value) }
+        return expression.matches(in: value, range: NSRange(value.startIndex..., in: value))
+            .compactMap { capture(1, from: $0, in: value) }
     }
 
     private static func firstCapture(_ pattern: String, in value: String) -> String? {
@@ -455,10 +461,7 @@ private enum NintendoSaleParser {
     }
 
     private static func firstMatch(_ pattern: String, in value: String) -> NSTextCheckingResult? {
-        expression(pattern)?.firstMatch(
-            in: value,
-            range: NSRange(value.startIndex..., in: value)
-        )
+        expression(pattern)?.firstMatch(in: value, range: NSRange(value.startIndex..., in: value))
     }
 
     private static func capture(
@@ -492,9 +495,6 @@ private enum NintendoSaleParser {
     }
 
     private static func expression(_ pattern: String) -> NSRegularExpression? {
-        try? NSRegularExpression(
-            pattern: pattern,
-            options: [.caseInsensitive, .dotMatchesLineSeparators]
-        )
+        try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive, .dotMatchesLineSeparators])
     }
 }

@@ -5,7 +5,6 @@ import SwiftUI
 
 extension MenuContentView {
     struct LayoutSnapshot {
-        let filteredAlertDescriptions: [String]
         let contextualActionCandidates: [UpcomingItem]
         let contextualPreviewActionItems: [UpcomingItem]
         let footballContextualActionItems: [UpcomingItem]
@@ -24,6 +23,7 @@ extension MenuContentView {
         let sharedContextualFootballCompetitionLogoURL: URL?
         let contextualFootballLayoutItemCount: Int
         let contextualFootballContentLevel: FootballContextualContentLevel
+        var displayLayoutKey: String = ""
 
         var contextualSharedCompetitionIsActive: Bool {
             sharedContextualFootballCompetitionTitle != nil
@@ -59,7 +59,7 @@ extension MenuContentView {
                 ].joined(separator: "#")
             }
 
-            return ([sharedContextualFootballCompetitionTitle ?? ""] + itemKeys)
+            return ([displayLayoutKey, sharedContextualFootballCompetitionTitle ?? ""] + itemKeys)
                 .joined(separator: "||")
         }
 
@@ -79,7 +79,7 @@ extension MenuContentView {
                 futureWindowEnd: futureWindowEnd
             )
         }
-        let allEventItems = deduplicatedItems((allDayItems + eventWindowItems).sorted { $0.date < $1.date })
+        let allEventItems = deduplicatedItems((allDayItems + eventWindowItems).sorted { UpcomingItem.sortPrecedes($0, $1) })
         var contextualPreviewKindsByKey: [String: ContextualPreviewKind] = [:]
         let contextualCandidates = allEventItems.filter { item in
             guard shouldShowContextualPreview(for: item, now: now),
@@ -115,7 +115,7 @@ extension MenuContentView {
                 futureWindowEnd: futureWindowEnd
             )
         }
-        let queueSource = deduplicatedItems((allDayItems + queueWindowItems).sorted { $0.date < $1.date })
+        let queueSource = deduplicatedItems((allDayItems + queueWindowItems).sorted { UpcomingItem.sortPrecedes($0, $1) })
         let singleColumnQueueItems = Self.queueItemsForActions(
             from: queueSource,
             contextualItems: contextualPreviewItems,
@@ -133,8 +133,7 @@ extension MenuContentView {
         let usesSplitLayout = shouldUseHeightConstrainedSplitLayout(
             contextualItems: splitContextualItems,
             previewKindsByKey: contextualPreviewKindsByKey,
-            queueItems: splitQueueItems,
-            alertCount: filteredAlertDescriptions.count
+            queueItems: splitQueueItems
         )
         let displayedContextualItems = usesSplitLayout ? splitContextualItems : contextualPreviewItems
         let displayedQueueItems = usesSplitLayout ? splitQueueItems : singleColumnQueueItems
@@ -174,7 +173,6 @@ extension MenuContentView {
         }
 
         return LayoutSnapshot(
-            filteredAlertDescriptions: filteredAlertDescriptions,
             contextualActionCandidates: contextualCandidates,
             contextualPreviewActionItems: contextualPreviewItems,
             footballContextualActionItems: footballContextualItems,
@@ -192,7 +190,8 @@ extension MenuContentView {
             sharedContextualFootballCompetitionLogoPath: sharedCompetitionTitle == nil ? nil : displayedContextualItems.first?.footballMenuBarDisplay?.competitionLocalLogoPath,
             sharedContextualFootballCompetitionLogoURL: sharedCompetitionTitle == nil ? nil : footballMatches?.first?.competitionLogoURL,
             contextualFootballLayoutItemCount: footballLayoutItemCount,
-            contextualFootballContentLevel: Self.contextualFootballContentLevel(for: footballLayoutItemCount)
+            contextualFootballContentLevel: Self.contextualFootballContentLevel(for: footballLayoutItemCount),
+            displayLayoutKey: "\(dropdownAvailableSize)"
         )
     }
 }

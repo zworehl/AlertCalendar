@@ -2,9 +2,7 @@ import Foundation
 
 extension LocationCoordinateResolver {
     private static let venueQualifierPrefixes = [
-        "Estadio",
-        "Stade",
-        "Stadio",
+        "Stadium",
     ]
     private static let venueQualifierSuffixes = [
         "Stadium",
@@ -13,23 +11,17 @@ extension LocationCoordinateResolver {
     ]
     static let venueDescriptorTokens = [
         "arena",
-        "autodromo",
         "ballpark",
         "centre",
         "center",
         "circuit",
-        "coliseo",
         "coliseum",
         "court",
         "dome",
-        "estadio",
         "field",
         "ground",
         "park",
-        "stadion",
         "stadium",
-        "stade",
-        "stadio",
         "track",
         "velodrome",
     ]

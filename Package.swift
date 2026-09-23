@@ -8,9 +8,15 @@ let package = Package(
     platforms: [
         .macOS(.v13),
     ],
+    dependencies: [
+        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.10.0"),
+    ],
     targets: [
         .executableTarget(
             name: "AlertCalendar",
+            dependencies: [
+                .product(name: "Sparkle", package: "Sparkle"),
+            ],
             path: "Sources/AlertCalendar",
             resources: [
                 .process("Resources/Images"),

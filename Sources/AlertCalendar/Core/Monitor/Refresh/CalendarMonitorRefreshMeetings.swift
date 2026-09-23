@@ -41,6 +41,15 @@ extension CalendarMonitor {
             return cached
         }
 
+        let result = Self.looksLikeVirtualLocation(text)
+        virtualLocationTextCache.insert(result, forKey: normalized)
+        return result
+    }
+
+    nonisolated static func looksLikeVirtualLocation(_ rawText: String?) -> Bool {
+        guard let text = AlertCalendarString.trimmedNonEmpty(rawText) else { return false }
+        let normalized = text.lowercased()
+
         let virtualKeywords = [
             "zoom",
             "google meet",
@@ -58,18 +67,12 @@ extension CalendarMonitor {
         ]
 
         if virtualKeywords.contains(where: { normalized.contains($0) }) {
-            virtualLocationTextCache.insert(true, forKey: normalized)
             return true
         }
 
-        guard MeetingURLResolver.shouldInspectTextForURLs(text) else {
-            virtualLocationTextCache.insert(false, forKey: normalized)
-            return false
-        }
+        guard MeetingURLResolver.shouldInspectTextForURLs(text) else { return false }
 
-        let result = allURLs(in: text).contains(where: isKnownMeetingURL)
-        virtualLocationTextCache.insert(result, forKey: normalized)
-        return result
+        return MeetingURLResolver.allURLs(in: text).contains(where: MeetingURLResolver.isKnownMeetingURL)
     }
 
     func meetingURL(for event: EKEvent) -> URL? {

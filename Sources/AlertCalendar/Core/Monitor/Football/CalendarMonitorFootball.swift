@@ -45,9 +45,11 @@ extension CalendarMonitor {
     func refreshFootballDataIfNeeded(
         now: Date,
         force: Bool = false,
-        reason: CalendarMonitorRefreshReason = .manual
+        reason: CalendarMonitorRefreshReason = .manual,
+        syncManagedEvents: Bool? = nil,
+        syncAutoAdd: Bool? = nil
     ) async {
-        let shouldSyncManagedEvents = force || reason.triggersManagedFootballSync
+        let shouldSyncManagedEvents = force || (syncManagedEvents ?? reason.triggersManagedFootballSync)
         if shouldSyncManagedEvents {
             CalendarMonitorLog.football.debug("Checking managed football sync for refresh reason: \(reason.rawValue, privacy: .public)")
             await syncManagedFootballEventsIfNeeded(now: now, force: force)
@@ -55,8 +57,16 @@ extension CalendarMonitor {
             CalendarMonitorLog.football.debug("Skipped managed football sync for refresh reason: \(reason.rawValue, privacy: .public)")
         }
 
-        if force || reason.triggersFootballAutoAddSync {
+        if force || (syncAutoAdd ?? reason.triggersFootballAutoAddSync) {
             await syncAutoAddedFootballMatchesIfNeeded(now: now, force: force)
+        }
+        if force {
+            for section in footballMenuSections where section.hasLoaded || section.errorMessage != nil {
+                await loadFootballCompetitionSection(section.competition, force: true)
+            }
+            if footballLiveAndNextDaySection.hasLoaded || footballLiveAndNextDaySection.errorMessage != nil {
+                await loadFootballLiveAndNextDaySection(force: true)
+            }
         }
     }
 
@@ -66,6 +76,17 @@ extension CalendarMonitor {
         if markEventStoreChanged {
             didFootballEventStoreChange = true
         }
+    }
+
+    func shouldRefreshFootballOnHeartbeat(now: Date) -> Bool {
+        if footballState.autoAddRefreshFailed, !footballAutoAddCompetitionSlugs().isEmpty,
+           CalendarMonitorTime.hasElapsed(since: lastFootballAutoAddRefreshDate, now: now, interval: 60) { return true }
+        guard !managedFootballMatchIDs.isEmpty else { return false }
+        let tracked = managedFootballMatchIDs.compactMap { footballMatchesByID[$0] }
+        let interval = footballState.managedRefreshFailed ? 60 : Self.footballManagedRefreshInterval(
+            for: tracked, hasMissingTrackedMatches: tracked.count < managedFootballMatchIDs.count, now: now
+        )
+        return CalendarMonitorTime.hasElapsed(since: lastFootballManagedSyncDate, now: now, interval: interval)
     }
 
     func shouldRunFootballLegacyMigration(now: Date, force: Bool) -> Bool {
@@ -94,7 +115,8 @@ extension CalendarMonitor {
         ensureFootballCompetitionSections()
         guard let existingSection = footballMenuSections.first(where: { $0.id == competition.id }) else { return }
         guard !existingSection.isLoading else { return }
-        guard force || !existingSection.hasLoaded else { return }
+        guard force || !existingSection.hasLoaded || existingSection.errorMessage != nil
+            || dataRefreshIssues.contains(where: { $0.id == "football.browse.\(competition.slug)" }) else { return }
 
         let now = fixedSecondNow()
         let cachedMatches = cachedCompetitionMatches(for: competition, now: now)
@@ -111,15 +133,15 @@ extension CalendarMonitor {
         }
 
         do {
-            let matchesByCompetition = try await footballClient.fetchMatchesByCompetition(
+            let result = try await footballClient.fetchFixtureLoadResult(
                 for: [competition],
                 forceRefresh: force
             )
-            let fetchedMatches = matchesByCompetition[competition.slug] ?? []
+            let fetchedMatches = result.restoringCachedMatches(cachedMatches)
             let refreshedMatches = await footballClient.refreshStatusesIfNeeded(for: fetchedMatches)
             let resolvedMatches = matchesPreservingKnownTimingContext(refreshedMatches)
             await cacheFootballMatches(resolvedMatches)
-            markFootballRefreshed(at: now)
+            if result.failures.isEmpty { markFootballRefreshed(at: now) }
             let matches = Self.resolvedFootballSectionMatches(
                 resolvedMatches,
                 cachedMatchesByID: footballMatchesByID,
@@ -130,9 +152,9 @@ extension CalendarMonitor {
                 FootballMenuCompetitionSection(
                     competition: competition,
                     matches: matches,
-                    errorMessage: nil,
+                    errorMessage: result.warning,
                     isLoading: false,
-                    hasLoaded: true
+                    hasLoaded: result.availablePageCount > 0 || !matches.isEmpty
                 )
             }
             await autoAddFootballMatches(matches, now: now)
@@ -141,9 +163,7 @@ extension CalendarMonitor {
                 FootballMenuCompetitionSection(
                     competition: currentSection.competition,
                     matches: currentSection.matches,
-                    errorMessage: currentSection.hasLoaded
-                        ? "Could not refresh fixtures right now. Showing cached matches."
-                        : "Could not load fixtures right now.",
+                    errorMessage: FootballDataAPIClient.fixtureFailureDescription(error),
                     isLoading: false,
                     hasLoaded: currentSection.hasLoaded
                 )
@@ -156,7 +176,8 @@ extension CalendarMonitor {
 
         let now = fixedSecondNow()
         let cachedMatches = Self.liveAndNextDayMatches(from: Array(footballMatchesByID.values), now: now)
-        let menuRefreshInterval = Self.footballRefreshInterval(for: cachedMatches, now: now)
+        let menuRefreshInterval = footballLiveAndNextDaySection.errorMessage == nil
+            ? Self.footballRefreshInterval(for: cachedMatches, now: now) : 60
         let needsRefresh = force
             || !footballLiveAndNextDaySection.hasLoaded
             || CalendarMonitorTime.hasElapsed(since: lastFootballMenuRefreshDate, now: now, interval: menuRefreshInterval)
@@ -188,16 +209,17 @@ extension CalendarMonitor {
         )
 
         do {
-            let fetchedMatches = try await footballClient.fetchMatches(
+            let result = try await footballClient.fetchFixtureLoadResult(
                 for: limitedPresets,
                 dateRangesByCompetitionSlug: rangesBySlug,
                 enrichTeams: false,
-                forceRefresh: force
+                forceRefresh: force,
+                healthScope: "live"
             )
-            let refreshedMatches = await footballClient.refreshStatusesIfNeeded(for: fetchedMatches)
+            let refreshedMatches = await footballClient.refreshStatusesIfNeeded(for: result.restoringCachedMatches(cachedMatches))
             let resolvedMatches = matchesPreservingKnownTimingContext(refreshedMatches)
             await cacheFootballMatches(resolvedMatches)
-            markFootballRefreshed(at: now)
+            if result.failures.isEmpty { markFootballRefreshed(at: now) }
             let resolvedLiveCandidates = resolvedMatches.map { footballMatchesByID[$0.id] ?? $0 }
             let filteredMatches = Self.liveAndNextDayMatches(
                 from: resolvedLiveCandidates,
@@ -207,9 +229,9 @@ extension CalendarMonitor {
             let loadedSection = FootballMatchesOverviewSection(
                 title: footballLiveAndNextDaySection.title,
                 matches: filteredMatches,
-                errorMessage: nil,
+                errorMessage: result.warning,
                 isLoading: false,
-                hasLoaded: true
+                hasLoaded: result.availablePageCount > 0 || !filteredMatches.isEmpty
             )
             if footballLiveAndNextDaySection != loadedSection {
                 footballLiveAndNextDaySection = loadedSection
@@ -219,9 +241,7 @@ extension CalendarMonitor {
             let failedSection = FootballMatchesOverviewSection(
                 title: footballLiveAndNextDaySection.title,
                 matches: hasCachedMatches ? cachedMatches : footballLiveAndNextDaySection.matches,
-                errorMessage: footballLiveAndNextDaySection.hasLoaded || hasCachedMatches
-                    ? "Could not refresh live or next-24-hour fixtures right now. Showing cached matches."
-                    : "Could not load live or next-24-hour fixtures right now.",
+                errorMessage: FootballDataAPIClient.fixtureFailureDescription(error),
                 isLoading: false,
                 hasLoaded: footballLiveAndNextDaySection.hasLoaded || hasCachedMatches
             )
@@ -274,7 +294,7 @@ extension CalendarMonitor {
 
         let trackedMatches = trackedEvents.compactMap { footballMatchesByID[$0.reference.matchID] }
         let hasMissingTrackedMatches = trackedMatches.count < trackedEvents.count
-        let managedSyncInterval = Self.footballManagedRefreshInterval(
+        let managedSyncInterval = footballState.managedRefreshFailed ? 60 : Self.footballManagedRefreshInterval(
             for: trackedMatches,
             hasMissingTrackedMatches: hasMissingTrackedMatches,
             now: now
@@ -290,27 +310,35 @@ extension CalendarMonitor {
             let rangesBySlug = footballScoreboardDateRangesByCompetition(
                 trackedEvents.map { ($0.reference.competitionSlug, $0.event.startDate) }
             )
-            let matches = try await footballClient.fetchMatches(
+            let result = try await footballClient.fetchFixtureLoadResult(
                 for: trackedPresets,
                 dateRangesByCompetitionSlug: rangesBySlug,
-                forceRefresh: force
+                forceRefresh: force,
+                healthScope: "tracked"
             )
+            footballState.managedRefreshFailed = !result.failures.isEmpty
+            let matches = result.restoringCachedMatches(trackedMatches)
             let forceSummaryMatchIDs = Self.footballManagedMatchIDsNeedingActualEndBackfill(
                 matches,
                 trackedMatchIDs: Set(trackedEvents.map(\.reference.matchID)),
                 cachedMatchesByID: footballMatchesByID
-            )
+            ).union(Self.footballManagedMatchIDsNeedingVenueBackfill(
+                matches,
+                trackedMatchIDs: Set(trackedEvents.map(\.reference.matchID)),
+                cachedMatchesByID: footballMatchesByID
+            ))
             let refreshedMatches = await footballClient.refreshStatusesIfNeeded(
                 for: matches,
                 forceSummaryForMatchIDs: forceSummaryMatchIDs
             )
             let resolvedMatches = matchesPreservingKnownTimingContext(refreshedMatches)
             await cacheFootballMatches(resolvedMatches)
-            markFootballRefreshed(at: now)
+            if result.failures.isEmpty { markFootballRefreshed(at: now) }
             updateManagedFootballMatches(using: trackedEvents, now: now)
             await applyFootballEventUpdates(trackedEvents, using: resolvedMatches)
             lastFootballManagedSyncDate = now
         } catch {
+            if !(error is CancellationError) { footballState.managedRefreshFailed = true }
             return
         }
     }

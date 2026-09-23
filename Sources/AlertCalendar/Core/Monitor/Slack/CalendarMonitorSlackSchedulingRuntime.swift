@@ -98,6 +98,10 @@ extension CalendarMonitor {
             slackStatusSyncNeedsAnotherPass = true
         }
 
+        if settings.appleMusicStatus.isEnabled && !settings.appleMusicStatus.connectionIDs.isEmpty {
+            slackStatusSyncNeedsAnotherPass = true
+        }
+
         cancelStaleSlackStatusSyncTaskIfNeeded(now: now)
 
         if slackStatusSyncErrorDescription != nil {
@@ -171,13 +175,18 @@ extension CalendarMonitor {
 
     func shouldEvaluateSlackStatusSyncOnHeartbeat(now: Date, settings: AppSettings) -> Bool {
         let enabledRules = enabledSlackStatusSyncRules(in: settings)
-        let hasRelevantSlackWork = !enabledRules.isEmpty || !slackManagedStateByConnectionID.isEmpty
+        let hasRelevantSlackWork = !enabledRules.isEmpty ||
+            (settings.appleMusicStatus.isEnabled && !settings.appleMusicStatus.connectionIDs.isEmpty) ||
+            !slackManagedStateByConnectionID.isEmpty
         guard hasRelevantSlackWork else { return false }
 
+        let interval = settings.appleMusicStatus.isEnabled && !settings.appleMusicStatus.connectionIDs.isEmpty
+            ? CalendarMonitorCadence.appleMusicStatusHeartbeatInterval
+            : Self.slackStatusSyncHeartbeatEvaluationInterval
         return CalendarMonitorTime.hasElapsed(
             since: lastSlackStatusSyncEvaluationDate,
             now: now,
-            interval: Self.slackStatusSyncHeartbeatEvaluationInterval
+            interval: interval
         )
     }
 

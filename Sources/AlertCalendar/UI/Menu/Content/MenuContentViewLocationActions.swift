@@ -5,45 +5,31 @@ import SwiftUI
 
 extension MenuContentView {
     func meetingServiceName(for url: URL) -> String {
-        let host = (url.host ?? "").lowercased()
-        let scheme = (url.scheme ?? "").lowercased()
-        let absolute = url.absoluteString.lowercased()
+        MeetingService.resolve(from: url).title
+    }
 
-        if host.contains("meet.google.") {
-            return "Meet"
+    @ViewBuilder
+    func linkDetailRow(
+        for item: UpcomingItem,
+        detailFont: Font,
+        accentColor: Color,
+        detailTextColor: Color,
+        isHovered: Bool
+    ) -> some View {
+        if let meetingURL = item.meetingURL {
+            let service = MeetingService.resolve(from: meetingURL)
+            HStack(alignment: .center, spacing: 4) {
+                MeetingServiceIconView(
+                    service: service,
+                    size: MenuMarkerMetrics.symbolSize,
+                    fallbackColor: accentColor,
+                    isHovered: isHovered
+                )
+                Text(service.title)
+                    .font(detailFont)
+                    .foregroundStyle(detailTextColor)
+            }
         }
-        if host.contains("zoom.") || host.contains("us02web.zoom.") {
-            return "Zoom"
-        }
-        if scheme == "msteams"
-            || scheme == "microsoftteams"
-            || host.contains("teams.")
-            || host.contains("teams.microsoft.")
-            || host.contains("teams.live.")
-            || host.contains("teams.office.")
-            || host.contains("aka.ms")
-            || host.contains("microsoftteams.")
-            || host.contains("teams.ms")
-            || absolute.contains("meetup-join")
-            || absolute.contains("teams.microsoft.com")
-            || absolute.contains("teams.live.com")
-            || absolute.contains("teams.office.com") {
-            return "Microsoft Teams"
-        }
-        if host.contains("webex.") {
-            return "Webex"
-        }
-        if host.contains("whereby.") {
-            return "Whereby"
-        }
-        if host.contains("jitsi.") || host.contains("meet.jit.si") {
-            return "Jitsi"
-        }
-        if host.contains("chime.aws") || host.contains("amazonchime.") {
-            return "Amazon Chime"
-        }
-
-        return "Meeting Link"
     }
 
     func mapURL(for locationText: String) -> URL? {
@@ -100,9 +86,18 @@ extension MenuContentView {
         return !monitor.isVirtualLocationText(locationText)
     }
 
+    func shouldShowOpenLinkAction(for item: UpcomingItem) -> Bool {
+        Self.hasOpenLinkAction(for: item)
+    }
+
+    nonisolated static func hasOpenLinkAction(for item: UpcomingItem) -> Bool {
+        item.openLinkURL != nil && item.meetingURL == nil
+    }
+
     func locationTextForMenuBarItem(_ item: UpcomingItem) -> String? {
         if let locationText = item.locationText {
-            if monitor.isVirtualLocationText(locationText) {
+            if monitor.isVirtualLocationText(locationText)
+                || !Self.hasUsableContextualLocation(locationText) {
                 return nil
             }
             return locationText

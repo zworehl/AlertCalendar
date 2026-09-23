@@ -80,20 +80,16 @@ extension FootballFixtureFormatter {
     static func normalizedAbbreviation(_ raw: String, fallbackName: String) -> String {
         let compactRaw = compactIdentifier(raw)
         if !compactRaw.isEmpty {
-            return String(compactRaw.prefix(3))
+            return compactRaw
         }
 
-        let compactFallback = compactIdentifier(fallbackName)
-        guard !compactFallback.isEmpty else { return "TBD" }
-        return String(compactFallback.prefix(3))
+        let name = fallbackName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? "TBD" : name
     }
 
     static func teamDisplayIdentifier(for team: FootballTeamSummary) -> String {
         if isUnknownTeam(team) {
             return "TBD"
-        }
-        if team.isNational {
-            return fifaCode(for: team)
         }
         return normalizedAbbreviation(team.abbreviation, fallbackName: team.name)
     }
@@ -110,7 +106,11 @@ extension FootballFixtureFormatter {
                 }
             }
         }
-        return flagEmoji(for: team.countryName)
+        let clubCountry = team.isNational ? nil : FootballClubCountryResolver.countryName(
+            teamID: team.id,
+            name: team.name
+        )
+        return flagEmoji(for: clubCountry ?? team.countryName)
     }
 
     static func isUnknownTeam(_ team: FootballTeamSummary) -> Bool {
@@ -176,17 +176,6 @@ extension FootballFixtureFormatter {
         return candidates
     }
 
-    static func fifaCode(for team: FootballTeamSummary) -> String {
-        let compactRaw = compactIdentifier(team.abbreviation)
-        if compactRaw.count >= 3 {
-            return String(compactRaw.prefix(3))
-        }
-
-        let compactFallback = compactIdentifier(team.countryName ?? team.name)
-        guard !compactFallback.isEmpty else { return "TBD" }
-        return String(compactFallback.prefix(3))
-    }
-
     static func compactIdentifier(_ raw: String) -> String {
         raw
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -237,7 +226,7 @@ extension FootballFixtureFormatter {
     static func containsFlagEmoji(in text: String) -> Bool {
         text.unicodeScalars.contains { scalar in
             let value = scalar.value
-            return (0x1F1E6 ... 0x1F1FF).contains(value) || value == 0x1F3F4
+            return (0x1F1E6 ... 0x1F1FF).contains(value) || value == 0x1F3F3 || value == 0x1F3F4
         }
     }
 }

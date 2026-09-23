@@ -1,11 +1,32 @@
 import Foundation
 
+struct GameSalesRefreshDemand: Equatable {
+    var forceRefresh = false
+    var refreshCalendarState = false
+    var connectivityRestored = false
+
+    var isPending: Bool { forceRefresh || refreshCalendarState || connectivityRestored }
+
+    mutating func merge(_ demand: Self) {
+        forceRefresh = forceRefresh || demand.forceRefresh
+        refreshCalendarState = refreshCalendarState || demand.refreshCalendarState
+        connectivityRestored = connectivityRestored || demand.connectivityRestored
+    }
+
+    mutating func take() -> Self {
+        defer { self = Self() }
+        return self
+    }
+}
+
 struct CalendarMonitorGameSalesState {
     var fetchedSales: [GameSaleEvent] = []
     var managedEventRecords: [ManagedGameSaleEventRecord] = []
     var presenceBySaleID: [String: GameSalePresence] = [:]
     var lastRefreshAttemptDate: Date?
     var lastRefreshAttemptFailed = false
+    var connectivityObserver: NetworkRecoveryObserver?
+    var refreshDemand = GameSalesRefreshDemand()
 }
 
 extension CalendarMonitor {

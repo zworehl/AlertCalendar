@@ -242,7 +242,7 @@ final class FootballCompetitionPresentationTests: FootballFixtureFormatterTestCa
             awayScore: "0"
         )
 
-        XCTAssertEqual(FootballFixtureFormatter.calendarIdentityKey(for: match), "CRC|PAL")
+        XCTAssertEqual(FootballFixtureFormatter.calendarIdentityKey(for: match), "CRC|PALM")
     }
     func testCompetitionPresetsCoverSupportedLeaguesAndUseConfiguredSuggestionWindow() {
         let expectedSlugs: Set<String> = [

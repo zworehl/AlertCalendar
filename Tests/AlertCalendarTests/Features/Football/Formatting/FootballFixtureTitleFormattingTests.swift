@@ -350,7 +350,7 @@ final class FootballFixtureTitleFormattingTests: FootballFixtureFormatterTestCas
             XCTAssertEqual(FootballFixtureFormatter.teamDisplayIdentifier(for: team), expectedIdentifier)
         }
     }
-    func testClubIdentifiersAreTrimmedToThreeLetters() {
+    func testClubIdentifiersPreserveTheProviderCode() {
         let team = FootballTeamSummary(
             id: "1",
             name: "Palmeiras",
@@ -360,7 +360,7 @@ final class FootballFixtureTitleFormattingTests: FootballFixtureFormatterTestCas
             isNational: false
         )
 
-        XCTAssertEqual(FootballFixtureFormatter.teamDisplayIdentifier(for: team), "PAL")
+        XCTAssertEqual(FootballFixtureFormatter.teamDisplayIdentifier(for: team), "PALM")
     }
     func testNationalTeamIdentifiersUseFIFACode() {
         let team = FootballTeamSummary(

@@ -23,6 +23,7 @@ struct SlackStatusSyncRule: Codable, Equatable, Identifiable, Sendable {
     var statusText: String
     var statusEmoji: String
     var statusTextSource: SlackStatusTextSource
+    var priority: Int
     var startsBeforeEvent: Bool
     var leadMinutes: Int
     var preEventStatusText: String
@@ -36,6 +37,7 @@ struct SlackStatusSyncRule: Codable, Equatable, Identifiable, Sendable {
         case statusText
         case statusEmoji
         case statusTextSource
+        case priority
         case startsBeforeEvent
         case leadMinutes
         case preEventStatusText
@@ -50,6 +52,7 @@ struct SlackStatusSyncRule: Codable, Equatable, Identifiable, Sendable {
         statusText: String = SlackMeetingStatus.defaultText,
         statusEmoji: String = SlackMeetingStatus.defaultEmoji,
         statusTextSource: SlackStatusTextSource = .fixed,
+        priority: Int = 5,
         startsBeforeEvent: Bool = false,
         leadMinutes: Int = AppSettingsRules.defaultSlackStatusLeadMinutes,
         preEventStatusText: String = SlackMeetingStatus.defaultPreEventText,
@@ -62,6 +65,7 @@ struct SlackStatusSyncRule: Codable, Equatable, Identifiable, Sendable {
         self.statusText = statusText
         self.statusEmoji = statusEmoji
         self.statusTextSource = statusTextSource
+        self.priority = SlackStatusPriority.normalized(priority)
         self.startsBeforeEvent = startsBeforeEvent
         self.leadMinutes = AppSettingsRules.normalizedSlackStatusLeadMinutes(leadMinutes)
         self.preEventStatusText = SlackMeetingStatus.normalizedPreEventText(preEventStatusText)
@@ -77,6 +81,7 @@ struct SlackStatusSyncRule: Codable, Equatable, Identifiable, Sendable {
         statusText = try container.decodeIfPresent(String.self, forKey: .statusText) ?? SlackMeetingStatus.defaultText
         statusEmoji = try container.decodeIfPresent(String.self, forKey: .statusEmoji) ?? SlackMeetingStatus.defaultEmoji
         statusTextSource = (try? container.decodeIfPresent(SlackStatusTextSource.self, forKey: .statusTextSource)) ?? .fixed
+        priority = SlackStatusPriority.normalized(try container.decodeIfPresent(Int.self, forKey: .priority) ?? 5)
         startsBeforeEvent = try container.decodeIfPresent(Bool.self, forKey: .startsBeforeEvent) ?? false
         leadMinutes = AppSettingsRules.normalizedSlackStatusLeadMinutes(
             try container.decodeIfPresent(Int.self, forKey: .leadMinutes)
@@ -129,6 +134,7 @@ struct SlackStatusSyncRule: Codable, Equatable, Identifiable, Sendable {
                     statusText: SlackMeetingStatus.normalizedText(rule.statusText),
                     statusEmoji: SlackMeetingStatus.normalizedEmoji(rule.statusEmoji),
                     statusTextSource: rule.statusTextSource,
+                    priority: rule.priority,
                     startsBeforeEvent: rule.startsBeforeEvent,
                     leadMinutes: rule.leadMinutes,
                     preEventStatusText: rule.preEventStatusText,
@@ -229,6 +235,7 @@ struct SlackStatusSyncRule: Codable, Equatable, Identifiable, Sendable {
                 statusText: SlackMeetingStatus.normalizedText(rule.statusText),
                 statusEmoji: SlackMeetingStatus.normalizedEmoji(rule.statusEmoji),
                 statusTextSource: rule.statusTextSource,
+                priority: rule.priority,
                 startsBeforeEvent: rule.startsBeforeEvent,
                 leadMinutes: rule.leadMinutes,
                 preEventStatusText: rule.preEventStatusText,

@@ -293,13 +293,10 @@ enum FootballVenueCanonicalizer {
             "center",
             "coliseum",
             "dome",
-            "estadio",
             "field",
             "ground",
             "park",
             "stadium",
-            "stade",
-            "stadio",
         ]
         return tokens.contains { venueTokens.contains($0) }
     }

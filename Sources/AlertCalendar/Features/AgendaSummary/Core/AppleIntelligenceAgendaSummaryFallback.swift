@@ -97,7 +97,12 @@ enum AgendaSummaryFallback {
     }
 
     private static func fallbackDetail(for item: AgendaSummaryRequest.Item) -> String? {
+        let attachmentNameDetail = item.attachmentPreviews.isEmpty && !item.attachmentNames.isEmpty
+            ? "Attached supporting files: \(item.attachmentNames.joined(separator: ", "))"
+            : nil
         let rawDetails = [item.description]
+            + item.attachmentPreviews
+            + [attachmentNameDetail]
             + item.linkedPagePreviews
             + [
             item.location.map { location in

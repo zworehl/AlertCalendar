@@ -92,7 +92,7 @@ extension SettingsView {
             draft.eventTitleMaxCharacters = normalizedValue
             if !AppSettingsRules.allowsAppleIntelligenceTitleRewrite(maximumCharacters: normalizedValue) {
                 draft.rewriteEventTitlesWithAppleIntelligence = false
-                draft.useRewrittenEventTitlesInDropdown = false
+                draft.useMailContextForEventTitleRewrite = false
             }
         }
     }
@@ -106,23 +106,16 @@ extension SettingsView {
             )
             draft.rewriteEventTitlesWithAppleIntelligence = newValue && isAllowed
             if !draft.rewriteEventTitlesWithAppleIntelligence {
-                draft.useRewrittenEventTitlesInDropdown = false
+                draft.useMailContextForEventTitleRewrite = false
             }
         }
     }
 
     var useRewrittenEventTitlesInDropdownBinding: Binding<Bool> {
         Binding {
-            draft.useRewrittenEventTitlesInDropdown
-                && draft.rewriteEventTitlesWithAppleIntelligence
-                && appleIntelligenceTitleRewriteIsAllowed
+            draft.useRewrittenEventTitlesInDropdown && draft.useEventTitleEllipsis
         } set: { newValue in
-            let isAllowed = AppSettingsRules.allowsAppleIntelligenceTitleRewrite(
-                maximumCharacters: draft.eventTitleMaxCharacters
-            )
             draft.useRewrittenEventTitlesInDropdown = newValue
-                && draft.rewriteEventTitlesWithAppleIntelligence
-                && isAllowed
         }
     }
 

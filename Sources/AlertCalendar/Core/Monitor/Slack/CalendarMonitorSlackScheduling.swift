@@ -65,10 +65,14 @@ extension CalendarMonitor {
         now: Date,
         settings: AppSettings,
         items: [UpcomingItem],
-        enabledRules: [SlackStatusSyncRule]
+        enabledRules: [SlackStatusSyncRule],
+        playback: AppleMusicPlayback? = nil,
+        musicExpirationTimestamp: Int? = nil
     ) -> [SlackStatusSyncTarget] {
         let connectionsByID = Dictionary(uniqueKeysWithValues: settings.slackConnections.map { ($0.id, $0) })
-        let enabledConnectionIDs = Set(enabledRules.map(\.connectionID))
+        let musicSettings = settings.appleMusicStatus.normalized(validConnectionIDs: Set(connectionsByID.keys))
+        let musicConnectionIDs = musicSettings.isEnabled ? musicSettings.connectionIDs : []
+        let enabledConnectionIDs = Set(enabledRules.map(\.connectionID)).union(musicConnectionIDs)
         let activeRuleStateByConnectionID = Self.activeSlackRuleStateByConnectionID(
             for: items,
             rules: enabledRules,
@@ -78,6 +82,21 @@ extension CalendarMonitor {
         let relevantConnectionIDs = Set(slackManagedStateByConnectionID.keys).union(enabledConnectionIDs)
         return relevantConnectionIDs.compactMap { connectionID in
             guard let connection = connectionsByID[connectionID] else { return nil }
+
+            if let playback, musicConnectionIDs.contains(connectionID),
+               Self.shouldUseAppleMusicStatus(
+                   musicPriority: musicSettings.priority,
+                   calendarPriority: activeRuleStateByConnectionID[connectionID]?.priority
+               ) {
+                return SlackStatusSyncTarget(
+                    connection: connection,
+                    mode: .meeting(snapshot: SlackProfileStatusSnapshot(
+                        statusText: playback.statusText,
+                        statusEmoji: playback.statusEmoji,
+                        statusExpiration: musicExpirationTimestamp ?? playback.expirationTimestamp(now: now)
+                    ))
+                )
+            }
 
             if let activeRuleState = activeRuleStateByConnectionID[connectionID] {
                 return SlackStatusSyncTarget(
@@ -101,6 +120,11 @@ extension CalendarMonitor {
             }
             return lhs.connection.displayLabel.localizedCaseInsensitiveCompare(rhs.connection.displayLabel) == .orderedAscending
         }
+    }
+
+    nonisolated static func shouldUseAppleMusicStatus(musicPriority: Int, calendarPriority: Int?) -> Bool {
+        guard let calendarPriority else { return true }
+        return musicPriority < calendarPriority
     }
 
     nonisolated static func nextSlackStatusSyncTransitionDate(
@@ -192,7 +216,8 @@ extension CalendarMonitor {
 
             candidatesByConnectionID[rule.connectionID, default: []].append(
                 SlackRuleStateCandidate(
-                    priority: priority,
+                    priority: rule.priority,
+                    order: priority,
                     phase: phase,
                     statusText: statusText,
                     statusEmoji: phase == .upcoming ? rule.preEventStatusEmoji : rule.statusEmoji,
@@ -204,10 +229,13 @@ extension CalendarMonitor {
         return candidatesByConnectionID.reduce(into: [:]) { result, entry in
             let candidates = entry.value
             guard let selectedCandidate = candidates.max(by: { lhs, rhs in
+                if lhs.priority != rhs.priority {
+                    return lhs.priority > rhs.priority
+                }
                 if lhs.phase != rhs.phase {
                     return lhs.phase.rawValue < rhs.phase.rawValue
                 }
-                return lhs.priority > rhs.priority
+                return lhs.order > rhs.order
             }) else {
                 return
             }
@@ -215,7 +243,8 @@ extension CalendarMonitor {
             result[entry.key] = SlackActiveRuleState(
                 statusText: selectedCandidate.statusText,
                 statusEmoji: selectedCandidate.statusEmoji,
-                expiration: candidates.map(\.expiration).max() ?? selectedCandidate.expiration
+                expiration: candidates.map(\.expiration).max() ?? selectedCandidate.expiration,
+                priority: selectedCandidate.priority
             )
         }
     }

@@ -152,10 +152,14 @@ final class MenuBarStateTests: XCTestCase {
         }
     }
 
-    func testSteamDropdownMarkerUsesOpticalVerticalOffset() {
+    func testGameStoreDropdownMarkersUseOpticalVerticalOffsets() {
         XCTAssertEqual(MenuContentView.gameStoreMarkerTopPadding(for: .steam), 1)
+        XCTAssertEqual(
+            MenuContentView.gameStoreMarkerTopPadding(for: .nintendoSwitch),
+            MenuMarkerMetrics.markerFirstLineTopPadding
+        )
 
-        for store in [GameStore.xbox, .playStation, .nintendoSwitch] {
+        for store in [GameStore.xbox, .playStation] {
             XCTAssertEqual(MenuContentView.gameStoreMarkerTopPadding(for: store), 0)
         }
     }
@@ -281,15 +285,6 @@ final class MenuBarStateTests: XCTestCase {
             NSFont.systemFontSize(for: .small)
         )
         XCTAssertLessThan(MenuMarkerMetrics.compactMetadataSize, MenuMarkerMetrics.rowDetailSize)
-    }
-
-    @MainActor
-    func testDropdownVisualEffectUsesTheSystemPopoverMaterial() {
-        let visualEffect = MenuPopoverVisualEffect.makeVisualEffectView()
-
-        XCTAssertEqual(visualEffect.material, .popover)
-        XCTAssertEqual(visualEffect.blendingMode, .behindWindow)
-        XCTAssertEqual(visualEffect.state, .followsWindowActiveState)
     }
 
     func testMenuBarAccessorySymbolsShowRecurrenceForReminders() {
@@ -419,7 +414,7 @@ final class MenuBarStateTests: XCTestCase {
         XCTAssertGreaterThan(falling, trough)
     }
 
-    func testOverdueTimedEventsBlinkOnlyAfterTheirStart() {
+    func testTimedEventsStopBlinkingAtTheirStart() {
         let startDate = Date(timeIntervalSince1970: 1_800_000_000)
         let event = makeTimedEvent(
             title: "Design review",
@@ -428,22 +423,24 @@ final class MenuBarStateTests: XCTestCase {
             meetingURL: nil
         )
 
-        XCTAssertFalse(
-            CalendarMonitor.shouldBlinkOverdueTimedEvent(
+        XCTAssertTrue(
+            CalendarMonitor.shouldBlinkForItem(
                 event,
-                now: startDate.addingTimeInterval(-1)
+                now: startDate.addingTimeInterval(-1),
+                settings: .defaults
             )
         )
-        XCTAssertFalse(CalendarMonitor.shouldBlinkOverdueTimedEvent(event, now: startDate))
-        XCTAssertTrue(
-            CalendarMonitor.shouldBlinkOverdueTimedEvent(
+        XCTAssertFalse(CalendarMonitor.shouldBlinkForItem(event, now: startDate, settings: .defaults))
+        XCTAssertFalse(
+            CalendarMonitor.shouldBlinkForItem(
                 event,
-                now: startDate.addingTimeInterval(1)
+                now: startDate.addingTimeInterval(1),
+                settings: .defaults
             )
         )
     }
 
-    func testOverdueBlinkIgnoresAllDayEventsAndReminders() {
+    func testStartedAllDayEventsAndOverdueRemindersDoNotBlink() {
         let dueDate = Date(timeIntervalSince1970: 1_800_000_000)
         let allDayEvent = makeTimedEvent(
             title: "Birthday",
@@ -455,8 +452,8 @@ final class MenuBarStateTests: XCTestCase {
         let reminder = makeReminder(title: "Submit report", dueDate: dueDate)
         let now = dueDate.addingTimeInterval(60)
 
-        XCTAssertFalse(CalendarMonitor.shouldBlinkOverdueTimedEvent(allDayEvent, now: now))
-        XCTAssertFalse(CalendarMonitor.shouldBlinkOverdueTimedEvent(reminder, now: now))
+        XCTAssertFalse(CalendarMonitor.shouldBlinkForItem(allDayEvent, now: now, settings: .defaults))
+        XCTAssertFalse(CalendarMonitor.shouldBlinkForItem(reminder, now: now, settings: .defaults))
     }
 
     func testTimedEventNowSegmentShowsForFirstMinuteAfterStartWithoutMeetingURL() {
@@ -617,29 +614,26 @@ final class MenuBarStateTests: XCTestCase {
         XCTAssertNil(
             CalendarMonitor.activeItemProgress(
                 for: reminder,
-                now: dueDate.addingTimeInterval(-60),
-                weekdayOnlyEventCalendarIDs: []
+                now: dueDate.addingTimeInterval(-60)
             )
         )
         XCTAssertEqual(
             CalendarMonitor.activeItemProgress(
                 for: reminder,
-                now: dueDate,
-                weekdayOnlyEventCalendarIDs: []
+                now: dueDate
             ),
             1
         )
         XCTAssertEqual(
             CalendarMonitor.activeItemProgress(
                 for: reminder,
-                now: dueDate.addingTimeInterval(60),
-                weekdayOnlyEventCalendarIDs: []
+                now: dueDate.addingTimeInterval(60)
             ),
             1
         )
     }
 
-    func testTentativeParticipationTextureOnlyAppearsWhileEventIsActive() {
+    func testParticipationTextureStatusIncludesTentativeAndPendingEvents() {
         let startDate = Date(timeIntervalSince1970: 1_800_000_000)
         let endDate = startDate.addingTimeInterval(30 * 60)
         let tentativeEvent = makeTimedEvent(
@@ -651,38 +645,39 @@ final class MenuBarStateTests: XCTestCase {
             showsMutedBackground: true,
             participationStatus: .tentative
         )
-
-        XCTAssertNil(
-            CalendarMonitor.activeParticipationTextureStatus(
-                for: tentativeEvent,
-                now: startDate.addingTimeInterval(-10 * 60),
-                weekdayOnlyEventCalendarIDs: []
-            )
+        let pendingEvent = makeTimedEvent(
+            title: "Pending design review",
+            startDate: startDate,
+            endDate: endDate,
+            meetingURL: nil,
+            showsMutedBackground: true,
+            participationStatus: .pending
         )
+        let acceptedEvent = makeTimedEvent(
+            title: "Accepted design review",
+            startDate: startDate,
+            endDate: endDate,
+            meetingURL: nil,
+            participationStatus: .accepted
+        )
+
         XCTAssertEqual(
-            CalendarMonitor.activeParticipationTextureStatus(
-                for: tentativeEvent,
-                now: startDate.addingTimeInterval(10 * 60),
-                weekdayOnlyEventCalendarIDs: []
-            ),
+            CalendarMonitor.participationTextureStatus(for: tentativeEvent),
             .tentative
         )
-        XCTAssertNil(
-            CalendarMonitor.activeParticipationTextureStatus(
-                for: tentativeEvent,
-                now: endDate,
-                weekdayOnlyEventCalendarIDs: []
-            )
+        XCTAssertEqual(
+            CalendarMonitor.participationTextureStatus(for: pendingEvent),
+            .pending
         )
+        XCTAssertNil(CalendarMonitor.participationTextureStatus(for: acceptedEvent))
     }
 
-    func testActiveEventProgressSkipsConfiguredNonWorkingWeekday() {
+    func testActiveEventProgressUsesActualElapsedTime() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         let startDate = calendar.date(from: DateComponents(year: 2026, month: 7, day: 6, hour: 9))!
         let endDate = calendar.date(from: DateComponents(year: 2026, month: 7, day: 8, hour: 9))!
         let now = calendar.date(from: DateComponents(year: 2026, month: 7, day: 8, hour: 6))!
-        let rules = WorkingDayRules(nonWorkingDateKeys: ["2026-07-07"], calendar: calendar)
         let event = makeTimedEvent(
             title: "Design review",
             startDate: startDate,
@@ -693,13 +688,9 @@ final class MenuBarStateTests: XCTestCase {
         XCTAssertEqual(
             CalendarMonitor.activeItemProgress(
                 for: event,
-                now: now,
-                weekdayOnlyEventCalendarIDs: ["calendar-1"],
-                weekdayOnlyDuration: { start, end in
-                    rules.workingDuration(from: start, to: end)
-                }
+                now: now
             ) ?? -1,
-            0.875,
+            0.9375,
             accuracy: 0.001
         )
     }
@@ -724,6 +715,26 @@ final class MenuBarStateTests: XCTestCase {
         XCTAssertEqual(
             CalendarMonitor.alertDescription(for: event, now: now),
             "Design review starts now."
+        )
+    }
+
+    func testReminderAlertDescriptionUsesDueLanguage() {
+        let dueDate = Date(timeIntervalSince1970: 1_800_000_000)
+        let reminder = makeReminder(title: "Submit expenses", dueDate: dueDate)
+
+        XCTAssertEqual(
+            CalendarMonitor.alertDescription(
+                for: reminder,
+                now: dueDate.addingTimeInterval(-4 * 60)
+            ),
+            "Submit expenses — due in 4 minutes."
+        )
+        XCTAssertEqual(
+            CalendarMonitor.alertDescription(
+                for: reminder,
+                now: dueDate.addingTimeInterval(-45)
+            ),
+            "Submit expenses — due in 45s."
         )
     }
 

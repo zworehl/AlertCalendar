@@ -18,7 +18,6 @@ enum MenuMarkerMetrics {
     static let rowDetailFont = Font.system(size: rowDetailSize, weight: .regular)
     static let contextualHeadlineFont = Font.system(size: rowTitleSize, weight: .semibold)
     static let contextualMetadataEmphasisFont = Font.system(size: rowDetailSize, weight: .semibold)
-    static let actionLabelFont = Font.system(size: rowDetailSize, weight: .regular)
     static let compactMetadataFont = Font.system(size: compactMetadataSize, weight: .semibold)
 
     static var rowTitleNSFont: NSFont {
@@ -26,10 +25,6 @@ enum MenuMarkerMetrics {
     }
 
     static var rowDetailNSFont: NSFont {
-        NSFont.systemFont(ofSize: rowDetailSize, weight: .regular)
-    }
-
-    static var actionLabelNSFont: NSFont {
         NSFont.systemFont(ofSize: rowDetailSize, weight: .regular)
     }
 

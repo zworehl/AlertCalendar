@@ -75,7 +75,8 @@ extension SettingsView {
     }
 
     func slackStatusRuleCount(for connection: SlackConnection) -> Int {
-        draft.slackStatusSyncRules.filter { $0.connectionID == connection.id }.count
+        draft.slackStatusSyncRules.filter { $0.connectionID == connection.id }.count +
+            (draft.appleMusicStatus.connectionIDs.contains(connection.id) ? 1 : 0)
     }
 
     func slackConnection(for rule: SlackStatusSyncRule) -> SlackConnection? {

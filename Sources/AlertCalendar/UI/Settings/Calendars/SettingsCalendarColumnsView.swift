@@ -1,6 +1,13 @@
 import SwiftUI
 
 struct SettingsCalendarColumnsView: View {
+    enum Mode {
+        case both
+        case eventsOnly
+        case remindersOnly
+    }
+
+    let mode: Mode
     let includeEvents: Bool
     let includeAllDayEvents: Bool
     let includeReminders: Bool
@@ -12,8 +19,6 @@ struct SettingsCalendarColumnsView: View {
     let onSelectionChanged: () -> Void
     @Binding var selectedEventCalendarIDs: Set<String>
     @Binding var selectedReminderCalendarIDs: Set<String>
-    @Binding var weekdayOnlyEventCalendarIDs: Set<String>
-    @Binding var weekdayOnlyReminderCalendarIDs: Set<String>
     @Binding var calendarAlertRules: [CalendarAlertRule]
     @Binding var meetingBrowserRouting: MeetingBrowserRoutingSettings
 
@@ -21,24 +26,32 @@ struct SettingsCalendarColumnsView: View {
     private let disabledColor = Color.secondary.opacity(0.8)
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 16) {
-                eventSourcesCard
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
+        Group {
+            switch mode {
+            case .both:
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .top, spacing: 16) {
+                        eventSourcesCard
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                        reminderSourcesCard
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                    }
 
-                reminderSourcesCard
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-            }
-
-            VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        eventSourcesCard
+                        reminderSourcesCard
+                    }
+                }
+            case .eventsOnly:
                 eventSourcesCard
+            case .remindersOnly:
                 reminderSourcesCard
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
-    private var eventSourcesCard: some View {
+    var eventSourcesCard: some View {
         sourceCard(
             title: "Event Calendars",
             subtitle: "Choose event sources and configure alert rules independently for each calendar."
@@ -48,7 +61,6 @@ struct SettingsCalendarColumnsView: View {
                     title: "Accounts",
                     calendars: availableEventCalendars,
                     selectedIDs: $selectedEventCalendarIDs,
-                    weekdayOnlyIDs: $weekdayOnlyEventCalendarIDs,
                     showsMeetingBrowserControls: true
                 )
             } else {
@@ -57,7 +69,7 @@ struct SettingsCalendarColumnsView: View {
         }
     }
 
-    private var reminderSourcesCard: some View {
+    var reminderSourcesCard: some View {
         sourceCard(
             title: "Reminder Lists",
             subtitle: "Pick the reminder lists that can appear in Alert Calendar."
@@ -67,7 +79,6 @@ struct SettingsCalendarColumnsView: View {
                     title: "Accounts",
                     calendars: availableReminderCalendars,
                     selectedIDs: $selectedReminderCalendarIDs,
-                    weekdayOnlyIDs: $weekdayOnlyReminderCalendarIDs,
                     showsMeetingBrowserControls: false
                 )
             } else {
@@ -96,7 +107,6 @@ struct SettingsCalendarColumnsView: View {
         title: String,
         calendars: [AvailableCalendar],
         selectedIDs: Binding<Set<String>>,
-        weekdayOnlyIDs: Binding<Set<String>>,
         showsMeetingBrowserControls: Bool
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -109,7 +119,6 @@ struct SettingsCalendarColumnsView: View {
             calendarItems(
                 calendars: calendars,
                 selectedIDs: selectedIDs,
-                weekdayOnlyIDs: weekdayOnlyIDs,
                 showsMeetingBrowserControls: showsMeetingBrowserControls
             )
         }
@@ -133,7 +142,6 @@ struct SettingsCalendarColumnsView: View {
     private func calendarItems(
         calendars: [AvailableCalendar],
         selectedIDs: Binding<Set<String>>,
-        weekdayOnlyIDs: Binding<Set<String>>,
         showsMeetingBrowserControls: Bool
     ) -> some View {
         if calendars.isEmpty {
@@ -148,7 +156,6 @@ struct SettingsCalendarColumnsView: View {
                 accounts: sortedAccounts,
                 grouped: grouped,
                 selectedIDs: selectedIDs,
-                weekdayOnlyIDs: weekdayOnlyIDs,
                 showsMeetingBrowserControls: showsMeetingBrowserControls
             )
         }
@@ -158,7 +165,6 @@ struct SettingsCalendarColumnsView: View {
         accounts: [String],
         grouped: [String: [AvailableCalendar]],
         selectedIDs: Binding<Set<String>>,
-        weekdayOnlyIDs: Binding<Set<String>>,
         showsMeetingBrowserControls: Bool
     ) -> some View {
         LazyVStack(alignment: .leading, spacing: 14) {
@@ -170,7 +176,6 @@ struct SettingsCalendarColumnsView: View {
                     ruleTitle: account,
                     items: items,
                     selectedIDs: selectedIDs,
-                    weekdayOnlyIDs: weekdayOnlyIDs,
                     showsMeetingBrowserControls: showsMeetingBrowserControls
                 )
             }
@@ -182,7 +187,6 @@ struct SettingsCalendarColumnsView: View {
         ruleTitle: String,
         items: [AvailableCalendar],
         selectedIDs: Binding<Set<String>>,
-        weekdayOnlyIDs: Binding<Set<String>>,
         showsMeetingBrowserControls: Bool
     ) -> some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -210,7 +214,6 @@ struct SettingsCalendarColumnsView: View {
                 SettingsCalendarRowView(
                     calendar: calendar,
                     selectedIDs: selectedIDs,
-                    weekdayOnlyIDs: weekdayOnlyIDs,
                     onSelectionChanged: onSelectionChanged,
                     calendarAlertRules: showsMeetingBrowserControls ? $calendarAlertRules : nil
                 )

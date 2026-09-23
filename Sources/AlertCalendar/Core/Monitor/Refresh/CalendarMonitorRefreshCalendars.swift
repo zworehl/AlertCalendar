@@ -10,20 +10,16 @@ extension CalendarMonitor {
     func setCalendarSelected(_ calendar: AvailableCalendar, isSelected: Bool) {
         var settings = snapshotSettings()
         var ids = calendar.kind == .event ? settings.selectedEventCalendarIDs : settings.selectedReminderCalendarIDs
-        var weekdayOnlyIDs = calendar.kind == .event ? settings.weekdayOnlyEventCalendarIDs : settings.weekdayOnlyReminderCalendarIDs
         if isSelected {
             ids.insert(calendar.id)
         } else {
             ids.remove(calendar.id)
-            weekdayOnlyIDs.remove(calendar.id)
         }
 
         if calendar.kind == .event {
             settings.selectedEventCalendarIDs = ids
-            settings.weekdayOnlyEventCalendarIDs = weekdayOnlyIDs
         } else {
             settings.selectedReminderCalendarIDs = ids
-            settings.weekdayOnlyReminderCalendarIDs = weekdayOnlyIDs
         }
         persistSettings(settings)
         refreshNow(reason: .calendarSelectionChanged)
@@ -94,31 +90,20 @@ extension CalendarMonitor {
         }
     }
 
-    func calendarsForSelection(
-        kind: CalendarItemKind,
-        selectedIDs: Set<String>,
-        weekdayOnlyIDs: Set<String> = [],
-        nonWorkingDateKeys: Set<String> = [],
-        now: Date = AlertCalendarClock.nowRoundedToSecond()
-    ) -> [EKCalendar] {
-        let includeWeekdayOnlyToday = WorkingDayRules(nonWorkingDateKeys: nonWorkingDateKeys).isWorkingDay(now)
+    func calendarsForSelection(kind: CalendarItemKind, selectedIDs: Set<String>) -> [EKCalendar] {
         let entityType: EKEntityType = kind == .event ? .event : .reminder
-
-        return eventStore.calendars(for: entityType)
-            .filter { calendar in
-                let calendarID = calendar.calendarIdentifier
-                guard selectedIDs.contains(calendarID) else { return false }
-                if weekdayOnlyIDs.contains(calendarID) {
-                    return includeWeekdayOnlyToday
-                }
-                return true
-            }
+        let calendars = eventStore.calendars(for: entityType)
+        let visibleIDs = FocusCalendarFilterStateStore.effectiveSelectedCalendarIDs(
+            baseSelectedIDs: selectedIDs,
+            availableIDs: Set(calendars.map(\.calendarIdentifier)),
+            focusOverride: activeFocusCalendarFilterState?.selection(for: kind)
+        )
+        return calendars.filter { visibleIDs.contains($0.calendarIdentifier) }
     }
 
     func syncStoredSelection(for kind: CalendarItemKind, availableIDs: Set<String>) {
         syncStoredSelection(
             selectedKey: kind == .event ? DefaultsKeys.selectedEventCalendarIDs : DefaultsKeys.selectedReminderCalendarIDs,
-            weekdayOnlyKey: kind == .event ? DefaultsKeys.weekdayOnlyEventCalendarIDs : DefaultsKeys.weekdayOnlyReminderCalendarIDs,
             availableIDs: availableIDs
         )
     }
@@ -127,11 +112,7 @@ extension CalendarMonitor {
         settingsStore.selectedCalendarIDs(for: kind)
     }
 
-    func weekdayOnlyCalendarIDs(for kind: CalendarItemKind) -> Set<String> {
-        settingsStore.weekdayOnlyCalendarIDs(for: kind)
-    }
-
-    private func syncStoredSelection(selectedKey: String, weekdayOnlyKey: String, availableIDs: Set<String>) {
+    private func syncStoredSelection(selectedKey: String, availableIDs: Set<String>) {
         guard !availableIDs.isEmpty else { return }
 
         let sortedAvailableIDs = Array(availableIDs).sorted()
@@ -160,18 +141,6 @@ extension CalendarMonitor {
             defaults.set(sortedAvailableIDs, forKey: selectedKey)
         }
 
-        if let weekdayOnlyStored = defaults.stringArray(forKey: weekdayOnlyKey) {
-            let filteredWeekdayOnly = weekdayOnlyStored.filter { availableIDs.contains($0) }
-            if filteredWeekdayOnly != weekdayOnlyStored {
-                defaults.set(filteredWeekdayOnly, forKey: weekdayOnlyKey)
-            }
-        } else if defaults.object(forKey: weekdayOnlyKey) == nil {
-            defaults.set([], forKey: weekdayOnlyKey)
-        }
-    }
-
-    func isWeekday(_ date: Date) -> Bool {
-        WorkingDayRules.isWeekday(date)
     }
 
     func normalizedAccountTitle(for calendar: EKCalendar) -> String {

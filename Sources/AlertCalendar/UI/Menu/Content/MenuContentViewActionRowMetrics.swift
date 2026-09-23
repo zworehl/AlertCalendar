@@ -111,4 +111,58 @@ extension MenuContentView {
             + CGFloat(symbolNames.count) * MenuMarkerMetrics.symbolSize
             + CGFloat(max(0, symbolNames.count - 1)) * symbolSpacing
     }
+
+    func hoverActionRowWidth(
+        for item: UpcomingItem,
+        actions: [MenuAction]? = nil
+    ) -> CGFloat {
+        var widths: [CGFloat] = []
+
+        if item.meetingURL != nil {
+            widths.append(joinActionPillWidth())
+        }
+        if shouldShowOpenLinkAction(for: item) {
+            widths.append(openLinkActionPillWidth())
+        }
+
+        for action in actions ?? Self.upcomingItemActions(for: item) {
+            switch action {
+            case .skip:
+                widths.append(skipActionPillWidth())
+            case .complete:
+                widths.append(completeActionPillWidth())
+            }
+        }
+
+        return actionButtonOverlayWidth(
+            for: widths,
+            trailingPadding: MenuActionControlMetrics.trailingInset
+        )
+    }
+
+    func contextualActionRowWidth(
+        for item: UpcomingItem,
+        locationText: String?,
+        showsJoinButton: Bool
+    ) -> CGFloat {
+        var widths: [CGFloat] = []
+
+        if showsJoinButton, item.meetingURL != nil {
+            widths.append(joinActionPillWidth())
+        }
+        if shouldShowOpenLinkAction(for: item) {
+            widths.append(openLinkActionPillWidth())
+        }
+
+        if Self.hasUsableContextualLocation(locationText) {
+            widths.append(mapActionPillWidth())
+        }
+
+        widths.append(skipActionPillWidth())
+
+        return actionButtonOverlayWidth(
+            for: widths,
+            trailingPadding: MenuActionControlMetrics.trailingInset
+        )
+    }
 }

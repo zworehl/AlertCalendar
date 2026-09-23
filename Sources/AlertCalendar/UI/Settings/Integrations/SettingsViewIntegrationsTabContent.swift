@@ -11,7 +11,7 @@ extension SettingsView {
         VStack(alignment: .leading, spacing: SettingsVisualMetrics.pageSpacing) {
             settingsSectionHeader(
                 title: "Connected Services",
-                subtitle: "Manage the service that reacts to your calendar activity.",
+                subtitle: "Manage calendar, Apple Music, and YouTube Music activity in your Slack status.",
                 systemImage: "puzzlepiece.extension"
             )
 

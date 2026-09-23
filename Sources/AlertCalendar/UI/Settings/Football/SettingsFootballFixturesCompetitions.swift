@@ -198,15 +198,20 @@ extension SettingsFootballFixturesSectionView {
         if section.isLoading && !section.hasLoaded && section.matches.isEmpty {
             loadingState("Loading fixtures for \(section.competition.title)...")
         } else if let errorMessage = section.errorMessage {
-            feedbackState(
-                title: "Could not load \(section.competition.title)",
-                text: errorMessage,
-                systemImage: "exclamationmark.triangle.fill",
-                tint: .orange,
-                buttonTitle: "Retry",
-                isButtonDisabled: section.isLoading
-            ) {
-                await loadCompetitionFixtures(section)
+            VStack(alignment: .leading, spacing: 12) {
+                feedbackState(
+                    title: visibleMatches.isEmpty ? "Could not load \(section.competition.title)" : "Some fixtures could not be updated",
+                    text: errorMessage,
+                    systemImage: "exclamationmark.triangle.fill",
+                    tint: .orange,
+                    buttonTitle: "Retry",
+                    isButtonDisabled: section.isLoading
+                ) {
+                    await loadCompetitionFixtures(section)
+                }
+                if !visibleMatches.isEmpty {
+                    matchCardsViewport(visibleMatches, showsCompetitionName: false)
+                }
             }
         } else if !section.hasLoaded && !section.isLoading && section.matches.isEmpty {
             feedbackState(
@@ -264,6 +269,7 @@ extension SettingsFootballFixturesSectionView {
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
             .background(SettingsSelectionRowChrome(isSelected: isSelected))
         }
         .buttonStyle(.plain)
@@ -338,6 +344,7 @@ extension SettingsFootballFixturesSectionView {
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
             .background(SettingsSelectionRowChrome(isSelected: isSelected))
         }
         .buttonStyle(.plain)

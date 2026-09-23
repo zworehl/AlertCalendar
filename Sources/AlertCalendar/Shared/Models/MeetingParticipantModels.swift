@@ -149,8 +149,8 @@ struct MeetingAttendee: Identifiable, Equatable {
     }
 
     static func normalized(_ attendees: [MeetingAttendee]) -> [MeetingAttendee] {
-        var attendeesByID: [String: MeetingAttendee] = [:]
-        attendeesByID.reserveCapacity(attendees.count)
+        var normalizedAttendees: [MeetingAttendee] = []
+        normalizedAttendees.reserveCapacity(attendees.count)
 
         for attendee in attendees {
             guard let trimmedDisplayText = AlertCalendarString.trimmedNonEmpty(
@@ -173,17 +173,29 @@ struct MeetingAttendee: Identifiable, Equatable {
                 avatarImageData: attendee.avatarImageData
             )
 
-            if let existing = attendeesByID[resolvedID] {
-                attendeesByID[resolvedID] = merged(
-                    existing: existing,
-                    candidate: normalizedAttendee
+            let duplicateIndexes = normalizedAttendees.indices.filter { index in
+                representsSameParticipant(
+                    normalizedAttendees[index],
+                    normalizedAttendee
                 )
-            } else {
-                attendeesByID[resolvedID] = normalizedAttendee
             }
+
+            guard !duplicateIndexes.isEmpty else {
+                normalizedAttendees.append(normalizedAttendee)
+                continue
+            }
+
+            var mergedAttendee = normalizedAttendee
+            for index in duplicateIndexes.reversed() {
+                mergedAttendee = merged(
+                    existing: normalizedAttendees.remove(at: index),
+                    candidate: mergedAttendee
+                )
+            }
+            normalizedAttendees.append(mergedAttendee)
         }
 
-        return attendeesByID.values.sorted { left, right in
+        return normalizedAttendees.sorted { left, right in
             if left.response.sortPriority != right.response.sortPriority {
                 return left.response.sortPriority < right.response.sortPriority
             }
@@ -199,6 +211,30 @@ struct MeetingAttendee: Identifiable, Equatable {
         }
     }
 
+    private static func representsSameParticipant(
+        _ left: MeetingAttendee,
+        _ right: MeetingAttendee
+    ) -> Bool {
+        if let leftEmailAddress = normalizedEmailAddress(left.emailAddress),
+           let rightEmailAddress = normalizedEmailAddress(right.emailAddress),
+           leftEmailAddress == rightEmailAddress {
+            return true
+        }
+
+        if let leftID = normalizedIdentity(left.id),
+           let rightID = normalizedIdentity(right.id),
+           leftID == rightID {
+            return true
+        }
+
+        guard let leftDisplayText = normalizedIdentity(left.displayText),
+              let rightDisplayText = normalizedIdentity(right.displayText) else {
+            return false
+        }
+
+        return leftDisplayText == rightDisplayText
+    }
+
     private static func merged(
         existing: MeetingAttendee,
         candidate: MeetingAttendee
@@ -210,13 +246,14 @@ struct MeetingAttendee: Identifiable, Equatable {
             existing: existing,
             candidate: candidate
         )
+        let resolvedEmailAddress = preferredAttendee.emailAddress
+            ?? existing.emailAddress
+            ?? candidate.emailAddress
 
         return MeetingAttendee(
-            id: existing.id,
+            id: resolvedEmailAddress ?? existing.id,
             displayText: preferredAttendee.displayText,
-            emailAddress: preferredAttendee.emailAddress
-                ?? existing.emailAddress
-                ?? candidate.emailAddress,
+            emailAddress: resolvedEmailAddress,
             response: preferredStatus,
             avatarImageData: preferredAttendee.avatarImageData
                 ?? existing.avatarImageData

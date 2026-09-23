@@ -4,34 +4,6 @@ import MapKit
 import SwiftUI
 
 extension MenuContentView {
-    var alertBannerSection: some View {
-        alertBannerSection(alertDescriptions: filteredAlertDescriptions)
-    }
-
-    func alertBannerSection(alertDescriptions: [String]) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ForEach(alertDescriptions, id: \.self) { alertText in
-                HStack(alignment: .center, spacing: 8) {
-                    Image(systemName: "exclamationmark.circle.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.red)
-                        .frame(width: 20, height: 20, alignment: .center)
-
-                    Text(alertText)
-                        .font(.subheadline.weight(.semibold))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.red.opacity(0.10))
-        )
-    }
-
     var headerView: some View {
         let isRefreshing = monitor.isInitialLoadInProgress || isManualDropdownRefreshInProgress
 

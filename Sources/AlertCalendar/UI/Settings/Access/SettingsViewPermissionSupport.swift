@@ -129,13 +129,13 @@ extension SettingsView {
             case .allowed:
                 return "Location access is available for automatic astronomy coordinates."
             case .notRequested:
-                return "Location has not been requested yet. Grant it to support automatic astronomy coordinates and daylight maps, or enter coordinates manually below."
+                return "Location has not been requested yet. Grant it to support automatic astronomy coordinates and daylight maps, or enter coordinates manually in Atmosphere."
             case .limited:
                 return "Location access is available for automatic astronomy coordinates."
             case .denied:
-                return "Location access is denied. Use Open Settings to allow location for Alert Calendar, or switch to manual coordinates below."
+                return "Location access is denied. Use Open Settings to allow location for Alert Calendar, or switch to manual coordinates in Atmosphere."
             case .restricted:
-                return "Location Services are unavailable or restricted on this Mac. Manual coordinates are still available below."
+                return "Location Services are unavailable or restricted on this Mac. Manual coordinates are available in Atmosphere."
             }
         case .contacts:
             switch state {
@@ -149,6 +149,19 @@ extension SettingsView {
                 return "Contacts access is denied. Use Open Settings to allow Contacts for Alert Calendar and show names or avatars in meeting previews."
             case .restricted:
                 return "Contacts access is restricted by macOS or device policy."
+            }
+        case .mail:
+            switch state {
+            case .allowed:
+                return "When enabled, title rewriting can request a few matching messages from Apple Mail and process bounded, redacted context on device."
+            case .notRequested:
+                return "Mail automation has not been granted or Mail is not running. Request access to enable the optional related-mail context source."
+            case .limited:
+                return "Apple Mail automation is not fully available. Open Automation settings and allow AlertCalendar to control Mail."
+            case .denied:
+                return "macOS denied Apple Mail automation. Use Open Settings to allow AlertCalendar under Privacy & Security › Automation."
+            case .restricted:
+                return "Apple Mail automation is unavailable on this Mac or restricted by device policy."
             }
         }
     }
@@ -173,6 +186,15 @@ extension SettingsView {
             return Self.permissionGrantState(for: locationAuthorizationStatus)
         case .contacts:
             return Self.permissionGrantState(for: contactsAuthorizationStatus)
+        case .mail:
+            switch mailAutomationAuthorizationStatus {
+            case .authorized:
+                return .allowed
+            case .notDetermined, .mailUnavailable:
+                return .notRequested
+            case .denied:
+                return .denied
+            }
         }
     }
 
@@ -208,6 +230,9 @@ extension SettingsView {
             case .contacts:
                 granted = await MeetingContactResolver.shared.requestAccess()
                 contactsAuthorizationStatus = SettingsPermissionKind.currentContactsAuthorizationStatus(forceRefresh: true)
+            case .mail:
+                mailAutomationAuthorizationStatus = await AppleMailAutomationPermission.requestAccess()
+                granted = mailAutomationAuthorizationStatus == .authorized
             }
 
             permissionActionMessages[permission] = granted
@@ -222,6 +247,7 @@ extension SettingsView {
         reminderAuthorizationStatus = SettingsPermissionKind.currentReminderAuthorizationStatus(forceRefresh: forceRefresh)
         locationAuthorizationStatus = SettingsPermissionKind.currentLocationAuthorizationStatus(forceRefresh: forceRefresh)
         contactsAuthorizationStatus = SettingsPermissionKind.currentContactsAuthorizationStatus(forceRefresh: forceRefresh)
+        mailAutomationAuthorizationStatus = AppleMailAutomationPermission.currentStatus()
         for permission in SettingsPermissionKind.allCases
             where permissionGrantState(for: permission) == .allowed
                 && permissionActionMessages[permission] != "Access granted." {

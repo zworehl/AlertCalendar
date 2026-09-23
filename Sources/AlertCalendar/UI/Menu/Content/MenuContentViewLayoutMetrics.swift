@@ -103,7 +103,7 @@ extension MenuContentView {
             contextualWidth,
             queueWidth
         )
-        return requiredWidth
+        return min(requiredWidth, dropdownAvailableSize.width)
     }
 
     var singleColumnContextualMinimumWidth: CGFloat {
@@ -119,8 +119,7 @@ extension MenuContentView {
     }
 
     var splitDropdownColumnHeightLimit: CGFloat {
-        let screenHeight = activeDropdownScreenVisibleFrame.height
-        return min(splitDropdownMaxColumnHeight, max(360, screenHeight * 0.62))
+        return min(splitDropdownMaxColumnHeight, max(1, dropdownAvailableSize.height - 67))
     }
 
     func splitPanelContentHeight(bottomPadding: CGFloat? = nil) -> CGFloat {
@@ -131,61 +130,41 @@ extension MenuContentView {
     }
 
     var dropdownVisibleHeightBudget: CGFloat {
-        let screenHeight = activeDropdownScreenVisibleFrame.height
-        return max(420, min(screenHeight - 140, screenHeight * 0.72))
-    }
-
-    var activeDropdownScreenVisibleFrame: CGRect {
-        if let keyWindowFrame = NSApp.keyWindow?.screen?.visibleFrame {
-            return keyWindowFrame
-        }
-
-        let mouseLocation = NSEvent.mouseLocation
-        if let mouseScreenFrame = NSScreen.screens.first(where: { $0.frame.contains(mouseLocation) })?.visibleFrame {
-            return mouseScreenFrame
-        }
-
-        return NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1440, height: 960)
+        dropdownAvailableSize.height
     }
 
     func shouldUseHeightConstrainedSplitLayout(
         contextualItems: [UpcomingItem],
         previewKindsByKey: [String: ContextualPreviewKind],
-        queueItems: [UpcomingItem],
-        alertCount: Int
+        queueItems: [UpcomingItem]
     ) -> Bool {
         guard !contextualItems.isEmpty,
               !queueItems.isEmpty else {
             return false
         }
 
-        let screenWidth = activeDropdownScreenVisibleFrame.width
+        let screenWidth = dropdownAvailableSize.width
         let requiredDropdownWidth = splitDropdownWidth(
             contextualItems: contextualItems,
             previewKindsByKey: previewKindsByKey
         )
-        guard screenWidth >= requiredDropdownWidth + 32 else {
+        // The shared viewport already excludes the display-edge clearance.
+        guard screenWidth >= requiredDropdownWidth else {
             return false
         }
 
         return estimatedSingleColumnDropdownHeight(
             contextualItems: contextualItems,
-            queueItems: queueItems,
-            alertCount: alertCount
+            queueItems: queueItems
         ) > dropdownVisibleHeightBudget
     }
 
     func estimatedSingleColumnDropdownHeight(
         contextualItems: [UpcomingItem],
-        queueItems: [UpcomingItem],
-        alertCount: Int
+        queueItems: [UpcomingItem]
     ) -> CGFloat {
         let headerHeight: CGFloat = 28
         var sectionHeights: [CGFloat] = []
-
-        if alertCount > 0 {
-            sectionHeights.append(CGFloat(alertCount) * 26 + 16)
-        }
 
         if !contextualItems.isEmpty {
             sectionHeights.append(estimatedContextualPanelHeight(for: contextualItems))
@@ -384,30 +363,17 @@ extension MenuContentView {
     func upcomingSplitPanelHeight(snapshot: LayoutSnapshot) -> CGFloat? {
         guard snapshot.shouldUseSplitDropdownLayout else { return nil }
 
-        let alertHeight: CGFloat
-        if snapshot.filteredAlertDescriptions.isEmpty {
-            alertHeight = 0
-        } else {
-            alertHeight = CGFloat(snapshot.filteredAlertDescriptions.count) * 26 + 24
-        }
-
         return Self.resolvedSplitUpcomingPanelHeight(
             measuredHeight: splitUpcomingPanelHeight,
-            columnHeightLimit: splitPrimaryColumnsHeightLimit(snapshot: snapshot),
-            reservedAlertHeight: alertHeight
+            columnHeightLimit: splitPrimaryColumnsHeightLimit(snapshot: snapshot)
         )
     }
 
     nonisolated static func resolvedSplitUpcomingPanelHeight(
         measuredHeight: CGFloat,
-        columnHeightLimit: CGFloat,
-        reservedAlertHeight: CGFloat
+        columnHeightLimit: CGFloat
     ) -> CGFloat {
-        let availableUpcomingHeight = max(
-            120,
-            columnHeightLimit
-                - reservedAlertHeight
-        )
+        let availableUpcomingHeight = max(120, columnHeightLimit)
 
         // On the first layout pass the queue has not published its measured
         // height yet. Reserving the remaining column height immediately keeps
@@ -438,8 +404,7 @@ extension MenuContentView {
         shouldUseHeightConstrainedSplitLayout(
             contextualItems: splitContextualActionItemsForSplitLayout,
             previewKindsByKey: contextualPreviewKindsByKey,
-            queueItems: queueItemsForSplitLayout,
-            alertCount: filteredAlertDescriptions.count
+            queueItems: queueItemsForSplitLayout
         )
     }
 

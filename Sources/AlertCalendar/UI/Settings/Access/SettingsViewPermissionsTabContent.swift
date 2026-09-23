@@ -9,11 +9,57 @@ extension SettingsView {
     @ViewBuilder
     var permissionsSettingsContent: some View {
         VStack(alignment: .leading, spacing: SettingsVisualMetrics.pageSpacing) {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: SettingsVisualMetrics.pageSpacing) {
+                    accessOverviewSection
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                    browserProfileAccessSettingsSection
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
+
+                VStack(alignment: .leading, spacing: SettingsVisualMetrics.pageSpacing) {
+                    accessOverviewSection
+                    browserProfileAccessSettingsSection
+                }
+            }
+
+            LazyVGrid(columns: permissionActionGridColumns, alignment: .leading, spacing: 12) {
+                ForEach(SettingsPermissionKind.allCases) { permission in
+                    permissionActionCard(for: permission)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
             settingsSection(
-                title: "Access Overview",
-                subtitle: "Check the app-level state and jump straight to macOS privacy controls when needed.",
-                systemImage: "lock.shield"
+                title: "Diagnostics",
+                subtitle: "Refresh details for the last scheduler pass.",
+                systemImage: "waveform.path.ecg"
             ) {
+                dataRefreshIssuesContent
+                DisclosureGroup("Refresh diagnostics", isExpanded: $isShowingPermissionDiagnostics) {
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 18) {
+                            diagnosticsPills
+                        }
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            diagnosticsPills
+                        }
+                    }
+                    .padding(.top, 8)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    var accessOverviewSection: some View {
+        settingsSection(
+            title: "Access Overview",
+            subtitle: "Check the app-level state and jump straight to macOS privacy controls when needed.",
+            systemImage: "lock.shield"
+        ) {
                 ViewThatFits(in: .horizontal) {
                     HStack(alignment: .center, spacing: 18) {
                         VStack(alignment: .leading, spacing: 8) {
@@ -33,61 +79,44 @@ extension SettingsView {
                 }
             }
 
-            browserProfileAccessSettingsSection
+    }
 
-            LazyVGrid(columns: permissionActionGridColumns, alignment: .leading, spacing: 12) {
-                ForEach(SettingsPermissionKind.allCases) { permission in
-                    permissionActionCard(for: permission)
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+    @ViewBuilder
+    var diagnosticsPills: some View {
+        statusPill(title: "Reason", value: refreshDiagnostics.summary)
+        statusPill(title: "Pending", value: refreshDiagnostics.pendingSummary)
+        statusPill(title: "Phases", value: refreshDiagnostics.phasesSummary)
+        statusPill(title: "Feed requests", value: "\(externalFeedDiagnostics.networkRequests)")
+        statusPill(title: "Cache hits", value: "\(externalFeedDiagnostics.cacheHits)")
+        statusPill(title: "Feed failures", value: "\(externalFeedDiagnostics.failures)")
+        statusPill(title: "Feed p50 / p95", value: Self.feedLatencySummary(externalFeedDiagnostics))
+    }
 
-            settingsSection(
-                title: "Diagnostics",
-                subtitle: "Refresh details for the last scheduler pass.",
-                systemImage: "waveform.path.ecg"
-            ) {
-                DisclosureGroup("Refresh diagnostics", isExpanded: $isShowingPermissionDiagnostics) {
-                    ViewThatFits(in: .horizontal) {
-                        HStack(spacing: 18) {
-                            statusPill(title: "Reason", value: refreshDiagnostics.summary)
-                            statusPill(title: "Pending", value: refreshDiagnostics.pendingSummary)
-                            statusPill(title: "Feed requests", value: "\(externalFeedDiagnostics.networkRequests)")
-                            statusPill(title: "Cache hits", value: "\(externalFeedDiagnostics.cacheHits)")
-                            statusPill(title: "Feed failures", value: "\(externalFeedDiagnostics.failures)")
-                        }
-
-                        VStack(alignment: .leading, spacing: 8) {
-                            statusPill(title: "Reason", value: refreshDiagnostics.summary)
-                            statusPill(title: "Pending", value: refreshDiagnostics.pendingSummary)
-                            statusPill(title: "Feed requests", value: "\(externalFeedDiagnostics.networkRequests)")
-                            statusPill(title: "Cache hits", value: "\(externalFeedDiagnostics.cacheHits)")
-                            statusPill(title: "Feed failures", value: "\(externalFeedDiagnostics.failures)")
-                        }
-                    }
-                    .padding(.top, 8)
-                }
-            }
+    nonisolated static func feedLatencySummary(_ diagnostics: ExternalFeedDiagnostics) -> String {
+        guard let median = diagnostics.medianRequestDuration,
+              let p95 = diagnostics.p95RequestDuration else {
+            return "No samples"
         }
+        return String(format: "%.2fs / %.2fs", median, p95)
     }
 
     var permissionActionGridColumns: [GridItem] {
-        if settingsWindowWidth >= 1380 {
-            return [
-                GridItem(.flexible(minimum: 260), spacing: 12, alignment: .top),
-                GridItem(.flexible(minimum: 260), spacing: 12, alignment: .top),
-                GridItem(.flexible(minimum: 260), spacing: 12, alignment: .top),
-                GridItem(.flexible(minimum: 260), spacing: 12, alignment: .top)
-            ]
+        let columnCount: Int
+        if settingsWindowWidth >= 1_500 {
+            columnCount = 5
+        } else if settingsWindowWidth >= 920 {
+            columnCount = 3
+        } else if settingsWindowWidth >= 600 {
+            columnCount = 2
+        } else {
+            columnCount = 1
         }
-        if settingsWindowWidth >= 940 {
-            return [
-                GridItem(.flexible(minimum: 300), spacing: 12, alignment: .top),
-                GridItem(.flexible(minimum: 300), spacing: 12, alignment: .top)
-            ]
-        }
-        return [GridItem(.flexible(minimum: 0), spacing: 12, alignment: .top)]
+        let column = GridItem(
+            .flexible(minimum: columnCount == 1 ? 0 : 240, maximum: columnCount == 1 ? .infinity : 360),
+            spacing: 12,
+            alignment: .top
+        )
+        return Array(repeating: column, count: columnCount)
     }
 
     @ViewBuilder

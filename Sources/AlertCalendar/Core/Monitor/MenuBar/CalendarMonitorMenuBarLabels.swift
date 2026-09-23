@@ -6,18 +6,8 @@ extension CalendarMonitor {
     nonisolated static let timedEventStartAlertDuration: TimeInterval = 60
 
     nonisolated static func shouldShowTimedEventNowState(for item: UpcomingItem, now: Date) -> Bool {
-        guard item.kind == .event,
-              !item.isAllDay,
-              item.date <= now
-        else {
-            return false
-        }
-
-        if let endDate = item.endDate, endDate <= now {
-            return false
-        }
-
-        return now.timeIntervalSince(item.date) < timedEventStartAlertDuration
+        isActiveTimedEvent(item, now: now)
+            && now.timeIntervalSince(item.date) < timedEventStartAlertDuration
     }
 
     nonisolated static func timedEventNowMenuSegment(
@@ -60,7 +50,7 @@ extension CalendarMonitor {
         activeEventDisplayMode: ActiveEventDisplayMode,
         useEventTitleEllipsis: Bool,
         eventTitleMaxCharacters: Int,
-        rewrittenTitle: String? = nil,
+        titlePresentation: EventTitlePresentation? = nil,
         fallback: String
     ) -> String {
         guard let item else { return fallback }
@@ -71,7 +61,7 @@ extension CalendarMonitor {
             activeEventDisplayMode: activeEventDisplayMode,
             useEventTitleEllipsis: useEventTitleEllipsis,
             eventTitleMaxCharacters: eventTitleMaxCharacters,
-            rewrittenTitle: rewrittenTitle
+            titlePresentation: titlePresentation
         )
     }
 
@@ -82,13 +72,14 @@ extension CalendarMonitor {
         activeEventDisplayMode: ActiveEventDisplayMode,
         useEventTitleEllipsis: Bool,
         eventTitleMaxCharacters: Int,
-        rewrittenTitle: String? = nil
+        titlePresentation: EventTitlePresentation? = nil
     ) -> String {
-        let baseTitle = rewrittenTitle
-            ?? item.footballMatch.map(FootballFixtureFormatter.calendarTitle(for:))
-            ?? item.title
+        let usesResolvedTitle = titlePresentation?.usesResolvedTitle == true
+        let baseTitle = usesResolvedTitle
+            ? titlePresentation?.title ?? item.title
+            : item.footballMatch.map(FootballFixtureFormatter.calendarTitle(for:)) ?? item.title
         let compactTitle: String
-        if rewrittenTitle != nil {
+        if usesResolvedTitle {
             compactTitle = baseTitle
         } else if useEventTitleEllipsis {
             compactTitle = trimmedTitle(baseTitle, maxLength: max(1, eventTitleMaxCharacters))
@@ -101,9 +92,7 @@ extension CalendarMonitor {
             return compactTitle
         }
 
-        if item.kind == .event,
-           item.date <= now,
-           (item.endDate ?? item.date) > now,
+        if Self.isActiveTimedEvent(item, now: now),
            FootballFixtureFormatter.looksLikeFootballCalendarTitle(item.title) {
             return compactTitle
         }
@@ -136,7 +125,7 @@ extension CalendarMonitor {
         if item.kind == .reminder, item.date <= now {
             return "\(compactTitle) \(elapsedCountdown(from: item.date, to: now, simplified: simplified)) ago"
         }
-        if item.kind == .event, let endDate = item.endDate, item.date <= now, endDate > now {
+        if Self.isActiveTimedEvent(item, now: now), let endDate = item.endDate {
             switch activeEventDisplayMode {
             case .remaining:
                 return "\(compactTitle) \(relativeCountdown(to: endDate, from: now, simplified: simplified)) left"

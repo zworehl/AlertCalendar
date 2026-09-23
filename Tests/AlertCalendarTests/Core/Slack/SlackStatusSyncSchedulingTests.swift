@@ -2,6 +2,79 @@ import XCTest
 @testable import AlertCalendar
 
 final class SlackStatusSyncSchedulingTests: SlackStatusSyncTestCase {
+    func testAppleMusicPriorityComparedWithCalendar() {
+        XCTAssertTrue(CalendarMonitor.shouldUseAppleMusicStatus(musicPriority: 6, calendarPriority: nil))
+        XCTAssertFalse(CalendarMonitor.shouldUseAppleMusicStatus(musicPriority: 6, calendarPriority: 5))
+        XCTAssertTrue(CalendarMonitor.shouldUseAppleMusicStatus(musicPriority: 2, calendarPriority: 5))
+        XCTAssertFalse(CalendarMonitor.shouldUseAppleMusicStatus(musicPriority: 5, calendarPriority: 5))
+        XCTAssertEqual(AppleMusicPlayback(artist: "Björk").statusText, "Listening to Björk")
+        XCTAssertEqual(
+            AppleMusicPlayback(artist: "Björk", remainingDuration: 179.2)
+                .expirationTimestamp(now: Date(timeIntervalSince1970: 1_000)),
+            1_240
+        )
+        XCTAssertEqual(CalendarMonitorCadence.appleMusicStatusHeartbeatInterval, 5)
+        XCTAssertEqual(AppleMusicPlaybackReader.parseTimeInterval("296,881011962891"), 296.881011962891)
+        XCTAssertEqual(AppleMusicPlaybackReader.parseTimeInterval("636.474"), 636.474)
+        XCTAssertEqual(AppleMusicPlayback(artist: "Björk", elapsedDuration: 29.9).statusEmoji, "🎵")
+        XCTAssertEqual(AppleMusicPlayback(artist: "Björk", elapsedDuration: 30).statusEmoji, "🎶")
+        XCTAssertEqual(AppleMusicPlayback(artist: "Björk", elapsedDuration: 60).statusEmoji, "🎵")
+        XCTAssertNil(AppleMusicPlaybackReader.parseTimeInterval("nan"))
+        XCTAssertNil(AppleMusicPlaybackReader.parseTimeInterval("inf"))
+        let projectedPlayback = AppleMusicPlayback(
+            artist: "Björk",
+            trackID: "track",
+            elapsedDuration: 30,
+            remainingDuration: 89
+        ).projected(after: 5)
+        XCTAssertEqual(projectedPlayback.elapsedDuration, 35)
+        XCTAssertEqual(projectedPlayback.remainingDuration, 84)
+        XCTAssertFalse(projectedPlayback.shouldRenewExpiration(1_100, now: Date(timeIntervalSince1970: 1_000)))
+        XCTAssertTrue(
+            AppleMusicPlayback(artist: "Radio", durationIsKnown: false)
+                .shouldRenewExpiration(1_025, now: Date(timeIntervalSince1970: 1_000))
+        )
+        XCTAssertEqual(
+            AppleMusicPlayback(
+                artist: "Radio",
+                elapsedDuration: 120,
+                remainingDuration: AppleMusicPlayback.unknownDurationLease,
+                durationIsKnown: false
+            ).cacheIdentity,
+            AppleMusicPlayback(
+                artist: "Radio",
+                elapsedDuration: 125,
+                remainingDuration: AppleMusicPlayback.unknownDurationLease,
+                durationIsKnown: false
+            ).cacheIdentity
+        )
+        XCTAssertEqual(
+            AppleMusicPlayback.statusDuration(
+                trackDuration: 240,
+                position: 60,
+                followingSameArtistDuration: 210
+            ),
+            390
+        )
+    }
+
+    func testExplicitCalendarPriorityWinsOverRuleOrder() {
+        let now = Date(timeIntervalSince1970: 1_777_000_000)
+        let rules = [
+            SlackStatusSyncRule(connectionID: "T1|U1", calendarID: "calendar-1", statusText: "Low", priority: 8, isEnabled: true),
+            SlackStatusSyncRule(connectionID: "T1|U1", calendarID: "calendar-2", statusText: "High", priority: 2, isEnabled: true),
+        ]
+        let items = [
+            makeEvent(id: "a", title: "One", calendarID: "calendar-1", startDate: now.addingTimeInterval(-60), endDate: now.addingTimeInterval(600)),
+            makeEvent(id: "b", title: "Two", calendarID: "calendar-2", startDate: now.addingTimeInterval(-60), endDate: now.addingTimeInterval(600)),
+        ]
+
+        XCTAssertEqual(
+            CalendarMonitor.activeSlackRuleStateByConnectionID(for: items, rules: rules, now: now)["T1|U1"]?.statusText,
+            "High"
+        )
+    }
+
     func testSlackHeartbeatUsesOneMinuteFallback() {
         XCTAssertEqual(CalendarMonitorCadence.slackStatusHeartbeatInterval, 60)
         XCTAssertEqual(CalendarMonitorCadence.slackDynamicStatusRotationInterval, 30)

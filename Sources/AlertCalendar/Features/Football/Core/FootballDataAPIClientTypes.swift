@@ -4,13 +4,21 @@ extension FootballDataAPIClient {
     enum ClientError: LocalizedError, Sendable {
         case invalidResponse
         case unsuccessfulResponse(statusCode: Int)
+        case unavailable(String)
+        case rateLimited(until: Date)
 
         var errorDescription: String? {
             switch self {
             case .invalidResponse:
                 return "The football feed returned an unreadable response."
-            case .unsuccessfulResponse:
-                return "The football feed is temporarily unavailable."
+            case .unsuccessfulResponse(let statusCode):
+                return statusCode == 429
+                    ? "ESPN is limiting requests (HTTP 429)."
+                    : "ESPN returned HTTP \(statusCode)."
+            case .unavailable(let message):
+                return message
+            case .rateLimited:
+                return "ESPN is limiting requests (HTTP 429). The next retry will respect its waiting period."
             }
         }
     }
@@ -30,6 +38,15 @@ extension FootballDataAPIClient {
     struct ScoreboardPageCacheEntry {
         let matches: [FootballFixtureMatch]
         let fetchedAt: Date
+    }
+
+    struct ScoreboardPageFailure {
+        let count: Int
+        let nextRetryAt: Date
+        let failedAt: Date
+        let reason: String
+        let rateLimitedUntil: Date?
+        let rejectedRange: Bool
     }
 
     struct SummaryRootCacheEntry {

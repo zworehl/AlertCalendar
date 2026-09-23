@@ -27,7 +27,7 @@ final class LocationCoordinateResolverTests: XCTestCase {
         )
 
         XCTAssertTrue(queries.contains("Santiago Bernabéu Stadium, Madrid, Spain"))
-        XCTAssertTrue(queries.contains("Estadio Santiago Bernabéu, Madrid, Spain"))
+        XCTAssertTrue(queries.contains("Stadium Santiago Bernabéu, Madrid, Spain"))
     }
 
     func testSearchQueriesAddsStadiumVariantForSimpleGroundNames() {
@@ -39,12 +39,12 @@ final class LocationCoordinateResolverTests: XCTestCase {
         XCTAssertTrue(queries.contains("Anfield, Liverpool, England"))
     }
 
-    func testSearchQueriesAddsEstadioVariantForArenaVenues() {
+    func testSearchQueriesAddsEnglishStadiumVariantForArenaVenues() {
         let queries = LocationCoordinateResolver.searchQueries(
             from: "Arena da Baixada, Curitiba, Brazil"
         )
 
-        XCTAssertTrue(queries.contains("Estadio Arena da Baixada, Curitiba, Brazil"))
+        XCTAssertTrue(queries.contains("Stadium Arena da Baixada, Curitiba, Brazil"))
         XCTAssertTrue(queries.contains("Arena da Baixada, Curitiba, Brazil"))
     }
 

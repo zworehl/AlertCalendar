@@ -6,14 +6,14 @@ enum FootballFixtureFormatter {
     static func calendarTitle(for match: FootballFixtureMatch) -> String {
         let homeFlag = teamFlag(for: match.homeTeam)
         let awayFlag = teamFlag(for: match.awayTeam)
-        let homeCode = teamDisplayIdentifier(for: match.homeTeam)
-        let awayCode = teamDisplayIdentifier(for: match.awayTeam)
+        let homeName = teamDisplayIdentifier(for: match.homeTeam)
+        let awayName = teamDisplayIdentifier(for: match.awayTeam)
 
         if match.hasVisibleScore {
-            return "\(homeCode) \(homeFlag) \(scoreText(match.homeScore)) - \(scoreText(match.awayScore)) \(awayFlag) \(awayCode)"
+            return "\(homeName) \(homeFlag) \(scoreText(match.homeScore)) - \(scoreText(match.awayScore)) \(awayFlag) \(awayName)"
         }
 
-        return "\(homeCode) \(homeFlag) - \(awayFlag) \(awayCode)"
+        return "\(homeName) \(homeFlag) - \(awayFlag) \(awayName)"
     }
 
     static func menuBarDisplay(
@@ -145,10 +145,11 @@ enum FootballFixtureFormatter {
 
     static func looksLikeFootballCalendarTitle(_ title: String) -> Bool {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.contains(" - ") else { return false }
-        let uppercaseLetters = trimmed.unicodeScalars.filter { CharacterSet.uppercaseLetters.contains($0) }.count
-        guard uppercaseLetters >= 4 else { return false }
-        return containsFlagEmoji(in: trimmed)
+        let sides = trimmed.components(separatedBy: " - ")
+        guard sides.count == 2 else { return false }
+        return sides.allSatisfy { side in
+            containsFlagEmoji(in: side) && side.rangeOfCharacter(from: .letters) != nil
+        }
     }
 
     static func hasUnknownParticipants(in match: FootballFixtureMatch) -> Bool {
@@ -164,6 +165,19 @@ enum FootballFixtureFormatter {
     }
 
     static func calendarIdentityKey(fromCalendarTitle title: String) -> String? {
+        // Flags delimit the names from the score, preserving numbers in names
+        // such as Schalke 04 and 1860 Munich even before kickoff.
+        let sides = title.components(separatedBy: " - ")
+        if sides.count == 2,
+           let homeFlagIndex = sides[0].firstIndex(where: { containsFlagEmoji(in: String($0)) }),
+           let awayFlagIndex = sides[1].lastIndex(where: { containsFlagEmoji(in: String($0)) }) {
+            let homeName = String(sides[0][..<homeFlagIndex])
+            let awayName = String(sides[1][sides[1].index(after: awayFlagIndex)...])
+            let identifiers = [homeName, awayName].map(compactIdentifier)
+            guard identifiers.allSatisfy({ !$0.isEmpty }) else { return nil }
+            return identifiers.joined(separator: "|")
+        }
+
         let strippedFlags = title.unicodeScalars.filter { scalar in
             let value = scalar.value
             return !(0x1F1E6 ... 0x1F1FF).contains(value)

@@ -13,6 +13,7 @@ struct SettingsAstronomySectionView: View {
     let showsOrbitalHighlights: Bool
     let astronomyLatitude: Double
     let astronomyLongitude: Double
+    let availableWidth: CGFloat
     let solarTimesProvider: (Date, (lat: Double, lon: Double), TimeZone) -> SolarMoments?
     let nextLunarPhasesProvider: (Date) -> [AstronomyPreviewMoment]
     let nextOrbitalHighlightsProvider: (Date) -> [AstronomyPreviewMoment]
@@ -27,7 +28,7 @@ struct SettingsAstronomySectionView: View {
 
             if showsCalculatedTimes {
                 VStack(alignment: .leading, spacing: 12) {
-                    ViewThatFits(in: .horizontal) {
+                    if availableWidth >= 1_050 {
                         HStack(alignment: .top, spacing: 14) {
                             astronomyTimesSection
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -37,7 +38,8 @@ struct SettingsAstronomySectionView: View {
                             orbitalHighlightsSection
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
-
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                    } else {
                         VStack(alignment: .leading, spacing: 10) {
                             astronomyTimesSection
 
@@ -396,7 +398,7 @@ struct SettingsAstronomySectionView: View {
 
     private static let orbitalDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.locale = .autoupdatingCurrent
+        formatter.locale = AlertCalendarLanguage.english
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
         return formatter

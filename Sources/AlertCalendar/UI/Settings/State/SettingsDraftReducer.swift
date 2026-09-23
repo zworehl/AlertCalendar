@@ -19,6 +19,7 @@ extension SettingsDraft {
             menuBarRotationWindowMinutes,
             dropdownWindowHours: settings.lookAheadHours
         )
+        settings.focusMenuBarOnActiveEvents = focusMenuBarOnActiveEvents
         settings.alertLeadMinutes = alertLeadMinutes
         settings.concurrentEventRotationSeconds = concurrentEventRotationSeconds
         settings.maxListItems = AppSettingsRules.normalizedMaximumDropdownItems(maxListItems)
@@ -40,8 +41,10 @@ extension SettingsDraft {
                 maximumCharacters: settings.eventTitleMaxCharacters
             )
             && rewriteEventTitlesWithAppleIntelligence
-        settings.useRewrittenEventTitlesInDropdown = settings.rewriteEventTitlesWithAppleIntelligence
+        settings.useRewrittenEventTitlesInDropdown = settings.useEventTitleEllipsis
             && useRewrittenEventTitlesInDropdown
+        settings.useMailContextForEventTitleRewrite = settings.rewriteEventTitlesWithAppleIntelligence
+            && useMailContextForEventTitleRewrite
         settings.includeAstronomy = includeAstronomy
         settings.includeSunriseSunset = includeSunriseSunset
         settings.includeSolarNoonMidnight = includeSolarNoonMidnight
@@ -53,13 +56,10 @@ extension SettingsDraft {
         settings.astronomyLongitude = AppSettingsRules.roundedCoordinate(astronomyLongitude)
         settings.selectedEventCalendarIDs = selectedEventCalendarIDs
         settings.selectedReminderCalendarIDs = selectedReminderCalendarIDs
-        settings.weekdayOnlyEventCalendarIDs = weekdayOnlyEventCalendarIDs
-        settings.weekdayOnlyReminderCalendarIDs = weekdayOnlyReminderCalendarIDs
         settings.calendarAlertRules = CalendarAlertRule.normalized(
             calendarAlertRules,
             validCalendarIDs: availableEventCalendarIDs
         )
-        settings.nonWorkingDateKeys = WorkingDayRules.normalizedNonWorkingDateKeys(nonWorkingDateKeys)
         settings.footballTargetCalendarID = footballTargetCalendarID
         settings.footballAutoAddCompetitionSlugs = Set(
             CalendarMonitor.normalizedFootballAutoAddCompetitionSlugs(
@@ -72,7 +72,6 @@ extension SettingsDraft {
         settings.includeFootballGoalScorerInNotifications = includeFootballGoalScorerInNotifications
         settings.enableFootballFinalNotifications = enableFootballFinalNotifications
         settings.enableFootballAutoAddNotifications = enableFootballAutoAddNotifications
-        settings.showFinishedFootballMatches = showFinishedFootballMatches
         settings.finishedFootballMatchLookbackDays = AppSettingsRules.normalizedFootballWindowDays(
             finishedFootballMatchLookbackDays
         )
@@ -91,6 +90,9 @@ extension SettingsDraft {
             slackStatusSyncRules,
             validConnectionIDs: Set(settings.slackConnections.map(\.id)),
             validCalendarIDs: availableEventCalendarIDs
+        )
+        settings.appleMusicStatus = appleMusicStatus.normalized(
+            validConnectionIDs: Set(settings.slackConnections.map(\.id))
         )
         settings.meetingBrowserRouting = meetingBrowserRouting.normalized(
             availableCalendarIDs: availableEventCalendarIDs

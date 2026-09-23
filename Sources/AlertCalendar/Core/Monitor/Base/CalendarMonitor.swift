@@ -9,7 +9,7 @@ extension EKReminder: @retroactive @unchecked Sendable {}
 final class CalendarMonitor: ObservableObject {
     @Published var isInitialLoadInProgress = true {
         didSet {
-            menuBarPresentationModel.setLoading(isInitialLoadInProgress)
+            menuBarPresentationModel.setInitialLoading(isInitialLoadInProgress)
         }
     }
     let menuBarPresentationModel = MenuBarPresentationModel()
@@ -46,6 +46,8 @@ final class CalendarMonitor: ObservableObject {
     @Published var lastRefreshDate: Date?
     @Published var refreshDiagnostics = CalendarMonitorRefreshDiagnostics()
     @Published var externalFeedDiagnostics = ExternalFeedDiagnostics()
+    @Published var dataRefreshIssues: [DataRefreshIssue] = []
+    var dataRefreshHealthState = CalendarMonitorDataRefreshHealthState()
     @Published var footballMenuSections: [FootballMenuCompetitionSection] = []
     @Published var footballLiveAndNextDaySection = FootballMatchesOverviewSection.placeholder(title: "Now & Next 24 Hours")
     @Published var managedFootballMatchIDs: Set<String> = []
@@ -78,9 +80,13 @@ final class CalendarMonitor: ObservableObject {
     let googleHolidayClient: GoogleHolidayFeedClient
     let slackClient: SlackAPIClient
     let agendaSummaryClient: any AgendaSummaryGenerating
+    let agendaSummaryAttachmentPreviewProvider: any AgendaSummaryAttachmentPreviewProviding
     let agendaSummaryLinkPreviewProvider: any AgendaSummaryLinkPreviewProviding
     let eventTitleRewriter: any EventTitleRewriting
+    let eventMailContextProvider: any EventMailContextProviding
     let clock: AlertCalendarClockProviding
+    let footballMatchCacheStore: FootballMatchCacheStore?
+    let eventTitleRewriteCacheStore: EventTitleRewriteCacheStore?
 
     var settingsStore: AppSettingsStore {
         AppSettingsStore(defaults: defaults)
@@ -88,10 +94,13 @@ final class CalendarMonitor: ObservableObject {
 
     var heartbeatTask: Task<Void, Never>?
     var menuBarAnimationCancellable: AnyCancellable?
+    @Published var activeFocusCalendarFilterState: FocusCalendarFilterState?
+    var focusFilterRuntime = FocusFilterRuntimeState()
     var defaultsObserver: AnyCancellable?
     var eventStoreObserver: AnyCancellable?
     var appActivationObserver: AnyCancellable?
     var workspaceResumeObserver: AnyCancellable?
+    var terminationObserver: AnyCancellable?
     let refreshCoordinator = CalendarMonitorRefreshCoordinator()
     var lastCalendarStateRefreshDate: Date?
     var lastPeriodicRefreshDate: Date?
@@ -115,9 +124,16 @@ final class CalendarMonitor: ObservableObject {
     var agendaSummaryRetryAttempt = 0
     var agendaSummaryRequestFingerprint: Int?
     var eventTitleRewriteTask: Task<Void, Never>?
+    var eventTitleRewriteRetryTask: Task<Void, Never>?
+    var eventTitleRewriteRetryAttempt = 0
     var eventTitleRewriteFingerprint: Int?
-    var eventTitleRewriteCache = AlertCalendarLRUCache<EventTitleRewriteCacheKey, String>(capacity: 256)
+    var notificationAuthorizationTask: Task<Void, Never>?
+    var persistentEventTitleRewriteCache = EventTitleRewriteCacheSnapshot.empty
     var virtualLocationTextCache = AlertCalendarLRUCache<String, Bool>(capacity: 256)
+    var lastSuccessfulReminderItems: [UpcomingItem] = []
+    var reminderRefreshTask: Task<Void, Never>?
+    var reminderRefreshToken: UUID?
+    var reminderRefreshFingerprint: String?
 
     init(
         eventStore: EKEventStore = EKEventStore(),
@@ -128,9 +144,13 @@ final class CalendarMonitor: ObservableObject {
         googleHolidayClient: GoogleHolidayFeedClient = GoogleHolidayFeedClient(),
         slackClient: SlackAPIClient = SlackAPIClient(),
         agendaSummaryClient: any AgendaSummaryGenerating = AppleIntelligenceAgendaSummaryClient(),
+        agendaSummaryAttachmentPreviewProvider: any AgendaSummaryAttachmentPreviewProviding = AgendaSummaryAttachmentPreviewClient(),
         agendaSummaryLinkPreviewProvider: any AgendaSummaryLinkPreviewProviding = AgendaSummaryLinkPreviewClient(),
         eventTitleRewriter: any EventTitleRewriting = AppleIntelligenceEventTitleRewriter(),
-        clock: AlertCalendarClockProviding = SystemAlertCalendarClock()
+        eventMailContextProvider: any EventMailContextProviding = AppleMailEventContextProvider(),
+        clock: AlertCalendarClockProviding = SystemAlertCalendarClock(),
+        footballMatchCacheStore: FootballMatchCacheStore? = nil,
+        eventTitleRewriteCacheStore: EventTitleRewriteCacheStore? = nil
     ) {
         self.eventStore = eventStore
         self.defaults = defaults
@@ -140,12 +160,22 @@ final class CalendarMonitor: ObservableObject {
         self.googleHolidayClient = googleHolidayClient
         self.slackClient = slackClient
         self.agendaSummaryClient = agendaSummaryClient
+        self.agendaSummaryAttachmentPreviewProvider = agendaSummaryAttachmentPreviewProvider
         self.agendaSummaryLinkPreviewProvider = agendaSummaryLinkPreviewProvider
         self.eventTitleRewriter = eventTitleRewriter
+        self.eventMailContextProvider = eventMailContextProvider
         self.clock = clock
+        self.footballMatchCacheStore = footballMatchCacheStore
+            ?? (defaults === UserDefaults.standard ? FootballMatchCacheStore.defaultStore() : nil)
+        self.eventTitleRewriteCacheStore = eventTitleRewriteCacheStore
+            ?? (defaults === UserDefaults.standard ? EventTitleRewriteCacheStore.defaultStore() : nil)
+        if let cachedTitles = self.eventTitleRewriteCacheStore?.load() {
+            persistentEventTitleRewriteCache = cachedTitles
+        }
         self.agendaSummaryAvailability = agendaSummaryClient.availability
 
         registerDefaultSettings()
+        activeFocusCalendarFilterState = FocusCalendarFilterStateStore.load(defaults: defaults)
         currentSettings = settingsStore.load()
         managedFootballEventRecords = Self.decodeManagedFootballEventRecords(
             from: defaults.data(forKey: DefaultsKeys.managedFootballEventRecords)
@@ -156,6 +186,13 @@ final class CalendarMonitor: ObservableObject {
         managedGoogleHolidayEventRecords = Self.decodeManagedGoogleHolidayEventRecords(
             from: defaults.data(forKey: DefaultsKeys.managedGoogleHolidayEventRecords)
         )
+        if let footballCache = self.footballMatchCacheStore?.load(now: clock.nowRoundedToSecond()) {
+            footballMatchesByID = Dictionary(
+                footballCache.matches.map { ($0.id, $0) },
+                uniquingKeysWith: { _, newest in newest }
+            )
+            lastFootballRefreshDate = footballCache.fetchedAt
+        }
         self.googleHolidayLastRefreshDate = defaults.object(
             forKey: DefaultsKeys.googleHolidayLastRefreshDate
         ) as? Date
@@ -199,7 +236,9 @@ final class CalendarMonitor: ObservableObject {
     func subtitle(for item: UpcomingItem) -> String {
         let now = fixedSecondNow()
         let dateText: String
-        if item.kind == .event, let endDate = item.endDate, item.date <= now, endDate > now {
+        if item.isDateOnlyReminder {
+            dateText = Self.dayFormatter.string(from: item.date)
+        } else if item.kind == .event, let endDate = item.endDate, item.date <= now, endDate > now {
             dateText = "Started \(Self.dayFormatter.string(from: item.date)) at \(Self.timeFormatter.string(from: item.date))"
         } else {
             dateText = "\(Self.dayFormatter.string(from: item.date)) at \(Self.timeFormatter.string(from: item.date))"
@@ -207,7 +246,12 @@ final class CalendarMonitor: ObservableObject {
 
         let settings = snapshotSettings()
         let tail: String
-        if item.kind == .event, let endDate = item.endDate, item.date <= now, endDate > now {
+        if item.isDateOnlyReminder {
+            tail = AlertCalendarRelativeTimeFormatter.calendarDayRelativeText(
+                for: item.date,
+                relativeTo: now
+            )
+        } else if item.kind == .event, let endDate = item.endDate, item.date <= now, endDate > now {
             switch settings.activeEventDisplayMode {
             case .remaining:
                 tail = "\(relativeCountdown(to: endDate, from: now, simplified: settings.useSimplifiedCountdown)) left"
@@ -268,8 +312,8 @@ final class CalendarMonitor: ObservableObject {
         lastAstronomyLocationRefreshDate = date
     }
 
-    func reloadCurrentSettings() {
-        let settings = settingsStore.load()
+    func reloadCurrentSettings(_ loadedSettings: AppSettings? = nil) {
+        let settings = loadedSettings ?? settingsStore.load()
         let shouldInvalidateAgendaSummary = currentSettings.showAgendaSummary != settings.showAgendaSummary
             || currentSettings.agendaSummaryMaximumWords != settings.agendaSummaryMaximumWords
             || currentSettings.useLinkedPagePreviewsInAgendaSummary != settings.useLinkedPagePreviewsInAgendaSummary
@@ -277,8 +321,10 @@ final class CalendarMonitor: ObservableObject {
         if shouldInvalidateAgendaSummary {
             cancelAgendaSummary()
         }
-        prepareFootballNotificationAuthorizationIfNeeded(settings: settings)
-        prepareGameSaleNotificationAuthorizationIfNeeded()
+        if !isInitialLoadInProgress {
+            prepareNotificationAuthorizationIfNeeded(settings: settings)
+            updateWiFiNetworkMonitoring(isEnabled: settings.useAutomaticAstronomyLocation)
+        }
     }
 
     func persistSettings(_ settings: AppSettings) {
@@ -286,21 +332,23 @@ final class CalendarMonitor: ObservableObject {
         reloadCurrentSettings()
     }
 
-    func enqueueRefresh(reason: CalendarMonitorRefreshReason = .manual) {
+    @discardableResult
+    func enqueueRefresh(reason: CalendarMonitorRefreshReason = .manual) -> Int {
         refreshCoordinator.enqueue(
             reason: reason,
             now: { [weak self] in self?.fixedSecondNow() ?? AlertCalendarClock.nowRoundedToSecond() },
             publishDiagnostics: { [weak self] diagnostics in
                 self?.refreshDiagnostics = diagnostics
             },
-            refresh: { [weak self] reason in
-                await self?.refreshUpcomingItemsImpl(reason: reason)
+            refreshReasons: { [weak self] reasons in
+                await self?.refreshUpcomingItemsImpl(reasons: reasons)
+                    ?? CalendarMonitorRefreshExecutionReport()
             }
         )
     }
 
     func enqueueRefreshAndWait(reason: CalendarMonitorRefreshReason = .manual) async {
-        enqueueRefresh(reason: reason)
-        await refreshCoordinator.waitForCurrentTask()
+        let requestID = enqueueRefresh(reason: reason)
+        await refreshCoordinator.waitForRequest(requestID)
     }
 }

@@ -23,6 +23,7 @@ It is built as a Swift Package, installs as a lightweight `.app` bundle, and use
 AlertCalendar combines time-sensitive information into a menu bar workflow, with supporting feed management in Settings:
 
 - Upcoming Calendar events, active events, all-day events, and reminders.
+- On-device agenda summaries can use notes and bounded text extracted from supported local event or reminder attachments.
 - Optional astronomy feeds for sunrise, sunset, solar noon, solar midnight, moon phases, and orbital highlights.
 - Google holiday feeds for 256 countries and territories, consolidated into one writable Apple Calendar with country flags and semantic deduplication.
 - Optional managed football fixtures backed by ESPN data and written to Apple Calendar.
@@ -68,7 +69,7 @@ By default, this writes:
 7. Writes the app `Info.plist` usage descriptions.
 8. Clears extended attributes.
 9. Signs with an Apple Development identity so permissions remain associated with a stable signature.
-10. Opens the app unless `OPEN_AFTER_INSTALL=0`.
+10. Includes native Focus Filter metadata and opens the app unless `OPEN_AFTER_INSTALL=0`.
 
 Install somewhere else:
 
@@ -122,15 +123,29 @@ AlertCalendar has five top-level settings tabs:
 
 Configuration controls are staged in the window until you choose `Apply`. The fixed action bar shows whether changes are pending, lets you revert the draft, and protects unapplied changes when you close Settings or quit the app. One-shot actions such as refreshing, requesting permissions, connecting an integration, or adding and removing managed calendar items still run immediately.
 
-- `General`: menu bar behavior, alerts, countdowns, rotation, look-ahead windows, font size, and title truncation.
+Pending configuration changes also show a persistent amber banner above the action bar. Its background gently pulses while Settings is active, and stays still when macOS Reduce Motion is enabled. Apply or Revert removes the banner.
+
+Unresolved data-update problems appear in Settings > Access > Diagnostics and in the action bar. After a problem lasts five minutes, AlertCalendar groups affected sources into a macOS notification, with at most one reminder per hour until recovery. The notification cooldown survives relaunches. This covers football fixtures, game-sale sources, holidays, Calendar/Reminders access and reminder timeouts, automatic location, Slack sync, and agenda/title generation failures. Notifications respect macOS permissions; the in-app diagnostics remain available when notifications are denied.
+
+- `General`: menu bar behavior, alerts, countdowns, active-event focus, rotation, look-ahead windows, font size, title truncation, and automatic software updates.
 - `Feeds`: astronomy, Google holiday consolidation, football fixture management, and scheduled game-sale campaigns.
-- `Calendars`: source inclusion, selected calendars, per-calendar event alert rules, selected reminder lists, and weekday-only sets.
+- `Calendars`: source inclusion, usual calendar and reminder-list selection, per-calendar event alert rules, and native Focus Filters.
 - `Integrations`: connected services such as Slack status sync.
 - `Access`: Calendar, Reminders, Location, and Contacts access cards with actions and System Settings shortcuts.
 
-Astronomy supports automatic location or manual coordinates. When automatic location is enabled, the manual coordinate fields should stay hidden. Automatic coordinates refresh hourly, immediately after a Wi-Fi network change, and no more than once every 15 minutes when the app becomes active.
+AlertCalendar supports English UI text, title processing, and generated agenda summaries. Names, brands, identifiers, and imported source text retain their original spelling, including accents. Clearly non-English prose falls back to the original text for visual truncation; the app does not provide multilingual rewriting or a translation workflow. Dates and country labels use English while time zones and 12/24-hour clock preferences remain independent.
 
-Slack status sync schedules meeting start, pre-event, rotation, and end transitions at their exact boundaries. A one-minute EventKit evaluation remains as a fallback while rules or managed statuses are active.
+Under `General`, `Shorten long titles` applies local semantic compaction and approved abbreviations even without Apple Intelligence. `Also shorten dropdown titles` independently applies the same limit to the dropdown; it defaults to off and works at every supported character limit. Apple Intelligence is an optional enhancement at limits of 10 characters or more. These controls use the existing staged Apply/Revert workflow.
+
+Birthday titles keep the person's name plus `Birthday`, then `Bday`, then name initials if necessary; recognized ages are secondary. Conflicting birthday initials fall back to the original. Anniversary labels preserve the named people and wedding/work distinction before dropping an ordinal or using `Anniv`. Other titles retain actions, preparation, cancellation status, negation, deadlines, routes, identifiers, and competition stages. If no faithful compact phrase fits, the app visually truncates the original instead of displaying a misleading summary. Full source titles remain available in hover text and accessibility labels. Expanded rows inside a labeled `Birthdays` group can omit the repeated birthday label when dropdown shortening is enabled.
+
+Title rewriting also uses relevant event-description passages to clarify generic sessions. Model drafts, local compaction, and cached titles share checks for incomplete activities, bare identifier lists, and fragmented promotional subtitles. Short names extracted from an English source retain that source's language evidence. Updated rewrite rules invalidate older cached labels automatically.
+
+Astronomy supports automatic location or manual coordinates in Settings > Atmosphere, alongside Detect now. Settings > Access manages the Location permission. When automatic location is enabled, the manual coordinate fields should stay hidden. Automatic coordinates refresh hourly, immediately after a Wi-Fi network change, and no more than once every 15 minutes when the app becomes active.
+
+Slack status sync schedules meeting start, pre-event, rotation, and end transitions at their exact boundaries. A one-minute EventKit evaluation remains as a fallback while rules or managed statuses are active. Settings > Integrations > Status Rules contains calendar rules and one selectable music rule, with explicit priorities where 1 is highest. Apple Music or YouTube Music can publish `Listening to <artist>` to selected Slack workspaces while playback is active, alternating 🎵 and 🎶 every 30 seconds. Slack shows `until` with a one-minute safety margin beyond the estimated song end. Apple Music can extend the estimate across consecutive queued songs by the same artist. YouTube Music is read from an open Safari, Chrome, Edge, Brave, or Arc tab and requires that browser's JavaScript-from-Apple-Events developer option. The rule defaults below calendar statuses, detects playback changes within about five seconds, and tolerates brief read failures without causing extra Slack calls.
+
+Settings > General > Software Updates enables periodic checks and automatic downloads from a public GitHub Pages update channel backed by signed GitHub Releases. Sparkle verifies every archive before installation and asks before relaunching. Release signing, notarization, required GitHub secrets, Pages setup, and the `v1.0.0` publishing flow are documented in `docs/releases.md`.
 
 Each writable event calendar can define its own alert series for timed and all-day events. Rules can target every event or invitations only, preserve existing alerts or replace them exactly, and use Apple-style presets, custom relative times, and Calendar-provided Time to Leave metadata. Alerts are stored on the event and delivered by Apple Calendar using its normal notification settings. A background full sync covers historical and future events in four-year EventKit query blocks, while routine refreshes keep upcoming events current. AlertCalendar adds no app-specific alert-count limit; EventKit and the calendar provider decide what is accepted.
 
@@ -141,8 +156,16 @@ Football fixture management supports:
 - Supported competition browsing.
 - Live and next-day match overview.
 - Managed match review.
+- ESPN's published team abbreviations beside crests or flags, without forcing every code to three letters; full names remain available in tooltips and match details.
+- Goal scorers appear as soon as ESPN provides them, without waiting for optional nationality lookups. When details are missing, the panel explains their availability and offers Retry instead of staying on loading placeholders.
+- A changed score blinks for at most one configured queue-rotation interval from its first menu bar appearance, even when active-event focus keeps the match selected. Each new goal starts a fresh highlight.
+- Calendar flags resolve team country details before adding fixtures; missing country data is retried after 15 minutes, with verified club identity fallbacks for known ESPN omissions.
 - Automatic updates for status, venue, timing context, and metadata.
+- Stadium names survive temporary geocoding failures; managed-event sync repairs missing locations and queries match details when the venue is absent. Existing coordinates are retained only for the same stadium.
+- `Show FT matches` is an immediate, remembered display filter. It does not enter the Apply/Revert draft or change calendar data.
 - Adaptive polling: every 30 seconds while live, every minute around kickoff or during the first 10 minutes after a known final, every 5 minutes while approaching or recovering a delayed result, every 15 minutes for the next 24 hours, and every 3 hours for distant fixtures. Settled finished matches stop polling until a manual or event-driven refresh.
+- Fixture refreshes retain successful date ranges and restore saved matches only for failed ranges. Warnings stay above the available matches. Transient connection/server failures receive two bounded retries; continued failures use per-page exponential backoff. HTTP 429 respects ESPN's Retry-After even for manual retries. Failed browse loads retry in the background, and Refresh Now also reloads previously opened competitions.
+- When ESPN rejects a multi-day scoreboard query with HTTP 400, the client switches that competition to single-day requests. ESPN's published season calendar limits those requests to match days; dates outside its coverage are still checked. The calendar and individual pages are cached and concurrent requests are coalesced.
 - Contextual ESPN scoreboard caching: five minutes for ranges containing today and one hour for distant ranges; per-match summaries retain their 15-second cache.
 - Automatic cleanup when fixtures fall outside the suggestion window.
 
@@ -165,21 +188,22 @@ Game Sales supports:
 - One Apple Calendar alert policy, defaulting to 15 minutes before the campaign begins.
 - Optional notifications when AlertCalendar automatically adds a newly announced campaign.
 - Automatic removal of ended sale events from the dedicated target calendar and semantic duplicate prevention.
-- A six-hour cache for successful source documents, evaluated every 15 minutes so failed sources can retry with exponential backoff. Refresh now bypasses the cache for an immediate check.
+- A six-hour cache for successful source documents, normally evaluated every 15 minutes. Connection failures retry every minute and when connectivity returns; server failures retain per-source exponential backoff. Refresh now bypasses the cache for an immediate check, including requests queued during an update.
+- Failed or malformed downloads retain previously validated sales. Nintendo articles are marked as processed only after a readable response, and failed articles retry even when the sitemap has not changed. Diagnostics clear only after successful recovery; reading cached sales does not advance the last successful update time.
 
 Steam publishes a structured future campaign schedule. Xbox, PlayStation, and Nintendo do not publish an equivalent complete calendar, so AlertCalendar also checks their official announcement feeds and only imports a console campaign when the announcement states both its start and end. Console coverage is therefore opportunistic and may be incomplete; AlertCalendar never invents missing dates.
 
-Focus Filters were intentionally removed from the app. Do not reintroduce Focus Filter UI, App Intents metadata, or stored focus calendar overrides.
+Native Focus Filters support separate rules for event calendars and reminder lists: hide selected sources or show only selected sources. Configure them in **System Settings > Focus > choose a Focus > Add Filter > AlertCalendar**. Focus rules belong to AlertCalendar; they do not copy Apple Calendar's own Focus filter. The app restores its usual selection when Focus ends, and shows the active rule under Settings > Calendars. “Show only” with an empty or deleted selection shows no calendars instead of revealing other sources. Weekday-only schedules and non-working-date controls have been removed; configure automatic Focus schedules in macOS instead.
 
 ## Permissions
 
 AlertCalendar may request these macOS permissions:
 
 - `Calendar`: read events, build the event queue, apply per-calendar alert rules, manage consolidated holidays, football fixtures, and game-sale campaigns, and reveal selected managed events in Calendar.
-- `Reminders`: read reminders with due times and include them in the menu workflow.
+- `Reminders`: read incomplete reminders with due dates and any available due times, and include them in the menu workflow.
 - `Location`: detect astronomy coordinates automatically.
 - `Contacts`: resolve meeting organizer and attendee names/photos.
-- `Apple Events`: open selected managed football fixtures in Apple Calendar when requested.
+- `Apple Events`: open selected managed football fixtures in Apple Calendar when requested and, when explicitly enabled, read a bounded set of matching Apple Mail messages for on-device title rewriting.
 
 If Location is denied, astronomy can still use manual coordinates.
 
@@ -201,6 +225,7 @@ Network access is limited to feature-specific flows:
 - Nintendo's public US news sitemap and matching official promotion articles for announced eShop campaigns with an explicit date range.
 - Google Calendar's public iCalendar holiday feeds under `calendar.google.com` for the countries and territories selected in Settings.
 - Slack API calls when Slack status sync is configured.
+- GitHub Releases for the signed Sparkle update feed and update archives.
 - `https://ipapi.co/json/` as an approximate location fallback when macOS Location permission is granted but Core Location does not return coordinates.
 - Apple-backed geocoding/search via `CLGeocoder` and `MKLocalSearch` for map previews and structured football locations.
 

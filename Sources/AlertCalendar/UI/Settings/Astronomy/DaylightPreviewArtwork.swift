@@ -133,8 +133,8 @@ struct DaylightPreviewArtwork: View {
         mapRect: CGRect,
         solarState: DaylightSolarState
     ) {
-        let columnCount = max(Int(mapRect.width / 5.0), 96)
-        let rowCount = max(Int(mapRect.height / 5.0), 48)
+        let columnCount = max(Int(mapRect.width / 4.0), 128)
+        let rowCount = max(Int(mapRect.height / 4.0), 64)
         let cellWidth = mapRect.width / CGFloat(columnCount)
         let cellHeight = mapRect.height / CGFloat(rowCount)
 
@@ -174,8 +174,8 @@ struct DaylightPreviewArtwork: View {
             }
         }
 
-        context.fill(deepNightPath, with: .color(Color.black.opacity(0.72)))
-        context.fill(twilightPath, with: .color(Color.black.opacity(0.44)))
+        context.fill(deepNightPath, with: .color(Self.clockMapDeepNight.opacity(0.82)))
+        context.fill(twilightPath, with: .color(Self.clockMapDeepNight.opacity(0.42)))
     }
 
     private func drawTerminatorCurves(
@@ -184,8 +184,8 @@ struct DaylightPreviewArtwork: View {
         solarState: DaylightSolarState
     ) {
         let curves = buildTerminatorCurves(mapRect: mapRect, solarState: solarState)
-        drawBoundary(into: &context, points: curves.westernPoints, color: .white.opacity(0.42))
-        drawBoundary(into: &context, points: curves.easternPoints, color: .white.opacity(0.42))
+        drawBoundary(into: &context, points: curves.westernPoints, color: Color(red: 1.0, green: 0.79, blue: 0.48).opacity(0.78))
+        drawBoundary(into: &context, points: curves.easternPoints, color: Color(red: 1.0, green: 0.79, blue: 0.48).opacity(0.78))
     }
 
     private func buildTerminatorCurves(mapRect: CGRect, solarState: DaylightSolarState) -> TerminatorCurves {
@@ -355,9 +355,10 @@ struct DaylightPreviewArtwork: View {
     private static let mapCornerRadius: CGFloat = 0
     nonisolated static let preferredAspectRatio: CGFloat = 2104.0 / 964.0
     private static let worldMapAspectRatio: CGFloat = preferredAspectRatio
-    private static let clockMapBackground = Color.black
-    private static let clockMapOcean = Color.black
-    private static let clockMapLand = Color(red: 0.31, green: 0.31, blue: 0.30)
+    private static let clockMapBackground = Color(red: 0.025, green: 0.055, blue: 0.10)
+    private static let clockMapOcean = Color(red: 0.18, green: 0.33, blue: 0.47)
+    private static let clockMapLand = Color(red: 0.55, green: 0.61, blue: 0.66)
+    private static let clockMapDeepNight = Color(red: 0.015, green: 0.035, blue: 0.075)
     private static let clockMapOrange = Color(red: 1.0, green: 0.553, blue: 0.157)
     private static let clockMapLandMaskImage: NSImage? = {
         guard let worldMapImage else { return nil }

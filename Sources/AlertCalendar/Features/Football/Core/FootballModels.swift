@@ -1,18 +1,18 @@
 import Foundation
 
-enum FootballFixtureStatusState: String, Hashable {
+enum FootballFixtureStatusState: String, Codable, Hashable, Sendable {
     case scheduled
     case inProgress
     case finished
     case unknown
 }
 
-enum FootballFixtureStatusReliability: String, Hashable {
+enum FootballFixtureStatusReliability: String, Codable, Hashable, Sendable {
     case reported
     case awaitingLiveData
     case delayedLiveData
 }
-struct FootballTeamSummary: Identifiable, Hashable {
+struct FootballTeamSummary: Codable, Identifiable, Hashable, Sendable {
     let id: String
     let name: String
     let abbreviation: String
@@ -21,8 +21,9 @@ struct FootballTeamSummary: Identifiable, Hashable {
     let isNational: Bool
 
     func withResolvedDetails(countryName: String?, isNational: Bool, logoURL: URL?) -> FootballTeamSummary {
-        let resolvedCountryName = countryName ?? self.countryName
         let resolvedIsNational = isNational || self.isNational
+        let clubCountry = resolvedIsNational ? nil : FootballClubCountryResolver.countryName(teamID: id, name: name)
+        let resolvedCountryName = clubCountry ?? countryName ?? self.countryName
         let resolvedLogoURL = FootballNationalLogoResolver.resolvedLogoURL(
             existingLogoURL: logoURL ?? self.logoURL,
             teamID: id,
@@ -43,7 +44,7 @@ struct FootballTeamSummary: Identifiable, Hashable {
     }
 }
 
-struct FootballFixtureSeriesSummary: Hashable {
+struct FootballFixtureSeriesSummary: Codable, Hashable, Sendable {
     let legNumber: Int?
     let legLabel: String?
     let seriesTitle: String?
@@ -77,7 +78,7 @@ struct FootballFixtureSeriesSummary: Hashable {
     }
 }
 
-struct FootballFixtureMatch: Identifiable, Hashable {
+struct FootballFixtureMatch: Codable, Identifiable, Hashable, Sendable {
     let id: String
     let competitionSlug: String
     let competitionName: String
@@ -247,7 +248,7 @@ struct FootballMatchesOverviewSection: Equatable {
     }
 }
 
-enum FootballScoreSide: String, Equatable {
+enum FootballScoreSide: String, Codable, Hashable, Sendable {
     case home
     case away
 }
@@ -311,7 +312,7 @@ struct FootballMatchStatistic: Identifiable, Hashable {
 struct FootballGoalHighlight: Equatable {
     let matchID: String
     let scoringSide: FootballScoreSide
-    var hasBeenShownInMenuBar: Bool = false
+    var firstShownInMenuBarAt: Date?
 }
 
 struct ManagedFootballFixtureReference: Hashable {

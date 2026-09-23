@@ -35,11 +35,13 @@ extension CalendarMonitor {
     nonisolated static func calendarItemURLMetadata(
         eventURL: URL?,
         notes: String?,
+        location: String? = nil,
         meetingURL: URL?
     ) -> (count: Int, hosts: [String]) {
         let candidates = calendarItemURLs(
             eventURL: eventURL,
             notes: notes,
+            location: location,
             meetingURL: meetingURL
         )
 
@@ -59,9 +61,15 @@ extension CalendarMonitor {
     nonisolated static func agendaSummaryURLCandidates(
         eventURL: URL?,
         notes: String?,
+        location: String? = nil,
         meetingURL: URL?
     ) -> [URL] {
-        Array(calendarItemURLs(eventURL: eventURL, notes: notes, meetingURL: meetingURL)
+        Array(calendarItemURLs(
+            eventURL: eventURL,
+            notes: notes,
+            location: location,
+            meetingURL: meetingURL
+        )
             .filter { candidate in
                 !candidate.isFileURL
                     && !urlsMatch(candidate, meetingURL)
@@ -70,12 +78,47 @@ extension CalendarMonitor {
             })
     }
 
+    nonisolated static func preferredOpenLinkURL(
+        eventURL: URL?,
+        notes: String?,
+        location: String? = nil,
+        meetingURL: URL?
+    ) -> URL? {
+        calendarItemURLs(
+            eventURL: eventURL,
+            notes: notes,
+            location: location,
+            meetingURL: meetingURL
+        )
+        .first { candidate in
+            guard let scheme = candidate.scheme?.lowercased(),
+                  scheme == "https" || scheme == "http",
+                  !urlsMatch(candidate, meetingURL),
+                  MeetingURLResolver.resolvedMeetingURL(from: candidate) == nil else {
+                return false
+            }
+            return true
+        }
+    }
+
+    nonisolated static func containsWebURL(in text: String?) -> Bool {
+        guard let text = AlertCalendarString.trimmedNonEmpty(text) else { return false }
+        return MeetingURLResolver.allURLs(in: text).contains { url in
+            guard let scheme = url.scheme?.lowercased() else { return false }
+            return scheme == "https" || scheme == "http"
+        }
+    }
+
     nonisolated private static func calendarItemURLs(
         eventURL: URL?,
         notes: String?,
+        location: String? = nil,
         meetingURL: URL?
     ) -> [URL] {
         var candidates = [eventURL, meetingURL].compactMap { $0 }
+        if let location = AlertCalendarString.trimmedNonEmpty(location) {
+            candidates.append(contentsOf: MeetingURLResolver.allURLs(in: location))
+        }
         if let notes = AlertCalendarString.trimmedNonEmpty(notes) {
             candidates.append(contentsOf: MeetingURLResolver.allURLs(in: notes))
         }

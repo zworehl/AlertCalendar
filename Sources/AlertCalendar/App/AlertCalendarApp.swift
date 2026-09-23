@@ -33,6 +33,7 @@ struct AlertCalendarApp: App {
         MenuBarExtra(isInserted: .constant(true)) {
             MenuContentView(kindFilter: nil, headerTitle: "Alert Calendar")
                 .environmentObject(monitor)
+                .environment(\.locale, AlertCalendarLanguage.english)
         } label: {
             MenuBarMonitorStatusLabel(presentation: monitor.menuBarPresentationModel)
         }
@@ -40,6 +41,7 @@ struct AlertCalendarApp: App {
 
         Window(WindowMetadata.preferencesTitle, id: WindowMetadata.preferencesID) {
             SettingsView(monitor: monitor)
+                .environment(\.locale, AlertCalendarLanguage.english)
         }
         .defaultSize(width: 1240, height: 840)
         .windowResizability(.automatic)
@@ -67,7 +69,7 @@ private struct MenuBarMonitorStatusLabel: View {
     @ViewBuilder
     var body: some View {
         Group {
-            if presentation.isLoading {
+            if presentation.isInitialLoading {
                 MenuBarLoadingIndicator()
             } else {
                 let state = presentation.state
@@ -91,6 +93,8 @@ private struct MenuBarMonitorStatusLabel: View {
                     footballGoalHighlightSide: state.footballGoalHighlightSide,
                     footballGoalHighlightTextOpacity: state.footballGoalHighlightTextOpacity
                 )
+                .help(state.fullTitleText ?? state.label)
+                .accessibilityLabel(state.fullTitleText ?? state.label)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .alertCalendarOpenSettingsRequested)) { _ in

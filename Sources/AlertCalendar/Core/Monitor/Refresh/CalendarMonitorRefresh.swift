@@ -7,26 +7,75 @@ extension CalendarMonitor {
         await enqueueRefreshAndWait(reason: reason)
     }
 
-    func refreshUpcomingItemsImpl(reason: CalendarMonitorRefreshReason) async {
-        refreshAvailableCalendars()
+    func refreshUpcomingItemsImpl(
+        reason: CalendarMonitorRefreshReason
+    ) async -> CalendarMonitorRefreshExecutionReport {
+        await refreshUpcomingItemsImpl(reasons: [reason])
+    }
+
+    func refreshUpcomingItemsImpl(
+        reasons: Set<CalendarMonitorRefreshReason>
+    ) async -> CalendarMonitorRefreshExecutionReport {
+        var report = CalendarMonitorRefreshExecutionReport()
+        let plan = CalendarMonitorRefreshPlan(reasons: reasons)
+        let reason = plan.primaryReason
+        if plan.refreshesCalendarSnapshot {
+            refreshAvailableCalendars()
+        }
+        let storedSettings = settingsStore.load()
+        if storedSettings != currentSettings {
+            reloadCurrentSettings(storedSettings)
+        }
         let now = fixedSecondNow()
-        let settings = pruneNonWorkingDateKeysIfNeeded(now: now, settings: snapshotSettings())
-        if !reason.refreshesCalendarStateOnly {
-            let forceExternalRefresh = reason.forcesExternalFeedRefresh
-            await refreshFootballDataIfNeeded(
-                now: now,
-                force: forceExternalRefresh,
-                reason: reason
-            )
-            await refreshGameSales(
-                forceRefresh: forceExternalRefresh,
-                refreshCalendarState: reason == .eventStoreChanged
-            )
-            await refreshGoogleHolidays(forceRefresh: forceExternalRefresh)
-            if reason != .footballHeartbeat {
+        let settings = snapshotSettings()
+        if plan.includesEventStoreChange {
+            refreshManagedFootballTrackingSnapshot(now: now)
+            refreshGameSaleTrackingSnapshot(now: now)
+        }
+        if !plan.refreshesCalendarStateOnly {
+            let forceExternalRefresh = plan.forcesExternalFeedRefresh
+            async let footballDuration = measureRefreshPhase(
+                enabled: plan.triggersManagedFootballSync || plan.triggersFootballAutoAddSync
+            ) {
+                await self.refreshFootballDataIfNeeded(
+                    now: now,
+                    force: forceExternalRefresh,
+                    reason: reason,
+                    syncManagedEvents: plan.triggersManagedFootballSync,
+                    syncAutoAdd: plan.triggersFootballAutoAddSync
+                )
+            }
+            async let gameSalesDuration = measureRefreshPhase(enabled: plan.evaluatesGameSales) {
+                await self.refreshGameSales(
+                    forceRefresh: forceExternalRefresh,
+                    refreshCalendarState: plan.includesEventStoreChange
+                )
+            }
+            async let holidaysDuration = measureRefreshPhase(enabled: plan.evaluatesGoogleHolidays) {
+                await self.refreshGoogleHolidays(forceRefresh: forceExternalRefresh)
+            }
+            let externalDurations = await (footballDuration, gameSalesDuration, holidaysDuration)
+            if let duration = externalDurations.0 { report.phaseDurations["Football"] = duration }
+            if let duration = externalDurations.1 { report.phaseDurations["Game Sales"] = duration }
+            if let duration = externalDurations.2 { report.phaseDurations["Holidays"] = duration }
+
+            if plan.refreshesCalendarSnapshot {
+                let alertsStartedAt = Date()
                 applyCalendarAlertRules(now: now, settings: settings, reason: reason)
+                report.phaseDurations["Alert rules"] = Date().timeIntervalSince(alertsStartedAt)
             }
         }
+
+        guard plan.refreshesCalendarSnapshot else {
+            lastRefreshDate = fixedSecondNow()
+            evaluateAlert(now: now, settings: settings)
+            updateMenuBarState(now: now, settings: settings)
+            rescheduleHeartbeat()
+            externalFeedDiagnostics = await ExternalFeedMetrics.shared.snapshot()
+            return report
+        }
+
+        let calendarStartedAt = Date()
         let fetchedLookAheadHours = max(
             settings.lookAheadHours,
             Int(ceil(Double(settings.menuBarRotationWindowMinutes) / 60.0))
@@ -39,10 +88,7 @@ extension CalendarMonitor {
         if hasEventsAccess, (settings.includeEvents || settings.includeAllDayEvents) {
             let selectedCalendars = calendarsForSelection(
                 kind: .event,
-                selectedIDs: settings.selectedEventCalendarIDs,
-                weekdayOnlyIDs: settings.weekdayOnlyEventCalendarIDs,
-                nonWorkingDateKeys: settings.nonWorkingDateKeys,
-                now: now
+                selectedIDs: settings.selectedEventCalendarIDs
             )
             let lookBackHours = max(24, fetchedLookAheadHours)
             let eventsStart = now.addingTimeInterval(-Double(lookBackHours) * 3600)
@@ -56,21 +102,22 @@ extension CalendarMonitor {
         if settings.includeReminders, hasRemindersAccess {
             let selectedCalendars = calendarsForSelection(
                 kind: .reminder,
-                selectedIDs: settings.selectedReminderCalendarIDs,
-                weekdayOnlyIDs: settings.weekdayOnlyReminderCalendarIDs,
-                nonWorkingDateKeys: settings.nonWorkingDateKeys,
-                now: now
+                selectedIDs: settings.selectedReminderCalendarIDs
             )
-            let reminders = await loadReminders(from: nil, to: endDate, calendars: selectedCalendars)
-            timedCollected.append(contentsOf: reminders)
+            timedCollected.append(contentsOf: cachedReminderItems(to: endDate, calendars: selectedCalendars))
+            if plan.schedulesReminderFetch {
+                scheduleReminderRefresh(to: endDate, calendars: selectedCalendars)
+            }
+        } else {
+            cancelReminderRefresh(clearCachedItems: true)
         }
 
         if settings.includesAnyAstronomy {
             timedCollected.append(contentsOf: loadAstronomyItems(from: now, to: endDate, settings: settings))
         }
 
-        timedCollected.sort { $0.date < $1.date }
-        allDayCollected.sort { $0.date < $1.date }
+        timedCollected.sort { UpcomingItem.sortPrecedes($0, $1) }
+        allDayCollected.sort { UpcomingItem.sortPrecedes($0, $1) }
         let deduplicatedTimedItems = deduplicatedItemsByNotificationKey(timedCollected)
         let deduplicatedAllDayItems = deduplicatedItemsByNotificationKey(allDayCollected)
 
@@ -86,16 +133,25 @@ extension CalendarMonitor {
             allDayEventItems = visibleAllDayItems
         }
         scheduleEventTitleRewritesIfNeeded(now: now, settings: settings)
-        if isInitialLoadInProgress {
-            isInitialLoadInProgress = false
-        }
-        lastRefreshDate = now
+        lastRefreshDate = fixedSecondNow()
         pruneAlertCaches(using: visibleTimedItems)
         evaluateAlert(now: now, settings: settings)
         updateMenuBarState(now: now, settings: settings)
         rescheduleHeartbeat()
         requestSlackStatusSyncEvaluation(now: now, settings: settings)
         externalFeedDiagnostics = await ExternalFeedMetrics.shared.snapshot()
+        report.phaseDurations["Calendar snapshot"] = Date().timeIntervalSince(calendarStartedAt)
+        return report
+    }
+
+    func measureRefreshPhase(
+        enabled: Bool,
+        operation: @escaping @MainActor () async -> Void
+    ) async -> TimeInterval? {
+        guard enabled else { return nil }
+        let startedAt = Date()
+        await operation()
+        return Date().timeIntervalSince(startedAt)
     }
 
     func pruneSkippedKeys(using items: [UpcomingItem], allDayItems: [UpcomingItem] = []) {
@@ -105,15 +161,6 @@ extension CalendarMonitor {
         if skippedItemKeys != previous {
             persistSkippedItemKeys()
         }
-    }
-
-    func pruneNonWorkingDateKeysIfNeeded(now: Date, settings: AppSettings) -> AppSettings {
-        let normalized = WorkingDayRules.normalizedNonWorkingDateKeys(settings.nonWorkingDateKeys, now: now)
-        guard normalized != settings.nonWorkingDateKeys else { return settings }
-
-        defaults.set(Array(normalized).sorted(), forKey: DefaultsKeys.nonWorkingDateKeys)
-        reloadCurrentSettings()
-        return snapshotSettings()
     }
 
     func deduplicatedItemsByNotificationKey(_ items: [UpcomingItem]) -> [UpcomingItem] {

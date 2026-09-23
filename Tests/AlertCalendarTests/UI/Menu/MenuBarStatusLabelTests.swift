@@ -43,6 +43,13 @@ final class MenuBarStatusLabelTests: XCTestCase {
         XCTAssertNotEqual(firstFrame, laterFrame)
     }
 
+    func testMenuBarLoadingStateIsOnlyControlledByInitialLoad() {
+        let model = MenuBarPresentationModel()
+        XCTAssertTrue(model.isInitialLoading)
+        model.setInitialLoading(false)
+        XCTAssertFalse(model.isInitialLoading)
+    }
+
     func testFootballLogoIsAvailableImmediatelyFromLocalPath() throws {
         let image = NSImage(size: NSSize(width: 12, height: 8))
         image.lockFocus()

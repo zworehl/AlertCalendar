@@ -9,11 +9,19 @@ extension CalendarMonitor {
         var hasPendingChanges = false
         var refreshedRecordsByReference = Dictionary(uniqueKeysWithValues: managedFootballEventRecords.map { ($0.reference, $0) })
         var updatedReferences: [ManagedFootballFixtureReference] = []
+        var repairedVenueCount = 0
+        var saveFailureCount = 0
 
         for snapshot in trackedEvents {
             guard let match = matchesByID[snapshot.reference.matchID] else { continue }
             let updatedTitle = FootballFixtureFormatter.calendarTitle(for: match)
-            let updatedLocation = match.locationText
+            let updatedLocation = FootballCalendarLocation.resolvedText(
+                reported: match.locationText,
+                existing: snapshot.event.location,
+                structuredTitle: snapshot.event.structuredLocation?.title
+            )
+            let repairsMissingVenue = FootballDataAPIClient.normalizedLocationTextValue(snapshot.event.location) == nil
+                && updatedLocation != nil
             let updatedStartDate = Self.footballEffectiveStartDate(for: match)
             let updatedEndDate = approximateEndDate(for: match)
             let notesUpdate = await footballCalendarNotesUpdate(for: match)
@@ -62,27 +70,49 @@ extension CalendarMonitor {
                     refreshedRecordsByReference[snapshot.reference] = refreshedRecord
                 }
                 updatedReferences.append(snapshot.reference)
+                if repairsMissingVenue { repairedVenueCount += 1 }
                 hasPendingChanges = true
             } catch {
+                saveFailureCount += 1
                 continue
             }
         }
 
         if hasPendingChanges {
-            try? eventStore.commit()
+            do {
+                try eventStore.commit()
+            } catch {
+                footballState.managedRefreshFailed = true
+                CalendarMonitorLog.football.error("Could not commit football calendar updates: \(error.localizedDescription, privacy: .public)")
+                await DataRefreshHealth.shared.record(
+                    source: "football.calendar-update", title: "Football calendar updates",
+                    error: "Could not save football event updates to Calendar. The app will retry automatically."
+                )
+                return
+            }
             refreshManagedFootballRecordsAfterPersistedAlertCleanup(
                 &refreshedRecordsByReference,
                 references: updatedReferences
             )
+            CalendarMonitorLog.football.info("Saved \(updatedReferences.count, privacy: .public) football event updates; repaired \(repairedVenueCount, privacy: .public) missing venues")
         }
 
         persistManagedFootballEventRecords(Array(refreshedRecordsByReference.values))
+        if saveFailureCount > 0 { footballState.managedRefreshFailed = true }
+        await DataRefreshHealth.shared.record(
+            source: "football.calendar-update", title: "Football calendar updates",
+            error: saveFailureCount > 0 ? "Some football event updates could not be saved to Calendar. The app will retry automatically." : nil
+        )
     }
 
     func applyFootballLocation(to event: EKEvent, locationText: String?) async {
-        let normalizedLocationText = normalizedLocation(for: locationText)
-        event.location = normalizedLocationText
-        event.structuredLocation = await footballStructuredLocation(for: normalizedLocationText)
+        guard let title = FootballCalendarLocation.resolvedText(
+            reported: locationText, existing: event.location, structuredTitle: event.structuredLocation?.title
+        ) else { return }
+        let coordinate = await LocationCoordinateResolver.shared.coordinate(for: title)
+        event.structuredLocation = FootballCalendarLocation.structuredLocation(
+            title: title, coordinate: coordinate?.clCoordinate, existing: event.structuredLocation
+        )
     }
 
     func footballStructuredLocationNeedsUpdate(for event: EKEvent, locationText: String?) async -> Bool {
@@ -101,13 +131,11 @@ extension CalendarMonitor {
                 return true
             }
 
-            guard let currentGeoLocation = structuredLocation.geoLocation else {
-                return true
+            guard let resolvedCoordinate = await LocationCoordinateResolver.shared.coordinate(for: normalizedLocationText) else {
+                return false
             }
 
-            guard let resolvedCoordinate = await LocationCoordinateResolver.shared.coordinate(for: normalizedLocationText) else {
-                return true
-            }
+            guard let currentGeoLocation = structuredLocation.geoLocation else { return true }
 
             let resolvedGeoLocation = CLLocation(
                 latitude: resolvedCoordinate.latitude,
@@ -116,21 +144,6 @@ extension CalendarMonitor {
 
             return currentGeoLocation.distance(from: resolvedGeoLocation) > Self.footballStructuredLocationToleranceMeters
         }
-    }
-
-    func footballStructuredLocation(for locationText: String?) async -> EKStructuredLocation? {
-        guard let locationText else { return nil }
-        guard let coordinate = await LocationCoordinateResolver.shared.coordinate(for: locationText) else {
-            return nil
-        }
-
-        let structuredLocation = EKStructuredLocation(title: locationText)
-        structuredLocation.geoLocation = CLLocation(
-            latitude: coordinate.latitude,
-            longitude: coordinate.longitude
-        )
-
-        return structuredLocation
     }
 
     func approximateEndDate(for match: FootballFixtureMatch) -> Date {

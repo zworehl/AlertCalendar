@@ -1,19 +1,19 @@
 import Foundation
 
-enum FootballMatchOutcomeProbabilitySource: String, Hashable {
+enum FootballMatchOutcomeProbabilitySource: String, Codable, Hashable, Sendable {
     case marketOdds
     case liveMarketOdds
     case heuristic
     case finalResult
 }
 
-enum FootballMatchOutcomeProbabilityScope: String, Hashable {
+enum FootballMatchOutcomeProbabilityScope: String, Codable, Hashable, Sendable {
     case regulationTime
     case extraTimePossible
     case decisiveResult
 }
 
-struct FootballMatchOutcomeProbabilities: Hashable {
+struct FootballMatchOutcomeProbabilities: Codable, Hashable, Sendable {
     let homeWin: Double
     let draw: Double
     let awayWin: Double

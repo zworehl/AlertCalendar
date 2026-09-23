@@ -6,14 +6,21 @@ struct FootballNotificationMessage: Equatable {
 }
 
 extension CalendarMonitor {
-    func prepareFootballNotificationAuthorizationIfNeeded(settings: AppSettings) {
-        guard settings.enableFootballGoalNotifications
+    nonisolated static func needsNotificationAuthorization(settings: AppSettings) -> Bool {
+        settings.enableGameSaleAutoAddNotifications
+            || settings.enableFootballGoalNotifications
             || settings.enableFootballDisallowedGoalNotifications
             || settings.enableFootballFinalNotifications
-            || settings.enableFootballAutoAddNotifications else { return }
+            || settings.enableFootballAutoAddNotifications
+    }
 
-        Task {
-            await AlertCalendarUserNotifier.requestAuthorizationIfNeeded()
+    func prepareNotificationAuthorizationIfNeeded(settings: AppSettings) {
+        guard Self.needsNotificationAuthorization(settings: settings) else { return }
+        guard notificationAuthorizationTask == nil else { return }
+
+        notificationAuthorizationTask = Task { @MainActor [weak self] in
+            _ = await AlertCalendarUserNotifier.requestAuthorizationIfNeeded()
+            self?.notificationAuthorizationTask = nil
         }
     }
 

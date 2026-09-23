@@ -5,13 +5,21 @@ import SwiftUI
 
 extension MenuContentView {
     func contextualActionSection(snapshot: LayoutSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let usesContentSizedViewport = snapshot.shouldUseSplitDropdownLayout
+            && !Self.usesSelfContainedAttendeeScrolling(
+                contextualItems: snapshot.displayedContextualActionItems,
+                previewKindsByKey: snapshot.contextualPreviewKindsByKey
+            )
+        return VStack(alignment: .leading, spacing: 8) {
             calendarSectionContainer(
-                height: splitContextualPanelHeight(snapshot: snapshot),
+                height: usesContentSizedViewport ? nil : splitContextualPanelHeight(snapshot: snapshot),
                 bottomPadding: snapshot.shouldUseSplitDropdownLayout ? splitPanelBottomPadding : nil
             ) {
-                if snapshot.shouldUseSplitDropdownLayout {
-                    ScrollView(.vertical, showsIndicators: true) {
+                if usesContentSizedViewport {
+                    MenuDropdownHeightContainer(
+                        maximumHeight: max(1, splitPrimaryColumnsHeightLimit(snapshot: snapshot)
+                            - panelTopPadding - splitPanelBottomPadding)
+                    ) {
                         contextualActionPanelContent(snapshot: snapshot)
                             .frame(width: contextualPanelContentWidth(snapshot: snapshot), alignment: .topLeading)
                             .background(
@@ -41,6 +49,19 @@ extension MenuContentView {
         }
         .frame(width: contextualPanelOuterWidth(snapshot: snapshot), alignment: .topLeading)
         .clipped()
+    }
+
+    nonisolated static func usesSelfContainedAttendeeScrolling(
+        contextualItems: [UpcomingItem],
+        previewKindsByKey: [String: ContextualPreviewKind]
+    ) -> Bool {
+        guard contextualItems.count == 1,
+              let item = contextualItems.first,
+              case .attendees = previewKindsByKey[item.notificationKey] else {
+            return false
+        }
+
+        return true
     }
 
     func contextualPanelMeasurementBackground(
@@ -157,7 +178,7 @@ extension MenuContentView {
                     case .item(let item):
                         actionRow(
                             item: item,
-                            actions: [.skip],
+                            actions: Self.upcomingItemActions(for: item),
                             listPosition: MenuListRowPosition.position(
                                 for: index,
                                 itemCount: entries.count
@@ -179,20 +200,6 @@ extension MenuContentView {
         ))
     }
 
-    var filteredAlertDescriptions: [String] {
-        let now = displayReferenceDate
-        let items = monitor.upcomingItems.filter { item in
-            if let kindFilter, item.kind != kindFilter {
-                return false
-            }
-            return CalendarMonitor.shouldAlertForItem(item, now: now, settings: settings)
-        }
-
-        return items.map {
-            CalendarMonitor.alertDescription(for: $0, now: now)
-        }
-    }
-
     var shouldShowSilenceButton: Bool {
         guard let activeAlertItem = monitor.activeAlertItem else { return false }
         guard let kindFilter else { return true }
@@ -209,7 +216,7 @@ extension MenuContentView {
                 futureWindowEnd: dropdownFutureWindowEnd(now: now)
             )
         }
-        return deduplicatedItems((allDayItems + timedItems).sorted { $0.date < $1.date })
+        return deduplicatedItems((allDayItems + timedItems).sorted { UpcomingItem.sortPrecedes($0, $1) })
     }
 
     var queueItemsForActions: [UpcomingItem] {
@@ -226,7 +233,7 @@ extension MenuContentView {
                 futureWindowEnd: dropdownFutureWindowEnd(now: now)
             )
         }
-        return deduplicatedItems((allDayItems + timedItems).sorted { $0.date < $1.date })
+        return deduplicatedItems((allDayItems + timedItems).sorted { UpcomingItem.sortPrecedes($0, $1) })
     }
 
     var queueItemsForSingleColumnLayout: [UpcomingItem] {
@@ -360,6 +367,10 @@ extension MenuContentView {
         now: Date,
         futureWindowEnd: Date
     ) -> Bool {
+        if item.kind == .reminder {
+            return item.date <= now || item.date <= futureWindowEnd
+        }
+
         if item.isAllDay {
             return CalendarMonitor.shouldIncludeAllDayItem(
                 startDate: item.date,
@@ -367,10 +378,6 @@ extension MenuContentView {
                 now: now,
                 futureWindowEnd: futureWindowEnd
             )
-        }
-
-        if item.kind == .reminder, item.date <= now {
-            return true
         }
 
         if item.kind == .event,
@@ -424,6 +431,10 @@ extension MenuContentView {
             }
         }
         return unique
+    }
+
+    static func upcomingItemActions(for item: UpcomingItem) -> [MenuAction] {
+        item.kind == .reminder ? [.skip, .complete] : [.skip]
     }
 
     enum MenuAction {

@@ -7,6 +7,7 @@ struct SettingsDraft: Equatable {
     var lookAheadHours: Int
     var contextualPreviewLeadMinutes: Int
     var menuBarRotationWindowMinutes: Int
+    var focusMenuBarOnActiveEvents: Bool
     var alertLeadMinutes: Int
     var concurrentEventRotationSeconds: Int
     var maxListItems: Int
@@ -21,6 +22,7 @@ struct SettingsDraft: Equatable {
     var eventTitleMaxCharacters: Int
     var rewriteEventTitlesWithAppleIntelligence: Bool
     var useRewrittenEventTitlesInDropdown: Bool
+    var useMailContextForEventTitleRewrite: Bool
     var includeAstronomy: Bool
     var includeSunriseSunset: Bool
     var includeSolarNoonMidnight: Bool
@@ -32,10 +34,7 @@ struct SettingsDraft: Equatable {
     var astronomyLongitude: Double
     var selectedEventCalendarIDs: Set<String>
     var selectedReminderCalendarIDs: Set<String>
-    var weekdayOnlyEventCalendarIDs: Set<String>
-    var weekdayOnlyReminderCalendarIDs: Set<String>
     var calendarAlertRules: [CalendarAlertRule]
-    var nonWorkingDateKeys: Set<String>
     var footballTargetCalendarID: String
     var footballAutoAddCompetitionSlugs: Set<String>
     var footballCalendarAlertOption: FootballCalendarAlertOption
@@ -44,7 +43,6 @@ struct SettingsDraft: Equatable {
     var includeFootballGoalScorerInNotifications: Bool
     var enableFootballFinalNotifications: Bool
     var enableFootballAutoAddNotifications: Bool
-    var showFinishedFootballMatches: Bool
     var finishedFootballMatchLookbackDays: Int
     var footballMatchLookaheadDays: Int
     var gameSaleTargetCalendarID: String
@@ -54,6 +52,7 @@ struct SettingsDraft: Equatable {
     var googleHolidayCountryIDs: Set<String>
     var googleHolidayTargetCalendarID: String
     var slackStatusSyncRules: [SlackStatusSyncRule]
+    var appleMusicStatus: AppleMusicStatusSettings
     var slackMeetingStatusText: String
     var slackMeetingStatusEmoji: String
     var meetingBrowserRouting: MeetingBrowserRoutingSettings
@@ -65,6 +64,7 @@ struct SettingsDraft: Equatable {
         lookAheadHours = settings.lookAheadHours
         contextualPreviewLeadMinutes = settings.contextualPreviewLeadMinutes
         menuBarRotationWindowMinutes = settings.menuBarRotationWindowMinutes
+        focusMenuBarOnActiveEvents = settings.focusMenuBarOnActiveEvents
         alertLeadMinutes = settings.alertLeadMinutes
         concurrentEventRotationSeconds = settings.concurrentEventRotationSeconds
         maxListItems = settings.maxListItems
@@ -79,6 +79,7 @@ struct SettingsDraft: Equatable {
         eventTitleMaxCharacters = settings.eventTitleMaxCharacters
         rewriteEventTitlesWithAppleIntelligence = settings.rewriteEventTitlesWithAppleIntelligence
         useRewrittenEventTitlesInDropdown = settings.useRewrittenEventTitlesInDropdown
+        useMailContextForEventTitleRewrite = settings.useMailContextForEventTitleRewrite
         includeAstronomy = settings.includeAstronomy
         includeSunriseSunset = settings.includeSunriseSunset
         includeSolarNoonMidnight = settings.includeSolarNoonMidnight
@@ -90,10 +91,7 @@ struct SettingsDraft: Equatable {
         astronomyLongitude = settings.astronomyLongitude
         selectedEventCalendarIDs = settings.selectedEventCalendarIDs
         selectedReminderCalendarIDs = settings.selectedReminderCalendarIDs
-        weekdayOnlyEventCalendarIDs = settings.weekdayOnlyEventCalendarIDs
-        weekdayOnlyReminderCalendarIDs = settings.weekdayOnlyReminderCalendarIDs
         calendarAlertRules = settings.calendarAlertRules
-        nonWorkingDateKeys = settings.nonWorkingDateKeys
         footballTargetCalendarID = settings.footballTargetCalendarID
         footballAutoAddCompetitionSlugs = settings.footballAutoAddCompetitionSlugs
         footballCalendarAlertOption = settings.footballCalendarAlertOption
@@ -102,7 +100,6 @@ struct SettingsDraft: Equatable {
         includeFootballGoalScorerInNotifications = settings.includeFootballGoalScorerInNotifications
         enableFootballFinalNotifications = settings.enableFootballFinalNotifications
         enableFootballAutoAddNotifications = settings.enableFootballAutoAddNotifications
-        showFinishedFootballMatches = settings.showFinishedFootballMatches
         finishedFootballMatchLookbackDays = settings.finishedFootballMatchLookbackDays
         footballMatchLookaheadDays = settings.footballMatchLookaheadDays
         gameSaleTargetCalendarID = settings.gameSaleTargetCalendarID
@@ -112,6 +109,7 @@ struct SettingsDraft: Equatable {
         googleHolidayCountryIDs = settings.googleHolidayCountryIDs
         googleHolidayTargetCalendarID = settings.googleHolidayTargetCalendarID
         slackStatusSyncRules = settings.slackStatusSyncRules
+        appleMusicStatus = settings.appleMusicStatus
         slackMeetingStatusText = settings.slackMeetingStatusText
         slackMeetingStatusEmoji = settings.slackMeetingStatusEmoji
         meetingBrowserRouting = settings.meetingBrowserRouting

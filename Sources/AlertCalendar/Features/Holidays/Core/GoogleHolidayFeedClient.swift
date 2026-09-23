@@ -59,13 +59,23 @@ actor GoogleHolidayFeedClient {
         guard requestedIDs == normalizedIDs, countries.count == normalizedIDs.count else {
             throw ClientError.unavailableCountry(requestedIDs.subtracting(normalizedIDs).sorted().joined(separator: ", "))
         }
+        for country in countries {
+            await ExternalFeedMetrics.shared.recordCheck(
+                source: "google-holidays.\(country.id.lowercased())",
+                at: now
+            )
+        }
 
         let countriesToLoad = countries.filter { country in
             guard !forceRefresh, let entry = cache[country.id] else { return true }
             return now.timeIntervalSince(entry.fetchedAt) >= Self.cacheTTL
         }
         for country in countries where !countriesToLoad.contains(country) {
-            await ExternalFeedMetrics.shared.recordCacheHit(source: "google-holidays.\(country.id.lowercased())")
+            await ExternalFeedMetrics.shared.recordCacheHit(
+                source: "google-holidays.\(country.id.lowercased())",
+                dataDate: cache[country.id]?.fetchedAt,
+                at: now
+            )
         }
 
         let session = self.session
@@ -80,8 +90,22 @@ actor GoogleHolidayFeedClient {
             let results = try await withThrowingTaskGroup(of: LoadResult.self) { group in
                 for country in batch {
                     group.addTask {
-                        let events = try await Self.load(country: country, session: session)
-                        return LoadResult(countryID: country.id, events: events)
+                        do {
+                            let events = try await Self.load(country: country, session: session)
+                            await DataRefreshHealth.shared.record(
+                                source: "google-holidays.\(country.id.lowercased())",
+                                title: "\(country.displayName) holidays", error: nil
+                            )
+                            return LoadResult(countryID: country.id, events: events)
+                        } catch {
+                            if !(error is CancellationError), (error as? URLError)?.code != .cancelled {
+                                await DataRefreshHealth.shared.record(
+                                    source: "google-holidays.\(country.id.lowercased())",
+                                    title: "\(country.displayName) holidays", error: error.localizedDescription
+                                )
+                            }
+                            throw error
+                        }
                     }
                 }
 
@@ -110,6 +134,7 @@ actor GoogleHolidayFeedClient {
         request.timeoutInterval = requestTimeout
         request.setValue("text/calendar, text/plain;q=0.9", forHTTPHeaderField: "Accept")
         request.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
+        let requestStartedAt = Date()
 
         let data: Data
         let response: URLResponse
@@ -117,21 +142,24 @@ actor GoogleHolidayFeedClient {
             (data, response) = try await session.data(for: request)
         } catch {
             await ExternalFeedMetrics.shared.recordTransportFailure(
-                source: "google-holidays.\(country.id.lowercased())"
+                source: "google-holidays.\(country.id.lowercased())",
+                duration: Date().timeIntervalSince(requestStartedAt)
             )
             throw error
         }
 
         guard let httpResponse = response as? HTTPURLResponse else {
             await ExternalFeedMetrics.shared.recordTransportFailure(
-                source: "google-holidays.\(country.id.lowercased())"
+                source: "google-holidays.\(country.id.lowercased())",
+                duration: Date().timeIntervalSince(requestStartedAt)
             )
             throw ClientError.invalidResponse
         }
         await ExternalFeedMetrics.shared.recordNetworkResponse(
             source: "google-holidays.\(country.id.lowercased())",
             statusCode: httpResponse.statusCode,
-            responseBytes: data.count
+            responseBytes: data.count,
+            duration: Date().timeIntervalSince(requestStartedAt)
         )
         guard (200...299).contains(httpResponse.statusCode) else {
             throw ClientError.unsuccessfulResponse(statusCode: httpResponse.statusCode)

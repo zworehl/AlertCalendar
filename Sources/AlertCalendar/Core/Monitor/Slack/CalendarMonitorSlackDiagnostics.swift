@@ -48,9 +48,18 @@ extension CalendarMonitor {
     func appendSlackDiagnosticsLog(_ message: String) {
         guard let logURL = slackDiagnosticsLogURL() else { return }
 
+        let now = fixedSecondNow()
+        if message == lastSlackDiagnosticsMessage,
+           let previousDate = lastSlackDiagnosticsMessageDate,
+           now.timeIntervalSince(previousDate) < 5 * 60 {
+            return
+        }
+        lastSlackDiagnosticsMessage = message
+        lastSlackDiagnosticsMessageDate = now
+
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let line = "[\(formatter.string(from: fixedSecondNow()))] \(message)\n"
+        let line = "[\(formatter.string(from: now))] \(message)\n"
         let lineData = Data(line.utf8)
         let fileManager = FileManager.default
 

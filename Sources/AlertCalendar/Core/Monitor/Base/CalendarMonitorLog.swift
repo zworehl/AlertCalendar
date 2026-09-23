@@ -9,4 +9,5 @@ enum CalendarMonitorLog {
     static let football = Logger(subsystem: subsystem, category: "football")
     static let slack = Logger(subsystem: subsystem, category: "slack")
     static let agendaSummary = Logger(subsystem: subsystem, category: "agenda-summary")
+    static let titleRewrite = Logger(subsystem: subsystem, category: "title-rewrite")
 }

@@ -22,6 +22,9 @@ struct GameSalesFeedSourceCacheEntry: Codable, Sendable {
 struct GameSalesFeedFailureState: Codable, Sendable {
     var consecutiveFailureCount: Int
     var nextRetryAt: Date
+    var error: GameSalesFeedClient.ClientError? = nil
+    var firstFailedAt: Date? = nil
+    var lastFailedAt: Date? = nil
 }
 
 struct GameSalesFeedCacheStore: Sendable {

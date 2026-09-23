@@ -4,6 +4,103 @@ import XCTest
 @testable import AlertCalendar
 
 final class MenuBarRotationStateTests: AlertCalendarModelTestCase {
+    func testActiveEventFocusKeepsOnlySimultaneousTimedEvents() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let activeEvent = makeUpcomingItem(
+            id: "active-event",
+            title: "Active",
+            startDate: now.addingTimeInterval(-15 * 60),
+            endDate: now.addingTimeInterval(15 * 60)
+        )
+        let simultaneousEvent = makeUpcomingItem(
+            id: "simultaneous-event",
+            title: "Simultaneous",
+            startDate: now.addingTimeInterval(-5 * 60),
+            endDate: now.addingTimeInterval(45 * 60)
+        )
+        let upcomingEvent = makeUpcomingItem(
+            id: "upcoming-event",
+            title: "Upcoming",
+            startDate: now.addingTimeInterval(10 * 60),
+            endDate: now.addingTimeInterval(40 * 60)
+        )
+        let allDayEvent = UpcomingItem(
+            id: "all-day-event",
+            title: "All day",
+            date: now.addingTimeInterval(-24 * 60 * 60),
+            endDate: now.addingTimeInterval(24 * 60 * 60),
+            isAllDay: true,
+            showsMutedBackground: false,
+            travelTimeMinutes: nil,
+            locationText: nil,
+            meetingURL: nil,
+            calendarID: nil,
+            calendarName: "Work",
+            calendarColor: .systemOrange,
+            kind: .event,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
+        )
+
+        let candidates = CalendarMonitor.menuBarRotationCandidates(
+            from: [activeEvent, simultaneousEvent, upcomingEvent, allDayEvent],
+            now: now,
+            focusOnActiveEvents: true
+        )
+
+        XCTAssertEqual(candidates.map(\.id), ["active-event", "simultaneous-event"])
+    }
+
+    func testActiveEventFocusFallsBackToNormalCandidatesWhenNothingIsActive() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let upcomingEvent = makeUpcomingItem(
+            id: "upcoming-event",
+            title: "Upcoming",
+            startDate: now.addingTimeInterval(10 * 60),
+            endDate: now.addingTimeInterval(40 * 60)
+        )
+        let allDayEvent = UpcomingItem(
+            id: "all-day-event",
+            title: "All day",
+            date: now,
+            endDate: now.addingTimeInterval(24 * 60 * 60),
+            isAllDay: true,
+            showsMutedBackground: false,
+            travelTimeMinutes: nil,
+            locationText: nil,
+            meetingURL: nil,
+            calendarID: nil,
+            calendarName: "Work",
+            calendarColor: .systemOrange,
+            kind: .event,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
+        )
+
+        let candidates = CalendarMonitor.menuBarRotationCandidates(
+            from: [upcomingEvent, allDayEvent],
+            now: now,
+            focusOnActiveEvents: true
+        )
+
+        XCTAssertEqual(candidates.map(\.id), ["upcoming-event", "all-day-event"])
+    }
+
+    func testStartedEventShowsNowStateWithoutBlinking() {
+        let startDate = Date(timeIntervalSince1970: 1_800_000_000)
+        let event = makeUpcomingItem(
+            id: "active-event",
+            title: "Design review",
+            startDate: startDate,
+            endDate: startDate.addingTimeInterval(30 * 60)
+        )
+        let now = startDate.addingTimeInterval(30)
+
+        XCTAssertTrue(CalendarMonitor.isActiveTimedEvent(event, now: now))
+        XCTAssertTrue(CalendarMonitor.shouldShowTimedEventNowState(for: event, now: now))
+        XCTAssertFalse(CalendarMonitor.shouldBlinkForItem(event, now: now, settings: .defaults))
+    }
+
     func testResolvedMenuBarRotationStateKeepsCurrentSelectionWithinSameSlot() {
         let previousState = CalendarMonitor.MenuBarRotationState(
             slot: 42,
@@ -294,37 +391,45 @@ final class MenuBarRotationStateTests: AlertCalendarModelTestCase {
         let updated = CalendarMonitor.updatedFootballGoalHighlight(
             highlight,
             queueMatchIDs: ["match-a", "match-b", "match-c"],
-            selectedMatchID: "match-a"
+            selectedMatchID: "match-a",
+            now: Date(timeIntervalSince1970: 1_800_000_000),
+            rotationInterval: 30
         )
 
         XCTAssertEqual(updated?.matchID, "match-b")
         XCTAssertEqual(updated?.scoringSide, .home)
-        XCTAssertEqual(updated?.hasBeenShownInMenuBar, false)
+        XCTAssertNil(updated?.firstShownInMenuBarAt)
     }
     func testUpdatedFootballGoalHighlightMarksFirstNaturalAppearance() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
         let highlight = FootballGoalHighlight(matchID: "match-b", scoringSide: .away)
 
         let updated = CalendarMonitor.updatedFootballGoalHighlight(
             highlight,
             queueMatchIDs: ["match-a", "match-b", "match-c"],
-            selectedMatchID: "match-b"
+            selectedMatchID: "match-b",
+            now: now,
+            rotationInterval: 30
         )
 
         XCTAssertEqual(updated?.matchID, "match-b")
         XCTAssertEqual(updated?.scoringSide, .away)
-        XCTAssertEqual(updated?.hasBeenShownInMenuBar, true)
+        XCTAssertEqual(updated?.firstShownInMenuBarAt, now)
     }
     func testUpdatedFootballGoalHighlightClearsAfterConsumedAppearance() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
         let highlight = FootballGoalHighlight(
             matchID: "match-b",
             scoringSide: .away,
-            hasBeenShownInMenuBar: true
+            firstShownInMenuBarAt: now.addingTimeInterval(-5)
         )
 
         let updated = CalendarMonitor.updatedFootballGoalHighlight(
             highlight,
             queueMatchIDs: ["match-a", "match-b", "match-c"],
-            selectedMatchID: "match-c"
+            selectedMatchID: "match-c",
+            now: now,
+            rotationInterval: 30
         )
 
         XCTAssertNil(updated)

@@ -5,19 +5,33 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_NAME="AlertCalendar"
 BINARY_NAME="AlertCalendar"
 BUNDLE_IDENTIFIER="com.zworehl.alertcalendar"
+APP_VERSION="${APP_VERSION:-$(tr -d '[:space:]' < "$ROOT/VERSION")}"
+APP_BUILD="${APP_BUILD:-$(tr -d '[:space:]' < "$ROOT/BUILD_NUMBER")}"
 APP_DIR="${APP_DIR:-/Applications}"
 OPEN_AFTER_INSTALL="${OPEN_AFTER_INSTALL:-1}"
+REMOVE_DUPLICATE_INSTALLS="${REMOVE_DUPLICATE_INSTALLS:-1}"
+TERMINATE_RUNNING_INSTANCES="${TERMINATE_RUNNING_INSTANCES:-1}"
 ICON_SOURCE="$ROOT/Sources/AlertCalendar/Resources/Images/icon.png"
 ENTITLEMENTS_PATH="$ROOT/AlertCalendar.entitlements"
 USER_APP_DIR="$HOME/Applications"
 BUILD_CONFIGURATION="${BUILD_CONFIGURATION:-Release}"
+CLEAN_BUILD="${CLEAN_BUILD:-1}"
 BUILD_ARCH="${BUILD_ARCH:-$(uname -m)}"
 DEPLOYMENT_TARGET="13.0"
 DERIVED_DATA="${DERIVED_DATA:-$ROOT/.build/install-derived-data}"
 PRODUCTS_DIR="$DERIVED_DATA/Build/Products/$BUILD_CONFIGURATION"
+INTERMEDIATES_DIR="$DERIVED_DATA/Build/Intermediates.noindex/AlertCalendar.build/$BUILD_CONFIGURATION/AlertCalendar.build"
+OBJECTS_DIR="$INTERMEDIATES_DIR/Objects-normal/$BUILD_ARCH"
+SOURCE_FILE_LIST="$OBJECTS_DIR/${BINARY_NAME}.SwiftFileList"
+SWIFT_CONST_VALS_LIST="$DERIVED_DATA/${BINARY_NAME}.swiftconstvalues.list"
+FOCUS_METADATA_DIR="$DERIVED_DATA/FocusMetadata"
+TARGET_TRIPLE="${BUILD_ARCH}-apple-macos${DEPLOYMENT_TARGET}"
 RESOURCE_BUNDLE_NAME="${APP_NAME}_${BINARY_NAME}.bundle"
 RESOURCE_BUNDLE_SOURCE="$PRODUCTS_DIR/$RESOURCE_BUNDLE_NAME"
 CODE_SIGN_IDENTITY="${CODE_SIGN_IDENTITY:-}"
+CODE_SIGN_TIMESTAMP="${CODE_SIGN_TIMESTAMP:-auto}"
+SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-https://zworehl.github.io/AlertCalendar/appcast.xml}"
+SPARKLE_PUBLIC_KEY="${SPARKLE_PUBLIC_KEY:-v/PoTWPi7kSadVs/EaI7OieVS+pufgkiCmm/jSW+ioA=}"
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   echo "This installer supports macOS only."
@@ -104,6 +118,56 @@ terminate_running_instances() {
   done
 }
 
+generate_app_intents_metadata() {
+  local metadata_tool
+  local developer_dir
+  local sdk_root
+  local xcode_build_version
+  local output_path
+
+  metadata_tool="$(xcrun --find appintentsmetadataprocessor)"
+  developer_dir="$(xcode-select -p)"
+  sdk_root="$(xcrun --sdk macosx --show-sdk-path)"
+  xcode_build_version="$(xcodebuild -version | awk '/Build version/ { print $3 }')"
+  output_path="$FOCUS_METADATA_DIR"
+  mkdir -p "$output_path"
+
+  if [[ ! -f "$SOURCE_FILE_LIST" ]]; then
+    # SwiftPM product targets use the -p suffix with newer Xcode versions.
+    OBJECTS_DIR="$DERIVED_DATA/Build/Intermediates.noindex/AlertCalendar.build/$BUILD_CONFIGURATION/AlertCalendar-p.build/Objects-normal/$BUILD_ARCH"
+    SOURCE_FILE_LIST="$OBJECTS_DIR/${BINARY_NAME}.SwiftFileList"
+  fi
+  if [[ ! -f "$SOURCE_FILE_LIST" ]]; then
+    echo "Unable to locate Swift source list for App Intents metadata."
+    exit 1
+  fi
+
+  find "$OBJECTS_DIR" -name '*.swiftconstvalues' -print > "$SWIFT_CONST_VALS_LIST"
+  if [[ ! -s "$SWIFT_CONST_VALS_LIST" ]]; then
+    echo "Unable to locate Swift constant values for App Intents metadata."
+    exit 1
+  fi
+
+  "$metadata_tool" \
+    --output "$output_path" \
+    --toolchain-dir "$developer_dir/Toolchains/XcodeDefault.xctoolchain" \
+    --module-name "$BINARY_NAME" \
+    --sdk-root "$sdk_root" \
+    --xcode-version "$xcode_build_version" \
+    --platform-family macOS \
+    --deployment-target "$DEPLOYMENT_TARGET" \
+    --target-triple "$TARGET_TRIPLE" \
+    --source-file-list "$SOURCE_FILE_LIST" \
+    --swift-const-vals-list "$SWIFT_CONST_VALS_LIST" \
+    --quiet-warnings \
+    --force
+
+  if [[ ! -f "$FOCUS_METADATA_DIR/Metadata.appintents/extract.actionsdata" ]]; then
+    echo "App Intents metadata was not generated correctly."
+    exit 1
+  fi
+}
+
 compile_asset_catalog() {
   local asset_tmp
   local asset_catalog
@@ -185,7 +249,9 @@ if [[ ! -f "$ENTITLEMENTS_PATH" ]]; then
 fi
 
 echo "[1/4] Building ${APP_NAME} (${BUILD_CONFIGURATION})..."
-rm -rf "$DERIVED_DATA"
+if [[ "$CLEAN_BUILD" == "1" ]]; then
+  rm -rf "$DERIVED_DATA"
+fi
 xcodebuild \
   -scheme "$APP_NAME" \
   -configuration "$BUILD_CONFIGURATION" \
@@ -203,14 +269,33 @@ if [[ ! -d "$RESOURCE_BUNDLE_SOURCE" ]]; then
   exit 1
 fi
 
+SPARKLE_FRAMEWORK_SOURCE="$(find "$PRODUCTS_DIR" -path '*/Sparkle.framework' -type d -print -quit)"
+if [[ -z "$SPARKLE_FRAMEWORK_SOURCE" || ! -d "$SPARKLE_FRAMEWORK_SOURCE" ]]; then
+  echo "Unable to locate the Sparkle framework in build products."
+  exit 1
+fi
+
+generate_app_intents_metadata
+
 echo "[2/4] Installing to ${APP_BUNDLE}..."
-terminate_running_instances
-remove_duplicate_installs
+if [[ "$TERMINATE_RUNNING_INSTANCES" == "1" ]]; then
+  terminate_running_instances
+fi
+if [[ "$REMOVE_DUPLICATE_INSTALLS" == "1" ]]; then
+  remove_duplicate_installs
+fi
 rm -rf "$APP_BUNDLE"
-mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
+mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources" "$APP_BUNDLE/Contents/Frameworks"
 cp "$BINARY_PATH" "$APP_BUNDLE/Contents/MacOS/${BINARY_NAME}"
 chmod +x "$APP_BUNDLE/Contents/MacOS/${BINARY_NAME}"
+if ! otool -l "$APP_BUNDLE/Contents/MacOS/${BINARY_NAME}" \
+  | grep -A2 LC_RPATH \
+  | grep -q '@executable_path/../Frameworks'; then
+  install_name_tool -add_rpath '@executable_path/../Frameworks' "$APP_BUNDLE/Contents/MacOS/${BINARY_NAME}"
+fi
 ditto "$RESOURCE_BUNDLE_SOURCE" "$APP_BUNDLE/Contents/Resources/$RESOURCE_BUNDLE_NAME"
+ditto "$SPARKLE_FRAMEWORK_SOURCE" "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
+ditto "$FOCUS_METADATA_DIR/Metadata.appintents" "$APP_BUNDLE/Contents/Resources/Metadata.appintents"
 if [[ -f "$ICON_SOURCE" ]]; then
   ICONSET_DIR="$(mktemp -d)/AppIcon.iconset"
   mkdir -p "$ICONSET_DIR"
@@ -238,6 +323,10 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
   <string>${APP_NAME}</string>
   <key>CFBundleDisplayName</key>
   <string>${APP_NAME}</string>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>en</string>
+  <key>CFBundleLocalizations</key>
+  <array><string>en</string></array>
   <key>CFBundleIdentifier</key>
   <string>${BUNDLE_IDENTIFIER}</string>
   <key>CFBundleExecutable</key>
@@ -245,9 +334,9 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>1.0.0</string>
+  <string>${APP_VERSION}</string>
   <key>CFBundleVersion</key>
-  <string>1</string>
+  <string>${APP_BUILD}</string>
   <key>CFBundleIconFile</key>
   <string>AppIcon</string>
   <key>LSMinimumSystemVersion</key>
@@ -261,11 +350,11 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
   <key>NSCalendarsFullAccessUsageDescription</key>
   <string>AlertCalendar needs full Calendar access to read events, apply your per-calendar alert rules, and manage selected holidays, football fixtures, and game-sale campaigns.</string>
   <key>NSAppleEventsUsageDescription</key>
-  <string>AlertCalendar uses Apple Events to reveal selected managed events in Calendar when you ask it to.</string>
+  <string>AlertCalendar uses Apple Events to reveal selected managed events in Calendar, read matching Mail context when enabled, and read current playback from Apple Music or a supported YouTube Music browser when you enable Music status sync.</string>
   <key>NSAppDataUsageDescription</key>
   <string>AlertCalendar reads local browser profile names so calendar meeting links can open in the profile you choose.</string>
   <key>NSRemindersFullAccessUsageDescription</key>
-  <string>AlertCalendar needs full Reminders access to show reminder due times.</string>
+  <string>AlertCalendar needs full Reminders access to show reminder due dates and any available due times.</string>
   <key>NSLocationWhenInUseUsageDescription</key>
   <string>AlertCalendar uses your location to calculate local sun events.</string>
   <key>NSLocationUsageDescription</key>
@@ -274,6 +363,18 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
   <string>AlertCalendar uses your contacts to show organizer photos and invitee names in meeting previews.</string>
   <key>NSHighResolutionCapable</key>
   <true/>
+  <key>SUFeedURL</key>
+  <string>${SPARKLE_FEED_URL}</string>
+  <key>SUPublicEDKey</key>
+  <string>${SPARKLE_PUBLIC_KEY}</string>
+  <key>SUEnableAutomaticChecks</key>
+  <true/>
+  <key>SUAllowsAutomaticUpdates</key>
+  <true/>
+  <key>SUAutomaticallyUpdate</key>
+  <true/>
+  <key>SUScheduledCheckInterval</key>
+  <integer>86400</integer>
 </dict>
 </plist>
 PLIST
@@ -281,11 +382,15 @@ PLIST
 echo "[3/4] Finalizing bundle..."
 xattr -cr "$APP_BUNDLE" || true
 echo "Signing with: $CODE_SIGN_IDENTITY"
+TIMESTAMP_ARGUMENT="--timestamp=none"
+if [[ "$CODE_SIGN_TIMESTAMP" == "1" || ( "$CODE_SIGN_TIMESTAMP" == "auto" && "$CODE_SIGN_IDENTITY" == Developer\ ID\ Application:* ) ]]; then
+  TIMESTAMP_ARGUMENT="--timestamp"
+fi
 codesign \
   --force \
   --deep \
   --options runtime \
-  --timestamp=none \
+  "$TIMESTAMP_ARGUMENT" \
   --entitlements "$ENTITLEMENTS_PATH" \
   --sign "$CODE_SIGN_IDENTITY" \
   "$APP_BUNDLE"

@@ -347,7 +347,7 @@ struct OrbitalHighlightsArtwork: View {
 
     private static let highlightFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.locale = .autoupdatingCurrent
+        formatter.locale = AlertCalendarLanguage.english
         formatter.dateStyle = .medium
         formatter.timeStyle = .none
         return formatter

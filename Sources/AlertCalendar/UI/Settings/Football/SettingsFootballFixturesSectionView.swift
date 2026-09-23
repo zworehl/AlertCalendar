@@ -44,7 +44,7 @@ struct SettingsFootballFixturesSectionView: View {
     @Binding var includeFootballGoalScorerInNotifications: Bool
     @Binding var enableFootballFinalNotifications: Bool
     @Binding var enableFootballAutoAddNotifications: Bool
-    @Binding var showFinishedFootballMatches: Bool
+    @AppStorage(DefaultsKeys.showFinishedFootballMatches) var showFinishedFootballMatches = true
     @Binding var finishedFootballMatchLookbackDays: Int
     @Binding var footballMatchLookaheadDays: Int
     @Binding var pendingCalendarChanges: [String: SettingsPendingItemChange<FootballFixtureMatch>]

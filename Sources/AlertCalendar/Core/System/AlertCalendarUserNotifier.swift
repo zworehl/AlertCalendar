@@ -7,8 +7,9 @@ enum AlertCalendarUserNotifier {
         await ensureAuthorization()
     }
 
-    static func deliver(identifier: String, title: String, body: String) async {
-        guard await ensureAuthorization() else { return }
+    @discardableResult
+    static func deliver(identifier: String, title: String, body: String) async -> Bool {
+        guard await ensureAuthorization() else { return false }
 
         let content = UNMutableNotificationContent()
         content.title = title
@@ -21,7 +22,16 @@ enum AlertCalendarUserNotifier {
             trigger: nil
         )
 
-        try? await add(request)
+        do {
+            try await add(request)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    static func removeDeliveredRequests(withIdentifiers identifiers: [String]) {
+        UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: identifiers)
     }
 
     static func schedule(identifier: String, title: String, body: String, at date: Date) async {

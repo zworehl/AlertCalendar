@@ -9,6 +9,9 @@ actor FootballImageStore {
     private let session: URLSession
     private let baseDirectoryURL: URL
     private var failedRequestDates = AlertCalendarLRUCache<String, Date>(capacity: 256)
+    private var resolvedFiles = AlertCalendarLRUCache<String, (url: URL, modifiedAt: Date?)>(capacity: 512)
+    private var normalizedFilePaths: Set<String> = []
+    private var hasEnsuredDirectory = false
     private var lastCleanupDate: Date?
     private static let requestTimeout: TimeInterval = 6
     private static let resourceTimeout: TimeInterval = 12
@@ -39,40 +42,68 @@ actor FootballImageStore {
 
     func localFileURL(for remoteURL: URL?) async -> URL? {
         guard let remoteURL else { return nil }
-        ensureDirectoryExists(at: baseDirectoryURL)
+        if !hasEnsuredDirectory {
+            ensureDirectoryExists(at: baseDirectoryURL)
+            hasEnsuredDirectory = true
+        }
         let now = Date()
+        await ExternalFeedMetrics.shared.recordCheck(source: "football.images", at: now)
         cleanupCachedImagesIfNeeded(now: now)
+
+        let requestKey = remoteURL.absoluteString
+        if let cached = resolvedFiles.value(forKey: requestKey) {
+            await ExternalFeedMetrics.shared.recordCacheHit(
+                source: "football.images",
+                dataDate: cached.modifiedAt,
+                at: now
+            )
+            return cached.url
+        }
 
         let fileExtension = normalizedFileExtension(from: remoteURL)
         let fileName = "\(hashed(remoteURL.absoluteString)).\(fileExtension)"
         let destinationURL = baseDirectoryURL.appendingPathComponent(fileName)
 
         if fileManager.fileExists(atPath: destinationURL.path) {
-            await ExternalFeedMetrics.shared.recordCacheHit(source: "football.images")
-            normalizeExistingImageIfNeeded(at: destinationURL, remoteURL: remoteURL)
+            let modifiedAt = try? destinationURL.resourceValues(
+                forKeys: [.contentModificationDateKey]
+            ).contentModificationDate
+            await ExternalFeedMetrics.shared.recordCacheHit(
+                source: "football.images",
+                dataDate: modifiedAt,
+                at: now
+            )
+            if normalizedFilePaths.insert(destinationURL.path).inserted {
+                normalizeExistingImageIfNeeded(at: destinationURL, remoteURL: remoteURL)
+            }
+            resolvedFiles.insert((destinationURL, modifiedAt), forKey: requestKey)
             return destinationURL
         }
 
-        let requestKey = remoteURL.absoluteString
         if let failedAt = failedRequestDates.value(forKey: requestKey),
            now.timeIntervalSince(failedAt) < Self.failedRequestRetryInterval {
             await ExternalFeedMetrics.shared.recordCacheHit(source: "football.images.negative")
             return nil
         }
 
+        let requestStartedAt = Date()
         do {
             var request = URLRequest(url: remoteURL)
             request.timeoutInterval = Self.requestTimeout
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else {
                 failedRequestDates.insert(now, forKey: requestKey)
-                await ExternalFeedMetrics.shared.recordTransportFailure(source: "football.images")
+                await ExternalFeedMetrics.shared.recordTransportFailure(
+                    source: "football.images",
+                    duration: Date().timeIntervalSince(requestStartedAt)
+                )
                 return nil
             }
             await ExternalFeedMetrics.shared.recordNetworkResponse(
                 source: "football.images",
                 statusCode: http.statusCode,
-                responseBytes: data.count
+                responseBytes: data.count,
+                duration: Date().timeIntervalSince(requestStartedAt)
             )
             guard (200...299).contains(http.statusCode), !data.isEmpty else {
                 failedRequestDates.insert(now, forKey: requestKey)
@@ -82,10 +113,15 @@ actor FootballImageStore {
             let imageData = Self.normalizedImageData(from: data, remoteURL: remoteURL)
             try imageData.write(to: destinationURL, options: [.atomic])
             failedRequestDates.removeValue(forKey: requestKey)
+            normalizedFilePaths.insert(destinationURL.path)
+            resolvedFiles.insert((destinationURL, now), forKey: requestKey)
             return destinationURL
         } catch {
             failedRequestDates.insert(now, forKey: requestKey)
-            await ExternalFeedMetrics.shared.recordTransportFailure(source: "football.images")
+            await ExternalFeedMetrics.shared.recordTransportFailure(
+                source: "football.images",
+                duration: Date().timeIntervalSince(requestStartedAt)
+            )
             return nil
         }
     }
@@ -96,6 +132,8 @@ actor FootballImageStore {
             return
         }
         lastCleanupDate = now
+        resolvedFiles.removeAll(keepingCapacity: true)
+        normalizedFilePaths.removeAll(keepingCapacity: true)
         guard let files = try? fileManager.contentsOfDirectory(
             at: baseDirectoryURL,
             includingPropertiesForKeys: [.contentModificationDateKey],

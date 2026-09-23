@@ -13,7 +13,6 @@ extension MenuContentView {
 
     @ViewBuilder
     func contextualDaylightHeaderContent(for item: UpcomingItem, isHovered: Bool) -> some View {
-        let accentColor = Color(nsColor: item.calendarColor.nsColor)
         let titleFont = MenuMarkerMetrics.rowTitleFont
         let timeFont = MenuMarkerMetrics.rowDetailFont
         let trailingReservation = contextualDaylightHeaderTrailingReservation(for: item)
@@ -21,7 +20,7 @@ extension MenuContentView {
         ZStack(alignment: .trailing) {
             HStack(alignment: .center, spacing: 0) {
                 HStack(alignment: .center, spacing: 10) {
-                    contextualMarkerView(for: item, accentColor: accentColor)
+                    contextualMarkerView(for: item)
 
                     Text(item.title)
                         .font(titleFont)
@@ -74,23 +73,11 @@ extension MenuContentView {
     }
 
     @ViewBuilder
-    func contextualMarkerView(for item: UpcomingItem, accentColor: Color) -> some View {
-        if let markerSymbol = markerSymbolName(for: item) {
-            Image(systemName: markerSymbol)
-                .font(.system(size: MenuMarkerMetrics.symbolSize, weight: .regular))
-                .frame(width: MenuMarkerMetrics.symbolSize, height: MenuMarkerMetrics.symbolSize)
-                .foregroundStyle(accentColor)
-        } else if let image = markerImage(for: item) {
-            let markerSize = markerImageSize(for: item)
-            Image(nsImage: image)
-                .resizable()
-                .interpolation(.high)
-                .frame(width: markerSize.width, height: markerSize.height)
-        } else {
-            Capsule()
-                .fill(accentColor)
-                .frame(width: 4, height: 14)
-        }
+    func contextualMarkerView(for item: UpcomingItem) -> some View {
+        menuMarkerColumn(
+            for: item,
+            rowMinimumHeight: Self.contextualDaylightHeaderHeight
+        )
     }
 
     @ViewBuilder
@@ -103,6 +90,9 @@ extension MenuContentView {
             if showsJoinButton,
                item.meetingURL != nil {
                 joinActionButton(for: item)
+            }
+            if shouldShowOpenLinkAction(for: item) {
+                openLinkActionButton(for: item)
             }
 
             if let locationText,

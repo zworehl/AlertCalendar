@@ -2,7 +2,7 @@ import Foundation
 import XCTest
 @testable import AlertCalendar
 
-private final class GameSalesFeedMockURLProtocol: URLProtocol {
+final class GameSalesFeedMockURLProtocol: URLProtocol {
     nonisolated(unsafe) static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
 
     override class func canInit(with request: URLRequest) -> Bool {
@@ -32,7 +32,7 @@ private final class GameSalesFeedMockURLProtocol: URLProtocol {
     override func stopLoading() {}
 }
 
-private final class GameSalesFeedRequestCounter: @unchecked Sendable {
+final class GameSalesFeedRequestCounter: @unchecked Sendable {
     private let lock = NSLock()
     private var counts: [URL: Int] = [:]
 
@@ -53,7 +53,7 @@ private final class GameSalesFeedRequestCounter: @unchecked Sendable {
 }
 
 final class GameSalesFeedClientTests: XCTestCase {
-    private let fixture = """
+    let fixture = """
     <div class="documentation_bbcode">
       <h2 class="bb_subsection"><a name="3"></a>Spring Sale | March 19 - 26, 2026 (ENDED)</h2>
       <h2 class="bb_subsection"><a name="4"></a>Summer Sale | June 25 - July 9, 2026</h2>
@@ -452,14 +452,22 @@ final class GameSalesFeedClientTests: XCTestCase {
         }
     }
 
-    private var utcCalendar: Calendar {
+    static func successfulResponse(_ request: URLRequest, steamHTML: String) throws -> (HTTPURLResponse, Data) {
+        let url = try XCTUnwrap(request.url)
+        let body = url == GameSalesFeedClient.steamworksUpcomingEventsURL ? steamHTML
+            : url == GameSalesFeedClient.nintendoNewsSitemapURL ? "<urlset></urlset>"
+            : "<rss><channel></channel></rss>"
+        return (try XCTUnwrap(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)), Data(body.utf8))
+    }
+
+    var utcCalendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.locale = Locale(identifier: "en_US_POSIX")
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         return calendar
     }
 
-    private func date(
+    func date(
         _ year: Int,
         _ month: Int,
         _ day: Int,
@@ -473,7 +481,7 @@ final class GameSalesFeedClientTests: XCTestCase {
         )))
     }
 
-    private func makeMockSession() -> URLSession {
+    func makeMockSession() -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [GameSalesFeedMockURLProtocol.self]
         return URLSession(configuration: configuration)

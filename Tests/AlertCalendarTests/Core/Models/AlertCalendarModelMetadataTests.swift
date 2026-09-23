@@ -19,14 +19,24 @@ final class AlertCalendarModelMetadataTests: AlertCalendarModelTestCase {
         XCTAssertEqual(ActiveEventDisplayMode.elapsed.title, "Show elapsed time")
     }
     func testEventParticipationStatusVisualMetadataMatchesAppleCalendarStyle() {
-        XCTAssertFalse(EventParticipationStatus.accepted.usesTexturedFill)
-        XCTAssertTrue(EventParticipationStatus.tentative.usesTexturedFill)
-        XCTAssertTrue(EventParticipationStatus.pending.usesTexturedFill)
-        XCTAssertTrue(EventParticipationStatus.declined.usesTexturedFill)
+        let accepted = EventParticipationStatus.accepted.appleCalendarStyle
+        let tentative = EventParticipationStatus.tentative.appleCalendarStyle
+        let pending = EventParticipationStatus.pending.appleCalendarStyle
+        let declined = EventParticipationStatus.declined.appleCalendarStyle
 
-        XCTAssertGreaterThan(EventParticipationStatus.accepted.appleCalendarTextAlpha, EventParticipationStatus.pending.appleCalendarTextAlpha)
-        XCTAssertGreaterThan(EventParticipationStatus.pending.appleCalendarStripeAlpha, 0)
-        XCTAssertGreaterThan(EventParticipationStatus.tentative.appleCalendarBackgroundAlpha, EventParticipationStatus.declined.appleCalendarBackgroundAlpha)
+        XCTAssertFalse(accepted.usesTexture)
+        XCTAssertTrue(tentative.usesTexture)
+        XCTAssertTrue(pending.usesTexture)
+        XCTAssertTrue(declined.usesTexture)
+        XCTAssertGreaterThan(accepted.textAlpha, pending.textAlpha)
+        XCTAssertGreaterThan(pending.stripeAlpha, 0)
+        XCTAssertGreaterThan(pending.stripeWidth, 3)
+        XCTAssertLessThan(pending.stripeWidth, pending.stripeSpacing)
+        XCTAssertEqual(tentative.stripeSpacing, pending.stripeSpacing)
+        XCTAssertEqual(pending.stripeSpacing, declined.stripeSpacing)
+        XCTAssertEqual(tentative.stripeWidth, pending.stripeWidth)
+        XCTAssertEqual(pending.stripeWidth, declined.stripeWidth)
+        XCTAssertGreaterThan(tentative.backgroundAlpha, declined.backgroundAlpha)
     }
     func testMeetingBrowserKindMetadataIsStable() {
         XCTAssertEqual(
@@ -141,14 +151,13 @@ final class AlertCalendarModelMetadataTests: AlertCalendarModelTestCase {
             DefaultsKeys.astronomyLatitude,
             DefaultsKeys.astronomyLongitude,
             DefaultsKeys.selectedEventCalendarIDs,
+            DefaultsKeys.focusCalendarFilterState,
             DefaultsKeys.selectedReminderCalendarIDs,
-            DefaultsKeys.weekdayOnlyEventCalendarIDs,
-            DefaultsKeys.weekdayOnlyReminderCalendarIDs,
             DefaultsKeys.calendarAlertRules,
-            DefaultsKeys.nonWorkingDateKeys,
             DefaultsKeys.lookAheadHours,
             DefaultsKeys.contextualPreviewLeadMinutes,
             DefaultsKeys.menuBarRotationWindowMinutes,
+            DefaultsKeys.focusMenuBarOnActiveEvents,
             DefaultsKeys.alertLeadMinutes,
             DefaultsKeys.concurrentEventRotationSeconds,
             DefaultsKeys.useSimplifiedCountdown,
@@ -157,6 +166,7 @@ final class AlertCalendarModelMetadataTests: AlertCalendarModelTestCase {
             DefaultsKeys.eventTitleMaxCharacters,
             DefaultsKeys.rewriteEventTitlesWithAppleIntelligence,
             DefaultsKeys.useRewrittenEventTitlesInDropdown,
+            DefaultsKeys.useMailContextForEventTitleRewrite,
             DefaultsKeys.maxListItems,
             DefaultsKeys.showAgendaSummary,
             DefaultsKeys.agendaSummaryMaximumWords,
@@ -191,15 +201,16 @@ final class AlertCalendarModelMetadataTests: AlertCalendarModelTestCase {
         XCTAssertTrue(keys.contains("activeEventDisplayMode"))
         XCTAssertTrue(keys.contains("contextualPreviewLeadMinutes"))
         XCTAssertTrue(keys.contains("menuBarRotationWindowMinutes"))
+        XCTAssertTrue(keys.contains("focusMenuBarOnActiveEvents"))
         XCTAssertTrue(keys.contains("menuBarFontSize"))
         XCTAssertTrue(keys.contains("rewriteEventTitlesWithAppleIntelligence"))
         XCTAssertTrue(keys.contains("useRewrittenEventTitlesInDropdown"))
+        XCTAssertTrue(keys.contains("useMailContextForEventTitleRewrite"))
         XCTAssertTrue(keys.contains("showAgendaSummary"))
         XCTAssertTrue(keys.contains("agendaSummaryMaximumWords"))
         XCTAssertTrue(keys.contains("useLinkedPagePreviewsInAgendaSummary"))
         XCTAssertTrue(keys.contains("meetingBrowserRouting"))
         XCTAssertTrue(keys.contains("calendarAlertRules"))
-        XCTAssertTrue(keys.contains("nonWorkingDateKeys"))
         XCTAssertTrue(keys.contains("footballAutoAddCompetitionSlugs"))
         XCTAssertTrue(keys.contains("enableFootballAutoAddNotifications"))
         XCTAssertTrue(keys.contains("enableFootballDisallowedGoalNotifications"))

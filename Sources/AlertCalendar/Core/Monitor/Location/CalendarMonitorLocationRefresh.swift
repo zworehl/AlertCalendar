@@ -64,6 +64,14 @@ extension CalendarMonitor {
     }
 
     func updateAstronomyCoordinatesFromSystem() async {
+        dataRefreshHealthState.locationError = nil
+        defer {
+            if astronomyLocationStatus.hasPrefix("Could not")
+                || astronomyLocationStatus.hasPrefix("Enable Location")
+                || astronomyLocationStatus == "Location Services are disabled." {
+                dataRefreshHealthState.locationError = astronomyLocationStatus
+            }
+        }
         guard defaults.bool(forKey: DefaultsKeys.useAutomaticAstronomyLocation) else {
             astronomyLocationStatus = "Manual coordinates"
             return
@@ -93,6 +101,7 @@ extension CalendarMonitor {
         let roundedLongitude = AppSettingsRules.roundedCoordinate(coordinate.longitude)
         defaults.set(roundedLatitude, forKey: DefaultsKeys.astronomyLatitude)
         defaults.set(roundedLongitude, forKey: DefaultsKeys.astronomyLongitude)
+        reloadCurrentSettings()
         markAstronomyLocationRefreshed(at: fixedSecondNow())
         astronomyLocationStatus = String(
             format: "\(detectedLocation.statusPrefix): %.2f, %.2f",

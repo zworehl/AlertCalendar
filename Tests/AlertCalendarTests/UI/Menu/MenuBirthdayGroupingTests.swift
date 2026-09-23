@@ -85,10 +85,10 @@ final class MenuBirthdayGroupingTests: XCTestCase {
         }
     }
 
-    func testExpandedBirthdayTitleRemovesOnlyTrailingBirthdayLabel() {
+    func testExpandedBirthdayTitleExtractsNameWithinLabeledGroup() {
         XCTAssertEqual(
             MenuContentView.compactBirthdayTitle("Carlos Angulo’s 32nd Birthday"),
-            "Carlos Angulo’s 32nd"
+            "Carlos Angulo"
         )
         XCTAssertEqual(
             MenuContentView.compactBirthdayTitle("Birthday planning"),

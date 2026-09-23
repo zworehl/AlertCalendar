@@ -15,13 +15,11 @@ struct AppSettings: Equatable {
     var astronomyLongitude: Double
     var selectedEventCalendarIDs: Set<String>
     var selectedReminderCalendarIDs: Set<String>
-    var weekdayOnlyEventCalendarIDs: Set<String>
-    var weekdayOnlyReminderCalendarIDs: Set<String>
     var calendarAlertRules: [CalendarAlertRule]
-    var nonWorkingDateKeys: Set<String>
     var lookAheadHours: Int
     var contextualPreviewLeadMinutes: Int
     var menuBarRotationWindowMinutes: Int
+    var focusMenuBarOnActiveEvents: Bool
     var alertLeadMinutes: Int
     var concurrentEventRotationSeconds: Int
     var maxListItems: Int
@@ -36,6 +34,7 @@ struct AppSettings: Equatable {
     var eventTitleMaxCharacters: Int
     var rewriteEventTitlesWithAppleIntelligence: Bool
     var useRewrittenEventTitlesInDropdown: Bool
+    var useMailContextForEventTitleRewrite: Bool
     var footballTargetCalendarID: String
     var footballAutoAddCompetitionSlugs: Set<String>
     var footballCalendarAlertOption: FootballCalendarAlertOption
@@ -44,7 +43,6 @@ struct AppSettings: Equatable {
     var includeFootballGoalScorerInNotifications: Bool
     var enableFootballFinalNotifications: Bool
     var enableFootballAutoAddNotifications: Bool
-    var showFinishedFootballMatches: Bool
     var finishedFootballMatchLookbackDays: Int
     var footballMatchLookaheadDays: Int
     var gameSaleTargetCalendarID: String
@@ -55,6 +53,7 @@ struct AppSettings: Equatable {
     var googleHolidayTargetCalendarID: String
     var slackConnections: [SlackConnection]
     var slackStatusSyncRules: [SlackStatusSyncRule]
+    var appleMusicStatus: AppleMusicStatusSettings
     var slackMeetingStatusText: String
     var slackMeetingStatusEmoji: String
     var meetingBrowserRouting: MeetingBrowserRoutingSettings
@@ -98,13 +97,11 @@ struct AppSettings: Equatable {
         astronomyLongitude: -66.1057,
         selectedEventCalendarIDs: [],
         selectedReminderCalendarIDs: [],
-        weekdayOnlyEventCalendarIDs: [],
-        weekdayOnlyReminderCalendarIDs: [],
         calendarAlertRules: [],
-        nonWorkingDateKeys: [],
         lookAheadHours: AppSettingsRules.defaultDropdownWindowHours,
         contextualPreviewLeadMinutes: 120,
         menuBarRotationWindowMinutes: 60,
+        focusMenuBarOnActiveEvents: false,
         alertLeadMinutes: 5,
         concurrentEventRotationSeconds: 30,
         maxListItems: AppSettingsRules.defaultMaximumDropdownItems,
@@ -119,6 +116,7 @@ struct AppSettings: Equatable {
         eventTitleMaxCharacters: 22,
         rewriteEventTitlesWithAppleIntelligence: false,
         useRewrittenEventTitlesInDropdown: false,
+        useMailContextForEventTitleRewrite: false,
         footballTargetCalendarID: "",
         footballAutoAddCompetitionSlugs: [],
         footballCalendarAlertOption: .none,
@@ -127,7 +125,6 @@ struct AppSettings: Equatable {
         includeFootballGoalScorerInNotifications: true,
         enableFootballFinalNotifications: true,
         enableFootballAutoAddNotifications: true,
-        showFinishedFootballMatches: true,
         finishedFootballMatchLookbackDays: 7,
         footballMatchLookaheadDays: 14,
         gameSaleTargetCalendarID: "",
@@ -138,6 +135,7 @@ struct AppSettings: Equatable {
         googleHolidayTargetCalendarID: "",
         slackConnections: [],
         slackStatusSyncRules: [],
+        appleMusicStatus: AppleMusicStatusSettings(),
         slackMeetingStatusText: SlackMeetingStatus.defaultText,
         slackMeetingStatusEmoji: SlackMeetingStatus.defaultEmoji,
         meetingBrowserRouting: .defaults

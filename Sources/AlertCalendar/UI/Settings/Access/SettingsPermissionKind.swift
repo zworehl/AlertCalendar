@@ -9,6 +9,7 @@ extension SettingsView {
         case reminders
         case location
         case contacts
+        case mail
 
         var id: String { rawValue }
 
@@ -22,6 +23,8 @@ extension SettingsView {
                 return "Location"
             case .contacts:
                 return "Contacts"
+            case .mail:
+                return "Apple Mail"
             }
         }
 
@@ -35,6 +38,8 @@ extension SettingsView {
                 return "Use automatic coordinates for sunrise, sunset, and daylight previews."
             case .contacts:
                 return "Match organizers and invitees with Contacts to show names and photos in meeting previews."
+            case .mail:
+                return "Read only messages whose subjects match strong event identifiers or the exact event title."
             }
         }
 
@@ -48,6 +53,8 @@ extension SettingsView {
                 return "location.circle"
             case .contacts:
                 return "person.crop.circle"
+            case .mail:
+                return "envelope.badge.shield.half.filled"
             }
         }
 
@@ -61,6 +68,8 @@ extension SettingsView {
                 return "/System/Applications/Maps.app"
             case .contacts:
                 return "/System/Applications/Contacts.app"
+            case .mail:
+                return "/System/Applications/Mail.app"
             }
         }
 
@@ -102,6 +111,15 @@ extension SettingsView {
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
+            case .mail:
+                return LinearGradient(
+                    colors: [
+                        Color(red: 0.18, green: 0.54, blue: 0.95),
+                        Color(red: 0.33, green: 0.76, blue: 0.98),
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
             }
         }
 
@@ -115,6 +133,8 @@ extension SettingsView {
                 return "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices"
             case .contacts:
                 return "x-apple.systempreferences:com.apple.preference.security?Privacy_Contacts"
+            case .mail:
+                return "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation"
             }
         }
 

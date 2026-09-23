@@ -8,7 +8,7 @@ final class GameSaleCalendarRulesTests: XCTestCase {
 
         XCTAssertEqual(GameSalesFeedClient.monitorEvaluationInterval, 900)
         XCTAssertEqual(GameSalesFeedClient.refreshInterval, 21_600)
-        XCTAssertEqual(GameSalesFeedClient.failedRefreshRetryInterval, 900)
+        XCTAssertEqual(GameSalesFeedClient.failedRefreshRetryInterval, 60)
         XCTAssertTrue(
             CalendarMonitor.shouldRefreshGameSales(
                 lastAttemptDate: nil,
@@ -32,7 +32,7 @@ final class GameSaleCalendarRulesTests: XCTestCase {
         )
         XCTAssertFalse(
             CalendarMonitor.shouldRefreshGameSales(
-                lastAttemptDate: now.addingTimeInterval(-899),
+                lastAttemptDate: now.addingTimeInterval(-59),
                 lastAttemptFailed: true,
                 now: now,
                 forceRefresh: false
@@ -40,7 +40,7 @@ final class GameSaleCalendarRulesTests: XCTestCase {
         )
         XCTAssertTrue(
             CalendarMonitor.shouldRefreshGameSales(
-                lastAttemptDate: now.addingTimeInterval(-900),
+                lastAttemptDate: now.addingTimeInterval(-60),
                 lastAttemptFailed: true,
                 now: now,
                 forceRefresh: false
@@ -292,7 +292,7 @@ final class GameSaleCalendarRulesTests: XCTestCase {
         let sale = makeSale()
         let inclusiveEnd = date(year: 2026, month: 7, day: 9)
         let formatter = DateIntervalFormatter()
-        formatter.locale = .current
+        formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateStyle = .medium
         formatter.timeStyle = .none
         formatter.calendar = calendar

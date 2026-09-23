@@ -1,18 +1,117 @@
 import Foundation
 
 extension CalendarMonitor {
+    static let appleMusicTransientFailureTolerance: TimeInterval = 15
+
     func processSlackStatusSyncQueue(runID: UUID) async {
         while slackStatusSyncNeedsAnotherPass,
               slackStatusSyncRunID == runID,
               !Task.isCancelled {
             slackStatusSyncNeedsAnotherPass = false
-            await applySlackStatusSyncTargets(slackQueuedTargets)
+            let settings = snapshotSettings()
+            let musicEnabled = settings.appleMusicStatus.isEnabled &&
+                !settings.appleMusicStatus.connectionIDs.isEmpty
+            let musicObservation = musicEnabled
+                ? await MusicPlaybackReader.currentPlaybackObservation(
+                    source: settings.appleMusicStatus.source
+                )
+                : .stopped
+            guard slackStatusSyncRunID == runID, !Task.isCancelled else { break }
+            let now = fixedSecondNow()
+            let playback = resolvedAppleMusicPlayback(
+                observation: musicObservation,
+                now: now
+            )
+            let musicExpirationTimestamp = resolvedAppleMusicExpirationTimestamp(
+                playback: playback,
+                now: now
+            )
+            let rules = enabledSlackStatusSyncRules(in: settings)
+            let items = slackRelevantItems(now: now, settings: settings, rules: rules)
+            let targets = slackStatusSyncTargets(
+                now: now,
+                settings: settings,
+                items: items,
+                enabledRules: rules,
+                playback: playback,
+                musicExpirationTimestamp: musicExpirationTimestamp
+            )
+            await applySlackStatusSyncTargets(targets)
         }
 
         guard slackStatusSyncRunID == runID else { return }
         slackStatusSyncTask = nil
         slackStatusSyncTaskStartedAt = nil
         slackStatusSyncRunID = nil
+    }
+
+    func resolvedAppleMusicPlayback(
+        observation: AppleMusicPlaybackObservation,
+        now: Date
+    ) -> AppleMusicPlayback? {
+        switch observation {
+        case let .playing(playback):
+            slackRuntimeState.appleMusicLastPlayback = playback
+            slackRuntimeState.appleMusicLastSuccessfulObservationAt = now
+            return playback
+        case .stopped:
+            slackRuntimeState.appleMusicLastPlayback = nil
+            slackRuntimeState.appleMusicLastSuccessfulObservationAt = nil
+            return nil
+        case .unavailable:
+            guard let playback = slackRuntimeState.appleMusicLastPlayback,
+                  let observedAt = slackRuntimeState.appleMusicLastSuccessfulObservationAt else {
+                return nil
+            }
+            let elapsed = now.timeIntervalSince(observedAt)
+            guard elapsed >= 0, elapsed <= Self.appleMusicTransientFailureTolerance else {
+                slackRuntimeState.appleMusicLastPlayback = nil
+                slackRuntimeState.appleMusicLastSuccessfulObservationAt = nil
+                return nil
+            }
+            return playback.projected(after: elapsed)
+        }
+    }
+
+    func resolvedAppleMusicExpirationTimestamp(
+        playback: AppleMusicPlayback?,
+        now: Date
+    ) -> Int? {
+        guard let playback else {
+            slackRuntimeState.appleMusicTrackID = nil
+            slackRuntimeState.appleMusicExpirationTimestamp = nil
+            slackRuntimeState.appleMusicElapsedDuration = nil
+            slackRuntimeState.appleMusicObservedAt = nil
+            return nil
+        }
+
+        let expectedProgress = slackRuntimeState.appleMusicObservedAt.map { now.timeIntervalSince($0) }
+        let observedProgress = slackRuntimeState.appleMusicElapsedDuration.map {
+            playback.elapsedDuration - $0
+        }
+        let playbackContinuedNormally: Bool
+        if let expectedProgress, let observedProgress {
+            playbackContinuedNormally = abs(expectedProgress - observedProgress) < 2
+        } else {
+            playbackContinuedNormally = false
+        }
+
+        if slackRuntimeState.appleMusicTrackID == playback.cacheIdentity,
+           playbackContinuedNormally,
+           let expiration = slackRuntimeState.appleMusicExpirationTimestamp,
+           expiration > Int(now.timeIntervalSince1970),
+           !playback.shouldRenewExpiration(expiration, now: now) {
+            slackRuntimeState.appleMusicElapsedDuration = playback.elapsedDuration
+            slackRuntimeState.appleMusicObservedAt = now
+            return expiration
+        }
+
+        let expiration = playback.expirationTimestamp(now: now)
+        slackRuntimeState.appleMusicTrackID = playback.cacheIdentity
+        slackRuntimeState.appleMusicExpirationTimestamp = expiration
+        slackRuntimeState.appleMusicElapsedDuration = playback.elapsedDuration
+        slackRuntimeState.appleMusicObservedAt = now
+        return expiration
     }
 
     func applySlackStatusSyncTargets(_ targets: [SlackStatusSyncTarget]) async {
@@ -40,7 +139,7 @@ extension CalendarMonitor {
                 }
             } catch {
                 appendSlackDiagnosticsLog("apply-error connection=\(target.connection.displayLabel) error=\(error.localizedDescription)")
-                errorMessages.append("\(target.connection.displayLabel): \(error.localizedDescription)")
+                errorMessages.append("\(target.connection.displayLabel): \(AlertCalendarLanguage.errorMessage(error))")
             }
         }
 

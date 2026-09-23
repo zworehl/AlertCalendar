@@ -660,4 +660,46 @@ final class MenuContextualActionTests: AlertCalendarModelTestCase {
             148
         )
     }
+
+    func testSingleMeetingPreviewKeepsScrollingInsideAttendeeList() {
+        let meeting = makeUpcomingItem(
+            id: "meeting-preview",
+            title: "Team stand-up",
+            startDate: Date(timeIntervalSince1970: 1_720_000_000),
+            endDate: Date(timeIntervalSince1970: 1_720_001_800)
+        )
+        let attendees = [
+            MeetingAttendee(
+                id: "sam@example.com",
+                displayText: "Sam",
+                emailAddress: "sam@example.com",
+                response: .accepted
+            )
+        ]
+
+        XCTAssertTrue(
+            MenuContentView.usesSelfContainedAttendeeScrolling(
+                contextualItems: [meeting],
+                previewKindsByKey: [
+                    meeting.notificationKey: .attendees(nil, attendees)
+                ]
+            )
+        )
+        XCTAssertFalse(
+            MenuContentView.usesSelfContainedAttendeeScrolling(
+                contextualItems: [meeting, meeting],
+                previewKindsByKey: [
+                    meeting.notificationKey: .attendees(nil, attendees)
+                ]
+            )
+        )
+        XCTAssertFalse(
+            MenuContentView.usesSelfContainedAttendeeScrolling(
+                contextualItems: [meeting],
+                previewKindsByKey: [
+                    meeting.notificationKey: .location("San José")
+                ]
+            )
+        )
+    }
 }

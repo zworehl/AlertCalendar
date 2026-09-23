@@ -27,7 +27,7 @@ enum AlertCalendarDateRangeFormatter {
 
     private nonisolated static func makeDateFormatter(locale: Locale, calendar: Calendar) -> DateFormatter {
         let formatter = DateFormatter()
-        formatter.locale = locale
+        formatter.locale = AlertCalendarLanguage.english
         formatter.calendar = calendar
         formatter.timeZone = calendar.timeZone
         formatter.dateFormat = "MMM d"
@@ -36,7 +36,7 @@ enum AlertCalendarDateRangeFormatter {
 
     private nonisolated static func makeMonthFormatter(locale: Locale, calendar: Calendar) -> DateFormatter {
         let formatter = DateFormatter()
-        formatter.locale = locale
+        formatter.locale = AlertCalendarLanguage.english
         formatter.calendar = calendar
         formatter.timeZone = calendar.timeZone
         formatter.dateFormat = "MMM"

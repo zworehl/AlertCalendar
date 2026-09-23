@@ -10,6 +10,14 @@ struct CalendarMonitorSlackRuntimeState {
     var scheduledTransitionDate: Date?
     var lastStatusSyncEvaluationDate: Date?
     var managedStateByConnectionID: [String: CalendarMonitor.SlackManagedStatusState] = [:]
+    var lastDiagnosticsMessage: String?
+    var lastDiagnosticsMessageDate: Date?
+    var appleMusicTrackID: String?
+    var appleMusicExpirationTimestamp: Int?
+    var appleMusicElapsedDuration: TimeInterval?
+    var appleMusicObservedAt: Date?
+    var appleMusicLastPlayback: AppleMusicPlayback?
+    var appleMusicLastSuccessfulObservationAt: Date?
 }
 
 extension CalendarMonitor {
@@ -56,5 +64,15 @@ extension CalendarMonitor {
     var slackManagedStateByConnectionID: [String: CalendarMonitor.SlackManagedStatusState] {
         get { slackRuntimeState.managedStateByConnectionID }
         set { slackRuntimeState.managedStateByConnectionID = newValue }
+    }
+
+    var lastSlackDiagnosticsMessage: String? {
+        get { slackRuntimeState.lastDiagnosticsMessage }
+        set { slackRuntimeState.lastDiagnosticsMessage = newValue }
+    }
+
+    var lastSlackDiagnosticsMessageDate: Date? {
+        get { slackRuntimeState.lastDiagnosticsMessageDate }
+        set { slackRuntimeState.lastDiagnosticsMessageDate = newValue }
     }
 }

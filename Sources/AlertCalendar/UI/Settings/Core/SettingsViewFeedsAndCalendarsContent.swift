@@ -38,25 +38,26 @@ extension SettingsView {
 
     @ViewBuilder
     var atmosphereFeedsSubsection: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: SettingsVisualMetrics.pageSpacing) {
-                atmosphereFeedControlsColumn
-                    .frame(width: settingsControlColumnWidth, alignment: .topLeading)
+        VStack(alignment: .leading, spacing: SettingsVisualMetrics.pageSpacing) {
+            astronomyFeedControlsSection
 
-                SettingsVerticalDivider()
+            SettingsSectionDivider()
 
-                astronomyPreviewSection
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-            }
-
-            VStack(alignment: .leading, spacing: SettingsVisualMetrics.pageSpacing) {
-                atmosphereFeedControlsColumn
-
-                SettingsSectionDivider()
-
-                astronomyPreviewSection
-            }
+            astronomyPreviewSection
         }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+
+    private var astronomyCoordinateStatus: String? {
+        guard astronomyLocationStatus != "Manual coordinates" else { return nil }
+        if astronomyLocationStatus.hasPrefix("Auto location:")
+            || astronomyLocationStatus.hasPrefix("Approximate auto location:")
+            || astronomyLocationStatus.hasPrefix("Detected location:")
+            || astronomyLocationStatus.hasPrefix("Detected approximate location:")
+            || astronomyLocationStatus.contains("Using saved coordinates:") {
+            return nil
+        }
+        return astronomyLocationStatus
     }
 
     var astronomyPreviewSection: some View {
@@ -69,6 +70,7 @@ extension SettingsView {
             showsOrbitalHighlights: draft.includeAstronomy && draft.includeOrbitalHighlights,
             astronomyLatitude: draft.astronomyLatitude,
             astronomyLongitude: draft.astronomyLongitude,
+            availableWidth: max(settingsWindowWidth - (SettingsVisualMetrics.detailHorizontalPadding * 2), 0),
             solarTimesProvider: { day, coordinate, timeZone in
                 monitor.solarTimes(for: day, coordinate: coordinate, timeZone: timeZone)
             },
@@ -81,42 +83,29 @@ extension SettingsView {
         )
     }
 
-    var atmosphereFeedControlsColumn: some View {
-        VStack(alignment: .leading, spacing: SettingsVisualMetrics.pageSpacing) {
-            astronomyFeedControlsSection
-        }
-    }
-
     var astronomyFeedControlsSection: some View {
-        VStack(alignment: .leading, spacing: SettingsVisualMetrics.sectionContentSpacing) {
-            settingsSectionHeader(
-                title: "Sun, Moon & Orbit",
-                subtitle: "Manage the non-calendar moments that can appear alongside your schedule.",
-                systemImage: "sun.max"
+        let contentWidth = max(settingsWindowWidth - SettingsVisualMetrics.detailHorizontalPadding * 2, 0)
+        // Each column needs room for its controls, including a two-column feed list.
+        // AnyLayout retains coordinate editing state when the window changes size.
+        let layout = contentWidth >= 1_120
+            ? AnyLayout(HStackLayout(alignment: .top, spacing: 24))
+            : AnyLayout(VStackLayout(alignment: .leading, spacing: 16))
+
+        return layout {
+            astronomyMasterToggleControl
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+
+            astronomyFeedVisibilitySection
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+
+            AstronomyCoordinatesCard(
+                useAutomaticAstronomyLocation: $draft.useAutomaticAstronomyLocation,
+                astronomyLatitude: $draft.astronomyLatitude,
+                astronomyLongitude: $draft.astronomyLongitude,
+                locationStatus: astronomyCoordinateStatus,
+                onDetectNow: detectLocation
             )
-
-            SettingsSectionDivider()
-
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .top, spacing: 16) {
-                    astronomyMasterToggleControl
-                        .frame(minWidth: 280, maxWidth: .infinity, alignment: .topLeading)
-
-                    SettingsVerticalDivider()
-
-                    astronomyFeedVisibilitySection
-                        .frame(minWidth: 360, maxWidth: .infinity, alignment: .topLeading)
-                }
-
-                VStack(alignment: .leading, spacing: 12) {
-                    astronomyMasterToggleControl
-
-                    SettingsSectionDivider()
-
-                    astronomyFeedVisibilitySection
-                }
-            }
-
+            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }
@@ -158,7 +147,6 @@ extension SettingsView {
             includeFootballGoalScorerInNotifications: $draft.includeFootballGoalScorerInNotifications,
             enableFootballFinalNotifications: $draft.enableFootballFinalNotifications,
             enableFootballAutoAddNotifications: $draft.enableFootballAutoAddNotifications,
-            showFinishedFootballMatches: $draft.showFinishedFootballMatches,
             finishedFootballMatchLookbackDays: $draft.finishedFootballMatchLookbackDays,
             footballMatchLookaheadDays: $draft.footballMatchLookaheadDays,
             pendingCalendarChanges: $pendingChanges.footballFixtures
@@ -180,47 +168,63 @@ extension SettingsView {
     @ViewBuilder
     var calendarSettingsContent: some View {
         VStack(alignment: .leading, spacing: SettingsVisualMetrics.pageSpacing) {
-            ViewThatFits(in: .horizontal) {
+            if settingsWindowWidth >= 960 {
                 HStack(alignment: .top, spacing: SettingsVisualMetrics.pageSpacing) {
-                    calendarSourceSelectionPanel
+                    VStack(alignment: .leading, spacing: SettingsVisualMetrics.pageSpacing) {
+                        calendarRoutingColumn
+                        focusFiltersSection
+                        calendarColumnsView(mode: .remindersOnly)
+                    }
                         .frame(maxWidth: .infinity, alignment: .topLeading)
 
-                    meetingBrowserRoutingSettingsContent
+                    calendarColumnsView(mode: .eventsOnly)
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
-
+            } else {
                 VStack(alignment: .leading, spacing: SettingsVisualMetrics.pageSpacing) {
-                    calendarSourceSelectionPanel
-                    meetingBrowserRoutingSettingsContent
+                    calendarRoutingColumn
+                    focusFiltersSection
+                    calendarColumnsView(mode: .remindersOnly)
+                    calendarColumnsView(mode: .eventsOnly)
                 }
-            }
-
-            meetingBrowserProfileIssuesBanner
-
-            SettingsCalendarColumnsView(
-                includeEvents: draft.includeEvents,
-                includeAllDayEvents: draft.includeAllDayEvents,
-                includeReminders: draft.includeReminders,
-                availableEventCalendars: availableEventCalendars,
-                availableReminderCalendars: availableReminderCalendars,
-                installedMeetingBrowsers: installedMeetingBrowsers,
-                meetingBrowserProfilesByBrowser: meetingBrowserProfilesByBrowser,
-                meetingBrowserProfileIssuesByBrowser: meetingBrowserProfileIssuesByBrowser,
-                onSelectionChanged: {},
-                selectedEventCalendarIDs: $draft.selectedEventCalendarIDs,
-                selectedReminderCalendarIDs: $draft.selectedReminderCalendarIDs,
-                weekdayOnlyEventCalendarIDs: $draft.weekdayOnlyEventCalendarIDs,
-                weekdayOnlyReminderCalendarIDs: $draft.weekdayOnlyReminderCalendarIDs,
-                calendarAlertRules: $draft.calendarAlertRules,
-                meetingBrowserRouting: $draft.meetingBrowserRouting
-            )
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-
-            if hasWeekdayOnlyCalendars {
-                nonWorkingDatesSettingsContent
-                    .frame(maxWidth: 620, alignment: .topLeading)
             }
         }
+    }
+
+    func calendarColumnsView(mode: SettingsCalendarColumnsView.Mode) -> some View {
+        SettingsCalendarColumnsView(
+            mode: mode,
+            includeEvents: draft.includeEvents,
+            includeAllDayEvents: draft.includeAllDayEvents,
+            includeReminders: draft.includeReminders,
+            availableEventCalendars: availableEventCalendars,
+            availableReminderCalendars: availableReminderCalendars,
+            installedMeetingBrowsers: installedMeetingBrowsers,
+            meetingBrowserProfilesByBrowser: meetingBrowserProfilesByBrowser,
+            meetingBrowserProfileIssuesByBrowser: meetingBrowserProfileIssuesByBrowser,
+            onSelectionChanged: {},
+            selectedEventCalendarIDs: $draft.selectedEventCalendarIDs,
+            selectedReminderCalendarIDs: $draft.selectedReminderCalendarIDs,
+            calendarAlertRules: $draft.calendarAlertRules,
+            meetingBrowserRouting: $draft.meetingBrowserRouting
+        )
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+
+    var calendarRoutingColumn: some View {
+        VStack(alignment: .leading, spacing: SettingsVisualMetrics.pageSpacing) {
+            calendarSourceSelectionPanel
+            meetingBrowserRoutingSettingsContent
+            meetingBrowserProfileIssuesBanner
+        }
+    }
+
+    var focusFiltersSection: some View {
+        SettingsFocusFiltersSectionView(
+            monitor: monitor,
+            eventCalendars: availableEventCalendars,
+            reminderCalendars: availableReminderCalendars
+        )
     }
 
     var calendarSourceSelectionPanel: some View {
@@ -233,10 +237,6 @@ extension SettingsView {
             Toggle("Reminders", isOn: $draft.includeReminders)
         }
         .settingsPanelSurface()
-    }
-
-    private var hasWeekdayOnlyCalendars: Bool {
-        !draft.weekdayOnlyEventCalendarIDs.isEmpty || !draft.weekdayOnlyReminderCalendarIDs.isEmpty
     }
 
 }

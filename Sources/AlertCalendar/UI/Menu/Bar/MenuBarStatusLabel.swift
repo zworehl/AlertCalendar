@@ -357,7 +357,9 @@ struct MenuBarStatusLabel: View {
         participationStatus: EventParticipationStatus?
     ) -> NSColor {
         guard let participationStatus else { return baseColor }
-        return baseColor.withAlphaComponent(baseColor.alphaComponent * participationStatus.appleCalendarTextAlpha)
+        return baseColor.withAlphaComponent(
+            baseColor.alphaComponent * participationStatus.appleCalendarStyle.textAlpha
+        )
     }
 
     static func accessorySymbolsWidth(

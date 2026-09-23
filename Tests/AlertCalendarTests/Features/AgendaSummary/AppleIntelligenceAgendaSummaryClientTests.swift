@@ -43,6 +43,9 @@ final class AppleIntelligenceAgendaSummaryClientTests: XCTestCase {
                 XCTAssertTrue(prompt.contains("Costa_Rica"))
                 XCTAssertTrue(prompt.contains("\"recurring\":true"))
                 XCTAssertTrue(prompt.contains("\"hasAttachment\":true"))
+                XCTAssertTrue(prompt.contains("\"attachmentCount\":1"))
+                XCTAssertTrue(prompt.contains("\"attachmentNames\":[\"launch-brief.txt\"]"))
+                XCTAssertTrue(prompt.contains("Review the attached launch checklist"))
                 XCTAssertTrue(prompt.contains("Read the planning brief before joining."))
                 XCTAssertTrue(prompt.contains("Details: [link]"))
                 XCTAssertFalse(prompt.contains("https://docs.google.com/document/d/brief"))
@@ -446,6 +449,44 @@ final class AppleIntelligenceAgendaSummaryClientTests: XCTestCase {
         )
     }
 
+    func testPreferredOpenLinkUsesUnknownLocationURLInsteadOfTreatingItAsMeeting() {
+        let unknownProviderURL = URL(string: "https://events.example.com/session/launch-review")!
+
+        let openLink = CalendarMonitor.preferredOpenLinkURL(
+            eventURL: nil,
+            notes: nil,
+            location: unknownProviderURL.absoluteString,
+            meetingURL: nil
+        )
+
+        XCTAssertEqual(openLink, unknownProviderURL)
+    }
+
+    func testPreferredOpenLinkExcludesRecognizedMeetingURL() {
+        let meetingURL = URL(string: "https://meet.google.com/abc-defg-hij")!
+
+        let openLink = CalendarMonitor.preferredOpenLinkURL(
+            eventURL: meetingURL,
+            notes: nil,
+            location: meetingURL.absoluteString,
+            meetingURL: meetingURL
+        )
+
+        XCTAssertNil(openLink)
+    }
+
+    func testURLMetadataIncludesUnknownLinkStoredAsEventLocation() {
+        let metadata = CalendarMonitor.calendarItemURLMetadata(
+            eventURL: nil,
+            notes: nil,
+            location: "Details: https://events.example.com/session/launch-review",
+            meetingURL: nil
+        )
+
+        XCTAssertEqual(metadata.count, 1)
+        XCTAssertEqual(metadata.hosts, ["events.example.com"])
+    }
+
     private func makeRequest() -> AgendaSummaryRequest {
         let now = Date(timeIntervalSince1970: 1_776_427_200)
         let sprintReview = makeItem(
@@ -460,6 +501,13 @@ final class AppleIntelligenceAgendaSummaryClientTests: XCTestCase {
             urlHosts: ["zoom.us", "docs.google.com"],
             agendaSummaryURLCandidates: [
                 URL(string: "https://docs.google.com/document/d/brief")!,
+            ],
+            agendaSummaryAttachments: [
+                AgendaSummaryAttachmentReference(
+                    fileName: "launch-brief.txt",
+                    localURL: nil,
+                    contentType: "public.plain-text"
+                ),
             ]
         )
         let dentist = makeItem(
@@ -479,9 +527,13 @@ final class AppleIntelligenceAgendaSummaryClientTests: XCTestCase {
                 sprintReview.notificationKey: "Personalized attendee preview with response context.",
             ]
         )
-        return request.addingLinkedPagePreviews([
-            sprintReview.notificationKey: ["Page title: Launch planning brief."],
-        ])
+        return request
+            .addingAttachmentPreviews([
+                sprintReview.notificationKey: ["Review the attached launch checklist."],
+            ])
+            .addingLinkedPagePreviews([
+                sprintReview.notificationKey: ["Page title: Launch planning brief."],
+            ])
     }
 
     private func makeItem(
@@ -496,6 +548,7 @@ final class AppleIntelligenceAgendaSummaryClientTests: XCTestCase {
         urlCount: Int? = nil,
         urlHosts: [String] = [],
         agendaSummaryURLCandidates: [URL] = [],
+        agendaSummaryAttachments: [AgendaSummaryAttachmentReference] = [],
         travelTimeMinutes: Int? = nil,
         locationText: String? = nil,
         locationCoordinate: ResolvedLocationCoordinate? = nil,
@@ -515,6 +568,7 @@ final class AppleIntelligenceAgendaSummaryClientTests: XCTestCase {
             urlCount: urlCount,
             urlHosts: urlHosts,
             agendaSummaryURLCandidates: agendaSummaryURLCandidates,
+            agendaSummaryAttachments: agendaSummaryAttachments,
             isRecurring: isRecurring,
             hasDocumentIndicator: hasDocumentIndicator,
             descriptionText: descriptionText,

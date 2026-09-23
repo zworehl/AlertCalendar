@@ -215,8 +215,8 @@ extension SettingsView {
                 tint: Color(red: 0.92, green: 0.31, blue: 0.28)
             )
         }
-        let enabledRuleCount = draft.slackStatusSyncRules.filter { $0.isEnabled && $0.isComplete }.count
-        let totalRuleCount = draft.slackStatusSyncRules.filter(\.isComplete).count
+        let enabledRuleCount = slackEnabledStatusRuleCount
+        let totalRuleCount = slackConfiguredStatusRuleCount
         if enabledRuleCount > 0 {
             return SettingsCardBadgeState(
                 title: enabledRuleCount == 1 ? "1 Active" : "\(enabledRuleCount) Active",
@@ -295,8 +295,8 @@ extension SettingsView {
 
     @ViewBuilder
     var slackStatusRulesListContent: some View {
-        if draft.slackStatusSyncRules.isEmpty {
-            Text("No rules yet. Add one to map a connected Slack workspace, calendar, and status message.")
+        if draft.slackStatusSyncRules.isEmpty && slackConnections.isEmpty {
+            Text("Connect a Slack workspace to configure calendar and music status rules.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -314,6 +314,10 @@ extension SettingsView {
                             )
                         )
                 }
+
+                if !slackConnections.isEmpty {
+                    appleMusicStatusRuleCard
+                }
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
@@ -324,7 +328,7 @@ extension SettingsView {
         Button {
             addSlackStatusSyncRule()
         } label: {
-            Label("Add Status Rule", systemImage: "plus")
+            Label("Add Calendar Rule", systemImage: "plus")
         }
         .buttonStyle(.bordered)
         .controlSize(.small)
@@ -370,11 +374,11 @@ extension SettingsView {
             return "The token is ready. Connect it to create one or more Slack status sync rules."
         }
 
-        let enabledRuleCount = draft.slackStatusSyncRules.filter { $0.isEnabled && $0.isComplete }.count
-        let totalRuleCount = draft.slackStatusSyncRules.filter(\.isComplete).count
+        let enabledRuleCount = slackEnabledStatusRuleCount
+        let totalRuleCount = slackConfiguredStatusRuleCount
 
         if totalRuleCount == 0 {
-            return "Slack is connected. Add a rule to publish meeting statuses in this workspace."
+            return "Slack is connected. Configure a music rule or add a calendar rule."
         }
 
         if enabledRuleCount == 0 {
@@ -383,20 +387,26 @@ extension SettingsView {
                 : "\(totalRuleCount) Slack sync rules are configured, but they are currently off."
         }
 
-        let connectedWorkspaceCount = Set(
+        var enabledConnectionIDs = Set(
             draft.slackStatusSyncRules
                 .filter { $0.isEnabled && $0.isComplete }
                 .map(\.connectionID)
-        ).count
+        )
+        if draft.appleMusicStatus.isEnabled {
+            enabledConnectionIDs.formUnion(draft.appleMusicStatus.connectionIDs)
+        }
+        let connectedWorkspaceCount = enabledConnectionIDs.count
         return "\(enabledRuleCount) active Slack sync rules across \(connectedWorkspaceCount) workspace\(connectedWorkspaceCount == 1 ? "" : "s")."
     }
 
     var slackStatusRulesSummary: String {
-        let ruleCount = draft.slackStatusSyncRules.count
-        let workspaceCount = Set(draft.slackStatusSyncRules.map(\.connectionID)).subtracting([""]).count
+        let ruleCount = slackConfiguredStatusRuleCount
+        var configuredConnectionIDs = Set(draft.slackStatusSyncRules.map(\.connectionID)).subtracting([""])
+        configuredConnectionIDs.formUnion(draft.appleMusicStatus.connectionIDs)
+        let workspaceCount = configuredConnectionIDs.count
 
         guard ruleCount > 0 else {
-            return "Each rule maps one calendar to the Slack workspace and status message that should be published during a meeting."
+            return "Add calendar rules or configure Apple Music or YouTube Music. Lower priority numbers win when statuses overlap."
         }
 
         if workspaceCount == 0 {
@@ -406,5 +416,15 @@ extension SettingsView {
         let ruleText = ruleCount == 1 ? "1 rule" : "\(ruleCount) rules"
         let workspaceText = workspaceCount == 1 ? "1 workspace" : "\(workspaceCount) workspaces"
         return "\(ruleText) across \(workspaceText)."
+    }
+
+    var slackConfiguredStatusRuleCount: Int {
+        draft.slackStatusSyncRules.filter(\.isComplete).count +
+            (draft.appleMusicStatus.connectionIDs.isEmpty ? 0 : 1)
+    }
+
+    var slackEnabledStatusRuleCount: Int {
+        draft.slackStatusSyncRules.filter { $0.isEnabled && $0.isComplete }.count +
+            (draft.appleMusicStatus.isEnabled && !draft.appleMusicStatus.connectionIDs.isEmpty ? 1 : 0)
     }
 }

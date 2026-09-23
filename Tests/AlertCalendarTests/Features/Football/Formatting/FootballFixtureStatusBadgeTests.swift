@@ -423,7 +423,7 @@ final class FootballFixtureStatusBadgeTests: FootballFixtureFormatterTestCase {
 
         XCTAssertEqual(highlight?.matchID, "goal-home")
         XCTAssertEqual(highlight?.scoringSide, .home)
-        XCTAssertEqual(highlight?.hasBeenShownInMenuBar, false)
+        XCTAssertNil(highlight?.firstShownInMenuBarAt)
     }
     func testGoalHighlightIgnoresMultiSideScoreCorrections() {
         let now = Date(timeIntervalSince1970: 1_720_000_000)

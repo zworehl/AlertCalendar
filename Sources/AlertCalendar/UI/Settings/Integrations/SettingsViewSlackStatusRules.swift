@@ -70,12 +70,15 @@ extension SettingsView {
     @ViewBuilder
     func slackStatusSyncRuleActionBar(index: Int, rule: SlackStatusSyncRule, isComplete: Bool) -> some View {
         HStack(spacing: 10) {
-            Text("#\(index + 1)")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
-                .frame(minWidth: 24)
-                .help("Priority \(index + 1)")
+            Picker("Priority", selection: $draft.slackStatusSyncRules[index].priority) {
+                ForEach(SlackStatusPriority.values, id: \.self) { value in
+                    Text("\(value)").tag(value)
+                }
+            }
+            .pickerStyle(.menu)
+            .controlSize(.small)
+            .frame(width: 90)
+            .help("1 is highest priority. Drag rules to break ties.")
 
             Toggle("Active", isOn: $draft.slackStatusSyncRules[index].isEnabled)
                 .font(.caption)
@@ -102,7 +105,7 @@ extension SettingsView {
             .foregroundStyle(.secondary)
             .frame(width: 24, height: 34)
             .contentShape(Rectangle())
-            .help("Drag to set priority")
+            .help("Drag to break ties between rules with the same priority")
             .onDrag {
                 draggingSlackStatusRuleID = rule.id
                 return NSItemProvider(object: rule.id as NSString)

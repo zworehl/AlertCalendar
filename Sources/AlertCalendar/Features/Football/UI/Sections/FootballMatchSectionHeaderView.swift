@@ -151,11 +151,7 @@ struct FootballMatchSectionTeamHeaderView: View {
     let showsLogo: Bool
 
     var teamName: String {
-        let trimmedName = team.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedName.isEmpty && !FootballFixtureFormatter.isUnknownTeam(team) {
-            return trimmedName
-        }
-        return FootballFixtureFormatter.teamDisplayIdentifier(for: team)
+        FootballFixtureFormatter.teamDisplayName(for: team)
     }
 
     var body: some View {

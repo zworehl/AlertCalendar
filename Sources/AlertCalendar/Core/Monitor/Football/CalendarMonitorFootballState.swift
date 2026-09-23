@@ -11,11 +11,17 @@ struct CalendarMonitorFootballState {
     var lastManagedRecoveryDate: Date?
     var lastLegacyMigrationDate: Date?
     var lastAutoAddRefreshDate: Date?
+    var autoAddRefreshFailed = false
+    var managedRefreshFailed = false
+    var isAutoAddRefreshing = false
     var activeGoalHighlight: FootballGoalHighlight?
     var deliveredNotificationKeys: Set<String> = []
     var cachedManagedSnapshots: [ManagedFootballEventSnapshot] = []
     var isManagedSnapshotCacheValid = false
     var didEventStoreChange = false
+    var matchCacheWriteTask: Task<Void, Never>?
+    var pendingMatchCacheSnapshot: FootballMatchCacheSnapshot?
+    var lastMatchCacheWriteDate: Date?
 }
 
 extension CalendarMonitor {
@@ -92,5 +98,20 @@ extension CalendarMonitor {
     var didFootballEventStoreChange: Bool {
         get { footballState.didEventStoreChange }
         set { footballState.didEventStoreChange = newValue }
+    }
+
+    var footballMatchCacheWriteTask: Task<Void, Never>? {
+        get { footballState.matchCacheWriteTask }
+        set { footballState.matchCacheWriteTask = newValue }
+    }
+
+    var pendingFootballMatchCacheSnapshot: FootballMatchCacheSnapshot? {
+        get { footballState.pendingMatchCacheSnapshot }
+        set { footballState.pendingMatchCacheSnapshot = newValue }
+    }
+
+    var lastFootballMatchCacheWriteDate: Date? {
+        get { footballState.lastMatchCacheWriteDate }
+        set { footballState.lastMatchCacheWriteDate = newValue }
     }
 }

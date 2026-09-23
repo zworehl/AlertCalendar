@@ -30,7 +30,7 @@ extension SettingsView {
                 if !visiblePrimarySettingsTabs.isEmpty {
                     Section("Settings") {
                         ForEach(visiblePrimarySettingsTabs) { tab in
-                            Label(tab.rawValue, systemImage: tab.symbolName)
+                            settingsSidebarLabel(tab.rawValue, symbolName: tab.symbolName)
                                 .tag(SettingsSidebarDestination.tab(tab))
                         }
                     }
@@ -39,7 +39,7 @@ extension SettingsView {
                 if !visibleFeedSubsections.isEmpty {
                     Section("Feeds") {
                         ForEach(visibleFeedSubsections) { subsection in
-                            Label(subsection.rawValue, systemImage: subsection.symbolName)
+                            settingsSidebarLabel(subsection.rawValue, symbolName: subsection.symbolName)
                                 .tag(SettingsSidebarDestination.feed(subsection))
                         }
                     }
@@ -53,6 +53,20 @@ extension SettingsView {
             prompt: "Search Settings"
         )
         .accessibilityIdentifier("settings.sidebar")
+    }
+
+    private func settingsSidebarLabel(_ title: String, symbolName: String) -> some View {
+        Label {
+            Text(title)
+        } icon: {
+            Image(systemName: symbolName)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 17, height: 17)
+                .frame(width: 22, height: 22)
+                .foregroundStyle(.tint)
+                .accessibilityHidden(true)
+        }
     }
 
     private var settingsSidebarSelection: Binding<SettingsSidebarDestination?> {
@@ -127,12 +141,18 @@ extension SettingsView {
     }
 
     private var settingsEmbeddedDetailContent: some View {
-        VStack(alignment: .leading, spacing: SettingsVisualMetrics.pageSpacing) {
-            activeSettingsContent
+        GeometryReader { proxy in
+            VStack(alignment: .leading, spacing: SettingsVisualMetrics.pageSpacing) {
+                activeSettingsContent
+            }
+            .padding(.horizontal, SettingsVisualMetrics.detailHorizontalPadding)
+            .padding(.vertical, SettingsVisualMetrics.detailVerticalPadding)
+            .frame(
+                width: proxy.size.width,
+                height: proxy.size.height,
+                alignment: .topLeading
+            )
         }
-        .padding(.horizontal, SettingsVisualMetrics.detailHorizontalPadding)
-        .padding(.vertical, SettingsVisualMetrics.detailVerticalPadding)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var settingsScrollableDetailContent: some View {

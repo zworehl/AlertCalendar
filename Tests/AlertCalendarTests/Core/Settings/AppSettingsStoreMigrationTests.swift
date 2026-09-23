@@ -116,6 +116,25 @@ final class AppSettingsStoreMigrationTests: XCTestCase {
         XCTAssertEqual(store.load().maxListItems, 100)
     }
 
+    func testActiveEventMenuBarFocusDefaultsOffAndPersistsUserChoice() {
+        let suiteName = "AppSettingsStoreMigrationTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let store = AppSettingsStore(defaults: defaults)
+        store.registerDefaults()
+
+        var settings = store.load()
+        XCTAssertFalse(settings.focusMenuBarOnActiveEvents)
+
+        settings.focusMenuBarOnActiveEvents = true
+        store.save(settings)
+
+        XCTAssertTrue(store.load().focusMenuBarOnActiveEvents)
+    }
+
     func testAppleIntelligenceTitleRewriteDefaultsToMenuBarOnlyAndPersistsScope() {
         let suiteName = "AppSettingsStoreMigrationTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
@@ -129,13 +148,16 @@ final class AppSettingsStoreMigrationTests: XCTestCase {
         var settings = store.load()
         XCTAssertFalse(settings.rewriteEventTitlesWithAppleIntelligence)
         XCTAssertFalse(settings.useRewrittenEventTitlesInDropdown)
+        XCTAssertFalse(settings.useMailContextForEventTitleRewrite)
 
         settings.rewriteEventTitlesWithAppleIntelligence = true
         settings.useRewrittenEventTitlesInDropdown = true
+        settings.useMailContextForEventTitleRewrite = true
         store.save(settings)
 
         XCTAssertTrue(store.load().rewriteEventTitlesWithAppleIntelligence)
         XCTAssertTrue(store.load().useRewrittenEventTitlesInDropdown)
+        XCTAssertTrue(store.load().useMailContextForEventTitleRewrite)
     }
 
     func testAppleIntelligenceTitleRewriteIsDisabledBelowTenCharacters() {
@@ -152,38 +174,26 @@ final class AppSettingsStoreMigrationTests: XCTestCase {
         settings.eventTitleMaxCharacters = 9
         settings.rewriteEventTitlesWithAppleIntelligence = true
         settings.useRewrittenEventTitlesInDropdown = true
+        settings.useMailContextForEventTitleRewrite = true
         store.save(settings)
 
         let reloadedSettings = store.load()
         XCTAssertEqual(reloadedSettings.eventTitleMaxCharacters, 9)
         XCTAssertFalse(reloadedSettings.rewriteEventTitlesWithAppleIntelligence)
-        XCTAssertFalse(reloadedSettings.useRewrittenEventTitlesInDropdown)
+        XCTAssertTrue(reloadedSettings.useRewrittenEventTitlesInDropdown)
+        XCTAssertFalse(reloadedSettings.useMailContextForEventTitleRewrite)
     }
 
-    func testNonWorkingDatesPruneExpiredAndOutOfRangeConfiguration() {
-        let suiteName = "AppSettingsStoreMigrationTests.\(UUID().uuidString)"
+    func testLegacyWorkingDayFiltersAreRemovedWithoutChangingCalendarSelection() {
+        let suiteName = "CalendarScheduleMigration.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer {
-            defaults.removePersistentDomain(forName: suiteName)
-        }
-
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        let now = calendar.date(from: DateComponents(year: 2026, month: 7, day: 6, hour: 10))!
-        defaults.set(
-            [
-                "2026-07-05",
-                "2026-07-06",
-                "2026-07-11",
-                "2026-08-03",
-                "not-a-date",
-            ],
-            forKey: DefaultsKeys.nonWorkingDateKeys
-        )
-
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let retiredKeys = ["weekdayOnlyEventCalendarIDs", "weekdayOnlyReminderCalendarIDs", "nonWorkingDateKeys"]
+        for key in retiredKeys { defaults.set(["work"], forKey: key) }
+        defaults.set(["work", "personal"], forKey: DefaultsKeys.selectedEventCalendarIDs)
         let store = AppSettingsStore(defaults: defaults)
-
-        XCTAssertEqual(store.nonWorkingDateKeys(now: now), ["2026-07-06"])
-        XCTAssertEqual(defaults.stringArray(forKey: DefaultsKeys.nonWorkingDateKeys), ["2026-07-06"])
+        store.registerDefaults()
+        for key in retiredKeys { XCTAssertNil(defaults.object(forKey: key)) }
+        XCTAssertEqual(store.load().selectedEventCalendarIDs, ["work", "personal"])
     }
 }

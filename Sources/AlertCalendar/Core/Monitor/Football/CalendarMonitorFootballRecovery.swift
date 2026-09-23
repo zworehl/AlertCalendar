@@ -117,7 +117,7 @@ extension CalendarMonitor {
 
         if let eventIdentityKey {
             let identityMatches = nearbyMatches.filter { match in
-                FootballFixtureFormatter.calendarIdentityKey(for: match) == eventIdentityKey
+                FootballFixtureFormatter.calendarIdentityKeys(for: match).contains(eventIdentityKey)
             }
             if identityMatches.count == 1 {
                 return identityMatches[0]

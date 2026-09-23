@@ -50,9 +50,11 @@ extension FootballDataAPIClient {
     }
 
     func hasFreshCachedTeam(_ teamID: String, now: Date) -> Bool {
-        guard teamCache[teamID] != nil else { return false }
-        guard let fetchedAt = teamCacheFetchedAt[teamID] else { return true }
-        return now.timeIntervalSince(fetchedAt) <= Self.teamCacheTTL
+        guard let team = teamCache[teamID],
+              let fetchedAt = teamCacheFetchedAt[teamID] else { return false }
+        let hasKnownCountry = FootballFixtureFormatter.flagEmoji(for: team.countryName) != "🏳️"
+        let ttl = hasKnownCountry ? Self.teamCacheTTL : Self.incompleteTeamCacheTTL
+        return now.timeIntervalSince(fetchedAt) <= ttl
     }
 
     func persistTeamCache() {

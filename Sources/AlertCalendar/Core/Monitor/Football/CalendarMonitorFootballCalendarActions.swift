@@ -58,11 +58,13 @@ extension CalendarMonitor {
 
     func resolvedFootballMatchForCalendarAdd(_ match: FootballFixtureMatch) async -> FootballFixtureMatch {
         let previousMatch = footballMatchesByID[match.id]
-        let baseMatch = Self.footballMatchPreservingKnownTimingContext(match, previousMatch: previousMatch)
+        let preservedMatch = Self.footballMatchPreservingKnownTimingContext(match, previousMatch: previousMatch)
+        let baseMatch = await footballClient.enrichTeams(in: [preservedMatch]).first ?? preservedMatch
         let now = fixedSecondNow()
         let shouldForceSummary = baseMatch.statusState == .finished
             || baseMatch.statusState == .inProgress
             || (baseMatch.statusState == .unknown && baseMatch.startDate <= now)
+            || FootballDataAPIClient.normalizedLocationTextValue(baseMatch.locationText) == nil
 
         guard shouldForceSummary else { return baseMatch }
 

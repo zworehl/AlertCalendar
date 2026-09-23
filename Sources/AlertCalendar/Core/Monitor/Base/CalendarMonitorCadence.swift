@@ -10,6 +10,7 @@ enum CalendarMonitorCadence {
     static let agendaSummaryAvailabilityRefreshInterval: TimeInterval = 60
     static let reminderFetchTimeoutInterval: TimeInterval = 12
     static let slackStatusHeartbeatInterval: TimeInterval = 60
+    static let appleMusicStatusHeartbeatInterval: TimeInterval = 5
     static let slackStatusSyncTaskTimeoutInterval: TimeInterval = 45
     static let slackDynamicStatusRotationInterval: TimeInterval = 30
     static let slackConnectionMetadataRefreshInterval: TimeInterval = 30 * 60

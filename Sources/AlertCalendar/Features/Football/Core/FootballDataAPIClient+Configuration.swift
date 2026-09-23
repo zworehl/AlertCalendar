@@ -8,6 +8,7 @@ extension FootballDataAPIClient {
     static let scoreboardDistantCacheTTL: TimeInterval = 60 * 60
     static let scoreboardPageCacheLimit = 320
     static let teamCacheTTL: TimeInterval = 30 * 24 * 60 * 60
+    static let incompleteTeamCacheTTL: TimeInterval = 15 * 60
     static let summaryRootCacheTTL: TimeInterval = 15
     static let summaryRootCacheLimit = 120
     static let summaryPreBufferBeforeKickoff: TimeInterval = 15 * 60
@@ -29,8 +30,7 @@ extension FootballDataAPIClient {
         formatter.dateFormat = "yyyyMMdd"
         let today = formatter.string(from: now)
         let bounds = dates.split(separator: "-", maxSplits: 1).map(String.init)
-        guard bounds.count == 2,
-              let start = bounds.first,
+        guard let start = bounds.first,
               let end = bounds.last else {
             return scoreboardCurrentDayCacheTTL
         }
@@ -43,6 +43,7 @@ extension FootballDataAPIClient {
     static let clubCountryByLeaguePrefix: [String: String] = [
         "arg": "Argentina",
         "aut": "Austria",
+        "aze": "Azerbaijan",
         "bel": "Belgium",
         "bra": "Brazil",
         "col": "Colombia",
@@ -66,6 +67,8 @@ extension FootballDataAPIClient {
         "rou": "Romania",
         "sco": "Scotland",
         "srb": "Serbia",
+        "slv": "El Salvador",
+        "svk": "Slovakia",
         "sui": "Switzerland",
         "swe": "Sweden",
         "tur": "Turkey",

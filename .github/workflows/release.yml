@@ -1,0 +1,175 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: macos-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    env:
+      APP_NAME: AlertCalendar
+      BUNDLE_ID: com.zworehl.alertcalendar
+      SPARKLE_ACCOUNT: AlertCalendar
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate release version
+        run: |
+          APP_VERSION="$(tr -d '[:space:]' < VERSION)"
+          APP_BUILD="$(tr -d '[:space:]' < BUILD_NUMBER)"
+          test "${GITHUB_REF_NAME}" = "v${APP_VERSION}"
+          test -n "$APP_BUILD"
+          echo "APP_VERSION=$APP_VERSION" >> "$GITHUB_ENV"
+          echo "APP_BUILD=$APP_BUILD" >> "$GITHUB_ENV"
+
+      - name: Validate required secrets
+        env:
+          CERTIFICATE: ${{ secrets.DEVELOPER_ID_APPLICATION_P12_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_APPLICATION_PASSWORD }}
+          NOTARY_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY_BASE64 }}
+          NOTARY_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          for value in CERTIFICATE CERTIFICATE_PASSWORD NOTARY_KEY NOTARY_KEY_ID NOTARY_ISSUER_ID SPARKLE_PRIVATE_KEY; do
+            if [[ -z "${!value}" ]]; then
+              echo "Missing required GitHub secret: $value"
+              exit 1
+            fi
+          done
+
+      - name: Resolve dependencies
+        run: swift package resolve
+
+      - name: Run validation
+        run: |
+          swift test
+          ./scripts/check_architecture.sh
+          ./scripts/check_coverage.sh
+
+      - name: Import Developer ID certificate
+        env:
+          CERTIFICATE: ${{ secrets.DEVELOPER_ID_APPLICATION_P12_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_APPLICATION_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH="$RUNNER_TEMP/alertcalendar-signing.keychain-db"
+          CERTIFICATE_PATH="$RUNNER_TEMP/developer-id.p12"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
+          printf '%s' "$CERTIFICATE" | base64 --decode > "$CERTIFICATE_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          SIGNING_IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | awk 'match($0, /"Developer ID Application:[^"]+"/) { print substr($0, RSTART + 1, RLENGTH - 2); exit }')"
+          test -n "$SIGNING_IDENTITY"
+          echo "SIGNING_IDENTITY=$SIGNING_IDENTITY" >> "$GITHUB_ENV"
+
+      - name: Build signed application
+        run: |
+          PACKAGE_DIR="$RUNNER_TEMP/release-package"
+          mkdir -p "$PACKAGE_DIR"
+          APP_DIR="$PACKAGE_DIR" \
+          APP_VERSION="$APP_VERSION" \
+          APP_BUILD="$APP_BUILD" \
+          CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" \
+          CODE_SIGN_TIMESTAMP=1 \
+          DERIVED_DATA="$RUNNER_TEMP/release-derived-data" \
+          OPEN_AFTER_INSTALL=0 \
+          REMOVE_DUPLICATE_INSTALLS=0 \
+          TERMINATE_RUNNING_INSTANCES=0 \
+          ./install.sh
+          codesign --verify --deep --strict --verbose=2 "$PACKAGE_DIR/$APP_NAME.app"
+          echo "PACKAGE_DIR=$PACKAGE_DIR" >> "$GITHUB_ENV"
+
+      - name: Notarize and staple
+        env:
+          NOTARY_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY_BASE64 }}
+          NOTARY_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+        run: |
+          NOTARY_KEY_PATH="$RUNNER_TEMP/AuthKey_${NOTARY_KEY_ID}.p8"
+          NOTARY_ARCHIVE="$RUNNER_TEMP/${APP_NAME}-notarization.zip"
+          printf '%s' "$NOTARY_KEY" | base64 --decode > "$NOTARY_KEY_PATH"
+          ditto -c -k --sequesterRsrc --keepParent "$PACKAGE_DIR/$APP_NAME.app" "$NOTARY_ARCHIVE"
+          xcrun notarytool submit "$NOTARY_ARCHIVE" \
+            --key "$NOTARY_KEY_PATH" \
+            --key-id "$NOTARY_KEY_ID" \
+            --issuer "$NOTARY_ISSUER_ID" \
+            --wait
+          xcrun stapler staple "$PACKAGE_DIR/$APP_NAME.app"
+          xcrun stapler validate "$PACKAGE_DIR/$APP_NAME.app"
+          spctl --assess --type execute --verbose=4 "$PACKAGE_DIR/$APP_NAME.app"
+
+      - name: Create signed update feed
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          RELEASE_DIR="$RUNNER_TEMP/release-assets"
+          ARCHIVE_NAME="${APP_NAME}-${APP_VERSION}.zip"
+          mkdir -p "$RELEASE_DIR"
+          ditto -c -k --sequesterRsrc --keepParent "$PACKAGE_DIR/$APP_NAME.app" "$RELEASE_DIR/$ARCHIVE_NAME"
+          printf '%s' "$SPARKLE_PRIVATE_KEY" > "$RUNNER_TEMP/sparkle-private-key"
+          SPARKLE_BIN=".build/artifacts/sparkle/Sparkle/bin"
+          "$SPARKLE_BIN/generate_appcast" \
+            --ed-key-file "$RUNNER_TEMP/sparkle-private-key" \
+            --download-url-prefix "https://zworehl.github.io/AlertCalendar/" \
+            --link "https://github.com/${GITHUB_REPOSITORY}" \
+            --maximum-deltas 0 \
+            --maximum-versions 3 \
+            "$RELEASE_DIR"
+          "$SPARKLE_BIN/sign_update" --verify "$RELEASE_DIR/$ARCHIVE_NAME" \
+            "$("$SPARKLE_BIN/sign_update" --ed-key-file "$RUNNER_TEMP/sparkle-private-key" -p "$RELEASE_DIR/$ARCHIVE_NAME")"
+          test -s "$RELEASE_DIR/appcast.xml"
+          echo "RELEASE_DIR=$RELEASE_DIR" >> "$GITHUB_ENV"
+          echo "ARCHIVE_NAME=$ARCHIVE_NAME" >> "$GITHUB_ENV"
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" \
+              "$RELEASE_DIR/$ARCHIVE_NAME" \
+              "$RELEASE_DIR/appcast.xml" \
+              --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              "$RELEASE_DIR/$ARCHIVE_NAME" \
+              "$RELEASE_DIR/appcast.xml" \
+              --verify-tag \
+              --title "$APP_NAME $APP_VERSION" \
+              --generate-notes
+          fi
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload public update channel
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ${{ env.RELEASE_DIR }}
+
+      - name: Deploy public update channel
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Remove temporary signing material
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/alertcalendar-signing.keychain-db" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/developer-id.p12" "$RUNNER_TEMP"/AuthKey_*.p8 "$RUNNER_TEMP/sparkle-private-key"

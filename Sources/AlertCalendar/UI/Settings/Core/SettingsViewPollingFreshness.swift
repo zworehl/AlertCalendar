@@ -3,7 +3,20 @@ import SwiftUI
 extension SettingsView {
     struct PollingFreshness {
         let title: String
-        let date: Date?
+        let checkedDate: Date?
+        let fetchedDate: Date?
+
+        init(title: String, date: Date?) {
+            self.title = title
+            self.checkedDate = date
+            self.fetchedDate = date
+        }
+
+        init(title: String, checkedDate: Date?, fetchedDate: Date?) {
+            self.title = title
+            self.checkedDate = checkedDate
+            self.fetchedDate = fetchedDate
+        }
     }
 
     var activePollingFreshness: PollingFreshness {
@@ -21,17 +34,37 @@ extension SettingsView {
             case .holidays:
                 return PollingFreshness(
                     title: "Holidays",
-                    date: googleHolidayLastRefreshDate
+                    checkedDate: externalFeedDiagnostics.latestCheckedDate(
+                        sourcePrefix: "google-holidays."
+                    ),
+                    fetchedDate: externalFeedDiagnostics.latestDataDate(
+                        sourcePrefix: "google-holidays."
+                    ) ?? googleHolidayLastRefreshDate
                 )
             case .football:
+                let checkedDates = [
+                    externalFeedDiagnostics.latestCheckedDate(sourcePrefix: "football.scoreboard."),
+                    externalFeedDiagnostics.latestCheckedDate(sourcePrefix: "football.summary"),
+                ].compactMap { $0 }
+                let fetchedDates = [
+                    externalFeedDiagnostics.latestDataDate(sourcePrefix: "football.scoreboard."),
+                    externalFeedDiagnostics.latestDataDate(sourcePrefix: "football.summary"),
+                    lastFootballRefreshDate,
+                ].compactMap { $0 }
                 return PollingFreshness(
                     title: "Football",
-                    date: lastFootballRefreshDate
+                    checkedDate: checkedDates.max(),
+                    fetchedDate: fetchedDates.max()
                 )
             case .gameSales:
                 return PollingFreshness(
                     title: "Game Sales",
-                    date: lastGameSalesRefreshDate
+                    checkedDate: externalFeedDiagnostics.latestCheckedDate(
+                        sourcePrefix: "game-sales."
+                    ) ?? lastGameSalesRefreshDate,
+                    fetchedDate: externalFeedDiagnostics.latestDataDate(
+                        sourcePrefix: "game-sales."
+                    )
                 )
             }
         case .integrations:
@@ -47,15 +80,32 @@ extension SettingsView {
 
         TimelineView(.periodic(from: .now, by: 1)) { context in
             Label {
-                if let date = freshness.date {
-                    let elapsedText = Self.pollingFreshnessElapsedText(
-                        from: date,
+                if let fetchedDate = freshness.fetchedDate {
+                    let fetchedElapsedText = Self.pollingFreshnessElapsedText(
+                        from: fetchedDate,
                         to: context.date,
                         simplified: draft.useSimplifiedCountdown
                     )
-                    Text("\(freshness.title) updated \(elapsedText)")
+                    if let checkedDate = freshness.checkedDate,
+                       checkedDate.timeIntervalSince(fetchedDate) >= 1 {
+                        let checkedElapsedText = Self.pollingFreshnessElapsedText(
+                            from: checkedDate,
+                            to: context.date,
+                            simplified: draft.useSimplifiedCountdown
+                        )
+                        Text("\(freshness.title) fetched \(fetchedElapsedText) · checked \(checkedElapsedText)")
+                    } else {
+                        Text("\(freshness.title) fetched \(fetchedElapsedText)")
+                    }
+                } else if let checkedDate = freshness.checkedDate {
+                    let elapsedText = Self.pollingFreshnessElapsedText(
+                        from: checkedDate,
+                        to: context.date,
+                        simplified: draft.useSimplifiedCountdown
+                    )
+                    Text("\(freshness.title) checked \(elapsedText)")
                 } else {
-                    Text("\(freshness.title) not updated yet")
+                    Text("\(freshness.title) not checked yet")
                 }
             } icon: {
                 Image(systemName: "clock.arrow.circlepath")

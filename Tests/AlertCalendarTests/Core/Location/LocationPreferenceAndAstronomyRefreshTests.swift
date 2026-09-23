@@ -31,6 +31,23 @@ final class LocationPreferenceAndAstronomyRefreshTests: AlertCalendarModelTestCa
 
         XCTAssertEqual(value, "Apple Park Visitor Center")
     }
+    func testPreferredLocationTextDoesNotTreatUnknownWebLinkAsMapLocation() {
+        let value = CalendarMonitor.preferredLocationText(
+            eventLocation: "https://events.example.com/session/launch-review",
+            footballMatchLocation: nil
+        )
+
+        XCTAssertNil(value)
+    }
+    func testPreferredLocationTextFallsBackToStructuredTitleWhenEventLocationIsLink() {
+        let value = CalendarMonitor.preferredLocationText(
+            eventLocation: "Details: https://events.example.com/session/launch-review",
+            structuredLocationTitle: "Apple Park Visitor Center",
+            footballMatchLocation: nil
+        )
+
+        XCTAssertEqual(value, "Apple Park Visitor Center")
+    }
     func testNativeLocationCoordinateUsesEventKitStructuredLocation() {
         let event = EKEvent(eventStore: EKEventStore())
         let structuredLocation = EKStructuredLocation(title: "Apple Park Visitor Center")

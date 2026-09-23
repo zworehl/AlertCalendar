@@ -3,6 +3,50 @@ import XCTest
 @testable import AlertCalendar
 
 final class SlackStatusSyncPersistenceTests: SlackStatusSyncTestCase {
+    func testAppleMusicSettingsAndCalendarPriorityPersist() throws {
+        let suiteName = "SlackStatusSyncTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let connection = SlackConnection(
+            id: "T1|U1", teamID: "T1", teamName: "Workspace", workspaceURLString: nil,
+            userID: "U1", userName: "sam", userDisplayName: nil, emailAddress: nil,
+            connectedAt: Date(timeIntervalSince1970: 100), lastValidatedAt: Date(timeIntervalSince1970: 100)
+        )
+        var settings = AppSettings.defaults
+        settings.slackConnections = [connection]
+        settings.slackStatusSyncRules = [
+            SlackStatusSyncRule(connectionID: connection.id, calendarID: "calendar-1", priority: 3, isEnabled: true),
+        ]
+        settings.appleMusicStatus = AppleMusicStatusSettings(
+            isEnabled: true,
+            connectionIDs: [connection.id, "missing"],
+            priority: 7,
+            source: .youtubeMusic
+        )
+        let store = AppSettingsStore(defaults: defaults)
+        store.registerDefaults()
+        store.save(settings)
+
+        let loaded = store.load()
+        XCTAssertEqual(loaded.slackStatusSyncRules.first?.priority, 3)
+        XCTAssertEqual(loaded.appleMusicStatus.connectionIDs, [connection.id])
+        XCTAssertEqual(loaded.appleMusicStatus.priority, 7)
+        XCTAssertEqual(loaded.appleMusicStatus.source, .youtubeMusic)
+        XCTAssertTrue(loaded.appleMusicStatus.isEnabled)
+    }
+
+    func testLegacyAppleMusicSettingsDefaultToAppleMusicSource() throws {
+        let data = try XCTUnwrap(
+            """
+            {"isEnabled":true,"connectionIDs":[],"priority":6}
+            """.data(using: .utf8)
+        )
+
+        let settings = try JSONDecoder().decode(AppleMusicStatusSettings.self, from: data)
+
+        XCTAssertEqual(settings.source, .appleMusic)
+    }
+
     func testAppSettingsStoreMigratesLegacySlackSelectionIntoStatusRule() {
         let suiteName = "SlackStatusSyncTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

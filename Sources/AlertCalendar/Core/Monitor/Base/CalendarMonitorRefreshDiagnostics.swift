@@ -1,6 +1,8 @@
 import Foundation
 
 enum CalendarMonitorRefreshReason: String, CaseIterable, Hashable {
+    case launchSnapshot
+    case launchConfirmation
     case launch
     case manual
     case settingsChanged
@@ -10,13 +12,19 @@ enum CalendarMonitorRefreshReason: String, CaseIterable, Hashable {
     case footballHeartbeat
     case locationChanged
     case calendarSelectionChanged
+    case focusFilterChanged
     case itemAction
     case footballCalendarAction
     case slackConnectionChanged
     case calendarSync
+    case remindersChanged
 
     var title: String {
         switch self {
+        case .launchSnapshot:
+            return "Initial calendar snapshot"
+        case .launchConfirmation:
+            return "Initial calendar confirmation"
         case .launch:
             return "Launch"
         case .manual:
@@ -35,6 +43,8 @@ enum CalendarMonitorRefreshReason: String, CaseIterable, Hashable {
             return "Location changed"
         case .calendarSelectionChanged:
             return "Calendar selection changed"
+        case .focusFilterChanged:
+            return "Focus filter changed"
         case .itemAction:
             return "Item action"
         case .footballCalendarAction:
@@ -43,14 +53,16 @@ enum CalendarMonitorRefreshReason: String, CaseIterable, Hashable {
             return "Slack connection changed"
         case .calendarSync:
             return "Calendar sync"
+        case .remindersChanged:
+            return "Reminders updated"
         }
     }
 
     var triggersManagedFootballSync: Bool {
         switch self {
-        case .launch, .manual, .settingsChanged, .eventStoreChanged, .workspaceResumed, .periodic, .footballHeartbeat, .footballCalendarAction:
+        case .launch, .manual, .settingsChanged, .workspaceResumed, .periodic, .footballHeartbeat, .footballCalendarAction:
             return true
-        case .locationChanged, .calendarSelectionChanged, .itemAction, .slackConnectionChanged, .calendarSync:
+        case .launchSnapshot, .launchConfirmation, .eventStoreChanged, .locationChanged, .calendarSelectionChanged, .focusFilterChanged, .itemAction, .slackConnectionChanged, .calendarSync, .remindersChanged:
             return false
         }
     }
@@ -59,9 +71,31 @@ enum CalendarMonitorRefreshReason: String, CaseIterable, Hashable {
         switch self {
         case .launch, .manual, .settingsChanged, .workspaceResumed, .periodic, .footballHeartbeat:
             return true
-        case .eventStoreChanged, .locationChanged, .calendarSelectionChanged, .itemAction, .footballCalendarAction, .slackConnectionChanged, .calendarSync:
+        case .launchSnapshot, .launchConfirmation, .eventStoreChanged, .locationChanged, .calendarSelectionChanged, .focusFilterChanged, .itemAction, .footballCalendarAction, .slackConnectionChanged, .calendarSync, .remindersChanged:
             return false
         }
+    }
+
+    var evaluatesGameSales: Bool {
+        switch self {
+        case .launch, .manual, .settingsChanged, .workspaceResumed, .periodic:
+            return true
+        case .launchSnapshot, .launchConfirmation, .eventStoreChanged, .footballHeartbeat, .locationChanged, .calendarSelectionChanged, .focusFilterChanged, .itemAction, .footballCalendarAction, .slackConnectionChanged, .calendarSync, .remindersChanged:
+            return false
+        }
+    }
+
+    var evaluatesGoogleHolidays: Bool {
+        switch self {
+        case .launch, .manual, .settingsChanged, .workspaceResumed, .periodic:
+            return true
+        case .launchSnapshot, .launchConfirmation, .eventStoreChanged, .footballHeartbeat, .locationChanged, .calendarSelectionChanged, .focusFilterChanged, .itemAction, .footballCalendarAction, .slackConnectionChanged, .calendarSync, .remindersChanged:
+            return false
+        }
+    }
+
+    var schedulesReminderFetch: Bool {
+        self != .launchConfirmation && self != .remindersChanged && self != .footballHeartbeat
     }
 
     var forcesExternalFeedRefresh: Bool {
@@ -69,8 +103,64 @@ enum CalendarMonitorRefreshReason: String, CaseIterable, Hashable {
     }
 
     var refreshesCalendarStateOnly: Bool {
-        self == .calendarSync
+        self == .launchSnapshot || self == .launchConfirmation || self == .focusFilterChanged || self == .calendarSync || self == .remindersChanged
     }
+
+    var refreshesCalendarSnapshot: Bool {
+        self != .footballHeartbeat
+    }
+}
+
+struct CalendarMonitorRefreshPlan {
+    let reasons: Set<CalendarMonitorRefreshReason>
+
+    var primaryReason: CalendarMonitorRefreshReason {
+        CalendarMonitorRefreshCoordinator.primaryReason(from: reasons)
+    }
+
+    var refreshesCalendarStateOnly: Bool {
+        reasons.allSatisfy(\.refreshesCalendarStateOnly)
+    }
+
+    var refreshesCalendarSnapshot: Bool {
+        reasons.contains(where: \.refreshesCalendarSnapshot)
+    }
+
+    var triggersManagedFootballSync: Bool {
+        reasons.contains(where: \.triggersManagedFootballSync)
+    }
+
+    var triggersFootballAutoAddSync: Bool {
+        reasons.contains(where: \.triggersFootballAutoAddSync)
+    }
+
+    var evaluatesGameSales: Bool {
+        reasons.contains(where: \.evaluatesGameSales)
+    }
+
+    var evaluatesGoogleHolidays: Bool {
+        reasons.contains(where: \.evaluatesGoogleHolidays)
+    }
+
+    var schedulesReminderFetch: Bool {
+        reasons.contains(where: \.schedulesReminderFetch)
+    }
+
+    var forcesExternalFeedRefresh: Bool {
+        reasons.contains(where: \.forcesExternalFeedRefresh)
+    }
+
+    var includesEventStoreChange: Bool {
+        reasons.contains(.eventStoreChanged)
+    }
+
+    init(reasons: Set<CalendarMonitorRefreshReason>) {
+        self.reasons = reasons.isEmpty ? [.manual] : reasons
+    }
+}
+
+struct CalendarMonitorRefreshExecutionReport: Equatable {
+    var phaseDurations: [String: TimeInterval] = [:]
 }
 
 struct CalendarMonitorRefreshDiagnostics: Equatable {
@@ -79,6 +169,7 @@ struct CalendarMonitorRefreshDiagnostics: Equatable {
     var lastFinishedAt: Date?
     var lastDuration: TimeInterval?
     var pendingReasons: Set<CalendarMonitorRefreshReason> = []
+    var phaseDurations: [String: TimeInterval] = [:]
 
     var isInProgress: Bool {
         !pendingReasons.isEmpty || (lastStartedAt != nil && lastFinishedAt == nil)
@@ -95,6 +186,14 @@ struct CalendarMonitorRefreshDiagnostics: Equatable {
         return pendingReasons
             .sorted { $0.title < $1.title }
             .map(\.title)
+            .joined(separator: ", ")
+    }
+
+    var phasesSummary: String {
+        guard !phaseDurations.isEmpty else { return "None" }
+        return phaseDurations
+            .sorted { $0.key < $1.key }
+            .map { "\($0.key) \(String(format: "%.2fs", $0.value))" }
             .joined(separator: ", ")
     }
 }

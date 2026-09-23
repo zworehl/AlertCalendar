@@ -11,6 +11,7 @@ struct MenuContentView: View {
 
     @State var dropdownReferenceDate = AlertCalendarClock.nowRoundedToSecond()
     @State var isDropdownVisible = false
+    @State var dropdownAvailableSize = MenuDropdownScreen.commonAvailableSize(screens: MenuDropdownScreen.connected)
     @State var splitUpcomingPanelHeight: CGFloat = 0
     @State var splitRightColumnHeight: CGFloat = 0
     @State var splitContextualCompactPanelHeight: CGFloat = 0
@@ -20,7 +21,7 @@ struct MenuContentView: View {
     @State var isManualDropdownRefreshInProgress = false
     let dropdownOuterPadding: CGFloat = 12
     let upcomingListMaxHeight: CGFloat = 360
-    let splitDropdownMaxColumnHeight: CGFloat = 520
+    let splitDropdownMaxColumnHeight: CGFloat = 720
     let minimumSingleColumnDropdownWidth: CGFloat = 260
     let minimumContextualPanelDropdownWidth: CGFloat = 360
     let splitColumnSpacing: CGFloat = 12
@@ -54,78 +55,72 @@ struct MenuContentView: View {
 
             Divider()
 
-            VStack(alignment: .leading, spacing: 10) {
-                if shouldShowLoading {
-                    initialLoadingSection
-                } else {
-                    if !snapshot.shouldUseSplitDropdownLayout && !snapshot.filteredAlertDescriptions.isEmpty {
-                        alertBannerSection(alertDescriptions: snapshot.filteredAlertDescriptions)
-                    }
-
-                    if snapshot.shouldUseSplitDropdownLayout {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack(alignment: .top, spacing: splitColumnSpacing) {
-                                contextualActionSection(snapshot: snapshot)
-                                .frame(
-                                    width: contextualPanelOuterWidth(snapshot: snapshot),
-                                    alignment: .topLeading
-                                )
-
-                                VStack(alignment: .leading, spacing: 8) {
-                                    if !snapshot.filteredAlertDescriptions.isEmpty {
-                                        alertBannerSection(alertDescriptions: snapshot.filteredAlertDescriptions)
-                                    }
+            MenuDropdownHeightContainer(
+                maximumHeight: max(
+                    1,
+                    dropdownAvailableSize.height
+                        - MenuContentNativeMetrics.toolbarButtonSize - 14 - 1
+                )
+            ) {
+                VStack(alignment: .leading, spacing: 10) {
+                    if shouldShowLoading {
+                        initialLoadingSection
+                    } else {
+                        if snapshot.shouldUseSplitDropdownLayout {
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack(alignment: .top, spacing: splitColumnSpacing) {
+                                    contextualActionSection(snapshot: snapshot)
+                                    .frame(
+                                        width: contextualPanelOuterWidth(snapshot: snapshot),
+                                        alignment: .topLeading
+                                    )
 
                                     upcomingSection(snapshot: snapshot)
+                                    .frame(width: upcomingPanelOuterWidth(snapshot: snapshot), alignment: .topLeading)
+                                    .clipped()
+                                    .background(
+                                        GeometryReader { proxy in
+                                            Color.clear.preference(
+                                                key: SplitRightColumnHeightPreferenceKey.self,
+                                                value: splitUpcomingPanelHeight > 0 ? proxy.size.height : 0
+                                            )
+                                        }
+                                    )
                                 }
-                                .frame(width: upcomingPanelOuterWidth(snapshot: snapshot), alignment: .topLeading)
-                                .clipped()
-                                .background(
-                                    GeometryReader { proxy in
-                                        Color.clear.preference(
-                                            key: SplitRightColumnHeightPreferenceKey.self,
-                                            value: splitUpcomingPanelHeight > 0 ? proxy.size.height : 0
-                                        )
-                                    }
-                                )
+
+                                dropdownSummarySections(snapshot: snapshot)
+                                    .background(
+                                        GeometryReader { proxy in
+                                            Color.clear.preference(
+                                                key: SplitSummaryPanelHeightPreferenceKey.self,
+                                                value: proxy.size.height
+                                            )
+                                        }
+                                    )
+                            }
+                        } else {
+                            if !snapshot.displayedContextualActionItems.isEmpty {
+                                contextualActionSection(snapshot: snapshot)
                             }
 
+                            upcomingSection(snapshot: snapshot)
+
                             dropdownSummarySections(snapshot: snapshot)
-                                .background(
-                                    GeometryReader { proxy in
-                                        Color.clear.preference(
-                                            key: SplitSummaryPanelHeightPreferenceKey.self,
-                                            value: proxy.size.height
-                                        )
-                                    }
-                                )
                         }
-                    } else {
-                        if !snapshot.displayedContextualActionItems.isEmpty {
-                            contextualActionSection(snapshot: snapshot)
-                        }
-
-                        upcomingSection(snapshot: snapshot)
-
-                        dropdownSummarySections(snapshot: snapshot)
                     }
                 }
-            }
-            .padding(dropdownOuterPadding)
-        }
-        .background {
-            ZStack {
-                MenuPopoverVisualEffect()
-                    .accessibilityHidden(true)
-                MenuWindowVisibilityObserver(isVisible: $isDropdownVisible)
-                    .frame(width: 0, height: 0)
-                    .accessibilityHidden(true)
+                .padding(dropdownOuterPadding)
             }
         }
         .environment(\.controlSize, .small)
-        .fixedSize(horizontal: false, vertical: !snapshot.shouldUseSplitDropdownLayout)
+        .fixedSize(horizontal: false, vertical: true)
         .frame(width: resolvedDropdownWidth, alignment: .leading)
-        .clipped()
+        .modifier(MenuDropdownSurface())
+        .background {
+            MenuDropdownWindowObserver(isVisible: $isDropdownVisible, availableSize: $dropdownAvailableSize)
+                .frame(width: 0, height: 0)
+                .accessibilityHidden(true)
+        }
         .onAppear {
             isDropdownVisible = true
             prepareDropdownPresentation()

@@ -93,4 +93,38 @@ final class CalendarMonitorRefreshDiagnosticsTests: XCTestCase {
         XCTAssertEqual(CalendarMonitorCadence.calendarStateRefreshInterval, 10 * 60)
         XCTAssertEqual(CalendarMonitorCadence.maximumHeartbeatInterval, 60)
     }
+
+    func testInitialSnapshotAndReminderCompletionStayOnLocalLane() {
+        for reason in [CalendarMonitorRefreshReason.launchSnapshot, .launchConfirmation, .remindersChanged] {
+            XCTAssertTrue(reason.refreshesCalendarStateOnly)
+            XCTAssertFalse(reason.triggersManagedFootballSync)
+            XCTAssertFalse(reason.triggersFootballAutoAddSync)
+            XCTAssertFalse(reason.evaluatesGameSales)
+            XCTAssertFalse(reason.evaluatesGoogleHolidays)
+        }
+        XCTAssertTrue(CalendarMonitorRefreshReason.launchSnapshot.schedulesReminderFetch)
+        XCTAssertFalse(CalendarMonitorRefreshReason.launchConfirmation.schedulesReminderFetch)
+        XCTAssertFalse(CalendarMonitorRefreshReason.remindersChanged.schedulesReminderFetch)
+    }
+
+    func testUnrelatedLocalReasonsSkipExternalFeedLanes() {
+        for reason in [
+            CalendarMonitorRefreshReason.locationChanged,
+            .calendarSelectionChanged,
+            .itemAction,
+            .slackConnectionChanged,
+            .eventStoreChanged,
+        ] {
+            XCTAssertFalse(reason.evaluatesGameSales)
+            XCTAssertFalse(reason.evaluatesGoogleHolidays)
+        }
+        XCTAssertFalse(CalendarMonitorRefreshReason.eventStoreChanged.triggersManagedFootballSync)
+    }
+
+    func testDiagnosticsSummarizeMeasuredPhases() {
+        let diagnostics = CalendarMonitorRefreshDiagnostics(
+            phaseDurations: ["Calendar snapshot": 0.25, "Football": 1.5]
+        )
+        XCTAssertEqual(diagnostics.phasesSummary, "Calendar snapshot 0.25s, Football 1.50s")
+    }
 }

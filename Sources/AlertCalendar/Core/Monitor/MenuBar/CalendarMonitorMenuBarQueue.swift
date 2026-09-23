@@ -31,8 +31,13 @@ extension CalendarMonitor {
             )
         } : []
         let merged = deduplicatedItemsByNotificationKey(timedItems + allDayItems)
+        let candidates = Self.menuBarRotationCandidates(
+            from: merged,
+            now: now,
+            focusOnActiveEvents: settings.focusMenuBarOnActiveEvents
+        )
 
-        return merged.sorted { left, right in
+        return candidates.sorted { left, right in
             let leftPriority = menuBarQueuePriority(for: left)
             let rightPriority = menuBarQueuePriority(for: right)
             if leftPriority != rightPriority {
@@ -140,6 +145,10 @@ extension CalendarMonitor {
         now: Date,
         futureWindowEnd: Date
     ) -> Bool {
+        if item.kind == .reminder {
+            return item.date <= now || item.date <= futureWindowEnd
+        }
+
         if item.isAllDay {
             return shouldIncludeAllDayItem(
                 startDate: item.date,

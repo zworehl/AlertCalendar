@@ -14,13 +14,18 @@ struct FootballGoalScorersSection: View {
     @State private var loadTask: Task<Void, Never>?
     @State private var retryTask: Task<Void, Never>?
     @State private var retryAttempt = 0
+    @State private var failedToLoad = false
+    @State private var loadGeneration = UUID()
+    @State private var loadedMatchID: String?
     let incompleteRetryDelayNanoseconds: UInt64 = 12_000_000_000
     let maximumIncompleteRetryCount = 4
 
     var requestKey: String {
-        let statusDetail = match.statusDetailText ?? ""
-        let statusPeriod = match.statusPeriod.map(String.init) ?? "n/a"
-        return "\(match.id)|\(match.homeScore)|\(match.awayScore)|\(match.statusText)|\(statusDetail)|\(statusPeriod)"
+        Self.requestKey(for: match)
+    }
+
+    static func requestKey(for match: FootballFixtureMatch) -> String {
+        "\(match.competitionSlug)|\(match.id)|\(match.homeTeam.id)|\(match.awayTeam.id)|\(match.homeScore)|\(match.awayScore)|\(match.statusState.rawValue)"
     }
 
     var resolvedScorerCount: Int {
@@ -49,7 +54,7 @@ struct FootballGoalScorersSection: View {
                     showsScore: showsScoreHeader,
                     availableWidth: availableWidth
                 )
-            } else if scorers == nil && (!hasAttemptedLoad || isLoading || canRetryIncompleteScorers) {
+            } else if !hasAttemptedLoad {
                 FootballGoalScorersLoadingView(
                     match: match,
                     display: display,
@@ -57,15 +62,23 @@ struct FootballGoalScorersSection: View {
                     showsScore: showsScoreHeader,
                     availableWidth: availableWidth
                 )
+            } else {
+                unavailableScorersView
             }
         }
         .onAppear {
             startLoadingScorers(resetRetryAttempt: true)
         }
         .onChange(of: requestKey) { _ in
+            // A score correction must not retain scorers for a goal that was removed.
+            if let scorers,
+               scorers.home.count > (Int(match.homeScore) ?? 0) || scorers.away.count > (Int(match.awayScore) ?? 0) {
+                self.scorers = nil
+            }
             startLoadingScorers(resetRetryAttempt: true)
         }
         .onDisappear {
+            loadGeneration = UUID()
             loadTask?.cancel()
             loadTask = nil
             retryTask?.cancel()
@@ -73,9 +86,43 @@ struct FootballGoalScorersSection: View {
         }
     }
 
+    private var unavailableScorersView: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if showsTeamHeader {
+                FootballMatchSectionHeaderView(
+                    match: match, display: display, showsScore: showsScoreHeader,
+                    showsTeamNames: true, showsTeamLogos: true, availableWidth: availableWidth
+                )
+            }
+            HStack(alignment: .center, spacing: 8) {
+                Text(failedToLoad ? "Could not load goal scorers." : "ESPN has not published goal scorers yet.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                Button {
+                    startLoadingScorers(resetRetryAttempt: true)
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.borderless)
+                .disabled(isLoading)
+                .accessibilityLabel("Retry loading goal scorers")
+                .help(isLoading ? "Checking for goal scorers" : "Retry loading goal scorers")
+            }
+            .padding(8)
+        }
+        .footballConstrainedWidth(availableWidth, alignment: .leading)
+    }
+
     func startLoadingScorers(resetRetryAttempt: Bool = false) {
         loadTask?.cancel()
         retryTask?.cancel()
+        if loadedMatchID != match.id {
+            scorers = nil
+            hasAttemptedLoad = false
+            loadedMatchID = match.id
+        }
         if resetRetryAttempt {
             retryAttempt = 0
         }
@@ -88,27 +135,29 @@ struct FootballGoalScorersSection: View {
         }
 
         let currentRequestKey = requestKey
+        let generation = UUID()
+        loadGeneration = generation
         let footballClient = monitor.footballClient
-        let hadScorers = scorers != nil
         isLoading = true
-        if !hadScorers {
-            hasAttemptedLoad = false
-        }
+        failedToLoad = false
 
         loadTask = Task {
             do {
-                let fetchedScorers = try await footballClient.fetchGoalScorers(for: match)
+                let fetchedScorers = try await footballClient.fetchGoalScorers(for: match, enrichCountries: false)
                 await MainActor.run {
-                    guard currentRequestKey == requestKey else { return }
-                    scorers = fetchedScorers
+                    guard !Task.isCancelled, currentRequestKey == requestKey, generation == loadGeneration else { return }
+                    if let fetchedScorers { scorers = fetchedScorers }
                     isLoading = false
                     hasAttemptedLoad = true
                     scheduleRetryIfNeeded(for: currentRequestKey)
                 }
+            } catch is CancellationError {
+                return
             } catch {
                 await MainActor.run {
-                    guard currentRequestKey == requestKey else { return }
+                    guard !Task.isCancelled, currentRequestKey == requestKey, generation == loadGeneration else { return }
                     isLoading = false
+                    failedToLoad = true
                     hasAttemptedLoad = true
                     scheduleRetryIfNeeded(for: currentRequestKey)
                 }

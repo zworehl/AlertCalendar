@@ -83,7 +83,8 @@ extension MenuContentView {
         HStack(alignment: .center, spacing: showsScore ? 6 : 10) {
             HStack(alignment: .center, spacing: showsScore ? 6 : 10) {
                 footballTeamLabel(
-                    abbreviation: display?.homeAbbreviation ?? FootballFixtureFormatter.teamDisplayIdentifier(for: match.homeTeam),
+                    abbreviation: FootballFixtureFormatter.teamDisplayIdentifier(for: match.homeTeam),
+                    fullName: FootballFixtureFormatter.teamDisplayName(for: match.homeTeam),
                     localLogoPath: display?.homeLocalLogoPath,
                     remoteLogoURL: FootballFixtureFormatter.isUnknownTeam(match.homeTeam) ? nil : match.homeTeam.logoURL,
                     isUnknown: FootballFixtureFormatter.isUnknownTeam(match.homeTeam),
@@ -135,7 +136,8 @@ extension MenuContentView {
                 }
 
                 footballTeamLabel(
-                    abbreviation: display?.awayAbbreviation ?? FootballFixtureFormatter.teamDisplayIdentifier(for: match.awayTeam),
+                    abbreviation: FootballFixtureFormatter.teamDisplayIdentifier(for: match.awayTeam),
+                    fullName: FootballFixtureFormatter.teamDisplayName(for: match.awayTeam),
                     localLogoPath: display?.awayLocalLogoPath,
                     remoteLogoURL: FootballFixtureFormatter.isUnknownTeam(match.awayTeam) ? nil : match.awayTeam.logoURL,
                     isUnknown: FootballFixtureFormatter.isUnknownTeam(match.awayTeam),
@@ -165,6 +167,7 @@ extension MenuContentView {
     @ViewBuilder
     func footballTeamLabel(
         abbreviation: String,
+        fullName: String,
         localLogoPath: String?,
         remoteLogoURL: URL?,
         isUnknown: Bool,
@@ -214,6 +217,8 @@ extension MenuContentView {
             }
         }
         .frame(minWidth: 0, alignment: .center)
+        .help(fullName)
+        .accessibilityLabel(fullName)
     }
 
     @ViewBuilder

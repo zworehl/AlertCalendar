@@ -2,6 +2,21 @@ import XCTest
 @testable import AlertCalendar
 
 final class SettingsDraftReducerTests: XCTestCase {
+    func testFinishedMatchVisibilityDoesNotChangeSettingsDraftOrGetOverwrittenByApply() throws {
+        let suiteName = "SettingsFTVisibility.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = AppSettingsStore(defaults: defaults)
+        store.registerDefaults()
+        let initial = store.load()
+        let initialDraft = SettingsDraft(settings: initial)
+        defaults.set(false, forKey: DefaultsKeys.showFinishedFootballMatches)
+        XCTAssertEqual(store.load(), initial)
+        XCTAssertEqual(SettingsDraft(settings: store.load()), initialDraft)
+        store.save(initial)
+        XCTAssertFalse(defaults.bool(forKey: DefaultsKeys.showFinishedFootballMatches))
+    }
+
     func testAppliedSettingsNormalizesDependentWindowsAndCoordinates() {
         var draft = SettingsDraft(settings: .defaults)
         draft.lookAheadHours = 4
@@ -15,6 +30,7 @@ final class SettingsDraftReducerTests: XCTestCase {
         draft.useLinkedPagePreviewsInAgendaSummary = true
         draft.rewriteEventTitlesWithAppleIntelligence = true
         draft.useRewrittenEventTitlesInDropdown = true
+        draft.useMailContextForEventTitleRewrite = true
 
         let settings = draft.applied(
             to: .defaults,
@@ -32,6 +48,7 @@ final class SettingsDraftReducerTests: XCTestCase {
         XCTAssertTrue(settings.useLinkedPagePreviewsInAgendaSummary)
         XCTAssertTrue(settings.rewriteEventTitlesWithAppleIntelligence)
         XCTAssertTrue(settings.useRewrittenEventTitlesInDropdown)
+        XCTAssertTrue(settings.useMailContextForEventTitleRewrite)
     }
 
     func testAppliedSettingsDisablesAppleIntelligenceTitleRewriteBelowTenCharacters() {
@@ -39,6 +56,7 @@ final class SettingsDraftReducerTests: XCTestCase {
         draft.eventTitleMaxCharacters = 9
         draft.rewriteEventTitlesWithAppleIntelligence = true
         draft.useRewrittenEventTitlesInDropdown = true
+        draft.useMailContextForEventTitleRewrite = true
 
         let settings = draft.applied(
             to: .defaults,
@@ -47,7 +65,8 @@ final class SettingsDraftReducerTests: XCTestCase {
 
         XCTAssertEqual(settings.eventTitleMaxCharacters, 9)
         XCTAssertFalse(settings.rewriteEventTitlesWithAppleIntelligence)
-        XCTAssertFalse(settings.useRewrittenEventTitlesInDropdown)
+        XCTAssertTrue(settings.useRewrittenEventTitlesInDropdown)
+        XCTAssertFalse(settings.useMailContextForEventTitleRewrite)
     }
 
     func testAppliedSettingsNormalizesSlackRulesAgainstKnownConnectionsAndCalendars() {
@@ -139,7 +158,6 @@ final class SettingsDraftReducerTests: XCTestCase {
         ]
         draft.footballCalendarAlertOption = .fifteenMinutesBefore
         draft.enableFootballGoalNotifications = false
-        draft.showFinishedFootballMatches = false
         draft.finishedFootballMatchLookbackDays = 500
         draft.footballMatchLookaheadDays = -5
         draft.gameSaleTargetCalendarID = "sales-calendar"
@@ -159,7 +177,6 @@ final class SettingsDraftReducerTests: XCTestCase {
         )
         XCTAssertEqual(settings.footballCalendarAlertOption, .fifteenMinutesBefore)
         XCTAssertFalse(settings.enableFootballGoalNotifications)
-        XCTAssertFalse(settings.showFinishedFootballMatches)
         XCTAssertEqual(settings.finishedFootballMatchLookbackDays, AppSettingsRules.maximumFootballWindowDays)
         XCTAssertEqual(settings.footballMatchLookaheadDays, AppSettingsRules.minimumFootballWindowDays)
         XCTAssertEqual(settings.gameSaleTargetCalendarID, "sales-calendar")
