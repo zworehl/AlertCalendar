@@ -71,6 +71,9 @@ jobs:
       - name: Resolve dependencies
         run: swift package resolve
 
+      - name: Install validation tooling
+        run: brew install ripgrep
+
       - name: Run validation
         run: |
           swift test --jobs "$SWIFT_TEST_JOBS"
