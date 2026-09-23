@@ -2,11 +2,12 @@
 
 AlertCalendar is a macOS menu bar app that keeps Calendar events, Reminders, astronomy moments, and managed football fixtures visible in one continuously updating workflow.
 
-It is built as a Swift Package, installs as a lightweight `.app` bundle, and uses Apple frameworks directly without third-party Swift package dependencies.
+It is built as a Swift Package, installs as a lightweight `.app` bundle, uses Apple frameworks directly, and embeds Sparkle for signed automatic updates.
 
 ## Contents
 
 - [What It Does](#what-it-does)
+- [Download](#download)
 - [Requirements](#requirements)
 - [Install](#install)
 - [Run From Source](#run-from-source)
@@ -31,6 +32,12 @@ AlertCalendar combines time-sensitive information into a menu bar workflow, with
 - Meeting-aware previews, join-link extraction, attendee context, and location previews when enough metadata is available.
 
 The app is meant to make the menu bar behave like a live operational timeline instead of a passive clock or event count.
+
+## Download
+
+[Download the latest AlertCalendar release](https://github.com/zworehl/AlertCalendar/releases/latest).
+
+The initial 1.0.0 public preview supports Apple silicon Macs running macOS 13 or later. It is Sparkle-signed for update integrity but is not yet notarized by Apple. After extracting the ZIP, move `AlertCalendar.app` to Applications, Control-click it, choose **Open**, and confirm **Open** for the first launch. The release includes a SHA-256 checksum beside the archive.
 
 ## Requirements
 

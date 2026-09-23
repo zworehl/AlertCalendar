@@ -35,7 +35,7 @@ jobs:
           echo "APP_VERSION=$APP_VERSION" >> "$GITHUB_ENV"
           echo "APP_BUILD=$APP_BUILD" >> "$GITHUB_ENV"
 
-      - name: Validate required secrets
+      - name: Resolve release signing mode
         env:
           CERTIFICATE: ${{ secrets.DEVELOPER_ID_APPLICATION_P12_BASE64 }}
           CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_APPLICATION_PASSWORD }}
@@ -44,12 +44,28 @@ jobs:
           NOTARY_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
-          for value in CERTIFICATE CERTIFICATE_PASSWORD NOTARY_KEY NOTARY_KEY_ID NOTARY_ISSUER_ID SPARKLE_PRIVATE_KEY; do
-            if [[ -z "${!value}" ]]; then
-              echo "Missing required GitHub secret: $value"
-              exit 1
+          if [[ -z "$SPARKLE_PRIVATE_KEY" ]]; then
+            echo "Missing required GitHub secret: SPARKLE_PRIVATE_KEY"
+            exit 1
+          fi
+
+          signing_secret_count=0
+          for value in CERTIFICATE CERTIFICATE_PASSWORD NOTARY_KEY NOTARY_KEY_ID NOTARY_ISSUER_ID; do
+            if [[ -n "${!value}" ]]; then
+              signing_secret_count=$((signing_secret_count + 1))
             fi
           done
+
+          if [[ "$signing_secret_count" -eq 5 ]]; then
+            echo "NOTARIZED_RELEASE=true" >> "$GITHUB_ENV"
+            echo "Release mode: Developer ID signed and notarized"
+          elif [[ "$signing_secret_count" -eq 0 ]]; then
+            echo "NOTARIZED_RELEASE=false" >> "$GITHUB_ENV"
+            echo "Release mode: ad hoc signed public preview"
+          else
+            echo "Developer ID/notarization secrets are only partially configured."
+            exit 1
+          fi
 
       - name: Resolve dependencies
         run: swift package resolve
@@ -61,6 +77,7 @@ jobs:
           ./scripts/check_coverage.sh
 
       - name: Import Developer ID certificate
+        if: env.NOTARIZED_RELEASE == 'true'
         env:
           CERTIFICATE: ${{ secrets.DEVELOPER_ID_APPLICATION_P12_BASE64 }}
           CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_APPLICATION_PASSWORD }}
@@ -83,11 +100,18 @@ jobs:
         run: |
           PACKAGE_DIR="$RUNNER_TEMP/release-package"
           mkdir -p "$PACKAGE_DIR"
+          if [[ "$NOTARIZED_RELEASE" == "true" ]]; then
+            RELEASE_SIGNING_IDENTITY="$SIGNING_IDENTITY"
+            RELEASE_TIMESTAMP=1
+          else
+            RELEASE_SIGNING_IDENTITY="-"
+            RELEASE_TIMESTAMP=0
+          fi
           APP_DIR="$PACKAGE_DIR" \
           APP_VERSION="$APP_VERSION" \
           APP_BUILD="$APP_BUILD" \
-          CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" \
-          CODE_SIGN_TIMESTAMP=1 \
+          CODE_SIGN_IDENTITY="$RELEASE_SIGNING_IDENTITY" \
+          CODE_SIGN_TIMESTAMP="$RELEASE_TIMESTAMP" \
           DERIVED_DATA="$RUNNER_TEMP/release-derived-data" \
           OPEN_AFTER_INSTALL=0 \
           REMOVE_DUPLICATE_INSTALLS=0 \
@@ -97,6 +121,7 @@ jobs:
           echo "PACKAGE_DIR=$PACKAGE_DIR" >> "$GITHUB_ENV"
 
       - name: Notarize and staple
+        if: env.NOTARIZED_RELEASE == 'true'
         env:
           NOTARY_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY_BASE64 }}
           NOTARY_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
@@ -121,8 +146,24 @@ jobs:
         run: |
           RELEASE_DIR="$RUNNER_TEMP/release-assets"
           ARCHIVE_NAME="${APP_NAME}-${APP_VERSION}.zip"
+          CHECKSUM_NAME="${ARCHIVE_NAME}.sha256"
+          RELEASE_NOTES_NAME="${APP_NAME}-${APP_VERSION}.md"
           mkdir -p "$RELEASE_DIR"
           ditto -c -k --sequesterRsrc --keepParent "$PACKAGE_DIR/$APP_NAME.app" "$RELEASE_DIR/$ARCHIVE_NAME"
+          if [[ "$NOTARIZED_RELEASE" == "true" ]]; then
+            cat > "$RELEASE_DIR/$RELEASE_NOTES_NAME" <<EOF
+          AlertCalendar ${APP_VERSION} is signed with Developer ID and notarized by Apple.
+
+          Download the ZIP, move AlertCalendar.app to Applications, and open it normally.
+          EOF
+          else
+            cat > "$RELEASE_DIR/$RELEASE_NOTES_NAME" <<EOF
+          AlertCalendar ${APP_VERSION} public preview for Apple silicon Macs running macOS 13 or later.
+
+          This build is signed for update integrity but is not yet notarized by Apple. On first launch, Control-click AlertCalendar.app, choose Open, and confirm Open. Future updates are verified with AlertCalendar's Sparkle EdDSA key.
+          EOF
+          fi
+          shasum -a 256 "$RELEASE_DIR/$ARCHIVE_NAME" > "$RELEASE_DIR/$CHECKSUM_NAME"
           printf '%s' "$SPARKLE_PRIVATE_KEY" > "$RUNNER_TEMP/sparkle-private-key"
           SPARKLE_BIN=".build/artifacts/sparkle/Sparkle/bin"
           "$SPARKLE_BIN/generate_appcast" \
@@ -132,11 +173,14 @@ jobs:
             --maximum-deltas 0 \
             --maximum-versions 3 \
             "$RELEASE_DIR"
-          "$SPARKLE_BIN/sign_update" --verify "$RELEASE_DIR/$ARCHIVE_NAME" \
-            "$("$SPARKLE_BIN/sign_update" --ed-key-file "$RUNNER_TEMP/sparkle-private-key" -p "$RELEASE_DIR/$ARCHIVE_NAME")"
+          "$SPARKLE_BIN/sign_update" --ed-key-file "$RUNNER_TEMP/sparkle-private-key" \
+            --verify "$RELEASE_DIR/$ARCHIVE_NAME" \
+            "$("$SPARKLE_BIN/sign_update" --ed-key-file "$RUNNER_TEMP/sparkle-private-key" "$RELEASE_DIR/$ARCHIVE_NAME" -p)"
           test -s "$RELEASE_DIR/appcast.xml"
           echo "RELEASE_DIR=$RELEASE_DIR" >> "$GITHUB_ENV"
           echo "ARCHIVE_NAME=$ARCHIVE_NAME" >> "$GITHUB_ENV"
+          echo "CHECKSUM_NAME=$CHECKSUM_NAME" >> "$GITHUB_ENV"
+          echo "RELEASE_NOTES_NAME=$RELEASE_NOTES_NAME" >> "$GITHUB_ENV"
 
       - name: Publish GitHub release
         env:
@@ -145,15 +189,20 @@ jobs:
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" \
               "$RELEASE_DIR/$ARCHIVE_NAME" \
+              "$RELEASE_DIR/$CHECKSUM_NAME" \
               "$RELEASE_DIR/appcast.xml" \
               --clobber
+            gh release edit "$GITHUB_REF_NAME" \
+              --title "$APP_NAME $APP_VERSION" \
+              --notes-file "$RELEASE_DIR/$RELEASE_NOTES_NAME"
           else
             gh release create "$GITHUB_REF_NAME" \
               "$RELEASE_DIR/$ARCHIVE_NAME" \
+              "$RELEASE_DIR/$CHECKSUM_NAME" \
               "$RELEASE_DIR/appcast.xml" \
               --verify-tag \
               --title "$APP_NAME $APP_VERSION" \
-              --generate-notes
+              --notes-file "$RELEASE_DIR/$RELEASE_NOTES_NAME"
           fi
 
       - name: Configure GitHub Pages

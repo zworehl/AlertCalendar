@@ -56,7 +56,12 @@ check_duplicate_source_copies() {
 }
 
 resolve_code_sign_identity() {
-  if [[ -n "$CODE_SIGN_IDENTITY" && "$CODE_SIGN_IDENTITY" != "-" ]]; then
+  if [[ "$CODE_SIGN_IDENTITY" == "-" ]]; then
+    printf '%s\n' "-"
+    return
+  fi
+
+  if [[ -n "$CODE_SIGN_IDENTITY" ]]; then
     printf '%s\n' "$CODE_SIGN_IDENTITY"
     return
   fi
@@ -238,8 +243,8 @@ check_duplicate_source_copies
 
 CODE_SIGN_IDENTITY="$(resolve_code_sign_identity)"
 if [[ -z "$CODE_SIGN_IDENTITY" ]]; then
-  echo "A stable Apple Development code-signing identity is required."
-  echo "Set CODE_SIGN_IDENTITY to a valid identity before installing."
+  echo "A code-signing identity is required."
+  echo "Set CODE_SIGN_IDENTITY to a valid identity, or '-' for an ad hoc public preview build."
   exit 1
 fi
 
