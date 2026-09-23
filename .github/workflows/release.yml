@@ -167,7 +167,10 @@ jobs:
           This build is signed for update integrity but is not yet notarized by Apple. On first launch, Control-click AlertCalendar.app, choose Open, and confirm Open. Future updates are verified with AlertCalendar's Sparkle EdDSA key.
           EOF
           fi
-          shasum -a 256 "$RELEASE_DIR/$ARCHIVE_NAME" > "$RELEASE_DIR/$CHECKSUM_NAME"
+          (
+            cd "$RELEASE_DIR"
+            shasum -a 256 "$ARCHIVE_NAME" > "$CHECKSUM_NAME"
+          )
           printf '%s' "$SPARKLE_PRIVATE_KEY" > "$RUNNER_TEMP/sparkle-private-key"
           SPARKLE_BIN=".build/artifacts/sparkle/Sparkle/bin"
           "$SPARKLE_BIN/generate_appcast" \
