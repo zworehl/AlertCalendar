@@ -16,7 +16,9 @@ extension SettingsView {
                         "Check automatically",
                         isOn: Binding(
                             get: { softwareUpdateController.automaticallyChecksForUpdates },
-                            set: softwareUpdateController.setAutomaticallyChecksForUpdates
+                            set: { isEnabled in
+                                softwareUpdateController.setAutomaticallyChecksForUpdates(isEnabled)
+                            }
                         )
                     )
                     .labelsHidden()
@@ -34,7 +36,9 @@ extension SettingsView {
                         "Download automatically",
                         isOn: Binding(
                             get: { softwareUpdateController.automaticallyDownloadsUpdates },
-                            set: softwareUpdateController.setAutomaticallyDownloadsUpdates
+                            set: { isEnabled in
+                                softwareUpdateController.setAutomaticallyDownloadsUpdates(isEnabled)
+                            }
                         )
                     )
                     .labelsHidden()
