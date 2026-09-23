@@ -28,7 +28,11 @@ if [[ ${#INCLUDE_FILES[@]} -eq 0 ]]; then
 fi
 
 cd "$ROOT_DIR"
-swift test --enable-code-coverage
+SWIFT_TEST_ARGS=(test --enable-code-coverage)
+if [[ -n "${SWIFT_TEST_JOBS:-}" ]]; then
+  SWIFT_TEST_ARGS+=(--jobs "$SWIFT_TEST_JOBS")
+fi
+swift "${SWIFT_TEST_ARGS[@]}"
 
 PROFDATA="$(find .build -type f -name default.profdata | head -n 1)"
 if [[ -z "$PROFDATA" ]]; then
