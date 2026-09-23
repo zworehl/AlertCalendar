@@ -3,42 +3,29 @@ import SwiftUI
 extension SettingsView {
     @ViewBuilder
     var appleMusicStatusRuleCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             ViewThatFits(in: .horizontal) {
-                HStack(alignment: .top, spacing: 12) {
+                HStack(alignment: .center, spacing: 12) {
                     appleMusicStatusRuleIdentity
                     appleMusicStatusRulePreview
-                        .layoutPriority(1)
-                    Spacer(minLength: 8)
+                    Spacer(minLength: 20)
                     appleMusicStatusRuleActions
                         .fixedSize(horizontal: true, vertical: false)
                 }
 
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .center, spacing: 12) {
                         appleMusicStatusRuleIdentity
-                        Spacer(minLength: 8)
-                        appleMusicStatusRuleActions
+                        Spacer(minLength: 12)
+                        appleMusicStatusRuleActiveToggle
                     }
                     appleMusicStatusRulePreview
+                    appleMusicStatusRuleCompactActions
                 }
             }
 
             Divider()
-
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .top, spacing: 18) {
-                    appleMusicWorkspaceSelection
-                    Spacer(minLength: 12)
-                    appleMusicPlaybackBehavior
-                        .frame(maxWidth: 420, alignment: .leading)
-                }
-
-                VStack(alignment: .leading, spacing: 10) {
-                    appleMusicWorkspaceSelection
-                    appleMusicPlaybackBehavior
-                }
-            }
+            appleMusicWorkspaceSelection
         }
         .settingsInsetSurface()
     }
@@ -76,43 +63,76 @@ extension SettingsView {
     }
 
     private var appleMusicStatusRuleActions: some View {
-        HStack(spacing: 10) {
+        HStack(alignment: .bottom, spacing: 12) {
+            appleMusicStatusRuleSourcePicker
+            appleMusicStatusRulePriorityPicker
+            appleMusicStatusRuleActiveToggle
+        }
+    }
+
+    private var appleMusicStatusRuleCompactActions: some View {
+        HStack(alignment: .bottom, spacing: 12) {
+            appleMusicStatusRuleSourcePicker
+                .frame(maxWidth: .infinity, alignment: .leading)
+            appleMusicStatusRulePriorityPicker
+        }
+    }
+
+    private var appleMusicStatusRuleSourcePicker: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("Music service")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+
             Picker("Music service", selection: $draft.appleMusicStatus.source) {
                 ForEach(MusicPlaybackSource.allCases) { source in
                     Text(source.displayName).tag(source)
                 }
             }
+            .labelsHidden()
             .pickerStyle(.menu)
             .controlSize(.small)
-            .frame(width: 140)
+            .frame(width: 170, alignment: .leading)
+        }
+    }
+
+    private var appleMusicStatusRulePriorityPicker: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("Priority")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
 
             Picker("Priority", selection: $draft.appleMusicStatus.priority) {
                 ForEach(SlackStatusPriority.values, id: \.self) { value in
                     Text("\(value)").tag(value)
                 }
             }
+            .labelsHidden()
             .pickerStyle(.menu)
             .controlSize(.small)
-            .frame(width: 90)
+            .frame(width: 64, alignment: .leading)
             .help("1 is highest priority.")
-
-            Toggle(
-                "Active",
-                isOn: Binding(
-                    get: { draft.appleMusicStatus.isEnabled },
-                    set: { enabled in
-                        if enabled, draft.appleMusicStatus.connectionIDs.isEmpty,
-                           let firstConnectionID = slackConnections.first?.id {
-                            draft.appleMusicStatus.connectionIDs.insert(firstConnectionID)
-                        }
-                        draft.appleMusicStatus.isEnabled = enabled
-                    }
-                )
-            )
-            .font(.caption)
-            .toggleStyle(.switch)
-            .controlSize(.small)
         }
+    }
+
+    private var appleMusicStatusRuleActiveToggle: some View {
+        Toggle(
+            "Active",
+            isOn: Binding(
+                get: { draft.appleMusicStatus.isEnabled },
+                set: { enabled in
+                    if enabled, draft.appleMusicStatus.connectionIDs.isEmpty,
+                       let firstConnectionID = slackConnections.first?.id {
+                        draft.appleMusicStatus.connectionIDs.insert(firstConnectionID)
+                    }
+                    draft.appleMusicStatus.isEnabled = enabled
+                }
+            )
+        )
+        .font(.caption)
+        .toggleStyle(.switch)
+        .controlSize(.small)
+        .padding(.bottom, 1)
     }
 
     private var appleMusicWorkspaceSelection: some View {
@@ -144,38 +164,7 @@ extension SettingsView {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var appleMusicPlaybackBehavior: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Playback Behavior")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Text(musicPlaybackBehaviorDescription)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if draft.appleMusicStatus.source == .youtubeMusic {
-                Button("Open YouTube Music") {
-                    guard let url = URL(string: "https://music.youtube.com") else { return }
-                    AlertCalendarWorkspace.open(url)
-                }
-                .buttonStyle(.link)
-                .controlSize(.small)
-            }
-        }
-    }
-
     private var musicSourceTint: Color {
         draft.appleMusicStatus.source == .appleMusic ? .pink : .red
-    }
-
-    private var musicPlaybackBehaviorDescription: String {
-        let sharedBehavior = "Slack shows “until” with a one-minute safety margin beyond the estimated song end. Pausing, stopping, or changing artists is detected within about five seconds; 🎵 and 🎶 alternate every 30 seconds without extra Slack updates between changes."
-        switch draft.appleMusicStatus.source {
-        case .appleMusic:
-            return "\(sharedBehavior) Consecutive queued songs by the same artist extend the estimate when Music exposes their order."
-        case .youtubeMusic:
-            return "\(sharedBehavior) Keep YouTube Music open in Safari, Chrome, Edge, Brave, or Arc and allow JavaScript from Apple Events in that browser’s developer settings."
-        }
     }
 }
