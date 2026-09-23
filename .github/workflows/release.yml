@@ -122,6 +122,12 @@ jobs:
           TERMINATE_RUNNING_INSTANCES=0 \
           ./install.sh
           codesign --verify --deep --strict --verbose=2 "$PACKAGE_DIR/$APP_NAME.app"
+          "$PACKAGE_DIR/$APP_NAME.app/Contents/MacOS/$APP_NAME" &
+          SMOKE_TEST_PID=$!
+          sleep 3
+          kill -0 "$SMOKE_TEST_PID"
+          kill "$SMOKE_TEST_PID"
+          wait "$SMOKE_TEST_PID" || true
           echo "PACKAGE_DIR=$PACKAGE_DIR" >> "$GITHUB_ENV"
 
       - name: Notarize and staple

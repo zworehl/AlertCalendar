@@ -391,10 +391,14 @@ TIMESTAMP_ARGUMENT="--timestamp=none"
 if [[ "$CODE_SIGN_TIMESTAMP" == "1" || ( "$CODE_SIGN_TIMESTAMP" == "auto" && "$CODE_SIGN_IDENTITY" == Developer\ ID\ Application:* ) ]]; then
   TIMESTAMP_ARGUMENT="--timestamp"
 fi
+SIGNING_OPTION_ARGUMENTS=()
+if [[ "$CODE_SIGN_IDENTITY" != "-" ]]; then
+  SIGNING_OPTION_ARGUMENTS+=(--options runtime)
+fi
 codesign \
   --force \
   --deep \
-  --options runtime \
+  "${SIGNING_OPTION_ARGUMENTS[@]}" \
   "$TIMESTAMP_ARGUMENT" \
   --entitlements "$ENTITLEMENTS_PATH" \
   --sign "$CODE_SIGN_IDENTITY" \
