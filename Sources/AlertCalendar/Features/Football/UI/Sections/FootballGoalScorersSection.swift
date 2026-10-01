@@ -95,7 +95,7 @@ struct FootballGoalScorersSection: View {
                 )
             }
             HStack(alignment: .center, spacing: 8) {
-                Text(failedToLoad ? "Could not load goal scorers." : "ESPN has not published goal scorers yet.")
+                Text(failedToLoad ? L10n.text("Could not load goal scorers.") : L10n.text("ESPN has not published goal scorers yet."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -107,8 +107,8 @@ struct FootballGoalScorersSection: View {
                 }
                 .buttonStyle(.borderless)
                 .disabled(isLoading)
-                .accessibilityLabel("Retry loading goal scorers")
-                .help(isLoading ? "Checking for goal scorers" : "Retry loading goal scorers")
+                .accessibilityLabel(L10n.text("Retry loading goal scorers"))
+                .help(isLoading ? L10n.text("Checking for goal scorers") : L10n.text("Retry loading goal scorers"))
             }
             .padding(8)
         }
@@ -316,7 +316,7 @@ struct FootballGoalScorersView: View {
                 .frame(width: minuteColumnWidth, alignment: .center)
                 .hidden()
 
-            Text("Placeholder")
+            Text(L10n.text("Placeholder"))
                 .font(.caption2)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)

@@ -5,7 +5,7 @@ import Foundation
 extension CalendarMonitor {
     func footballMatchStatusText(_ match: FootballFixtureMatch) -> String {
         if match.statusReliability == .awaitingLiveData || match.statusReliability == .delayedLiveData {
-            return "Starting soon"
+            return L10n.text("Starting soon")
         }
 
         switch match.statusState {

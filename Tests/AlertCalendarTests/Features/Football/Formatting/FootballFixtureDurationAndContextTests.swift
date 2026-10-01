@@ -2,6 +2,46 @@ import XCTest
 @testable import AlertCalendar
 
 final class FootballFixtureDurationAndContextTests: FootballFixtureFormatterTestCase {
+    func testNationsLeaguesReserveExtraTimeOnlyForDecisiveKnockoutMatches() {
+        for slug in ["concacaf.nations.league", "uefa.nations"] {
+            let groupMatch = makeMatch(
+                id: "\(slug)-group",
+                startDate: Date(timeIntervalSince1970: 1_720_000_000),
+                statusState: .scheduled,
+                competitionSlug: slug,
+                seasonSlug: "group-stage"
+            )
+            let firstLeg = makeMatch(
+                id: "\(slug)-quarterfinal-first",
+                startDate: Date(timeIntervalSince1970: 1_720_000_000),
+                statusState: .scheduled,
+                competitionSlug: slug,
+                seasonSlug: "quarterfinals",
+                competitionNote: "1st Leg"
+            )
+            let secondLeg = makeMatch(
+                id: "\(slug)-quarterfinal-second",
+                startDate: Date(timeIntervalSince1970: 1_720_000_000),
+                statusState: .scheduled,
+                competitionSlug: slug,
+                seasonSlug: "quarterfinals",
+                competitionNote: "2nd Leg - Tied on aggregate"
+            )
+            let final = makeMatch(
+                id: "\(slug)-final",
+                startDate: Date(timeIntervalSince1970: 1_720_000_000),
+                statusState: .scheduled,
+                competitionSlug: slug,
+                seasonSlug: "final"
+            )
+
+            XCTAssertFalse(CalendarMonitor.footballCanReachExtraTime(groupMatch))
+            XCTAssertFalse(CalendarMonitor.footballCanReachExtraTime(firstLeg))
+            XCTAssertTrue(CalendarMonitor.footballCanReachExtraTime(secondLeg))
+            XCTAssertTrue(CalendarMonitor.footballCanReachExtraTime(final))
+        }
+    }
+
     func testScheduledSecondLegKeepsExtraTimeBuffer() {
         let match = makeMatch(
             id: "second-leg",

@@ -5,7 +5,7 @@ extension SettingsView {
     var meetingBrowserProfileIssuesBanner: some View {
         if !meetingBrowserProfileIssues.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
-                Label("Browser profiles are unavailable", systemImage: "exclamationmark.triangle.fill")
+                Label(L10n.text("Browser profiles are unavailable"), systemImage: "exclamationmark.triangle.fill")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.orange)
 
@@ -17,7 +17,7 @@ extension SettingsView {
                         .help("\(issue.sourcePath)\n\(issue.technicalDescription)")
                 }
 
-                Text("Manage browser profile access from the Access section. Browser routing continues to use the saved fallback profile until access is restored.")
+                Text(L10n.text("Manage browser profile access from the Access section. Browser routing continues to use the saved fallback profile until access is restored."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -28,7 +28,7 @@ extension SettingsView {
                             selectedTab = .access
                         }
                     } label: {
-                        Label("Review in Access", systemImage: "lock.shield")
+                        Label(L10n.text("Review in Access"), systemImage: "lock.shield")
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
@@ -36,7 +36,7 @@ extension SettingsView {
                     Button {
                         refreshMeetingBrowserProfiles()
                     } label: {
-                        Label("Retry Profiles", systemImage: "arrow.clockwise")
+                        Label(L10n.text("Retry Profiles"), systemImage: "arrow.clockwise")
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
@@ -52,12 +52,12 @@ extension SettingsView {
     @ViewBuilder
     var meetingBrowserRoutingSettingsContent: some View {
         settingsSection(
-            title: "Meeting Links",
-            subtitle: "Choose the fallback browser and profile for video meeting links.",
+            title: L10n.text("Meeting Links"),
+            subtitle: L10n.text("Choose the fallback browser and profile for video meeting links."),
             systemImage: "link"
         ) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Fallback Browser")
+                Text(L10n.text("Fallback Browser"))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
@@ -90,7 +90,7 @@ extension SettingsView {
     func meetingBrowserPicker(route: Binding<MeetingBrowserRoute>) -> some View {
         Menu {
             if installedMeetingBrowsers.isEmpty {
-                Text("No supported browsers installed")
+                Text(L10n.text("No supported browsers installed"))
             }
 
             ForEach(installedMeetingBrowsers) { browser in
@@ -133,10 +133,10 @@ extension SettingsView {
 
         if browser.profileFamily == .none {
             SettingsLabeledControl(
-                title: "Profile",
+                title: L10n.text("Profile"),
                 layout: .inline(labelWidth: 48)
             ) {
-                Text("Automatic")
+                Text(L10n.text("Automatic"))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 8)
@@ -149,10 +149,10 @@ extension SettingsView {
             .frame(width: 260)
         } else if options.count <= 1 {
             SettingsLabeledControl(
-                title: "Profile",
+                title: L10n.text("Profile"),
                 layout: .inline(labelWidth: 48)
             ) {
-                Text(meetingBrowserProfileIssuesByBrowser[browser] == nil ? options[0].displayName : "Unavailable")
+                Text(meetingBrowserProfileIssuesByBrowser[browser] == nil ? options[0].displayName : L10n.text("Unavailable"))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(
                         meetingBrowserProfileIssuesByBrowser[browser] == nil
@@ -170,8 +170,8 @@ extension SettingsView {
             .frame(width: 260)
         } else {
             SettingsLabeledMenuPicker(
-                title: "Profile",
-                pickerTitle: "Meeting browser profile",
+                title: L10n.text("Profile"),
+                pickerTitle: L10n.text("Meeting browser profile"),
                 selection: meetingBrowserProfileBinding(for: route),
                 layout: .inline(labelWidth: 48)
             ) {

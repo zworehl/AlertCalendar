@@ -205,12 +205,12 @@ extension CalendarMonitor {
             let today = calendar.startOfDay(for: now)
             if let tomorrow = calendar.date(byAdding: .day, value: 1, to: today),
                startDay == tomorrow {
-                return "tomorrow"
+                return L10n.text("tomorrow")
             }
-            return "in \(formattedRelativeCountdown(to: startDay, from: now, simplified: simplified))"
+            return L10n.text("in \(formattedRelativeCountdown(to: startDay, from: now, simplified: simplified))")
         }
 
-        guard let endDate else { return "all-day" }
+        guard let endDate else { return L10n.text("all-day") }
 
         let endDay = calendar.startOfDay(for: endDate)
         let usesExclusiveEndDay = endDate == endDay
@@ -223,7 +223,7 @@ extension CalendarMonitor {
         }
 
         let daySpan = calendar.dateComponents([.day], from: startDay, to: lastInclusiveDay).day ?? 0
-        guard daySpan >= 1 else { return "all-day" }
+        guard daySpan >= 1 else { return L10n.text("all-day") }
 
         return Self.formattedAllDayRange(
             startDay: startDay,

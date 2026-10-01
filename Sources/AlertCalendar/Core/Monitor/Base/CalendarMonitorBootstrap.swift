@@ -48,7 +48,7 @@ extension CalendarMonitor {
         if settings.useAutomaticAstronomyLocation {
             scheduleAutomaticAstronomyLocationRefresh(trigger: .launch)
         } else {
-            astronomyLocationStatus = "Manual coordinates"
+            astronomyLocationStatus = L10n.text("Manual coordinates")
         }
         enqueueRefresh(reason: .launch)
     }

@@ -36,18 +36,18 @@ extension SettingsGameSalesSectionView {
         SettingsAddToCalendarPicker(
             selection: $targetCalendarID,
             calendars: writableCalendars,
-            pickerTitle: "Game sales calendar",
-            helpText: "New managed sale campaigns are written to this Apple Calendar.",
-            emptySelectionTitle: "Choose a calendar…"
+            pickerTitle: L10n.text("Game sales calendar"),
+            helpText: L10n.text("New managed sale campaigns are written to this Apple Calendar."),
+            emptySelectionTitle: L10n.text("Choose a calendar…")
         )
     }
 
     var calendarAlertControl: some View {
         SettingsLabeledMenuPicker(
-            title: "Calendar Alert",
-            pickerTitle: "Game sale alert",
+            title: L10n.text("Calendar Alert"),
+            pickerTitle: L10n.text("Game sale alert"),
             selection: calendarAlertBinding,
-            helpText: "Applies one Apple Calendar alert to every sale managed by Alert Calendar.",
+            helpText: L10n.text("Applies one Apple Calendar alert to every sale managed by Alert Calendar."),
             layout: .inline(labelWidth: SettingsVisualMetrics.calendarAlertLabelWidth)
         ) {
             ForEach(GameSaleCalendarAlertOption.allCases) { option in
@@ -58,7 +58,7 @@ extension SettingsGameSalesSectionView {
 
     var browseControls: some View {
         HStack(spacing: 10) {
-            Picker("Game sales view", selection: $browseMode) {
+            Picker(L10n.text("Game sales view"), selection: $browseMode) {
                 ForEach(BrowseMode.allCases) { mode in
                     Text(mode.rawValue).tag(mode)
                 }
@@ -66,7 +66,7 @@ extension SettingsGameSalesSectionView {
             .pickerStyle(.segmented)
             .labelsHidden()
 
-            Picker("Store", selection: $storeFilter) {
+            Picker(L10n.text("Store"), selection: $storeFilter) {
                 ForEach(StoreFilter.allCases) { filter in
                     Text(filter.rawValue).tag(filter)
                 }
@@ -100,7 +100,7 @@ extension SettingsGameSalesSectionView {
     }
 
     func gameSalesAutoAddGroup(layout: SettingsLabeledCheckboxGroupLayout) -> some View {
-        SettingsLabeledCheckboxGroup(title: "Auto-add", layout: layout) {
+        SettingsLabeledCheckboxGroup(title: L10n.text("Auto-add"), layout: layout) {
             ForEach(GameStore.allCases) { store in
                 autoAddToggle(for: store)
             }
@@ -108,10 +108,10 @@ extension SettingsGameSalesSectionView {
     }
 
     func gameSalesNotificationGroup(layout: SettingsLabeledCheckboxGroupLayout) -> some View {
-        SettingsLabeledCheckboxGroup(title: "Notifications", layout: layout) {
-            Toggle("Added sales", isOn: $enableAutoAddNotifications)
+        SettingsLabeledCheckboxGroup(title: L10n.text("Notifications"), layout: layout) {
+            Toggle(L10n.text("Added sales"), isOn: $enableAutoAddNotifications)
                 .disabled(autoAddStores.isEmpty)
-                .help("Notify when Alert Calendar adds a new sale campaign to Apple Calendar.")
+                .help(L10n.text("Notify when Alert Calendar adds a new sale campaign to Apple Calendar."))
         }
     }
 
@@ -124,7 +124,7 @@ extension SettingsGameSalesSectionView {
             )
         )
         .disabled(targetCalendarID.isEmpty)
-        .accessibilityLabel("Auto-add \(automationStoreTitle(for: store))")
+        .accessibilityLabel(L10n.text("Auto-add \(automationStoreTitle(for: store))"))
         .help(automationHelp(for: store))
     }
 
@@ -152,9 +152,9 @@ extension SettingsGameSalesSectionView {
     func automationHelp(for store: GameStore) -> String {
         switch store {
         case .steam:
-            return "Automatically add campaigns from Steam's complete official published schedule."
+            return L10n.text("Automatically add campaigns from Steam's complete official published schedule.")
         case .xbox, .playStation, .nintendoSwitch:
-            return "Automatically add campaigns announced with explicit start and end dates by the official store. Announcement coverage may be incomplete."
+            return L10n.text("Automatically add campaigns announced with explicit start and end dates by the official store. Announcement coverage may be incomplete.")
         }
     }
 

@@ -55,11 +55,11 @@ extension CalendarMonitor {
         let dayAfterTomorrowStart = resolvedCalendar.date(byAdding: .day, value: 1, to: tomorrowStart) ?? tomorrowStart
 
         if startDate >= todayStart, startDate < tomorrowStart {
-            return "Today \(timeFormatter.string(from: startDate))"
+            return L10n.text("Today \(timeFormatter.string(from: startDate))")
         }
 
         if startDate >= tomorrowStart, startDate < dayAfterTomorrowStart {
-            return "Tomorrow \(timeFormatter.string(from: startDate))"
+            return L10n.text("Tomorrow \(timeFormatter.string(from: startDate))")
         }
 
         let dayDistance = abs(resolvedCalendar.dateComponents([.day], from: now, to: startDate).day ?? 0)
@@ -91,7 +91,7 @@ extension CalendarMonitor {
                 locale: locale,
                 timeZone: timeZone
             )
-            return "Started \(formatter.string(from: startDate))"
+            return L10n.text("Started \(formatter.string(from: startDate))")
         }
 
         let dayDistance = abs(resolvedCalendar.dateComponents([.day], from: startDate, to: now).day ?? 0)
@@ -101,7 +101,7 @@ extension CalendarMonitor {
             locale: locale,
             timeZone: timeZone
         )
-        return "Started \(formatter.string(from: startDate))"
+        return L10n.text("Started \(formatter.string(from: startDate))")
     }
 
     nonisolated static func footballScheduleText(
@@ -145,7 +145,7 @@ extension CalendarMonitor {
         now: Date = AlertCalendarClock.nowRoundedToSecond()
     ) -> String? {
         if match.statusReliability == .awaitingLiveData || match.statusReliability == .delayedLiveData {
-            return "Soon"
+            return L10n.text("Soon")
         }
 
         let trimmed = match.statusText.trimmingCharacters(in: .whitespacesAndNewlines)

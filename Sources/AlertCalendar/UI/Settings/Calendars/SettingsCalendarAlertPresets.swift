@@ -21,21 +21,21 @@ enum SettingsCalendarAlertPreset: String, Identifiable {
 
     var title: String {
         switch self {
-        case .atTime: return "At time of event"
-        case .fiveMinutes: return "5 minutes before"
-        case .tenMinutes: return "10 minutes before"
-        case .fifteenMinutes: return "15 minutes before"
-        case .thirtyMinutes: return "30 minutes before"
-        case .oneHour: return "1 hour before"
-        case .twoHours: return "2 hours before"
-        case .oneDay: return "1 day before"
-        case .twoDays: return "2 days before"
-        case .oneWeek: return "1 week before"
-        case .timeToLeave: return "Time to Leave"
-        case .allDaySameDay: return "On day of event (9:00 AM)"
-        case .allDayOneDay: return "1 day before (9:00 AM)"
-        case .allDayTwoDays: return "2 days before (9:00 AM)"
-        case .allDayOneWeek: return "1 week before (9:00 AM)"
+        case .atTime: return L10n.text("At time of event")
+        case .fiveMinutes: return L10n.text("5 minutes before")
+        case .tenMinutes: return L10n.text("10 minutes before")
+        case .fifteenMinutes: return L10n.text("15 minutes before")
+        case .thirtyMinutes: return L10n.text("30 minutes before")
+        case .oneHour: return L10n.text("1 hour before")
+        case .twoHours: return L10n.text("2 hours before")
+        case .oneDay: return L10n.text("1 day before")
+        case .twoDays: return L10n.text("2 days before")
+        case .oneWeek: return L10n.text("1 week before")
+        case .timeToLeave: return L10n.text("Time to Leave")
+        case .allDaySameDay: return L10n.text("On day of event (9:00 AM)")
+        case .allDayOneDay: return L10n.text("1 day before (9:00 AM)")
+        case .allDayTwoDays: return L10n.text("2 days before (9:00 AM)")
+        case .allDayOneWeek: return L10n.text("1 week before (9:00 AM)")
         }
     }
 

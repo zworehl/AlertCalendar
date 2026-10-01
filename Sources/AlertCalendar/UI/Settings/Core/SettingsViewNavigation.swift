@@ -28,18 +28,18 @@ extension SettingsView {
                     .listRowBackground(Color.clear)
             } else {
                 if !visiblePrimarySettingsTabs.isEmpty {
-                    Section("Settings") {
+                    Section(L10n.text("Settings")) {
                         ForEach(visiblePrimarySettingsTabs) { tab in
-                            settingsSidebarLabel(tab.rawValue, symbolName: tab.symbolName)
+                            settingsSidebarLabel(L10n.lookup(tab.rawValue), symbolName: tab.symbolName)
                                 .tag(SettingsSidebarDestination.tab(tab))
                         }
                     }
                 }
 
                 if !visibleFeedSubsections.isEmpty {
-                    Section("Feeds") {
+                    Section(L10n.text("Feeds")) {
                         ForEach(visibleFeedSubsections) { subsection in
-                            settingsSidebarLabel(subsection.rawValue, symbolName: subsection.symbolName)
+                            settingsSidebarLabel(L10n.lookup(subsection.rawValue), symbolName: subsection.symbolName)
                                 .tag(SettingsSidebarDestination.feed(subsection))
                         }
                     }
@@ -50,7 +50,7 @@ extension SettingsView {
         .searchable(
             text: $settingsSearchQuery,
             placement: .sidebar,
-            prompt: "Search Settings"
+            prompt: L10n.text("Search Settings")
         )
         .accessibilityIdentifier("settings.sidebar")
     }
@@ -171,7 +171,7 @@ extension SettingsView {
     }
 
     private var settingsPageTitle: String {
-        selectedTab == .feeds ? selectedFeedsSubsection.title : selectedTab.rawValue
+        selectedTab == .feeds ? selectedFeedsSubsection.title : L10n.lookup(selectedTab.rawValue)
     }
 
     private var settingsPageSubtitle: String {
@@ -196,7 +196,7 @@ extension SettingsView {
         guard !query.isEmpty else { return primaryTabs }
 
         return primaryTabs.filter { tab in
-            sidebarSearchMatches(title: tab.rawValue, subtitle: tab.subtitle, query: query)
+            sidebarSearchMatches(title: L10n.lookup(tab.rawValue), subtitle: tab.subtitle, query: query)
         }
     }
 
@@ -204,7 +204,7 @@ extension SettingsView {
         let query = normalizedSettingsSearchQuery
         guard !query.isEmpty else { return FeedsSubsection.allCases }
 
-        if sidebarSearchMatches(title: SettingsTab.feeds.rawValue, subtitle: SettingsTab.feeds.subtitle, query: query) {
+        if sidebarSearchMatches(title: L10n.lookup(SettingsTab.feeds.rawValue), subtitle: SettingsTab.feeds.subtitle, query: query) {
             return FeedsSubsection.allCases
         }
 
@@ -227,10 +227,10 @@ private struct SettingsSidebarEmptySearchView: View {
                 .font(.title2)
                 .foregroundStyle(.tertiary)
 
-            Text("No Settings Found")
+            Text(L10n.text("No Settings Found"))
                 .font(.subheadline.weight(.semibold))
 
-            Text("No settings match “\(query)”.")
+            Text(L10n.text("No settings match “\(query)”."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

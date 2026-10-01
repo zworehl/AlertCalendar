@@ -32,8 +32,8 @@ extension SettingsView {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             settingsSection(
-                title: "Diagnostics",
-                subtitle: "Refresh details for the last scheduler pass.",
+                title: L10n.text("Diagnostics"),
+                subtitle: L10n.text("Refresh details for the last scheduler pass."),
                 systemImage: "waveform.path.ecg"
             ) {
                 dataRefreshIssuesContent
@@ -56,14 +56,14 @@ extension SettingsView {
     @ViewBuilder
     var accessOverviewSection: some View {
         settingsSection(
-            title: "Access Overview",
-            subtitle: "Check the app-level state and jump straight to macOS privacy controls when needed.",
+            title: L10n.text("Access Overview"),
+            subtitle: L10n.text("Check the app-level state and jump straight to macOS privacy controls when needed."),
             systemImage: "lock.shield"
         ) {
                 ViewThatFits(in: .horizontal) {
                     HStack(alignment: .center, spacing: 18) {
                         VStack(alignment: .leading, spacing: 8) {
-                            statusPill(title: "Current Access", value: calendarAccessDescription)
+                            statusPill(title: L10n.text("Current Access"), value: calendarAccessDescription)
                         }
 
                         Spacer(minLength: 12)
@@ -72,7 +72,7 @@ extension SettingsView {
                     }
 
                     VStack(alignment: .leading, spacing: 8) {
-                        statusPill(title: "Current Access", value: calendarAccessDescription)
+                        statusPill(title: L10n.text("Current Access"), value: calendarAccessDescription)
 
                         permissionOverviewActions
                     }
@@ -83,19 +83,19 @@ extension SettingsView {
 
     @ViewBuilder
     var diagnosticsPills: some View {
-        statusPill(title: "Reason", value: refreshDiagnostics.summary)
-        statusPill(title: "Pending", value: refreshDiagnostics.pendingSummary)
-        statusPill(title: "Phases", value: refreshDiagnostics.phasesSummary)
-        statusPill(title: "Feed requests", value: "\(externalFeedDiagnostics.networkRequests)")
-        statusPill(title: "Cache hits", value: "\(externalFeedDiagnostics.cacheHits)")
-        statusPill(title: "Feed failures", value: "\(externalFeedDiagnostics.failures)")
-        statusPill(title: "Feed p50 / p95", value: Self.feedLatencySummary(externalFeedDiagnostics))
+        statusPill(title: L10n.text("Reason"), value: refreshDiagnostics.summary)
+        statusPill(title: L10n.text("Pending"), value: refreshDiagnostics.pendingSummary)
+        statusPill(title: L10n.text("Phases"), value: refreshDiagnostics.phasesSummary)
+        statusPill(title: L10n.text("Feed requests"), value: "\(externalFeedDiagnostics.networkRequests)")
+        statusPill(title: L10n.text("Cache hits"), value: "\(externalFeedDiagnostics.cacheHits)")
+        statusPill(title: L10n.text("Feed failures"), value: "\(externalFeedDiagnostics.failures)")
+        statusPill(title: L10n.text("Feed p50 / p95"), value: Self.feedLatencySummary(externalFeedDiagnostics))
     }
 
     nonisolated static func feedLatencySummary(_ diagnostics: ExternalFeedDiagnostics) -> String {
         guard let median = diagnostics.medianRequestDuration,
               let p95 = diagnostics.p95RequestDuration else {
-            return "No samples"
+            return L10n.text("No samples")
         }
         return String(format: "%.2fs / %.2fs", median, p95)
     }
@@ -126,14 +126,14 @@ extension SettingsView {
                 Button {
                     refreshPermissionStatuses(forceRefresh: true)
                 } label: {
-                    Label("Refresh Status", systemImage: "arrow.clockwise")
+                    Label(L10n.text("Refresh Status"), systemImage: "arrow.clockwise")
                 }
                 .buttonStyle(.bordered)
 
                 Button {
                     openPrivacySettings()
                 } label: {
-                    Label("Open Privacy…", systemImage: "gearshape")
+                    Label(L10n.text("Open Privacy…"), systemImage: "gearshape")
                 }
                 .buttonStyle(.bordered)
             }
@@ -142,14 +142,14 @@ extension SettingsView {
                 Button {
                     refreshPermissionStatuses(forceRefresh: true)
                 } label: {
-                    Label("Refresh Status", systemImage: "arrow.clockwise")
+                    Label(L10n.text("Refresh Status"), systemImage: "arrow.clockwise")
                 }
                 .buttonStyle(.bordered)
 
                 Button {
                     openPrivacySettings()
                 } label: {
-                    Label("Open Privacy…", systemImage: "gearshape")
+                    Label(L10n.text("Open Privacy…"), systemImage: "gearshape")
                 }
                 .buttonStyle(.bordered)
             }

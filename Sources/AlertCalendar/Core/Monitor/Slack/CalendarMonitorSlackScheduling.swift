@@ -92,7 +92,7 @@ extension CalendarMonitor {
                     connection: connection,
                     mode: .meeting(snapshot: SlackProfileStatusSnapshot(
                         statusText: playback.statusText,
-                        statusEmoji: playback.statusEmoji,
+                        statusEmoji: playback.statusEmoji(from: musicSettings.emojis),
                         statusExpiration: musicExpirationTimestamp ?? playback.expirationTimestamp(now: now)
                     ))
                 )

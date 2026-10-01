@@ -17,14 +17,14 @@ struct SettingsGoogleHolidaysSectionView: View {
         VStack(alignment: .leading, spacing: 14) {
             if !hasEventsAccess {
                 feedbackPanel(
-                    title: "Calendar access required",
-                    detail: "Grant Calendar access to consolidate Google holidays into Apple Calendar.",
+                    title: L10n.text("Calendar access required"),
+                    detail: L10n.text("Grant Calendar access to consolidate Google holidays into Apple Calendar."),
                     systemImage: "calendar.badge.exclamationmark"
                 )
             } else if writableCalendars.isEmpty {
                 feedbackPanel(
-                    title: "No writable calendars",
-                    detail: "Create or enable a writable Apple Calendar before synchronizing holidays.",
+                    title: L10n.text("No writable calendars"),
+                    detail: L10n.text("Create or enable a writable Apple Calendar before synchronizing holidays."),
                     systemImage: "calendar.badge.minus"
                 )
             } else {
@@ -51,9 +51,9 @@ struct SettingsGoogleHolidaysSectionView: View {
         SettingsAddToCalendarPicker(
             selection: $targetCalendarID,
             calendars: writableCalendars,
-            pickerTitle: "Holiday destination calendar",
-            helpText: "All selected country feeds are consolidated into this writable Apple Calendar.",
-            emptySelectionTitle: "Choose a calendar…"
+            pickerTitle: L10n.text("Holiday destination calendar"),
+            helpText: L10n.text("All selected country feeds are consolidated into this writable Apple Calendar."),
+            emptySelectionTitle: L10n.text("Choose a calendar…")
         )
     }
 
@@ -79,16 +79,16 @@ struct SettingsGoogleHolidaysSectionView: View {
                     )
                     .toggleStyle(.checkbox)
                     .controlSize(.small)
-                    .help("Google Calendar: Holidays in \(country.englishName)")
+                    .help(L10n.text("Google Calendar: Holidays in \(country.englishName)"))
                 }
             }
             .padding(.vertical, 2)
             .padding(.trailing, 8)
             .frame(maxWidth: .infinity, alignment: .topLeading)
-            .accessibilityLabel("Google holiday countries and territories")
+            .accessibilityLabel(L10n.text("Google holiday countries and territories"))
 
             if filteredCountries.isEmpty {
-                Text("No countries or territories match this search.")
+                Text(L10n.text("No countries or territories match this search."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.vertical, 8)
@@ -158,7 +158,7 @@ struct SettingsGoogleHolidaysSectionView: View {
     }
 
     private var countrySearchField: some View {
-        TextField("Search countries and territories", text: $searchText)
+        TextField(L10n.text("Search countries and territories"), text: $searchText)
             .textFieldStyle(.roundedBorder)
             .frame(minWidth: 220, maxWidth: .infinity)
     }
@@ -169,7 +169,7 @@ struct SettingsGoogleHolidaysSectionView: View {
             HStack(spacing: 7) {
                 ProgressView()
                     .controlSize(.small)
-                Text("Synchronizing Google holidays…")
+                Text(L10n.text("Synchronizing Google holidays…"))
             }
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -186,23 +186,23 @@ struct SettingsGoogleHolidaysSectionView: View {
 
     private var countrySelectionHeader: some View {
         SettingsSectionHeaderView(
-            title: "Countries & Territories"
+            title: L10n.text("Countries & Territories")
         )
     }
 
     private var countryActions: some View {
         HStack(spacing: 8) {
             if !subscribedCountryIDs.isEmpty {
-                Button("Use Subscribed (\(subscribedCountryIDs.count))") {
+                Button(L10n.text("Use Subscribed (\(subscribedCountryIDs.count))")) {
                     selectedCountryIDs.formUnion(subscribedCountryIDs)
                 }
-                .help("Select countries detected from subscribed holiday calendars in Apple Calendar.")
+                .help(L10n.text("Select countries detected from subscribed holiday calendars in Apple Calendar."))
             }
 
-            Button("Select All") {
+            Button(L10n.text("Select All")) {
                 selectedCountryIDs = GoogleHolidayCountry.validIDs
             }
-            Button("Clear") {
+            Button(L10n.text("Clear")) {
                 selectedCountryIDs.removeAll()
             }
             .disabled(selectedCountryIDs.isEmpty)

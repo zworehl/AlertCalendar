@@ -5,14 +5,14 @@ extension SettingsView {
     @ViewBuilder
     var browserProfileAccessSettingsSection: some View {
         settingsSection(
-            title: "Browser Profile Access",
-            subtitle: "Read local browser profile names for per-calendar meeting link routing.",
+            title: L10n.text("Browser Profile Access"),
+            subtitle: L10n.text("Read local browser profile names for per-calendar meeting link routing."),
             systemImage: "person.crop.rectangle.stack"
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 10) {
                     Label(
-                        meetingBrowserProfileIssues.isEmpty ? "Profile access is available" : "Profile access needs attention",
+                        meetingBrowserProfileIssues.isEmpty ? L10n.text("Profile access is available") : L10n.text("Profile access needs attention"),
                         systemImage: meetingBrowserProfileIssues.isEmpty
                             ? "checkmark.circle.fill"
                             : "exclamationmark.triangle.fill"
@@ -24,14 +24,14 @@ extension SettingsView {
 
                     cardStatusBadge(
                         SettingsCardBadgeState(
-                            title: meetingBrowserProfileIssues.isEmpty ? "Available" : "Action Required",
+                            title: meetingBrowserProfileIssues.isEmpty ? L10n.text("Available") : L10n.text("Action Required"),
                             tint: meetingBrowserProfileIssues.isEmpty ? .green : .orange
                         )
                     )
                 }
 
                 if meetingBrowserProfileIssues.isEmpty {
-                    Text("AlertCalendar can load the profiles exposed by the installed supported browsers.")
+                    Text(L10n.text("AlertCalendar can load the profiles exposed by the installed supported browsers."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
@@ -49,7 +49,7 @@ extension SettingsView {
                                 Button {
                                     authorizeBrowserProfileAccess(for: issue)
                                 } label: {
-                                    Label("Choose \(issue.browser.title) Data…", systemImage: "doc.badge.plus")
+                                    Label(L10n.text("Choose \(issue.browser.title) Data…"), systemImage: "doc.badge.plus")
                                 }
                                 .buttonStyle(.borderedProminent)
                                 .controlSize(.small)
@@ -88,7 +88,7 @@ extension SettingsView {
         Button {
             refreshMeetingBrowserProfiles()
         } label: {
-            Label("Retry Profiles", systemImage: "arrow.clockwise")
+            Label(L10n.text("Retry Profiles"), systemImage: "arrow.clockwise")
         }
         .buttonStyle(.borderedProminent)
 
@@ -96,7 +96,7 @@ extension SettingsView {
             Button {
                 openFullDiskAccessSettings()
             } label: {
-                Label("Open Full Disk Access…", systemImage: "gearshape")
+                Label(L10n.text("Open Full Disk Access…"), systemImage: "gearshape")
             }
             .buttonStyle(.bordered)
         }
@@ -108,9 +108,9 @@ extension SettingsView {
 
     var browserProfileAccessRecoveryDescription: String {
         if browserProfileAccessWasDenied {
-            return "If Full Disk Access is already enabled, choose each browser's profile data file once so macOS can record your explicit selection."
+            return L10n.text("If Full Disk Access is already enabled, choose each browser's profile data file once so macOS can record your explicit selection.")
         }
-        return "Open the affected browser once so it can create its profile data, then retry."
+        return L10n.text("Open the affected browser once so it can create its profile data, then retry.")
     }
 
     func authorizeBrowserProfileAccess(for issue: MeetingBrowserProfileLoadIssue) {

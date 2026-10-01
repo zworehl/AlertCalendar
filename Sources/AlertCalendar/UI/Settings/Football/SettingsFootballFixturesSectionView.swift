@@ -57,7 +57,7 @@ struct SettingsFootballFixturesSectionView: View {
     @State var availableEventCalendars: [AvailableCalendar] = []
     @State var writableEventCalendars: [AvailableCalendar] = []
     @State var footballMenuSections: [FootballMenuCompetitionSection] = []
-    @State var footballLiveAndNextDaySection = FootballMatchesOverviewSection.placeholder(title: "Now & Next 24 Hours")
+    @State var footballLiveAndNextDaySection = FootballMatchesOverviewSection.placeholder(title: L10n.text("Now & Next 24 Hours"))
     @State var managedFootballMatchIDs: Set<String> = []
     @State var managedFootballMatches: [FootballFixtureMatch] = []
     @State var competitionSectionsByRegionCache: [(region: FootballCompetitionRegion, sections: [FootballMenuCompetitionSection])] = []

@@ -6,24 +6,24 @@ extension SettingsView {
         let startsBeforeEvent = draft.slackStatusSyncRules[index].startsBeforeEvent
 
         VStack(alignment: .leading, spacing: 4) {
-            Text("Timing")
+            Text(L10n.text("Timing"))
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 10) {
                 Toggle(
-                    "Set before event",
+                    L10n.text("Set before event"),
                     isOn: $draft.slackStatusSyncRules[index].startsBeforeEvent
                 )
                 .toggleStyle(.switch)
                 .controlSize(.small)
 
                 Picker(
-                    "Lead time",
+                    L10n.text("Lead time"),
                     selection: $draft.slackStatusSyncRules[index].leadMinutes
                 ) {
                     ForEach(AppSettingsRules.slackStatusLeadMinuteOptions, id: \.self) { minutes in
-                        Text("\(minutes) min").tag(minutes)
+                        Text(L10n.text("\(minutes) min")).tag(minutes)
                     }
                 }
                 .pickerStyle(.menu)
@@ -36,19 +36,19 @@ extension SettingsView {
             if startsBeforeEvent {
                 HStack(alignment: .top, spacing: 10) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Pre-event Text")
+                        Text(L10n.text("Pre-event Text"))
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(.secondary)
 
                         TextField(
-                            "Starting soon",
+                            L10n.text("Starting soon"),
                             text: $draft.slackStatusSyncRules[index].preEventStatusText
                         )
                         .textFieldStyle(.roundedBorder)
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Pre-event Emoji")
+                        Text(L10n.text("Pre-event Emoji"))
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(.secondary)
 
@@ -66,11 +66,11 @@ extension SettingsView {
     }
 
     func slackStatusRuleTitle(for rule: SlackStatusSyncRule) -> String {
-        slackConnection(for: rule)?.workspaceLabel ?? "Choose Slack workspace"
+        slackConnection(for: rule)?.workspaceLabel ?? L10n.text("Choose Slack workspace")
     }
 
     func slackStatusRuleSubtitle(for rule: SlackStatusSyncRule) -> String {
-        guard let connection = slackConnection(for: rule) else { return "Connect a Slack workspace" }
+        guard let connection = slackConnection(for: rule) else { return L10n.text("Connect a Slack workspace") }
         return connection.resolvedDisplayName
     }
 
@@ -85,7 +85,7 @@ extension SettingsView {
 
     func slackStatusRuleActiveStatusPreview(for rule: SlackStatusSyncRule) -> String {
         SlackMeetingStatus.statusLine(
-            text: rule.statusTextSource == .eventTitle ? "Event Title" : rule.statusText,
+            text: rule.statusTextSource == .eventTitle ? L10n.text("Event Title") : rule.statusText,
             emoji: rule.statusEmoji
         )
     }
@@ -108,13 +108,13 @@ extension SettingsView {
             HStack(alignment: .top, spacing: 6) {
                 if rule.startsBeforeEvent {
                     slackStatusRuleStatusPreview(
-                        label: "Starting soon · \(rule.leadMinutes) min",
+                        label: L10n.text("Starting soon · \(rule.leadMinutes) min"),
                         status: slackStatusRulePreEventStatusPreview(for: rule)
                     )
                 }
 
                 slackStatusRuleStatusPreview(
-                    label: "In progress",
+                    label: L10n.text("In progress"),
                     status: slackStatusRuleActiveStatusPreview(for: rule)
                 )
             }
@@ -122,13 +122,13 @@ extension SettingsView {
             VStack(alignment: .leading, spacing: 5) {
                 if rule.startsBeforeEvent {
                     slackStatusRuleStatusPreview(
-                        label: "Starting soon · \(rule.leadMinutes) min",
+                        label: L10n.text("Starting soon · \(rule.leadMinutes) min"),
                         status: slackStatusRulePreEventStatusPreview(for: rule)
                     )
                 }
 
                 slackStatusRuleStatusPreview(
-                    label: "In progress",
+                    label: L10n.text("In progress"),
                     status: slackStatusRuleActiveStatusPreview(for: rule)
                 )
             }

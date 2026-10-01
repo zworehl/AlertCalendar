@@ -125,7 +125,7 @@ extension CalendarMonitor {
             organizer: nil,
             attendees: [],
             calendarID: nil,
-            calendarName: "Astronomy",
+            calendarName: L10n.text("Astronomy"),
             calendarColor: color,
             kind: .event,
             footballMatch: nil,

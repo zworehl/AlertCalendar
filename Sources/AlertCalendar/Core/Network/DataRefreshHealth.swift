@@ -63,6 +63,6 @@ struct DataRefreshNotificationPolicy {
         guard !titles.isEmpty else { return nil }
         let names = titles.prefix(3).joined(separator: ", ")
         let extra = titles.count > 3 ? " and \(titles.count - 3) more" : ""
-        return "Could not update \(names)\(extra). Some information may be out of date. Open Settings → Access → Diagnostics for details and use Refresh Now to retry."
+        return L10n.text("Could not update \(names)\(extra). Some information may be out of date. Open Settings → Access → Diagnostics for details and use Refresh Now to retry.")
     }
 }

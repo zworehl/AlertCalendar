@@ -114,10 +114,10 @@ extension CalendarMonitor {
         hasLaterItemsInDropdownWindow: Bool
     ) -> String {
         guard hasLaterItemsInDropdownWindow else {
-            return "No upcoming items"
+            return L10n.text("No upcoming items")
         }
 
-        return "No items in next \(menuBarRotationWindowDescription(minutes: menuBarRotationWindowMinutes))"
+        return L10n.text("No items in next \(menuBarRotationWindowDescription(minutes: menuBarRotationWindowMinutes))")
     }
 
     nonisolated static func menuBarRotationWindowDescription(minutes: Int) -> String {
@@ -128,13 +128,13 @@ extension CalendarMonitor {
 
         var components: [String] = []
         if days > 0 {
-            components.append("\(days)d")
+            components.append(L10n.text("\(days)d"))
         }
         if hours > 0 {
-            components.append("\(hours)h")
+            components.append(L10n.text("\(hours)h"))
         }
         if remainingMinutes > 0 {
-            components.append("\(remainingMinutes)m")
+            components.append(L10n.text("\(remainingMinutes)m"))
         }
 
         return components.prefix(2).joined(separator: " ")

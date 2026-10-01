@@ -40,7 +40,7 @@ struct DaylightPreviewArtwork: View {
 
                 if !isEnabled {
                     Color.black.opacity(0.34)
-                    Text("Enable sun moments to show this map in Feeds.")
+                    Text(L10n.text("Enable sun moments to show this map in Feeds."))
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.86))
                         .padding(.horizontal, 12)

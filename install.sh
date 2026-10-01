@@ -129,6 +129,8 @@ generate_app_intents_metadata() {
   local sdk_root
   local xcode_build_version
   local output_path
+  local product_objects_dir
+  local product_source_file_list
 
   metadata_tool="$(xcrun --find appintentsmetadataprocessor)"
   developer_dir="$(xcode-select -p)"
@@ -137,10 +139,14 @@ generate_app_intents_metadata() {
   output_path="$FOCUS_METADATA_DIR"
   mkdir -p "$output_path"
 
-  if [[ ! -f "$SOURCE_FILE_LIST" ]]; then
-    # SwiftPM product targets use the -p suffix with newer Xcode versions.
-    OBJECTS_DIR="$DERIVED_DATA/Build/Intermediates.noindex/AlertCalendar.build/$BUILD_CONFIGURATION/AlertCalendar-p.build/Objects-normal/$BUILD_ARCH"
-    SOURCE_FILE_LIST="$OBJECTS_DIR/${BINARY_NAME}.SwiftFileList"
+  # SwiftPM product targets use the -p suffix with newer Xcode versions.
+  # A reused DerivedData folder can contain the older target's stale metadata.
+  product_objects_dir="$DERIVED_DATA/Build/Intermediates.noindex/AlertCalendar.build/$BUILD_CONFIGURATION/AlertCalendar-p.build/Objects-normal/$BUILD_ARCH"
+  product_source_file_list="$product_objects_dir/${BINARY_NAME}.SwiftFileList"
+  if [[ -f "$product_source_file_list" ]] && \
+     { [[ ! -f "$SOURCE_FILE_LIST" ]] || [[ "$product_source_file_list" -nt "$SOURCE_FILE_LIST" ]]; }; then
+    OBJECTS_DIR="$product_objects_dir"
+    SOURCE_FILE_LIST="$product_source_file_list"
   fi
   if [[ ! -f "$SOURCE_FILE_LIST" ]]; then
     echo "Unable to locate Swift source list for App Intents metadata."
@@ -299,6 +305,9 @@ if ! otool -l "$APP_BUNDLE/Contents/MacOS/${BINARY_NAME}" \
   install_name_tool -add_rpath '@executable_path/../Frameworks' "$APP_BUNDLE/Contents/MacOS/${BINARY_NAME}"
 fi
 ditto "$RESOURCE_BUNDLE_SOURCE" "$APP_BUNDLE/Contents/Resources/$RESOURCE_BUNDLE_NAME"
+for localization in en es-419; do
+  ditto "$ROOT/Sources/AlertCalendar/Resources/Localization/$localization.lproj"     "$APP_BUNDLE/Contents/Resources/$localization.lproj"
+done
 ditto "$SPARKLE_FRAMEWORK_SOURCE" "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
 ditto "$FOCUS_METADATA_DIR/Metadata.appintents" "$APP_BUNDLE/Contents/Resources/Metadata.appintents"
 if [[ -f "$ICON_SOURCE" ]]; then
@@ -331,7 +340,7 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
   <key>CFBundleDevelopmentRegion</key>
   <string>en</string>
   <key>CFBundleLocalizations</key>
-  <array><string>en</string></array>
+  <array><string>en</string><string>es-419</string></array>
   <key>CFBundleIdentifier</key>
   <string>${BUNDLE_IDENTIFIER}</string>
   <key>CFBundleExecutable</key>

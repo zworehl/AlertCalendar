@@ -208,7 +208,7 @@ extension SettingsFootballFixturesSectionView {
 
     func competitionAutoAddToggle(for section: FootballMenuCompetitionSection) -> some View {
         Toggle(
-            "Auto-add",
+            L10n.text("Auto-add"),
             isOn: Binding(
                 get: {
                     autoAddFootballCompetitionSlugs.contains(section.competition.slug)
@@ -221,7 +221,7 @@ extension SettingsFootballFixturesSectionView {
         .toggleStyle(.checkbox)
         .controlSize(.small)
         .font(SettingsTypography.inlineFieldLabel)
-        .help("Automatically add new fixtures from this competition to Apple Calendar.")
+        .help(L10n.text("Automatically add new fixtures from this competition to Apple Calendar."))
         .disabled(footballTargetCalendarID.isEmpty)
     }
 

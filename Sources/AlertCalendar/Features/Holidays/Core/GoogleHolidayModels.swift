@@ -35,7 +35,7 @@ struct GoogleHolidayCountry: Identifiable, Hashable, Sendable {
     }
 
     var displayName: String {
-        englishName
+        AlertCalendarLanguage.locale.localizedString(forRegionCode: id) ?? englishName
     }
 
     var googleCalendarID: String {

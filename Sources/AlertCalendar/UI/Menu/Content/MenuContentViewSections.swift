@@ -27,36 +27,36 @@ extension MenuContentView {
             }
             .padding(.horizontal, 4)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Refreshing Alert Calendar")
+            .accessibilityLabel(L10n.text("Refreshing Alert Calendar"))
             .accessibilityHidden(!isRefreshing)
 
             Button {
                 refreshDropdownManually()
             } label: {
-                Label("Refresh", systemImage: "arrow.clockwise")
+                Label(L10n.text("Refresh"), systemImage: "arrow.clockwise")
                     .labelStyle(.iconOnly)
             }
             .buttonStyle(MenuToolbarButtonStyle())
             .allowsHitTesting(!isRefreshing)
             .keyboardShortcut("r", modifiers: .command)
-            .help(isRefreshing ? "Refreshing" : "Refresh")
+            .help(isRefreshing ? L10n.text("Refreshing") : L10n.text("Refresh"))
 
             Button {
                 openSettingsWindowFromDropdown()
             } label: {
-                Label("Settings", systemImage: "gearshape")
+                Label(L10n.text("Settings"), systemImage: "gearshape")
                     .labelStyle(.iconOnly)
             }
             .buttonStyle(MenuToolbarButtonStyle())
             .keyboardShortcut(",", modifiers: .command)
-            .help("Settings")
+            .help(L10n.text("Settings"))
 
             Menu {
                 if monitor.hasSkippedItems() {
                     Button {
                         monitor.restoreSkippedItems()
                     } label: {
-                        Label("Restore Skipped Items", systemImage: "arrow.uturn.backward")
+                        Label(L10n.text("Restore Skipped Items"), systemImage: "arrow.uturn.backward")
                     }
                 }
 
@@ -64,7 +64,7 @@ extension MenuContentView {
                     Button {
                         monitor.silenceCurrentAlert()
                     } label: {
-                        Label("Silence Current Alert", systemImage: "bell.slash")
+                        Label(L10n.text("Silence Current Alert"), systemImage: "bell.slash")
                     }
                 }
 
@@ -75,7 +75,7 @@ extension MenuContentView {
                 Button {
                     openAboutPanelFromDropdown()
                 } label: {
-                    Label("About Alert Calendar", systemImage: "info.circle")
+                    Label(L10n.text("About Alert Calendar"), systemImage: "info.circle")
                 }
 
                 Divider()
@@ -83,11 +83,11 @@ extension MenuContentView {
                 Button {
                     NSApplication.shared.terminate(nil)
                 } label: {
-                    Label("Quit Alert Calendar", systemImage: "power")
+                    Label(L10n.text("Quit Alert Calendar"), systemImage: "power")
                 }
                 .keyboardShortcut("q", modifiers: .command)
             } label: {
-                Label("More Actions", systemImage: "ellipsis.circle")
+                Label(L10n.text("More Actions"), systemImage: "ellipsis.circle")
                     .labelStyle(.iconOnly)
                     .font(.system(size: MenuContentNativeMetrics.toolbarSymbolSize, weight: .medium))
                     .symbolRenderingMode(.hierarchical)
@@ -101,7 +101,7 @@ extension MenuContentView {
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
-            .help("More Actions")
+            .help(L10n.text("More Actions"))
         }
         .frame(minHeight: MenuContentNativeMetrics.toolbarButtonSize)
     }
@@ -115,10 +115,10 @@ extension MenuContentView {
                         .controlSize(.small)
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Loading upcoming items")
+                        Text(L10n.text("Loading upcoming items"))
                             .font(.subheadline.weight(.semibold))
 
-                        Text("Checking calendars, reminders, and feeds. \(monitor.calendarAccessDescription)")
+                        Text(L10n.text("Checking calendars, reminders, and feeds. \(monitor.calendarAccessDescription)"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)

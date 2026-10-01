@@ -57,8 +57,8 @@ struct OrbitalHighlightsArtwork: View {
                         )
                     } else {
                         highlightPill(
-                            title: "Orbital Highlights",
-                            subtitle: "Current position around the Sun"
+                            title: L10n.text("Orbital Highlights"),
+                            subtitle: L10n.text("Current position around the Sun")
                         )
                     }
                     Spacer()
@@ -67,7 +67,7 @@ struct OrbitalHighlightsArtwork: View {
                 HStack {
                     Spacer()
                     highlightPill(
-                        title: "Now",
+                        title: L10n.text("Now"),
                         subtitle: orbitProgressSummary
                     )
                 }
@@ -76,7 +76,7 @@ struct OrbitalHighlightsArtwork: View {
 
             if !isEnabled {
                 Color.black.opacity(0.18)
-                Text("Enable orbital highlights to show these milestones in Feeds.")
+                Text(L10n.text("Enable orbital highlights to show these milestones in Feeds."))
                     .font(.caption)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
@@ -204,7 +204,7 @@ struct OrbitalHighlightsArtwork: View {
         let layout = annotationLayout(for: point, center: geometry.center)
 
         context.draw(
-            Text("Now")
+            Text(L10n.text("Now"))
                 .font(.system(size: 10, weight: .bold))
                 .foregroundColor(.white.opacity(0.92)),
             at: CGPoint(x: point.x + layout.offset.width, y: point.y + layout.offset.height),
@@ -345,9 +345,14 @@ struct OrbitalHighlightsArtwork: View {
     private static let earthOrbitEccentricity: CGFloat = 0.0167
     private static let earthOrbitAxisRatio = sqrt(1 - (earthOrbitEccentricity * earthOrbitEccentricity))
 
-    private static let highlightFormatter: DateFormatter = {
+    static var highlightFormatter: DateFormatter {
+        let formatter = cachedHighlightFormatter
+        formatter.locale = AlertCalendarLanguage.locale
+        return formatter
+    }
+    private static let cachedHighlightFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.locale = AlertCalendarLanguage.english
+        formatter.locale = AlertCalendarLanguage.locale
         formatter.dateStyle = .medium
         formatter.timeStyle = .none
         return formatter

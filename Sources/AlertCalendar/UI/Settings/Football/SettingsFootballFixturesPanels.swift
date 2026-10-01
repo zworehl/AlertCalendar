@@ -6,7 +6,7 @@ extension SettingsFootballFixturesSectionView {
     var addedMatchesPanel: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
-                Text("Added Matches")
+                Text(L10n.text("Added Matches"))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
                 Spacer()
@@ -19,7 +19,7 @@ extension SettingsFootballFixturesSectionView {
 
             if let sharedAddedMatchesCompetitionTitle {
                 sharedCompetitionHeader(
-                    text: "All added matches are from \(sharedAddedMatchesCompetitionTitle)",
+                    text: L10n.text("All added matches are from \(sharedAddedMatchesCompetitionTitle)"),
                     localLogoPath: sharedAddedMatchesCompetitionLocalLogoPath,
                     remoteLogoURL: sharedAddedMatchesCompetitionLogoURL
                 )
@@ -69,11 +69,11 @@ extension SettingsFootballFixturesSectionView {
 
             if let errorMessage = section.errorMessage {
                 feedbackState(
-                    title: "Could not load \(section.title)",
+                    title: L10n.text("Could not load \(section.title)"),
                     text: errorMessage,
                     systemImage: "exclamationmark.triangle.fill",
                     tint: .orange,
-                    buttonTitle: "Retry",
+                    buttonTitle: L10n.text("Retry"),
                     isButtonDisabled: section.isLoading
                 ) {
                     await retryLiveAndNextDayLoad()
@@ -83,7 +83,7 @@ extension SettingsFootballFixturesSectionView {
             if let sharedLiveAndNextDayCompetitionTitle,
                !visibleMatches.isEmpty {
                 sharedCompetitionHeader(
-                    text: "All listed matches are from \(sharedLiveAndNextDayCompetitionTitle)",
+                    text: L10n.text("All listed matches are from \(sharedLiveAndNextDayCompetitionTitle)"),
                     localLogoPath: sharedLiveAndNextDayCompetitionLocalLogoPath,
                     remoteLogoURL: sharedLiveAndNextDayCompetitionLogoURL
                 )
@@ -95,11 +95,11 @@ extension SettingsFootballFixturesSectionView {
                 EmptyView()
             } else if !section.hasLoaded && section.matches.isEmpty {
                 feedbackState(
-                    title: "Nothing loaded yet",
-                    text: "Use Retry to fetch live matches and the next 24 hours of fixtures.",
+                    title: L10n.text("Nothing loaded yet"),
+                    text: L10n.text("Use Retry to fetch live matches and the next 24 hours of fixtures."),
                     systemImage: FootballFixtureFormatter.footballLocationSymbolName,
                     tint: .secondary,
-                    buttonTitle: "Retry"
+                    buttonTitle: L10n.text("Retry")
                 ) {
                     await retryLiveAndNextDayLoad()
                 }

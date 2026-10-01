@@ -16,7 +16,7 @@ struct InfoTipButton: View {
         }
         .buttonStyle(.plain)
         .help(text)
-        .accessibilityLabel("Help")
+        .accessibilityLabel(L10n.text("Help"))
         .accessibilityHint(text)
         .popover(isPresented: $isShowingHelp, arrowEdge: .bottom) {
             Text(text)

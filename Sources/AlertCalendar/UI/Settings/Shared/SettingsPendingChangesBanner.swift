@@ -14,9 +14,9 @@ struct SettingsPendingChangesBanner: View {
                 .font(.title3)
                 .foregroundStyle(.orange)
             VStack(alignment: .leading, spacing: 2) {
-                Text(isApplying ? "Applying your changes…" : "Your changes are not active yet")
+                Text(isApplying ? L10n.text("Applying your changes…") : L10n.text("Your changes are not active yet"))
                     .font(.callout.weight(.semibold))
-                Text("Choose Apply to save and activate them, or Revert Changes to discard them.")
+                Text(L10n.text("Choose Apply to save and activate them, or Revert Changes to discard them."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

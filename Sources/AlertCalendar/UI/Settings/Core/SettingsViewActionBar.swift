@@ -57,11 +57,11 @@ extension SettingsView {
                     selectedTab = .access
                     isShowingPermissionDiagnostics = true
                 } label: {
-                    Label("Update issues (\(dataRefreshIssues.count))", systemImage: "exclamationmark.triangle.fill")
+                    Label(L10n.text("Update issues (\(dataRefreshIssues.count))"), systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
                 }
                 .buttonStyle(.plain)
-                .help("Some information could not be refreshed. View details and the last failed attempt.")
+                .help(L10n.text("Some information could not be refreshed. View details and the last failed attempt."))
                 .accessibilityIdentifier("settings.updateIssues")
             }
 
@@ -83,8 +83,8 @@ extension SettingsView {
         Label {
             Text(
                 isApplyingChanges
-                    ? "Applying changes…"
-                    : (hasUnsavedChanges ? "Changes not applied" : "Settings are up to date")
+                    ? L10n.text("Applying changes…")
+                    : (hasUnsavedChanges ? L10n.text("Changes not applied") : L10n.text("Settings are up to date"))
             )
         } icon: {
             Image(
@@ -118,13 +118,13 @@ extension SettingsView {
                     }
                 }
 
-                Text("Refresh Now")
+                Text(L10n.text("Refresh Now"))
             }
         }
         .keyboardShortcut("r", modifiers: .command)
         .disabled(isApplyingChanges)
         .allowsHitTesting(!isManualSettingsRefreshInProgress)
-        .help("Refresh calendars and external feeds without applying pending configuration changes.")
+        .help(L10n.text("Refresh calendars and external feeds without applying pending configuration changes."))
         .accessibilityIdentifier("settings.refresh")
     }
 
@@ -149,23 +149,23 @@ extension SettingsView {
 
     private var settingsActionButtons: some View {
         HStack(spacing: 8) {
-            Button("Revert Changes") {
+            Button(L10n.text("Revert Changes")) {
                 resetDraft()
             }
             .buttonStyle(.bordered)
             .disabled(!hasUnsavedChanges)
-            .help("Discard every configuration change made since the last Apply.")
+            .help(L10n.text("Discard every configuration change made since the last Apply."))
             .accessibilityIdentifier("settings.revert")
 
             Button {
                 applyDraft()
             } label: {
-                Label("Apply", systemImage: "checkmark")
+                Label(L10n.text("Apply"), systemImage: "checkmark")
             }
             .keyboardShortcut(.defaultAction)
             .buttonStyle(.borderedProminent)
             .disabled(!hasUnsavedChanges || isApplyingChanges)
-            .help("Save and activate all pending configuration changes.")
+            .help(L10n.text("Save and activate all pending configuration changes."))
             .accessibilityIdentifier("settings.apply")
         }
         .controlSize(.regular)

@@ -178,6 +178,6 @@ extension SettingsFootballFixturesSectionView {
     }
 
     static func matchWindowValueText(days: Int) -> String {
-        SettingsView.durationValueText(value: normalizedFootballWindowDays(days), singular: "day", plural: "days")
+        SettingsView.durationValueText(value: normalizedFootballWindowDays(days), singular: L10n.text("day"), plural: L10n.text("days"))
     }
 }

@@ -85,7 +85,7 @@ extension CalendarMonitor {
                 footballState.managedRefreshFailed = true
                 CalendarMonitorLog.football.error("Could not commit football calendar updates: \(error.localizedDescription, privacy: .public)")
                 await DataRefreshHealth.shared.record(
-                    source: "football.calendar-update", title: "Football calendar updates",
+                    source: "football.calendar-update", title: L10n.text("Football calendar updates"),
                     error: "Could not save football event updates to Calendar. The app will retry automatically."
                 )
                 return
@@ -100,7 +100,7 @@ extension CalendarMonitor {
         persistManagedFootballEventRecords(Array(refreshedRecordsByReference.values))
         if saveFailureCount > 0 { footballState.managedRefreshFailed = true }
         await DataRefreshHealth.shared.record(
-            source: "football.calendar-update", title: "Football calendar updates",
+            source: "football.calendar-update", title: L10n.text("Football calendar updates"),
             error: saveFailureCount > 0 ? "Some football event updates could not be saved to Calendar. The app will retry automatically." : nil
         )
     }

@@ -45,7 +45,7 @@ extension CalendarMonitor {
         }
 
         return FootballNotificationMessage(
-            title: "\(scoringTeam) goal",
+            title: L10n.text("\(scoringTeam) goal"),
             body: "\(bodyLead) \(scoreLine)."
         )
     }
@@ -54,7 +54,7 @@ extension CalendarMonitor {
         for match: FootballFixtureMatch
     ) -> FootballNotificationMessage {
         FootballNotificationMessage(
-            title: "Match finished",
+            title: L10n.text("Match finished"),
             body: "\(footballNotificationScoreLine(for: match))."
         )
     }
@@ -66,7 +66,7 @@ extension CalendarMonitor {
         let affectedTeam = footballNotificationTeamName(for: match, side: disallowedSide)
 
         return FootballNotificationMessage(
-            title: "\(affectedTeam) goal disallowed",
+            title: L10n.text("\(affectedTeam) goal disallowed"),
             body: "\(affectedTeam) had a goal ruled out. \(footballNotificationScoreLine(for: match))."
         )
     }
@@ -80,7 +80,7 @@ extension CalendarMonitor {
         let schedule = footballScheduleText(for: match, now: now)
 
         return FootballNotificationMessage(
-            title: "Match added to Calendar",
+            title: L10n.text("Match added to Calendar"),
             body: "\(competition): \(matchup), \(schedule)."
         )
     }

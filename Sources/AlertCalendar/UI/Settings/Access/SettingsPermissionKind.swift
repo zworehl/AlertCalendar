@@ -16,30 +16,30 @@ extension SettingsView {
         var title: String {
             switch self {
             case .events:
-                return "Calendar Events"
+                return L10n.text("Calendar Events")
             case .reminders:
-                return "Reminders"
+                return L10n.text("Reminders")
             case .location:
-                return "Location"
+                return L10n.text("Location")
             case .contacts:
-                return "Contacts"
+                return L10n.text("Contacts")
             case .mail:
-                return "Apple Mail"
+                return L10n.text("Apple Mail")
             }
         }
 
         var summary: String {
             switch self {
             case .events:
-                return "Read events and reveal football fixtures in Calendar."
+                return L10n.text("Read events and reveal football fixtures in Calendar.")
             case .reminders:
-                return "Load reminder due dates and completion status."
+                return L10n.text("Load reminder due dates and completion status.")
             case .location:
-                return "Use automatic coordinates for sunrise, sunset, and daylight previews."
+                return L10n.text("Use automatic coordinates for sunrise, sunset, and daylight previews.")
             case .contacts:
-                return "Match organizers and invitees with Contacts to show names and photos in meeting previews."
+                return L10n.text("Match organizers and invitees with Contacts to show names and photos in meeting previews.")
             case .mail:
-                return "Read only messages whose subjects match strong event identifiers or the exact event title."
+                return L10n.text("Read only messages whose subjects match strong event identifiers or the exact event title.")
             }
         }
 

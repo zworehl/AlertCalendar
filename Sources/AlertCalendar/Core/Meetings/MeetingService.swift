@@ -27,7 +27,7 @@ enum MeetingService: Equatable, Sendable {
         case .amazonChime:
             return "Amazon Chime"
         case .generic:
-            return "Meeting Link"
+            return L10n.text("Meeting Link")
         }
     }
 

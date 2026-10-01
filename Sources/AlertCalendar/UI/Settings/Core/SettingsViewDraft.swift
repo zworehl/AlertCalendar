@@ -126,7 +126,7 @@ extension SettingsView {
         if draft.useAutomaticAstronomyLocation, !oldAutoLocation {
             monitor.refreshAstronomyCoordinatesFromSystem()
         } else if !draft.useAutomaticAstronomyLocation {
-            monitor.astronomyLocationStatus = "Manual coordinates"
+            monitor.astronomyLocationStatus = L10n.text("Manual coordinates")
             monitor.refreshNow(reason: .settingsChanged)
         } else {
             monitor.refreshNow(reason: .settingsChanged)

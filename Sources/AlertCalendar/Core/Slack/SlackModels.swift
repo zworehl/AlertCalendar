@@ -9,9 +9,9 @@ enum SlackStatusTextSource: String, Codable, CaseIterable, Identifiable, Sendabl
     var title: String {
         switch self {
         case .fixed:
-            return "Fixed Text"
+            return L10n.text("Fixed Text")
         case .eventTitle:
-            return "Event Title"
+            return L10n.text("Event Title")
         }
     }
 }
@@ -299,7 +299,7 @@ struct SlackConnection: Codable, Equatable, Identifiable, Sendable {
     }
 
     var displayLabel: String {
-        return "\(resolvedDisplayName) on \(teamName)"
+        return L10n.text("\(resolvedDisplayName) on \(teamName)")
     }
 
     var workspaceLabel: String {

@@ -110,7 +110,7 @@ extension CalendarMonitor {
 
     nonisolated static func alertDescription(for item: UpcomingItem, now: Date) -> String {
         if shouldShowTimedEventNowState(for: item, now: now) {
-            return "\(item.title) starts now."
+            return L10n.text("\(item.title) starts now.")
         }
 
         if item.kind == .reminder {
@@ -282,7 +282,7 @@ extension CalendarMonitor {
             titlePresentation: nextEvent.map {
                 eventTitlePresentation(for: $0, settings: settings)
             },
-            fallback: "No events"
+            fallback: L10n.text("No events")
         ))
 
         setIfChanged(\.remindersMenuBarLabel, to: menuLabel(
@@ -295,7 +295,7 @@ extension CalendarMonitor {
             titlePresentation: nextReminder.map {
                 eventTitlePresentation(for: $0, settings: settings)
             },
-            fallback: "No reminders"
+            fallback: L10n.text("No reminders")
         ))
     }
 

@@ -13,29 +13,29 @@ enum SlackAPIError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .invalidTokenFormat:
-            return "Provide a valid Slack user token."
+            return L10n.text("Provide a valid Slack user token.")
         case .missingStoredToken:
-            return "The saved Slack credential could not be found in Keychain."
+            return L10n.text("The saved Slack credential could not be found in Keychain.")
         case .invalidResponse:
-            return "Slack returned an unexpected response."
+            return L10n.text("Slack returned an unexpected response.")
         case let .transport(statusCode):
-            return "Slack returned HTTP \(statusCode)."
+            return L10n.text("Slack returned HTTP \(statusCode).")
         case let .missingScope(needed, provided):
             let providedScopes = SlackConnection.normalizedValue(provided) ?? "none"
             if needed.hasPrefix("users.profile:") {
-                return "The Slack token is valid, but it is missing \(needed). Current scopes: \(providedScopes). AlertCalendar needs users.profile:read and users.profile:write."
+                return L10n.text("The Slack token is valid, but it is missing \(needed). Current scopes: \(providedScopes). AlertCalendar needs users.profile:read and users.profile:write.")
             }
-            return "The Slack token is missing \(needed). Current scopes: \(providedScopes)."
+            return L10n.text("The Slack token is missing \(needed). Current scopes: \(providedScopes).")
         case let .api(message):
             switch message {
             case "invalid_auth", "token_revoked":
-                return "Slack rejected the saved credential. Connect the account again."
+                return L10n.text("Slack rejected the saved credential. Connect the account again.")
             case "missing_scope":
-                return "The Slack app must grant users.profile:read and users.profile:write."
+                return L10n.text("The Slack app must grant users.profile:read and users.profile:write.")
             case "account_inactive":
-                return "The Slack user behind this credential is inactive."
+                return L10n.text("The Slack user behind this credential is inactive.")
             default:
-                return "Slack error: \(message)."
+                return L10n.text("Slack error: \(message).")
             }
         case let .keychainFailure(status):
             let fallback = "Keychain returned status \(status)."

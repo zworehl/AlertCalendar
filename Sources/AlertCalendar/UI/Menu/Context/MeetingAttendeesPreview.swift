@@ -41,17 +41,6 @@ struct MeetingAttendeesPreview: View {
         )
     }
 
-    var resolverKey: String {
-        let organizerKey = [
-            organizer?.displayText ?? "",
-            organizer?.emailAddress ?? "",
-        ].joined(separator: "|")
-        let attendeeKey = attendees
-            .map { "\($0.id)|\($0.displayText)|\($0.emailAddress ?? "")|\($0.response.rawValue)" }
-            .joined(separator: "|")
-        return "\(organizerKey)#\(attendeeKey)"
-    }
-
     var organizerSecondaryText: String? {
         guard let displayedOrganizer,
               let emailAddress = AlertCalendarString.trimmedNonEmpty(displayedOrganizer.emailAddress),
@@ -80,7 +69,7 @@ struct MeetingAttendeesPreview: View {
                     MeetingOrganizerAvatar(organizer: displayedOrganizer)
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Invitation from")
+                        Text(L10n.text("Invitation from"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
@@ -107,7 +96,7 @@ struct MeetingAttendeesPreview: View {
             }
 
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(displayedAttendees.count == 1 ? "Invitee" : "Invitees")
+                Text(displayedAttendees.count == 1 ? L10n.text("Invitee") : L10n.text("Invitees"))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
 
@@ -142,8 +131,17 @@ struct MeetingAttendeesPreview: View {
         .onAppear {
             resolveContacts()
         }
-        .onChange(of: resolverKey) { _ in
+        .onChange(of: organizer) { _ in
             resolveContacts()
+        }
+        .onChange(of: attendees) { _ in
+            resolveContacts()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .alertCalendarMeetingContactsDidChange)) { _ in
+            resolveContacts()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            resolveContacts(invalidateCache: true)
         }
         .onDisappear {
             resolveTask?.cancel()
@@ -151,19 +149,26 @@ struct MeetingAttendeesPreview: View {
         }
     }
 
-    func resolveContacts() {
+    func resolveContacts(invalidateCache: Bool = false) {
         presentedOrganizer = organizer
         presentedAttendees = MeetingAttendee.normalized(attendees)
         resolveTask?.cancel()
 
         resolveTask = Task {
+            if invalidateCache {
+                await MeetingContactResolver.shared.invalidateCache()
+            }
             let resolvedOrganizer = await MeetingContactResolver.shared.resolve(organizer: organizer)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                presentedOrganizer = resolvedOrganizer
+            }
+
             let resolvedAttendees = await MeetingContactResolver.shared.resolve(attendees: attendees)
 
             guard !Task.isCancelled else { return }
 
             await MainActor.run {
-                presentedOrganizer = resolvedOrganizer
                 presentedAttendees = resolvedAttendees
             }
         }
@@ -248,5 +253,6 @@ struct MeetingOrganizerAvatar: View {
         }
         .frame(width: 40, height: 40)
         .clipShape(Circle())
+        .accessibilityHidden(true)
     }
 }

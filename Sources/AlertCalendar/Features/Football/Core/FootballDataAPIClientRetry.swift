@@ -20,14 +20,14 @@ extension FootballDataAPIClient {
     static func fixtureFailureDescription(_ error: Error) -> String {
         if let error = error as? URLError {
             switch error.code {
-            case .timedOut: return "ESPN did not respond in time."
-            case .notConnectedToInternet, .networkConnectionLost: return "The network connection is unavailable."
-            case .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed: return "Could not connect to ESPN."
-            default: return "The ESPN connection failed (\(error.code.rawValue))."
+            case .timedOut: return L10n.text("ESPN did not respond in time.")
+            case .notConnectedToInternet, .networkConnectionLost: return L10n.text("The network connection is unavailable.")
+            case .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed: return L10n.text("Could not connect to ESPN.")
+            default: return L10n.text("The ESPN connection failed (\(error.code.rawValue)).")
             }
         }
         if let error = error as? ClientError { return error.localizedDescription }
-        return "ESPN returned unreadable fixture data."
+        return L10n.text("ESPN returned unreadable fixture data.")
     }
 
     static func isRetryableFixtureError(_ error: Error) -> Bool {

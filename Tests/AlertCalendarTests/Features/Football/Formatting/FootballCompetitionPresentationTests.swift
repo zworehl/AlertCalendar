@@ -270,8 +270,10 @@ final class FootballCompetitionPresentationTests: FootballFixtureFormatterTestCa
             "conmebol.libertadores",
             "fifa.cwc",
             "concacaf.gold",
+            "concacaf.nations.league",
             "caf.nations",
             "afc.asian.cup",
+            "uefa.nations",
         ]
 
         XCTAssertEqual(Set(FootballCompetitionPreset.menuPresets.map(\.slug)), expectedSlugs)

@@ -29,7 +29,7 @@ final class SlackStatusSyncSchedulingTests: SlackStatusSyncTestCase {
         ).projected(after: 5)
         XCTAssertEqual(projectedPlayback.elapsedDuration, 35)
         XCTAssertEqual(projectedPlayback.remainingDuration, 84)
-        XCTAssertFalse(projectedPlayback.shouldRenewExpiration(1_100, now: Date(timeIntervalSince1970: 1_000)))
+        XCTAssertFalse(projectedPlayback.shouldRenewExpiration(1_144, now: Date(timeIntervalSince1970: 1_000)))
         XCTAssertTrue(
             AppleMusicPlayback(artist: "Radio", durationIsKnown: false)
                 .shouldRenewExpiration(1_025, now: Date(timeIntervalSince1970: 1_000))

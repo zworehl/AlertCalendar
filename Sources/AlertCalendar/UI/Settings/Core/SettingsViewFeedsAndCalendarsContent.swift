@@ -49,7 +49,7 @@ extension SettingsView {
     }
 
     private var astronomyCoordinateStatus: String? {
-        guard astronomyLocationStatus != "Manual coordinates" else { return nil }
+        guard astronomyLocationStatus != L10n.text("Manual coordinates") else { return nil }
         if astronomyLocationStatus.hasPrefix("Auto location:")
             || astronomyLocationStatus.hasPrefix("Approximate auto location:")
             || astronomyLocationStatus.hasPrefix("Detected location:")
@@ -62,7 +62,7 @@ extension SettingsView {
 
     var astronomyPreviewSection: some View {
         SettingsAstronomySectionView(
-            title: "Astronomy Preview",
+            title: L10n.text("Astronomy Preview"),
             showsCalculatedTimes: true,
             showsSunriseSunset: draft.includeAstronomy && draft.includeSunriseSunset,
             showsSolarNoonMidnight: draft.includeAstronomy && draft.includeSolarNoonMidnight,
@@ -112,26 +112,26 @@ extension SettingsView {
 
     var astronomyMasterToggleControl: some View {
         settingsControlRow(
-            title: "Atmosphere moments",
-            detail: "Hides or shows all astronomy feeds without clearing individual choices."
+            title: L10n.text("Atmosphere moments"),
+            detail: L10n.text("Hides or shows all astronomy feeds without clearing individual choices.")
         ) {
-            Toggle("Include atmosphere moments", isOn: $draft.includeAstronomy)
+            Toggle(L10n.text("Include atmosphere moments"), isOn: $draft.includeAstronomy)
                 .labelsHidden()
                 .toggleStyle(.switch)
-                .accessibilityLabel(Text("Include atmosphere moments"))
+                .accessibilityLabel(Text(L10n.text("Include atmosphere moments")))
         }
     }
 
     var astronomyFeedVisibilitySection: some View {
         SettingsLabeledCheckboxGroup(
-            title: "Visible Feeds",
+            title: L10n.text("Visible Feeds"),
             minimumItemWidth: 170,
             maximumItemWidth: 260
         ) {
-            Toggle("Sunrise & Sunset", isOn: $draft.includeSunriseSunset)
-            Toggle("Solar Noon & Midnight", isOn: $draft.includeSolarNoonMidnight)
-            Toggle("Moon Phases", isOn: $draft.includeMoonPhases)
-            Toggle("Orbital Highlights", isOn: $draft.includeOrbitalHighlights)
+            Toggle(L10n.text("Sunrise & Sunset"), isOn: $draft.includeSunriseSunset)
+            Toggle(L10n.text("Solar Noon & Midnight"), isOn: $draft.includeSolarNoonMidnight)
+            Toggle(L10n.text("Moon Phases"), isOn: $draft.includeMoonPhases)
+            Toggle(L10n.text("Orbital Highlights"), isOn: $draft.includeOrbitalHighlights)
         }
     }
 
@@ -229,12 +229,12 @@ extension SettingsView {
 
     var calendarSourceSelectionPanel: some View {
         SettingsLabeledCheckboxGroup(
-            title: "Visible Content",
-            helpText: "Choose the broad item types Alert Calendar can show before selecting individual calendars."
+            title: L10n.text("Visible Content"),
+            helpText: L10n.text("Choose the broad item types Alert Calendar can show before selecting individual calendars.")
         ) {
-            Toggle("Calendar Events", isOn: $draft.includeEvents)
-            Toggle("All-day Events", isOn: $draft.includeAllDayEvents)
-            Toggle("Reminders", isOn: $draft.includeReminders)
+            Toggle(L10n.text("Calendar Events"), isOn: $draft.includeEvents)
+            Toggle(L10n.text("All-day Events"), isOn: $draft.includeAllDayEvents)
+            Toggle(L10n.text("Reminders"), isOn: $draft.includeReminders)
         }
         .settingsPanelSurface()
     }

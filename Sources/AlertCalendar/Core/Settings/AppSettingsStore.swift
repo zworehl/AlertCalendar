@@ -49,6 +49,7 @@ struct AppSettingsStore {
         )
 
         return AppSettings(
+            language: AppLanguage(rawValue: defaults.string(forKey: DefaultsKeys.language) ?? "") ?? .english,
             includeEvents: defaults.bool(forKey: DefaultsKeys.includeEvents),
             includeAllDayEvents: defaults.bool(forKey: DefaultsKeys.includeAllDayEvents),
             includeReminders: defaults.bool(forKey: DefaultsKeys.includeReminders),
@@ -162,6 +163,8 @@ struct AppSettingsStore {
         let useMailContextForEventTitleRewrite = rewriteEventTitlesWithAppleIntelligence
             && settings.useMailContextForEventTitleRewrite
 
+        defaults.set(settings.language.rawValue, forKey: DefaultsKeys.language)
+        defaults.set([settings.language.rawValue], forKey: "AppleLanguages")
         defaults.set(settings.includeEvents, forKey: DefaultsKeys.includeEvents)
         defaults.set(settings.includeAllDayEvents, forKey: DefaultsKeys.includeAllDayEvents)
         defaults.set(settings.includeReminders, forKey: DefaultsKeys.includeReminders)
@@ -361,6 +364,7 @@ struct AppSettingsStore {
         let defaultSettings = AppSettings.defaults
 
         return [
+            DefaultsKeys.language: defaultSettings.language.rawValue,
             DefaultsKeys.includeEvents: defaultSettings.includeEvents,
             DefaultsKeys.includeAllDayEvents: defaultSettings.includeAllDayEvents,
             DefaultsKeys.includeReminders: defaultSettings.includeReminders,

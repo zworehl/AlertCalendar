@@ -9,9 +9,9 @@ enum CalendarAlertRuleScope: String, Codable, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .allEvents:
-            return "All events"
+            return L10n.text("All events")
         case .invitationsOnly:
-            return "Invitations only"
+            return L10n.text("Invitations only")
         }
     }
 }
@@ -74,42 +74,42 @@ struct CalendarEventAlert: Codable, Equatable, Hashable, Identifiable {
 
     func timingDescription(isAllDay: Bool = false) -> String {
         if timingKind == .timeToLeave {
-            return "Time to Leave"
+            return L10n.text("Time to Leave")
         }
 
         let offset = normalized.relativeOffsetSeconds
         if isAllDay {
             switch offset {
             case 9 * 60 * 60:
-                return "On day of event (9:00 AM)"
+                return L10n.text("On day of event (9:00 AM)")
             case -15 * 60 * 60:
-                return "1 day before (9:00 AM)"
+                return L10n.text("1 day before (9:00 AM)")
             case -39 * 60 * 60:
-                return "2 days before (9:00 AM)"
+                return L10n.text("2 days before (9:00 AM)")
             case -159 * 60 * 60:
-                return "1 week before (9:00 AM)"
+                return L10n.text("1 week before (9:00 AM)")
             default:
                 break
             }
         }
 
-        guard offset != 0 else { return "At time of event" }
+        guard offset != 0 else { return L10n.text("At time of event") }
         let absoluteSeconds = abs(offset)
         let value: Int
         let unit: String
 
         if absoluteSeconds % (7 * 24 * 60 * 60) == 0 {
             value = absoluteSeconds / (7 * 24 * 60 * 60)
-            unit = value == 1 ? "week" : "weeks"
+            unit = value == 1 ? L10n.text("week") : L10n.text("weeks")
         } else if absoluteSeconds % (24 * 60 * 60) == 0 {
             value = absoluteSeconds / (24 * 60 * 60)
-            unit = value == 1 ? "day" : "days"
+            unit = value == 1 ? L10n.text("day") : L10n.text("days")
         } else if absoluteSeconds % (60 * 60) == 0 {
             value = absoluteSeconds / (60 * 60)
-            unit = value == 1 ? "hour" : "hours"
+            unit = value == 1 ? L10n.text("hour") : L10n.text("hours")
         } else {
             value = max(1, absoluteSeconds / 60)
-            unit = value == 1 ? "minute" : "minutes"
+            unit = value == 1 ? L10n.text("minute") : L10n.text("minutes")
         }
 
         return "\(value) \(unit) \(offset < 0 ? "before" : "after")"

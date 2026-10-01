@@ -19,7 +19,7 @@ extension SettingsView {
             performPrimaryPermissionAction(permission, grantState: grantState)
         } label: {
             Label(
-                isRequesting ? "Checking..." : permissionPrimaryActionTitle(for: permission, state: grantState),
+                isRequesting ? L10n.text("Checking...") : permissionPrimaryActionTitle(for: permission, state: grantState),
                 systemImage: isRequesting ? "hourglass" : permissionPrimaryActionSymbol(for: grantState)
             )
             .lineLimit(1)
@@ -34,7 +34,7 @@ extension SettingsView {
         Button {
             openPrivacySettings(for: permission)
         } label: {
-            Label("Open Settings…", systemImage: "gearshape")
+            Label(L10n.text("Open Settings…"), systemImage: "gearshape")
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         }
@@ -57,13 +57,13 @@ extension SettingsView {
     func permissionPrimaryActionTitle(for permission: SettingsPermissionKind, state: PermissionGrantState) -> String {
         switch state {
         case .allowed:
-            return "Refresh status"
+            return L10n.text("Refresh status")
         case .notRequested:
-            return "Request access"
+            return L10n.text("Request access")
         case .limited:
-            return permission == .location ? "Check access" : "Upgrade access"
+            return permission == .location ? L10n.text("Check access") : L10n.text("Upgrade access")
         case .denied, .restricted:
-            return "Open Settings…"
+            return L10n.text("Open Settings…")
         }
     }
 
@@ -101,67 +101,67 @@ extension SettingsView {
         case .events:
             switch state {
             case .allowed:
-                return "Alert Calendar can read upcoming events and use Calendar-backed football fixture actions."
+                return L10n.text("Alert Calendar can read upcoming events and use Calendar-backed football fixture actions.")
             case .notRequested:
-                return "This prompt has not been granted yet. Request it here to load events into the app."
+                return L10n.text("This prompt has not been granted yet. Request it here to load events into the app.")
             case .limited:
-                return "Calendar access is only partially granted. Open Settings and switch Alert Calendar to full access so events can be read."
+                return L10n.text("Calendar access is only partially granted. Open Settings and switch Alert Calendar to full access so events can be read.")
             case .denied:
-                return "macOS denied event access. Use Open Settings to re-enable Calendar access for Alert Calendar."
+                return L10n.text("macOS denied event access. Use Open Settings to re-enable Calendar access for Alert Calendar.")
             case .restricted:
-                return "Event access is restricted by macOS or device policy."
+                return L10n.text("Event access is restricted by macOS or device policy.")
             }
         case .reminders:
             switch state {
             case .allowed:
-                return "Reminder due dates and completion actions are available to the app."
+                return L10n.text("Reminder due dates and completion actions are available to the app.")
             case .notRequested:
-                return "This prompt has not been granted yet. Request it here to include reminders in the dropdown."
+                return L10n.text("This prompt has not been granted yet. Request it here to include reminders in the dropdown.")
             case .limited:
-                return "Reminders access is only partially granted. Open Settings and switch Alert Calendar to full access so reminders can be read."
+                return L10n.text("Reminders access is only partially granted. Open Settings and switch Alert Calendar to full access so reminders can be read.")
             case .denied:
-                return "macOS denied reminder access. Use Open Settings to re-enable Reminders access for Alert Calendar."
+                return L10n.text("macOS denied reminder access. Use Open Settings to re-enable Reminders access for Alert Calendar.")
             case .restricted:
-                return "Reminder access is restricted by macOS or device policy."
+                return L10n.text("Reminder access is restricted by macOS or device policy.")
             }
         case .location:
             switch state {
             case .allowed:
-                return "Location access is available for automatic astronomy coordinates."
+                return L10n.text("Location access is available for automatic astronomy coordinates.")
             case .notRequested:
-                return "Location has not been requested yet. Grant it to support automatic astronomy coordinates and daylight maps, or enter coordinates manually in Atmosphere."
+                return L10n.text("Location has not been requested yet. Grant it to support automatic astronomy coordinates and daylight maps, or enter coordinates manually in Atmosphere.")
             case .limited:
-                return "Location access is available for automatic astronomy coordinates."
+                return L10n.text("Location access is available for automatic astronomy coordinates.")
             case .denied:
-                return "Location access is denied. Use Open Settings to allow location for Alert Calendar, or switch to manual coordinates in Atmosphere."
+                return L10n.text("Location access is denied. Use Open Settings to allow location for Alert Calendar, or switch to manual coordinates in Atmosphere.")
             case .restricted:
-                return "Location Services are unavailable or restricted on this Mac. Manual coordinates are available in Atmosphere."
+                return L10n.text("Location Services are unavailable or restricted on this Mac. Manual coordinates are available in Atmosphere.")
             }
         case .contacts:
             switch state {
             case .allowed:
-                return "Meeting previews can use contact names and organizer photos from the Contacts app."
+                return L10n.text("Meeting previews can use contact names and organizer photos from the Contacts app.")
             case .notRequested:
-                return "Contacts access has not been requested yet. Grant it to enrich invitee names and organizer avatars in meeting previews."
+                return L10n.text("Contacts access has not been requested yet. Grant it to enrich invitee names and organizer avatars in meeting previews.")
             case .limited:
-                return "Contacts access is limited. Open Settings and allow full Contacts access for Alert Calendar."
+                return L10n.text("Contacts access is limited. Open Settings and allow full Contacts access for Alert Calendar.")
             case .denied:
-                return "Contacts access is denied. Use Open Settings to allow Contacts for Alert Calendar and show names or avatars in meeting previews."
+                return L10n.text("Contacts access is denied. Use Open Settings to allow Contacts for Alert Calendar and show names or avatars in meeting previews.")
             case .restricted:
-                return "Contacts access is restricted by macOS or device policy."
+                return L10n.text("Contacts access is restricted by macOS or device policy.")
             }
         case .mail:
             switch state {
             case .allowed:
-                return "When enabled, title rewriting can request a few matching messages from Apple Mail and process bounded, redacted context on device."
+                return L10n.text("When enabled, title rewriting can request a few matching messages from Apple Mail and process bounded, redacted context on device.")
             case .notRequested:
-                return "Mail automation has not been granted or Mail is not running. Request access to enable the optional related-mail context source."
+                return L10n.text("Mail automation has not been granted or Mail is not running. Request access to enable the optional related-mail context source.")
             case .limited:
-                return "Apple Mail automation is not fully available. Open Automation settings and allow AlertCalendar to control Mail."
+                return L10n.text("Apple Mail automation is not fully available. Open Automation settings and allow AlertCalendar to control Mail.")
             case .denied:
-                return "macOS denied Apple Mail automation. Use Open Settings to allow AlertCalendar under Privacy & Security › Automation."
+                return L10n.text("macOS denied Apple Mail automation. Use Open Settings to allow AlertCalendar under Privacy & Security › Automation.")
             case .restricted:
-                return "Apple Mail automation is unavailable on this Mac or restricted by device policy."
+                return L10n.text("Apple Mail automation is unavailable on this Mac or restricted by device policy.")
             }
         }
     }
@@ -236,8 +236,8 @@ extension SettingsView {
             }
 
             permissionActionMessages[permission] = granted
-                ? "Access granted."
-                : "macOS did not grant access. Use Open Settings to enable it for AlertCalendar."
+                ? L10n.text("Access granted.")
+                : L10n.text("macOS did not grant access. Use Open Settings to enable it for AlertCalendar.")
             refreshPermissionStatuses()
         }
     }
@@ -250,7 +250,7 @@ extension SettingsView {
         mailAutomationAuthorizationStatus = AppleMailAutomationPermission.currentStatus()
         for permission in SettingsPermissionKind.allCases
             where permissionGrantState(for: permission) == .allowed
-                && permissionActionMessages[permission] != "Access granted." {
+                && permissionActionMessages[permission] != L10n.text("Access granted.") {
             permissionActionMessages[permission] = nil
         }
         monitor.refreshAvailableCalendars()

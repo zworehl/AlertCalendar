@@ -15,9 +15,9 @@ enum GameStore: String, CaseIterable, Codable, Hashable, Sendable, Identifiable 
         case .xbox:
             return "Xbox"
         case .playStation:
-            return "PlayStation Store"
+            return L10n.text("PlayStation Store")
         case .nintendoSwitch:
-            return "Nintendo eShop"
+            return L10n.text("Nintendo eShop")
         }
     }
 

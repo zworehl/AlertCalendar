@@ -17,8 +17,8 @@ struct SettingsCalendarAlertRuleEditor: View {
                     Divider()
 
                     alertSection(
-                        title: "Events",
-                        detail: "Alerts relative to the event start time.",
+                        title: L10n.text("Events"),
+                        detail: L10n.text("Alerts relative to the event start time."),
                         alerts: $rule.timedEventAlerts,
                         isAllDay: false
                     )
@@ -26,8 +26,8 @@ struct SettingsCalendarAlertRuleEditor: View {
                     Divider()
 
                     alertSection(
-                        title: "All-day events",
-                        detail: "Apple-style all-day presets fire at 9:00 AM.",
+                        title: L10n.text("All-day events"),
+                        detail: L10n.text("Apple-style all-day presets fire at 9:00 AM."),
                         alerts: $rule.allDayEventAlerts,
                         isAllDay: true
                     )
@@ -54,7 +54,7 @@ struct SettingsCalendarAlertRuleEditor: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(calendar.title)
                     .font(.headline)
-                Text("Alert rule · \(calendar.accountTitle)")
+                Text(L10n.text("Alert rule · \(calendar.accountTitle)"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -65,13 +65,13 @@ struct SettingsCalendarAlertRuleEditor: View {
 
     private var ruleControls: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Toggle("Apply an alert rule to this calendar", isOn: $rule.isEnabled)
+            Toggle(L10n.text("Apply an alert rule to this calendar"), isOn: $rule.isEnabled)
                 .toggleStyle(.switch)
 
             Group {
                 SettingsLabeledMenuPicker(
-                    title: "Apply to",
-                    pickerTitle: "Apply to",
+                    title: L10n.text("Apply to"),
+                    pickerTitle: L10n.text("Apply to"),
                     selection: $rule.scope,
                     layout: .inline(labelWidth: 72),
                     controlWidth: 170,
@@ -82,13 +82,13 @@ struct SettingsCalendarAlertRuleEditor: View {
                     }
                 }
 
-                Toggle("Replace existing event alerts", isOn: $rule.overwriteExistingAlerts)
+                Toggle(L10n.text("Replace existing event alerts"), isOn: $rule.overwriteExistingAlerts)
                     .toggleStyle(.checkbox)
 
                 Text(
                     rule.overwriteExistingAlerts
-                        ? "Existing alerts are replaced by the exact series below."
-                        : "Configured alerts are added only when they are missing; existing alerts are preserved."
+                        ? L10n.text("Existing alerts are replaced by the exact series below.")
+                        : L10n.text("Configured alerts are added only when they are missing; existing alerts are preserved.")
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -114,7 +114,7 @@ struct SettingsCalendarAlertRuleEditor: View {
             }
 
             if alerts.wrappedValue.isEmpty {
-                Text(rule.overwriteExistingAlerts ? "No alert — existing alerts will be removed." : "No alerts configured.")
+                Text(rule.overwriteExistingAlerts ? L10n.text("No alert — existing alerts will be removed.") : L10n.text("No alerts configured."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.vertical, 4)
@@ -137,7 +137,7 @@ struct SettingsCalendarAlertRuleEditor: View {
                     isAllDay ? .allDayOneDayBeforeAtNine : .fifteenMinutesBefore
                 )
             } label: {
-                Label("Add alert", systemImage: "plus")
+                Label(L10n.text("Add alert"), systemImage: "plus")
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
@@ -188,8 +188,8 @@ private struct SettingsCalendarAlertItemEditor: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Remove alert")
-                .help("Remove alert")
+                .accessibilityLabel(L10n.text("Remove alert"))
+                .help(L10n.text("Remove alert"))
             }
 
             if shouldShowCustomTiming {
@@ -210,7 +210,7 @@ private struct SettingsCalendarAlertItemEditor: View {
 
             Divider()
 
-            Button("Custom…") {
+            Button(L10n.text("Custom…")) {
                 if alert.timingKind == .timeToLeave {
                     alert.timingKind = .relative
                     alert.relativeOffsetSeconds = isAllDay ? -15 * 60 * 60 : -15 * 60
@@ -237,11 +237,11 @@ private struct SettingsCalendarAlertItemEditor: View {
 
     private var customTimingControls: some View {
         HStack(spacing: 8) {
-            TextField("Amount", value: customAmountBinding, format: .number)
+            TextField(L10n.text("Amount"), value: customAmountBinding, format: .number)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 72)
 
-            Picker("Unit", selection: customUnitBinding) {
+            Picker(L10n.text("Unit"), selection: customUnitBinding) {
                 ForEach(SettingsCalendarAlertUnit.allCases) { unit in
                     Text(unit.title).tag(unit)
                 }
@@ -249,7 +249,7 @@ private struct SettingsCalendarAlertItemEditor: View {
             .labelsHidden()
             .frame(width: 105)
 
-            Picker("Relation", selection: customRelationBinding) {
+            Picker(L10n.text("Relation"), selection: customRelationBinding) {
                 ForEach(SettingsCalendarAlertRelation.allCases) { relation in
                     Text(relation.title).tag(relation)
                 }
@@ -257,7 +257,7 @@ private struct SettingsCalendarAlertItemEditor: View {
             .labelsHidden()
             .frame(width: 95)
 
-            Text(isAllDay ? "from midnight" : "event")
+            Text(isAllDay ? L10n.text("from midnight") : "event")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

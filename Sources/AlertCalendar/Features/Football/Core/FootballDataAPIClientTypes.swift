@@ -10,7 +10,7 @@ extension FootballDataAPIClient {
         var errorDescription: String? {
             switch self {
             case .invalidResponse:
-                return "The football feed returned an unreadable response."
+                return L10n.text("The football feed returned an unreadable response.")
             case .unsuccessfulResponse(let statusCode):
                 return statusCode == 429
                     ? "ESPN is limiting requests (HTTP 429)."
@@ -18,7 +18,7 @@ extension FootballDataAPIClient {
             case .unavailable(let message):
                 return message
             case .rateLimited:
-                return "ESPN is limiting requests (HTTP 429). The next retry will respect its waiting period."
+                return L10n.text("ESPN is limiting requests (HTTP 429). The next retry will respect its waiting period.")
             }
         }
     }

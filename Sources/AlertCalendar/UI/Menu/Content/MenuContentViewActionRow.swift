@@ -159,7 +159,7 @@ extension MenuContentView {
                                             alignment: .center
                                         )
                                         .foregroundStyle(accentColor)
-                                    Text("\(travelMinutes) min travel time")
+                                    Text(L10n.text("\(travelMinutes) min travel time"))
                                         .font(detailFont)
                                         .foregroundStyle(detailTextColor)
                                 }

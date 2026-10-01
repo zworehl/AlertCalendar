@@ -26,14 +26,14 @@ extension SettingsView {
             case .atmosphere:
                 if draft.useAutomaticAstronomyLocation {
                     return PollingFreshness(
-                        title: "Location",
+                        title: L10n.text("Location"),
                         date: lastAstronomyLocationRefreshDate
                     )
                 }
-                return PollingFreshness(title: "Calendar", date: lastRefreshDate)
+                return PollingFreshness(title: L10n.text("Calendar"), date: lastRefreshDate)
             case .holidays:
                 return PollingFreshness(
-                    title: "Holidays",
+                    title: L10n.text("Holidays"),
                     checkedDate: externalFeedDiagnostics.latestCheckedDate(
                         sourcePrefix: "google-holidays."
                     ),
@@ -52,13 +52,13 @@ extension SettingsView {
                     lastFootballRefreshDate,
                 ].compactMap { $0 }
                 return PollingFreshness(
-                    title: "Football",
+                    title: L10n.text("Football"),
                     checkedDate: checkedDates.max(),
                     fetchedDate: fetchedDates.max()
                 )
             case .gameSales:
                 return PollingFreshness(
-                    title: "Game Sales",
+                    title: L10n.text("Game Sales"),
                     checkedDate: externalFeedDiagnostics.latestCheckedDate(
                         sourcePrefix: "game-sales."
                     ) ?? lastGameSalesRefreshDate,
@@ -70,7 +70,7 @@ extension SettingsView {
         case .integrations:
             return PollingFreshness(title: "Slack", date: lastSlackStatusSyncDate)
         case .general, .calendars, .access:
-            return PollingFreshness(title: "Calendar", date: lastRefreshDate)
+            return PollingFreshness(title: L10n.text("Calendar"), date: lastRefreshDate)
         }
     }
 
@@ -93,9 +93,9 @@ extension SettingsView {
                             to: context.date,
                             simplified: draft.useSimplifiedCountdown
                         )
-                        Text("\(freshness.title) fetched \(fetchedElapsedText) · checked \(checkedElapsedText)")
+                        Text(L10n.text("\(freshness.title) fetched \(fetchedElapsedText) · checked \(checkedElapsedText)"))
                     } else {
-                        Text("\(freshness.title) fetched \(fetchedElapsedText)")
+                        Text(L10n.text("\(freshness.title) fetched \(fetchedElapsedText)"))
                     }
                 } else if let checkedDate = freshness.checkedDate {
                     let elapsedText = Self.pollingFreshnessElapsedText(
@@ -103,9 +103,9 @@ extension SettingsView {
                         to: context.date,
                         simplified: draft.useSimplifiedCountdown
                     )
-                    Text("\(freshness.title) checked \(elapsedText)")
+                    Text(L10n.text("\(freshness.title) checked \(elapsedText)"))
                 } else {
-                    Text("\(freshness.title) not checked yet")
+                    Text(L10n.text("\(freshness.title) not checked yet"))
                 }
             } icon: {
                 Image(systemName: "clock.arrow.circlepath")

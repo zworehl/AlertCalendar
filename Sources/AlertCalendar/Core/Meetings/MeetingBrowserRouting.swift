@@ -255,7 +255,7 @@ struct MeetingBrowserProfileOption: Identifiable, Equatable {
     static func automatic(for browser: MeetingBrowserKind) -> MeetingBrowserProfileOption {
         MeetingBrowserProfileOption(
             id: MeetingBrowserRoute.automaticProfileID,
-            displayName: "Automatic",
+            displayName: L10n.text("Automatic"),
             detailText: browser.title,
             isDefault: true
         )

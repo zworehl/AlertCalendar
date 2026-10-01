@@ -14,8 +14,8 @@ struct MenuBarLoadingIndicator: View {
         Image(nsImage: Self.frames[frameIndex])
             .renderingMode(.original)
             .frame(width: Self.canvasSize.width, height: Self.canvasSize.height)
-            .accessibilityLabel("Alert Calendar is loading")
-            .help("Alert Calendar is loading")
+            .accessibilityLabel(L10n.text("Alert Calendar is loading"))
+            .help(L10n.text("Alert Calendar is loading"))
             .task {
                 while !Task.isCancelled {
                     do {

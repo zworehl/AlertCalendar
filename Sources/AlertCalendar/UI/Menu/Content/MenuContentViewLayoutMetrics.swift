@@ -464,7 +464,7 @@ extension MenuContentView {
                 placeholderSymbolSize: 11
             )
 
-            Text("All listed matches are from \(title)")
+            Text(L10n.text("All listed matches are from \(title)"))
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)

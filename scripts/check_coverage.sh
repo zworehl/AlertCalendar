@@ -40,7 +40,7 @@ if [[ -z "$PROFDATA" ]]; then
   exit 1
 fi
 
-TEST_BINARY="$(find .build -type f -path "*/debug/*PackageTests.xctest/Contents/MacOS/*PackageTests" -not -path "*.dSYM/*" | head -n 1)"
+TEST_BINARY="$(find .build -type f -path "*.xctest/Contents/MacOS/*" -not -path "*.dSYM/*" | head -n 1)"
 if [[ -z "$TEST_BINARY" ]]; then
   echo "Package test binary not found in .build." >&2
   exit 1

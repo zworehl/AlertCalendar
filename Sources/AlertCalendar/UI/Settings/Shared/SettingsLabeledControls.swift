@@ -271,7 +271,7 @@ struct SettingsAddToCalendarPicker: View {
 
     var body: some View {
         SettingsLabeledMenuPicker(
-            title: "Add To",
+            title: L10n.text("Add To"),
             pickerTitle: pickerTitle,
             selection: $selection,
             helpText: helpText

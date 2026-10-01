@@ -14,6 +14,7 @@ extension MenuContentView {
         }
         return AgendaSummaryRequest(
             now: displayReferenceDate,
+            language: settings.language,
             maximumWords: settings.agendaSummaryMaximumWords,
             upcomingItems: Self.agendaSummaryItems(
                 contextualItems: snapshot.displayedContextualActionItems,
@@ -39,15 +40,15 @@ extension MenuContentView {
     ) -> String? {
         if let match = item.footballMatch {
             let score = match.hasVisibleScore
-                ? "; score \(match.homeScore)-\(match.awayScore)"
+                ? L10n.text("; score \(match.homeScore)-\(match.awayScore)")
                 : ""
-            return "Personalized football preview: \(match.homeTeam.name) vs "
+            return L10n.text("Personalized football preview: \(match.homeTeam.name) vs ")
                 + "\(match.awayTeam.name); \(match.statusText)\(score)."
         }
 
         switch previewKind {
         case let .location(locationText):
-            return "Personalized location and map preview for \(locationText)."
+            return L10n.text("Personalized location and map preview for \(locationText).")
         case let .attendees(organizer, attendees):
             let responseOrder: [MeetingAttendeeResponse] = [
                 .accepted,
@@ -59,11 +60,11 @@ extension MenuContentView {
                 let count = attendees.filter { $0.response == response }.count
                 return count > 0 ? "\(count) \(response.rawValue)" : nil
             }.joined(separator: ", ")
-            let organizerText = organizer == nil ? "" : " organizer available;"
-            return "Personalized attendee preview:\(organizerText) \(attendees.count) attendees"
+            let organizerText = organizer == nil ? "" : L10n.text(" organizer available;")
+            return L10n.text("Personalized attendee preview:\(organizerText) \(attendees.count) attendees")
                 + (responseSummary.isEmpty ? "." : " (\(responseSummary)).")
         case let .daylight(moment):
-            return "Personalized daylight preview for \(moment.rawValue)."
+            return L10n.text("Personalized daylight preview for \(moment.rawValue).")
         case nil:
             return nil
         }
@@ -79,7 +80,7 @@ extension MenuContentView {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
 
-                    Text("Agenda Summary")
+                    Text(L10n.text("Agenda Summary"))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
 
@@ -117,7 +118,7 @@ private struct AgendaSummaryLoadingSkeleton: View {
         }
         .padding(.vertical, 2)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Summarizing your schedule")
+        .accessibilityLabel(L10n.text("Summarizing your schedule"))
     }
 
     private func placeholderLine(trailingInset: CGFloat = 0) -> some View {

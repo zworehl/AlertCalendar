@@ -6,22 +6,22 @@ extension SettingsGameSalesSectionView {
     var salesContent: some View {
         if monitor.gameSales.isEmpty, monitor.isRefreshingGameSales {
             feedbackPanel(
-                title: "Loading game sales",
-                detail: "Checking official schedules and matching Apple Calendar events.",
+                title: L10n.text("Loading game sales"),
+                detail: L10n.text("Checking official schedules and matching Apple Calendar events."),
                 systemImage: "arrow.triangle.2.circlepath",
                 tint: .secondary
             )
         } else if monitor.gameSales.isEmpty,
                   let errorDescription = monitor.gameSalesErrorDescription {
             feedbackPanel(
-                title: "Game sales unavailable",
+                title: L10n.text("Game sales unavailable"),
                 detail: errorDescription,
                 systemImage: "exclamationmark.triangle",
                 tint: .orange
             )
         } else if displayedSales.isEmpty {
             feedbackPanel(
-                title: browseMode == .added ? "No added sales" : "No matching sales",
+                title: browseMode == .added ? L10n.text("No added sales") : L10n.text("No matching sales"),
                 detail: emptySalesDetail,
                 systemImage: browseMode == .added ? "calendar.badge.plus" : "line.3.horizontal.decrease.circle",
                 tint: .secondary
@@ -80,12 +80,12 @@ extension SettingsGameSalesSectionView {
 
     var emptySalesDetail: String {
         if browseMode == .added {
-            return "Add a campaign from Upcoming, or choose another store filter."
+            return L10n.text("Add a campaign from Upcoming, or choose another store filter.")
         }
         if storeFilter != .all {
-            return "No active or upcoming campaigns match the selected store."
+            return L10n.text("No active or upcoming campaigns match the selected store.")
         }
-        return "No active or upcoming campaigns are available right now."
+        return L10n.text("No active or upcoming campaigns are available right now.")
     }
 
     func feedbackPanel(
@@ -161,7 +161,7 @@ private struct GameSaleCardView: View {
 
                 Spacer(minLength: 4)
 
-                Text(isActive ? "Ends \(formattedEndDate)" : "Starts \(formattedStartDate)")
+                Text(isActive ? L10n.text("Ends \(formattedEndDate)") : L10n.text("Starts \(formattedStartDate)"))
                     .lineLimit(1)
 
                 Link(destination: sale.officialURL) {
@@ -173,8 +173,8 @@ private struct GameSaleCardView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Open official campaign page")
-                .help("Open the official campaign page")
+                .accessibilityLabel(L10n.text("Open official campaign page"))
+                .help(L10n.text("Open the official campaign page"))
             }
             .font(SettingsTypography.itemDetail)
             .foregroundStyle(.secondary)
@@ -246,7 +246,7 @@ private struct GameSaleCardView: View {
 
     var statusBadge: some View {
         SettingsStatusBadge(
-            title: isActive ? "ACTIVE" : "UPCOMING",
+            title: isActive ? L10n.text("ACTIVE") : L10n.text("UPCOMING"),
             tint: isActive ? .green : .secondary
         )
     }

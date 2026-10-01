@@ -10,11 +10,11 @@ actor GoogleHolidayFeedClient {
         var errorDescription: String? {
             switch self {
             case .unavailableCountry:
-                return "One of the selected Google holiday calendars is unavailable."
+                return L10n.text("One of the selected Google holiday calendars is unavailable.")
             case .invalidResponse, .unreadableCalendar:
-                return "Google returned an unreadable holiday calendar."
+                return L10n.text("Google returned an unreadable holiday calendar.")
             case .unsuccessfulResponse:
-                return "Google holiday calendars are temporarily unavailable."
+                return L10n.text("Google holiday calendars are temporarily unavailable.")
             }
         }
     }

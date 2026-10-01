@@ -35,21 +35,21 @@ final class CalendarMonitor: ObservableObject {
     @Published var hasRemindersAccess = false
     @Published var availableEventCalendars: [AvailableCalendar] = []
     @Published var availableReminderCalendars: [AvailableCalendar] = []
-    var eventsMenuBarLabel = "No events"
-    var remindersMenuBarLabel = "No reminders"
+    var eventsMenuBarLabel = L10n.text("No events")
+    var remindersMenuBarLabel = L10n.text("No reminders")
     var eventsMenuBarColor: NSColor = .systemGray
     var remindersMenuBarColor: NSColor = .systemGray
     @Published var upcomingItems: [UpcomingItem] = []
     @Published var activeAlertItem: UpcomingItem?
-    @Published var calendarAccessDescription = "Requesting access..."
-    @Published var astronomyLocationStatus = "Manual coordinates"
+    @Published var calendarAccessDescription = L10n.text("Requesting access...")
+    @Published var astronomyLocationStatus = L10n.text("Manual coordinates")
     @Published var lastRefreshDate: Date?
     @Published var refreshDiagnostics = CalendarMonitorRefreshDiagnostics()
     @Published var externalFeedDiagnostics = ExternalFeedDiagnostics()
     @Published var dataRefreshIssues: [DataRefreshIssue] = []
     var dataRefreshHealthState = CalendarMonitorDataRefreshHealthState()
     @Published var footballMenuSections: [FootballMenuCompetitionSection] = []
-    @Published var footballLiveAndNextDaySection = FootballMatchesOverviewSection.placeholder(title: "Now & Next 24 Hours")
+    @Published var footballLiveAndNextDaySection = FootballMatchesOverviewSection.placeholder(title: L10n.text("Now & Next 24 Hours"))
     @Published var managedFootballMatchIDs: Set<String> = []
     @Published var managedFootballMatches: [FootballFixtureMatch] = []
     @Published var gameSales: [GameSaleEvent] = []
@@ -177,6 +177,7 @@ final class CalendarMonitor: ObservableObject {
         registerDefaultSettings()
         activeFocusCalendarFilterState = FocusCalendarFilterStateStore.load(defaults: defaults)
         currentSettings = settingsStore.load()
+        if defaults === UserDefaults.standard { AlertCalendarLanguage.current = currentSettings.language }
         managedFootballEventRecords = Self.decodeManagedFootballEventRecords(
             from: defaults.data(forKey: DefaultsKeys.managedFootballEventRecords)
         )
@@ -239,9 +240,9 @@ final class CalendarMonitor: ObservableObject {
         if item.isDateOnlyReminder {
             dateText = Self.dayFormatter.string(from: item.date)
         } else if item.kind == .event, let endDate = item.endDate, item.date <= now, endDate > now {
-            dateText = "Started \(Self.dayFormatter.string(from: item.date)) at \(Self.timeFormatter.string(from: item.date))"
+            dateText = L10n.text("Started \(Self.dayFormatter.string(from: item.date)) at \(Self.timeFormatter.string(from: item.date))")
         } else {
-            dateText = "\(Self.dayFormatter.string(from: item.date)) at \(Self.timeFormatter.string(from: item.date))"
+            dateText = L10n.text("\(Self.dayFormatter.string(from: item.date)) at \(Self.timeFormatter.string(from: item.date))")
         }
 
         let settings = snapshotSettings()
@@ -254,16 +255,16 @@ final class CalendarMonitor: ObservableObject {
         } else if item.kind == .event, let endDate = item.endDate, item.date <= now, endDate > now {
             switch settings.activeEventDisplayMode {
             case .remaining:
-                tail = "\(relativeCountdown(to: endDate, from: now, simplified: settings.useSimplifiedCountdown)) left"
+                tail = L10n.text("\(relativeCountdown(to: endDate, from: now, simplified: settings.useSimplifiedCountdown)) left")
             case .elapsed:
-                tail = "started \(elapsedCountdown(from: item.date, to: now, simplified: settings.useSimplifiedCountdown)) ago"
+                tail = L10n.text("started \(elapsedCountdown(from: item.date, to: now, simplified: settings.useSimplifiedCountdown)) ago")
             }
         } else if item.kind == .reminder, item.date <= now {
-            tail = "\(elapsedCountdown(from: item.date, to: now, simplified: settings.useSimplifiedCountdown)) ago"
+            tail = L10n.text("\(elapsedCountdown(from: item.date, to: now, simplified: settings.useSimplifiedCountdown)) ago")
         } else {
-            tail = "in \(relativeCountdown(to: item.date, from: now, simplified: settings.useSimplifiedCountdown))"
+            tail = L10n.text("in \(relativeCountdown(to: item.date, from: now, simplified: settings.useSimplifiedCountdown))")
         }
-        return "\(item.kind.rawValue) • \(item.calendarName) • \(dateText) • \(tail)"
+        return "\(L10n.lookup(item.kind.rawValue)) • \(item.calendarName) • \(dateText) • \(tail)"
     }
 
     var activeAlertDescription: String? {
@@ -271,14 +272,25 @@ final class CalendarMonitor: ObservableObject {
         return Self.alertDescription(for: activeAlertItem, now: fixedSecondNow())
     }
 
-    static let dayFormatter: DateFormatter = {
+    static var dayFormatter: DateFormatter {
+        let formatter = cachedDayFormatter
+        formatter.locale = AlertCalendarLanguage.locale
+        return formatter
+    }
+    private static let cachedDayFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "EEE, MMM d"
         return formatter
     }()
 
-    static let timeFormatter: DateFormatter = {
+    static var timeFormatter: DateFormatter {
+        let formatter = cachedTimeFormatter
+        formatter.locale = AlertCalendarLanguage.locale
+        formatter.dateFormat = AlertCalendarLanguage.uses24HourTime() ? "HH:mm" : "h:mm a"
+        return formatter
+    }
+    private static let cachedTimeFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "h:mm a"
@@ -314,9 +326,11 @@ final class CalendarMonitor: ObservableObject {
 
     func reloadCurrentSettings(_ loadedSettings: AppSettings? = nil) {
         let settings = loadedSettings ?? settingsStore.load()
-        let shouldInvalidateAgendaSummary = currentSettings.showAgendaSummary != settings.showAgendaSummary
+        let shouldInvalidateAgendaSummary = currentSettings.language != settings.language
+            || currentSettings.showAgendaSummary != settings.showAgendaSummary
             || currentSettings.agendaSummaryMaximumWords != settings.agendaSummaryMaximumWords
             || currentSettings.useLinkedPagePreviewsInAgendaSummary != settings.useLinkedPagePreviewsInAgendaSummary
+        if defaults === UserDefaults.standard { AlertCalendarLanguage.current = settings.language }
         currentSettings = settings
         if shouldInvalidateAgendaSummary {
             cancelAgendaSummary()

@@ -28,43 +28,43 @@ extension CalendarMonitor {
                 .map(\.notificationKey)
             }
         )
-        let rulesText = rules.count == 1 ? "1 rule" : "\(rules.count) rules"
-        let calendarsText = uniqueCalendarCount == 1 ? "1 calendar" : "\(uniqueCalendarCount) calendars"
+        let rulesText = rules.count == 1 ? L10n.text("1 rule") : L10n.text("\(rules.count) rules")
+        let calendarsText = uniqueCalendarCount == 1 ? L10n.text("1 calendar") : L10n.text("\(uniqueCalendarCount) calendars")
 
         if !activeItems.isEmpty {
-            let activeText = activeItems.count == 1 ? "1 active meeting" : "\(activeItems.count) active meetings"
+            let activeText = activeItems.count == 1 ? L10n.text("1 active meeting") : L10n.text("\(activeItems.count) active meetings")
             if let nextTransitionDate {
                 slackRuntimeStatusDescription =
-                    "Watching \(rulesText) across \(calendarsText). \(activeText). Next change: \(Self.slackRuntimeDateFormatter.string(from: nextTransitionDate))."
+                    L10n.text("Watching \(rulesText) across \(calendarsText). \(activeText). Next change: \(Self.slackRuntimeDateFormatter.string(from: nextTransitionDate)).")
             } else {
                 slackRuntimeStatusDescription =
-                    "Watching \(rulesText) across \(calendarsText). \(activeText)."
+                    L10n.text("Watching \(rulesText) across \(calendarsText). \(activeText).")
             }
             return
         }
 
         if !preEventItemKeys.isEmpty {
             let preEventText = preEventItemKeys.count == 1
-                ? "1 meeting is in its pre-event window"
-                : "\(preEventItemKeys.count) meetings are in their pre-event window"
+                ? L10n.text("1 meeting is in its pre-event window")
+                : L10n.text("\(preEventItemKeys.count) meetings are in their pre-event window")
             if let nextTransitionDate {
                 slackRuntimeStatusDescription =
-                    "Watching \(rulesText) across \(calendarsText). \(preEventText). Next change: \(Self.slackRuntimeDateFormatter.string(from: nextTransitionDate))."
+                    L10n.text("Watching \(rulesText) across \(calendarsText). \(preEventText). Next change: \(Self.slackRuntimeDateFormatter.string(from: nextTransitionDate)).")
             } else {
                 slackRuntimeStatusDescription =
-                    "Watching \(rulesText) across \(calendarsText). \(preEventText)."
+                    L10n.text("Watching \(rulesText) across \(calendarsText). \(preEventText).")
             }
             return
         }
 
         if let nextTransitionDate {
             slackRuntimeStatusDescription =
-                "Watching \(rulesText) across \(calendarsText). No active meetings right now. Next change: \(Self.slackRuntimeDateFormatter.string(from: nextTransitionDate))."
+                L10n.text("Watching \(rulesText) across \(calendarsText). No active meetings right now. Next change: \(Self.slackRuntimeDateFormatter.string(from: nextTransitionDate)).")
             return
         }
 
         slackRuntimeStatusDescription =
-            "Watching \(rulesText) across \(calendarsText). No active or upcoming meetings were found in the current window."
+            L10n.text("Watching \(rulesText) across \(calendarsText). No active or upcoming meetings were found in the current window.")
     }
 
     func scheduleSlackStatusSync(now: Date, settings: AppSettings) {
@@ -148,7 +148,7 @@ extension CalendarMonitor {
         slackStatusSyncTaskStartedAt = nil
         slackStatusSyncRunID = nil
         slackStatusSyncNeedsAnotherPass = true
-        slackStatusSyncErrorDescription = "Slack sync timed out. AlertCalendar will retry."
+        slackStatusSyncErrorDescription = L10n.text("Slack sync timed out. AlertCalendar will retry.")
     }
 
     func startSlackStatusSyncTask(now: Date) {

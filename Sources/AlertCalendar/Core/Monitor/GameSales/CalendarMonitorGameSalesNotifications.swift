@@ -6,7 +6,7 @@ extension CalendarMonitor {
         calendar: Calendar = Calendar.current
     ) -> GameSaleNotificationMessage {
         let formatter = DateIntervalFormatter()
-        formatter.locale = AlertCalendarLanguage.english
+        formatter.locale = AlertCalendarLanguage.locale
         formatter.dateStyle = .medium
         formatter.timeStyle = .none
         formatter.calendar = calendar
@@ -15,7 +15,7 @@ extension CalendarMonitor {
         let range = formatter.string(from: sale.startDate, to: inclusiveEnd)
 
         return GameSaleNotificationMessage(
-            title: "Game sale added to Calendar",
+            title: L10n.text("Game sale added to Calendar"),
             body: "\(sale.store.title): \(sale.title), \(range)."
         )
     }
@@ -32,7 +32,7 @@ extension CalendarMonitor {
         let remainingCount = sales.count - min(sales.count, 3)
         let suffix = remainingCount > 0 ? " and \(remainingCount) more" : ""
         return GameSaleNotificationMessage(
-            title: "\(sales.count) game sales added to Calendar",
+            title: L10n.text("\(sales.count) game sales added to Calendar"),
             body: "\(names)\(suffix)."
         )
     }

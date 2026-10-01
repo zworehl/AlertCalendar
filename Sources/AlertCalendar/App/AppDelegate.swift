@@ -17,6 +17,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         SoftwareUpdateController.shared.start()
         UNUserNotificationCenter.current().delegate = self
         NSApp.mainMenu = makeMainMenu()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleLanguageDidChange),
+            name: .alertCalendarLanguageDidChange,
+            object: nil
+        )
         installEmojiShortcutMonitor()
         ensureAccessoryActivationPolicy()
         NotificationCenter.default.addObserver(
@@ -169,15 +175,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             ?? NSApp.windows.first(where: isSettingsWindow)
     }
 
+    @objc private func handleLanguageDidChange() {
+        NSApp.mainMenu = makeMainMenu()
+        for window in NSApp.windows where window.identifier == settingsWindowIdentifier {
+            window.title = WindowMetadata.preferencesTitle
+        }
+    }
+
     private func makeMainMenu() -> NSMenu {
         let mainMenu = NSMenu()
 
         let appMenuItem = NSMenuItem()
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "About \(ProcessInfo.processInfo.processName)", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(withTitle: L10n.text("About \(ProcessInfo.processInfo.processName)"), action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         appMenu.addItem(NSMenuItem.separator())
         let settingsItem = NSMenuItem(
-            title: "Settings…",
+            title: L10n.text("Settings…"),
             action: #selector(openSettingsFromMainMenu(_:)),
             keyEquivalent: ","
         )
@@ -186,34 +199,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         appMenu.addItem(settingsItem)
         appMenu.addItem(NSMenuItem.separator())
         let checkForUpdatesItem = NSMenuItem(
-            title: "Check for Updates…",
+            title: L10n.text("Check for Updates…"),
             action: #selector(SoftwareUpdateController.checkForUpdates(_:)),
             keyEquivalent: ""
         )
         checkForUpdatesItem.target = SoftwareUpdateController.shared
         appMenu.addItem(checkForUpdatesItem)
         appMenu.addItem(NSMenuItem.separator())
-        appMenu.addItem(withTitle: "Hide \(ProcessInfo.processInfo.processName)", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
-        let hideOthersItem = NSMenuItem(title: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
+        appMenu.addItem(withTitle: L10n.text("Hide \(ProcessInfo.processInfo.processName)"), action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        let hideOthersItem = NSMenuItem(title: L10n.text("Hide Others"), action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
         hideOthersItem.keyEquivalentModifierMask = [.command, .option]
         appMenu.addItem(hideOthersItem)
-        appMenu.addItem(withTitle: "Show All", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
+        appMenu.addItem(withTitle: L10n.text("Show All"), action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
         appMenu.addItem(NSMenuItem.separator())
-        appMenu.addItem(withTitle: "Quit \(ProcessInfo.processInfo.processName)", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: L10n.text("Quit \(ProcessInfo.processInfo.processName)"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appMenuItem.submenu = appMenu
         mainMenu.addItem(appMenuItem)
 
         let editMenuItem = NSMenuItem()
-        let editMenu = NSMenu(title: "Edit")
-        editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
-        editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
-        editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        let editMenu = NSMenu(title: L10n.text("Edit"))
+        editMenu.addItem(withTitle: L10n.text("Cut"), action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: L10n.text("Copy"), action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: L10n.text("Paste"), action: #selector(NSText.paste(_:)), keyEquivalent: "v")
         editMenu.addItem(NSMenuItem.separator())
-        editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editMenu.addItem(withTitle: L10n.text("Select All"), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         editMenu.addItem(NSMenuItem.separator())
 
         let emojiItem = NSMenuItem(
-            title: "Emoji & Symbols",
+            title: L10n.text("Emoji & Symbols"),
             action: #selector(NSApplication.orderFrontCharacterPalette(_:)),
             keyEquivalent: "e"
         )
@@ -224,8 +237,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         mainMenu.addItem(editMenuItem)
 
         let viewMenuItem = NSMenuItem()
-        let viewMenu = NSMenu(title: "View")
-        let toggleFullScreenItem = NSMenuItem(title: "Toggle Full Screen", action: #selector(toggleSettingsFullScreen(_:)), keyEquivalent: "f")
+        let viewMenu = NSMenu(title: L10n.text("View"))
+        let toggleFullScreenItem = NSMenuItem(title: L10n.text("Toggle Full Screen"), action: #selector(toggleSettingsFullScreen(_:)), keyEquivalent: "f")
         toggleFullScreenItem.keyEquivalentModifierMask = [.control, .command]
         toggleFullScreenItem.target = self
         viewMenu.addItem(toggleFullScreenItem)
@@ -301,11 +314,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func presentUnsavedSettingsAlert() -> SettingsUnsavedChangesChoice {
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "Apply changes before leaving Settings?"
-        alert.informativeText = "Configuration changes are staged until you apply them. You can apply them now, discard them, or keep editing."
-        alert.addButton(withTitle: "Apply Changes")
-        alert.addButton(withTitle: "Discard Changes")
-        alert.addButton(withTitle: "Keep Editing")
+        alert.messageText = L10n.text("Apply changes before leaving Settings?")
+        alert.informativeText = L10n.text("Configuration changes are staged until you apply them. You can apply them now, discard them, or keep editing.")
+        alert.addButton(withTitle: L10n.text("Apply Changes"))
+        alert.addButton(withTitle: L10n.text("Discard Changes"))
+        alert.addButton(withTitle: L10n.text("Keep Editing"))
 
         switch alert.runModal() {
         case .alertFirstButtonReturn:

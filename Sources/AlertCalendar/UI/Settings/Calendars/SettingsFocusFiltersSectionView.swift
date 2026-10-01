@@ -8,36 +8,36 @@ struct SettingsFocusFiltersSectionView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Focus Filters", systemImage: "moon.circle")
+            Label(L10n.text("Focus Filters"), systemImage: "moon.circle")
                 .font(.headline)
-            Text("Choose which calendars and reminder lists appear during each Focus in macOS System Settings. When the Focus ends, your usual selection returns.")
+            Text(L10n.text("Choose which calendars and reminder lists appear during each Focus in macOS System Settings. When the Focus ends, your usual selection returns."))
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("System Settings → Focus → Choose a Focus → Add Filter → AlertCalendar")
+            Text(L10n.text("System Settings → Focus → Choose a Focus → Add Filter → AlertCalendar"))
                 .font(.callout.weight(.medium))
                 .textSelection(.enabled)
 
             if let activeState, activeState.hasActiveOverrides {
-                Label("Filtered by Focus", systemImage: "line.3.horizontal.decrease.circle.fill")
+                Label(L10n.text("Filtered by Focus"), systemImage: "line.3.horizontal.decrease.circle.fill")
                     .foregroundStyle(Color.accentColor)
                 if let selection = activeState.selection(for: .event) {
-                    Text(summary(selection, calendars: eventCalendars, noun: "event calendars"))
+                    Text(summary(selection, calendars: eventCalendars, noun: L10n.text("event calendars")))
                 }
                 if let selection = activeState.selection(for: .reminder) {
-                    Text(summary(selection, calendars: reminderCalendars, noun: "reminder lists"))
+                    Text(summary(selection, calendars: reminderCalendars, noun: L10n.text("reminder lists")))
                 }
             } else {
-                Text("Using your usual calendar selection")
+                Text(L10n.text("Using your usual calendar selection"))
                     .foregroundStyle(.secondary)
             }
 
             HStack {
-                Button("Open Focus Settings") {
+                Button(L10n.text("Open Focus Settings")) {
                     guard let url = URL(string: "x-apple.systempreferences:com.apple.Focus-Settings.extension") else { return }
                     AlertCalendarWorkspace.open(url)
                 }
-                Button("Refresh Focus") {
+                Button(L10n.text("Refresh Focus")) {
                     monitor.scheduleFocusFilterRefresh()
                 }
             }
@@ -51,9 +51,9 @@ struct SettingsFocusFiltersSectionView: View {
     private func summary(_ selection: FocusCalendarSelectionOverride, calendars: [AvailableCalendar], noun: String) -> String {
         let names = calendars.filter { selection.calendarIDs.contains($0.id) }.map(\.title).sorted()
         guard !names.isEmpty else {
-            return selection.action == .showOnlySelected ? "No \(noun) visible" : "No available \(noun) hidden"
+            return selection.action == .showOnlySelected ? L10n.text("No \(noun) visible") : L10n.text("No available \(noun) hidden")
         }
         let list = names.joined(separator: ", ")
-        return selection.action == .showOnlySelected ? "Show only: \(list)" : "Hide: \(list)"
+        return selection.action == .showOnlySelected ? L10n.text("Show only: \(list)") : L10n.text("Hide: \(list)")
     }
 }

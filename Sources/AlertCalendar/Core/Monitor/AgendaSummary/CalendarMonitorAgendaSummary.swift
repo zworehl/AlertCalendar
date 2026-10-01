@@ -34,7 +34,7 @@ extension CalendarMonitor {
             agendaSummaryTask = nil
             resetAgendaSummaryRetryState()
             agendaSummaryRequestFingerprint = requestFingerprint
-            agendaSummaryState = .ready("Nothing is scheduled in this window.")
+            agendaSummaryState = .ready(L10n.text("Nothing is scheduled in this window."))
             return
         }
 
@@ -160,7 +160,7 @@ extension CalendarMonitor {
 
     nonisolated private static func agendaSummaryRetryDescription(delay: TimeInterval) -> String {
         let minutes = max(1, Int(delay / 60))
-        return "Apple Intelligence couldn't generate the latest agenda summary. It will retry automatically in about \(minutes) minute\(minutes == 1 ? "" : "s")."
+        return L10n.text("Apple Intelligence couldn't generate the latest agenda summary. It will retry automatically in about \(minutes) minute\(minutes == 1 ? "" : "s").")
     }
 
     private func resetAgendaSummaryRetryState() {

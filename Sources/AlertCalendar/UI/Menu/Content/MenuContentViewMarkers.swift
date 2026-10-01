@@ -67,8 +67,8 @@ extension MenuContentView {
         }
         .buttonStyle(.plain)
         .contentShape(Rectangle())
-        .accessibilityLabel("Complete \(item.title)")
-        .help("Complete reminder")
+        .accessibilityLabel(L10n.text("Complete \(item.title)"))
+        .help(L10n.text("Complete reminder"))
     }
 
     func markerImage(for item: UpcomingItem, isReminderFilled: Bool = false) -> NSImage? {

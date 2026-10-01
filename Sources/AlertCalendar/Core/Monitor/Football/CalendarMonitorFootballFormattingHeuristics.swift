@@ -119,7 +119,7 @@ extension CalendarMonitor {
         case .reported, .awaitingLiveData:
             return nil
         case .delayedLiveData:
-            return "Kickoff time has passed, but ESPN still has not confirmed live match data for this fixture."
+            return L10n.text("Kickoff time has passed, but ESPN still has not confirmed live match data for this fixture.")
         }
     }
 
@@ -128,7 +128,7 @@ extension CalendarMonitor {
         case .reported, .awaitingLiveData:
             return nil
         case .delayedLiveData:
-            return "Live data fetch delayed"
+            return L10n.text("Live data fetch delayed")
         }
     }
 
@@ -248,6 +248,10 @@ extension CalendarMonitor {
             return true
         case "fifa.world", "uefa.euro", "conmebol.america", "fifa.cwc", "concacaf.gold", "caf.nations", "afc.asian.cup":
             return footballIsSingleMatchKnockoutContext(match)
+        case "concacaf.nations.league", "uefa.nations":
+            return footballIsSecondLegContext(match)
+                || (footballIsSingleMatchKnockoutContext(match)
+                    && !footballContainsAnyContextToken(match, tokens: ["quarterfinal", "quarterfinals", "quarter"]))
         case "uefa.champions", "uefa.europa":
             return footballIsFinalContext(match) || footballIsSecondLegContext(match)
         case "conmebol.libertadores":

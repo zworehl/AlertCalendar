@@ -6,34 +6,45 @@ struct ResolvedMeetingContact: Equatable, Sendable {
     let avatarImageData: Data?
 }
 
+extension Notification.Name {
+    static let alertCalendarMeetingContactsDidChange = Notification.Name("AlertCalendarMeetingContactsDidChange")
+}
+
 actor MeetingContactResolver {
     static let shared = MeetingContactResolver()
 
-    private let contactStore = CNContactStore()
+    private let contactStore: any MeetingContactStoreProviding
+    private let notificationCenter: NotificationCenter
+    private var contactChangesTask: Task<Void, Never>?
     private var cachedContactsByEmail: [String: ResolvedMeetingContact] = [:]
     private var missingEmails: Set<String> = []
+    private var cachedAuthorizationStatus: CNAuthorizationStatus?
+    private var cacheGeneration = 0
 
-    private let contactKeysToFetch: [CNKeyDescriptor] = [
-        CNContactFormatter.descriptorForRequiredKeys(for: .fullName),
-        CNContactNicknameKey as CNKeyDescriptor,
-        CNContactOrganizationNameKey as CNKeyDescriptor,
-        CNContactThumbnailImageDataKey as CNKeyDescriptor,
-    ]
+    init(
+        contactStore: any MeetingContactStoreProviding = SystemMeetingContactStore(),
+        notificationCenter: NotificationCenter = .default
+    ) {
+        self.contactStore = contactStore
+        self.notificationCenter = notificationCenter
+    }
+
+    deinit {
+        contactChangesTask?.cancel()
+    }
 
     func requestAccess() async -> Bool {
-        let status = CNContactStore.authorizationStatus(for: .contacts)
-        if status == .authorized {
+        let status = await contactStore.authorizationStatus()
+        if Self.canReadContacts(status) {
             return true
         }
         guard status == .notDetermined else {
             return false
         }
 
-        return await withCheckedContinuation { continuation in
-            contactStore.requestAccess(for: .contacts) { granted, _ in
-                continuation.resume(returning: granted)
-            }
-        }
+        let granted = await contactStore.requestAccess()
+        invalidateCache()
+        return granted
     }
 
     func resolve(organizer: MeetingOrganizer?) async -> MeetingOrganizer? {
@@ -75,6 +86,14 @@ actor MeetingContactResolver {
             return nil
         }
 
+        startObservingContactChangesIfNeeded()
+        let status = await contactStore.authorizationStatus()
+        if status != cachedAuthorizationStatus {
+            invalidateCache()
+            cachedAuthorizationStatus = status
+        }
+        guard Self.canReadContacts(status) else { return nil }
+
         if let cachedContact = cachedContactsByEmail[normalizedEmailAddress] {
             return cachedContact
         }
@@ -83,53 +102,54 @@ actor MeetingContactResolver {
             return nil
         }
 
-        guard CNContactStore.authorizationStatus(for: .contacts) == .authorized else {
-            return nil
-        }
-
+        let generation = cacheGeneration
         do {
-            let contacts = try contactStore.unifiedContacts(
-                matching: CNContact.predicateForContacts(matchingEmailAddress: normalizedEmailAddress),
-                keysToFetch: contactKeysToFetch
-            )
-
-            guard let bestMatch = contacts.first,
-                  let displayText = Self.contactDisplayText(for: bestMatch, fallbackEmailAddress: normalizedEmailAddress) else {
+            let resolvedContact = try await contactStore.contact(matchingEmailAddress: normalizedEmailAddress)
+            guard generation == cacheGeneration, !Task.isCancelled else { return nil }
+            guard let resolvedContact else {
                 missingEmails.insert(normalizedEmailAddress)
                 return nil
             }
 
-            let resolvedContact = ResolvedMeetingContact(
-                displayText: displayText,
-                avatarImageData: bestMatch.thumbnailImageData
-            )
             cachedContactsByEmail[normalizedEmailAddress] = resolvedContact
             return resolvedContact
         } catch {
-            missingEmails.insert(normalizedEmailAddress)
+            // A temporary Contacts failure must not hide a photo for the rest of the session.
             return nil
         }
     }
 
-    private func normalizedEmailAddress(_ emailAddress: String?) -> String? {
-        MeetingAttendee.normalizedEmailAddress(emailAddress)
+    func invalidateCache() {
+        cachedContactsByEmail.removeAll()
+        missingEmails.removeAll()
+        cacheGeneration += 1
     }
 
-    private static func contactDisplayText(for contact: CNContact, fallbackEmailAddress: String) -> String? {
-        if let fullName = AlertCalendarString.trimmedNonEmpty(
-            CNContactFormatter.string(from: contact, style: .fullName)
-        ) {
-            return fullName
+    private func startObservingContactChangesIfNeeded() {
+        guard contactChangesTask == nil else { return }
+        let changes = notificationCenter.notifications(named: .CNContactStoreDidChange)
+            .map { _ in () }
+        contactChangesTask = Task { [weak self] in
+            for await _ in changes {
+                guard !Task.isCancelled else { return }
+                await self?.contactStoreDidChange()
+            }
         }
+    }
 
-        if let nickname = AlertCalendarString.trimmedNonEmpty(contact.nickname) {
-            return nickname
+    private func contactStoreDidChange() async {
+        invalidateCache()
+        let notificationCenter = notificationCenter
+        await MainActor.run {
+            notificationCenter.post(name: .alertCalendarMeetingContactsDidChange, object: nil)
         }
+    }
 
-        if let organizationName = AlertCalendarString.trimmedNonEmpty(contact.organizationName) {
-            return organizationName
-        }
+    private static func canReadContacts(_ status: CNAuthorizationStatus) -> Bool {
+        status == .authorized
+    }
 
-        return fallbackEmailAddress
+    private func normalizedEmailAddress(_ emailAddress: String?) -> String? {
+        MeetingAttendee.normalizedEmailAddress(emailAddress)
     }
 }

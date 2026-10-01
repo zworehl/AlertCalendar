@@ -6,15 +6,15 @@ enum AgendaSummaryFallback {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
         let dayCount = Set(request.items.map { calendar.startOfDay(for: $0.startsAt) }).count
-        let itemWord = request.items.count == 1 ? "item" : "items"
-        let dayWord = dayCount == 1 ? "day" : "days"
-        var sentences = ["Your agenda includes \(request.items.count) \(itemWord) across \(dayCount) \(dayWord)."]
+        let itemWord = request.items.count == 1 ? L10n.text("item", language: request.language) : L10n.text("items", language: request.language)
+        let dayWord = dayCount == 1 ? L10n.text("day", language: request.language) : L10n.text("days", language: request.language)
+        var sentences = [L10n.text("Your agenda includes \(request.items.count) \(itemWord) across \(dayCount) \(dayWord).", language: request.language)]
 
         var selectedItems: [AgendaSummaryRequest.Item] = []
         if let firstItem = request.items.first {
             selectedItems.append(firstItem)
         }
-        if let enrichedItem = request.items.dropFirst().first(where: { fallbackDetail(for: $0) != nil }) {
+        if let enrichedItem = request.items.dropFirst().first(where: { fallbackDetail(for: $0, language: request.language) != nil }) {
             selectedItems.append(enrichedItem)
         } else if request.items.count > 1 {
             selectedItems.append(request.items[1])
@@ -27,7 +27,7 @@ enum AgendaSummaryFallback {
                 calendar: calendar,
                 timeZone: timeZone
             )
-            let detailSentence = fallbackDetail(for: item)
+            let detailSentence = fallbackDetail(for: item, language: request.language)
             let detailedCandidate = [scheduleSentence, detailSentence]
                 .compactMap { $0 }
                 .joined(separator: " ")
@@ -71,13 +71,13 @@ enum AgendaSummaryFallback {
         let dayText: String
         switch dayOffset {
         case 0:
-            dayText = "Today"
+            dayText = L10n.text("Today", language: request.language)
         case 1:
-            dayText = "Tomorrow"
+            dayText = L10n.text("Tomorrow", language: request.language)
         default:
             let dateFormatter = DateFormatter()
             dateFormatter.calendar = calendar
-            dateFormatter.locale = Locale(identifier: "en_US_POSIX")
+            dateFormatter.locale = request.language.locale
             dateFormatter.timeZone = timeZone
             dateFormatter.dateFormat = "EEE, MMM d"
             dayText = dateFormatter.string(from: item.startsAt)
@@ -85,20 +85,20 @@ enum AgendaSummaryFallback {
 
         let title = firstWords(of: safeFallbackText(item.title), maximum: 8)
         guard !item.isAllDay else {
-            return "\(dayText), all day: \(title)."
+            return L10n.text("\(dayText), all day: \(title).", language: request.language)
         }
 
         let timeFormatter = DateFormatter()
         timeFormatter.calendar = calendar
-        timeFormatter.locale = Locale(identifier: "en_US_POSIX")
+        timeFormatter.locale = request.language.locale
         timeFormatter.timeZone = timeZone
         timeFormatter.dateFormat = request.uses24HourTime ? "HH:mm" : "h:mm a"
-        return "\(dayText) at \(timeFormatter.string(from: item.startsAt)): \(title)."
+        return L10n.text("\(dayText) at \(timeFormatter.string(from: item.startsAt)): \(title).", language: request.language)
     }
 
-    private static func fallbackDetail(for item: AgendaSummaryRequest.Item) -> String? {
+    private static func fallbackDetail(for item: AgendaSummaryRequest.Item, language: AppLanguage) -> String? {
         let attachmentNameDetail = item.attachmentPreviews.isEmpty && !item.attachmentNames.isEmpty
-            ? "Attached supporting files: \(item.attachmentNames.joined(separator: ", "))"
+            ? L10n.text("Attached supporting files: \(item.attachmentNames.joined(separator: ", "))", language: language)
             : nil
         let rawDetails = [item.description]
             + item.attachmentPreviews
@@ -107,11 +107,11 @@ enum AgendaSummaryFallback {
             + [
             item.location.map { location in
                 if let travelTimeMinutes = item.travelTimeMinutes {
-                    return "At \(location); allow \(travelTimeMinutes) minutes for travel"
+                    return L10n.text("At \(location); allow \(travelTimeMinutes) minutes for travel", language: language)
                 }
-                return "At \(location)"
+                return L10n.text("At \(location)", language: language)
             },
-            item.travelTimeMinutes.map { "Allow \($0) minutes for travel" },
+            item.travelTimeMinutes.map { L10n.text("Allow \($0) minutes for travel", language: language) },
             item.personalizedContext,
         ]
 

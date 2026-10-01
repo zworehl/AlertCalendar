@@ -28,7 +28,7 @@ struct SettingsCalendarRowView: View {
             .buttonStyle(.plain)
             .frame(minHeight: SettingsVisualMetrics.minimumInteractiveControlSize)
             .accessibilityLabel(calendar.title)
-            .accessibilityValue(isSelected ? "Selected" : "Not selected")
+            .accessibilityValue(isSelected ? L10n.text("Selected") : L10n.text("Not selected"))
             .accessibilityAddTraits(isSelected ? .isSelected : [])
 
             if calendar.isSubscribed {
@@ -54,7 +54,7 @@ struct SettingsCalendarRowView: View {
                     )
                     .contentShape(Rectangle())
                     .disabled(!calendar.allowsContentModifications)
-                    .accessibilityLabel("Alert rule for \(calendar.title)")
+                    .accessibilityLabel(L10n.text("Alert rule for \(calendar.title)"))
                     .help(alertRuleHelpText)
                     .popover(isPresented: $isShowingAlertRules, arrowEdge: .trailing) {
                         if calendarAlertRules != nil {
@@ -111,12 +111,12 @@ struct SettingsCalendarRowView: View {
 
     private var alertRuleHelpText: String {
         if !calendar.allowsContentModifications {
-            return "This calendar is read-only, so its event alerts cannot be changed."
+            return L10n.text("This calendar is read-only, so its event alerts cannot be changed.")
         }
         if alertRule?.isEnabled == true {
-            return "Edit this calendar's active alert rule"
+            return L10n.text("Edit this calendar's active alert rule")
         }
-        return "Configure alerts for this calendar"
+        return L10n.text("Configure alerts for this calendar")
     }
 
     private var calendarAlertRuleBinding: Binding<CalendarAlertRule> {

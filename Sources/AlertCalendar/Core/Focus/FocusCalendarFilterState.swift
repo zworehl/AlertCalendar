@@ -7,9 +7,9 @@ enum FocusCalendarSelectionAction: String, CaseIterable, Codable, Sendable {
     var title: String {
         switch self {
         case .hideSelected:
-            return "Hide selected"
+            return L10n.text("Hide selected")
         case .showOnlySelected:
-            return "Show only selected"
+            return L10n.text("Show only selected")
         }
     }
 }

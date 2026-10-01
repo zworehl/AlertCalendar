@@ -67,10 +67,10 @@ extension SettingsView {
     }
 
     var showcaseMenuBarTitle: String {
-        let fullTitle = "Quarterly planning with product and operations"
+        let fullTitle = L10n.text("Quarterly planning with product and operations")
         guard draft.useEventTitleEllipsis else { return fullTitle }
         if draft.rewriteEventTitlesWithAppleIntelligence && appleIntelligenceTitleRewriteIsAllowed {
-            let rewrittenTitle = "Quarterly product planning"
+            let rewrittenTitle = L10n.text("Quarterly product planning")
             if rewrittenTitle.count <= draft.eventTitleMaxCharacters {
                 return rewrittenTitle
             }
@@ -121,20 +121,20 @@ extension SettingsView {
 
     var eventTitleRewriteAvailabilityMessage: String? {
         guard appleIntelligenceTitleRewriteIsAllowed else {
-            return "Apple Intelligence title rewriting becomes available at 10 characters or more."
+            return L10n.text("Apple Intelligence title rewriting becomes available at 10 characters or more.")
         }
         guard !agendaSummaryAvailability.isAvailable else { return nil }
         switch agendaSummaryAvailability {
         case .available:
             return nil
         case .unsupportedSystem:
-            return "Title rewriting requires macOS 26 or later."
+            return L10n.text("Title rewriting requires macOS 26 or later.")
         case .deviceNotEligible:
-            return "Apple Intelligence title rewriting isn't supported on this Mac."
+            return L10n.text("Apple Intelligence title rewriting isn't supported on this Mac.")
         case .appleIntelligenceNotEnabled:
-            return "Turn on Apple Intelligence in System Settings to rewrite titles."
+            return L10n.text("Turn on Apple Intelligence in System Settings to rewrite titles.")
         case .modelNotReady:
-            return "Apple Intelligence is still preparing its on-device model."
+            return L10n.text("Apple Intelligence is still preparing its on-device model.")
         }
     }
 

@@ -162,7 +162,7 @@ actor AgendaSummaryLinkPreviewClient: AgendaSummaryLinkPreviewProviding {
 
                 if (300..<400).contains(response.statusCode),
                    redirectCount < maximumRedirects,
-                   let location = response.value(forHTTPHeaderField: "Location"),
+                   let location = response.value(forHTTPHeaderField: L10n.text("Location")),
                    let redirectURL = URL(string: location, relativeTo: currentURL)?.absoluteURL,
                    let eligibleRedirect = AgendaSummaryLinkPreviewURLPolicy.eligibleURL(redirectURL) {
                     bytes.task.cancel()

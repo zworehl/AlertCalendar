@@ -17,25 +17,25 @@ extension SettingsView {
         if normalizedHours >= 30 * 24, normalizedHours.isMultiple(of: 30 * 24) {
             return durationValueText(
                 value: normalizedHours / (30 * 24),
-                singular: "month",
-                plural: "months"
+                singular: L10n.text("month"),
+                plural: L10n.text("months")
             )
         }
         if normalizedHours >= 7 * 24, normalizedHours.isMultiple(of: 7 * 24) {
             return durationValueText(
                 value: normalizedHours / (7 * 24),
-                singular: "week",
-                plural: "weeks"
+                singular: L10n.text("week"),
+                plural: L10n.text("weeks")
             )
         }
         if normalizedHours >= 24, normalizedHours.isMultiple(of: 24) {
             return durationValueText(
                 value: normalizedHours / 24,
-                singular: "day",
-                plural: "days"
+                singular: L10n.text("day"),
+                plural: L10n.text("days")
             )
         }
-        return durationValueText(value: normalizedHours, singular: "hour", plural: "hours")
+        return durationValueText(value: normalizedHours, singular: L10n.text("hour"), plural: L10n.text("hours"))
     }
 
     nonisolated static func menuBarRotationWindowValueText(minutes: Int) -> String {
@@ -43,8 +43,8 @@ extension SettingsView {
         if normalizedMinutes < 60 {
             return durationValueText(
                 value: normalizedMinutes,
-                singular: "minute",
-                plural: "minutes"
+                singular: L10n.text("minute"),
+                plural: L10n.text("minutes")
             )
         }
 
@@ -54,12 +54,12 @@ extension SettingsView {
         if remainingMinutes == 0 {
             return durationValueText(
                 value: hours,
-                singular: "hour",
-                plural: "hours"
+                singular: L10n.text("hour"),
+                plural: L10n.text("hours")
             )
         }
 
-        return "\(durationValueText(value: hours, singular: "hour", plural: "hours")) \(durationValueText(value: remainingMinutes, singular: "minute", plural: "minutes"))"
+        return "\(durationValueText(value: hours, singular: L10n.text("hour"), plural: L10n.text("hours"))) \(durationValueText(value: remainingMinutes, singular: L10n.text("minute"), plural: L10n.text("minutes")))"
     }
 
     static func isGrantedEventKitAuthorizationStatus(_ status: EKAuthorizationStatus) -> Bool {

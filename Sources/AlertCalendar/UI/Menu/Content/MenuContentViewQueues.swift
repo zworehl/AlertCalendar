@@ -167,7 +167,7 @@ extension MenuContentView {
 
         return AnyView(VStack(spacing: 0) {
             if entries.isEmpty {
-                emptySectionRow("No upcoming items")
+                emptySectionRow(L10n.text("No upcoming items"))
             } else {
                 ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
                     if index > 0 {

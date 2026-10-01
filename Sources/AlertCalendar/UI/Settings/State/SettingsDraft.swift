@@ -1,6 +1,7 @@
 import Foundation
 
 struct SettingsDraft: Equatable {
+    var language: AppLanguage
     var includeEvents: Bool
     var includeAllDayEvents: Bool
     var includeReminders: Bool
@@ -58,6 +59,7 @@ struct SettingsDraft: Equatable {
     var meetingBrowserRouting: MeetingBrowserRoutingSettings
 
     init(settings: AppSettings) {
+        language = settings.language
         includeEvents = settings.includeEvents
         includeAllDayEvents = settings.includeAllDayEvents
         includeReminders = settings.includeReminders

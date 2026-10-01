@@ -25,9 +25,9 @@ struct SettingsView: View {
     @State var hasRemindersAccess = false
     @State var availableEventCalendars: [AvailableCalendar] = []
     @State var availableReminderCalendars: [AvailableCalendar] = []
-    @State var calendarAccessDescription = "Requesting access..."
+    @State var calendarAccessDescription = L10n.text("Requesting access...")
     @State var calendarAlertRuleStatusDescription: String?
-    @State var astronomyLocationStatus = "Manual coordinates"
+    @State var astronomyLocationStatus = L10n.text("Manual coordinates")
     @State var eventAuthorizationStatus: EKAuthorizationStatus = .notDetermined
     @State var reminderAuthorizationStatus: EKAuthorizationStatus = .notDetermined
     @State var locationAuthorizationStatus: CLAuthorizationStatus = .notDetermined
@@ -45,6 +45,7 @@ struct SettingsView: View {
     @State var dataRefreshIssues: [DataRefreshIssue] = []
     @State var isShowingPermissionDiagnostics = false
     @State var slackUserTokenDraft = ""
+    @State var musicEmojiCandidate = ""
     @State var slackConnections: [SlackConnection] = []
     @State var slackConnectErrorMessage: String?
     @State var slackConnectionStatusMessage: String?
@@ -54,6 +55,7 @@ struct SettingsView: View {
     @State var isRefreshingSlackConnectionMetadata = false
     @State var didAttemptSlackConnectionMetadataRefresh = false
     @State var draggingSlackStatusRuleID: String?
+    @State var draggingMusicEmojiIndex: Int?
     @State var isShowingSlackConnectionManagement = false
     @State var slackStatusRulesColumnWidth: CGFloat = 0
     @State var installedMeetingBrowsers: [MeetingBrowserKind] = MeetingBrowserCatalog.installedBrowsers()

@@ -70,7 +70,7 @@ extension MenuContentView {
     }
 
     nonisolated static func birthdayGroupTitle(itemCount: Int) -> String {
-        itemCount == 1 ? "1 birthday" : "\(itemCount) birthdays"
+        itemCount == 1 ? L10n.text("1 birthday") : L10n.text("\(itemCount) birthdays")
     }
 
     nonisolated static func birthdayGroupNames(_ group: BirthdayGroup) -> String {
@@ -219,7 +219,7 @@ extension MenuContentView {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help(isExpanded ? "Hide birthdays" : "Show birthdays")
+            .help(isExpanded ? L10n.text("Hide birthdays") : L10n.text("Show birthdays"))
             .accessibilityLabel(
                 "\(Self.birthdayGroupTitle(itemCount: group.items.count)): \(Self.birthdayGroupNames(group))"
             )

@@ -5,6 +5,7 @@ import PackageDescription
 
 let package = Package(
     name: "AlertCalendar",
+    defaultLocalization: "en",
     platforms: [
         .macOS(.v13),
     ],
@@ -20,6 +21,8 @@ let package = Package(
             path: "Sources/AlertCalendar",
             resources: [
                 .process("Resources/Images"),
+                .process("Resources/SlackEmojiCatalog.json"),
+                .process("Resources/Localization"),
             ]
         ),
         .testTarget(

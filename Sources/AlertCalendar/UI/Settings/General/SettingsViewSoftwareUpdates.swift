@@ -3,17 +3,17 @@ import SwiftUI
 extension SettingsView {
     var softwareUpdateSettingsSection: some View {
         settingsSection(
-            title: "Software Updates",
-            subtitle: "Keep AlertCalendar current with signed releases from GitHub.",
+            title: L10n.text("Software Updates"),
+            subtitle: L10n.text("Keep AlertCalendar current with signed releases from GitHub."),
             systemImage: "arrow.triangle.2.circlepath"
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 settingsControlRow(
-                    title: "Check automatically",
-                    detail: "Checks GitHub periodically without interrupting your calendar or Slack refresh cycle."
+                    title: L10n.text("Check automatically"),
+                    detail: L10n.text("Checks GitHub periodically without interrupting your calendar or Slack refresh cycle.")
                 ) {
                     Toggle(
-                        "Check automatically",
+                        L10n.text("Check automatically"),
                         isOn: Binding(
                             get: { softwareUpdateController.automaticallyChecksForUpdates },
                             set: { isEnabled in
@@ -23,17 +23,17 @@ extension SettingsView {
                     )
                     .labelsHidden()
                     .toggleStyle(.switch)
-                    .accessibilityLabel(Text("Check automatically for updates"))
+                    .accessibilityLabel(Text(L10n.text("Check automatically for updates")))
                 }
 
                 settingsDivider()
 
                 settingsControlRow(
-                    title: "Download automatically",
-                    detail: "Downloads verified updates in the background and asks before relaunching the app."
+                    title: L10n.text("Download automatically"),
+                    detail: L10n.text("Downloads verified updates in the background and asks before relaunching the app.")
                 ) {
                     Toggle(
-                        "Download automatically",
+                        L10n.text("Download automatically"),
                         isOn: Binding(
                             get: { softwareUpdateController.automaticallyDownloadsUpdates },
                             set: { isEnabled in
@@ -47,7 +47,7 @@ extension SettingsView {
                         !softwareUpdateController.automaticallyChecksForUpdates ||
                             !softwareUpdateController.allowsAutomaticUpdates
                     )
-                    .accessibilityLabel(Text("Download updates automatically"))
+                    .accessibilityLabel(Text(L10n.text("Download updates automatically")))
                 }
 
                 settingsDivider()
@@ -63,7 +63,7 @@ extension SettingsView {
 
                     Spacer(minLength: 12)
 
-                    Button("Check Now") {
+                    Button(L10n.text("Check Now")) {
                         softwareUpdateController.checkForUpdates()
                     }
                     .buttonStyle(.borderedProminent)
@@ -80,8 +80,8 @@ extension SettingsView {
             return configurationError
         }
         if let date = softwareUpdateController.lastUpdateCheckDate {
-            return "Last checked \(date.formatted(date: .abbreviated, time: .shortened))."
+            return L10n.text("Last checked \(date.formatted(date: .abbreviated, time: .shortened)).")
         }
-        return "No update check has completed yet."
+        return L10n.text("No update check has completed yet.")
     }
 }

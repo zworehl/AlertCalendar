@@ -12,14 +12,20 @@ struct AppleMusicPlayback: Equatable, Sendable {
     let remainingDuration: TimeInterval
     let durationIsKnown: Bool
 
-    var statusText: String { "Listening to \(artist)" }
+    var statusText: String { L10n.text("Listening to \(artist)") }
     var cacheIdentity: String {
         if !trackID.isEmpty { return trackID }
         if !durationIsKnown { return "\(artist)|unknown-duration" }
         return "\(artist)|\(Int((elapsedDuration + remainingDuration).rounded()))"
     }
     var statusEmoji: String {
-        Int(max(0, elapsedDuration) / 30).isMultiple(of: 2) ? "🎵" : "🎶"
+        statusEmoji(from: AppleMusicStatusSettings.defaultEmojis)
+    }
+
+    func statusEmoji(from emojis: [String]) -> String {
+        guard !emojis.isEmpty else { return AppleMusicStatusSettings.defaultEmojis[0] }
+        let slot = Int(max(0, elapsedDuration) / 30) % emojis.count
+        return emojis[slot]
     }
 
     func expirationTimestamp(now: Date) -> Int {
@@ -42,7 +48,10 @@ struct AppleMusicPlayback: Equatable, Sendable {
     }
 
     func shouldRenewExpiration(_ expiration: Int, now: Date) -> Bool {
-        guard !durationIsKnown else { return false }
+        if durationIsKnown {
+            // Queue edits can change the artist's end time without changing the song.
+            return abs(TimeInterval(expiration) - TimeInterval(expirationTimestamp(now: now))) > 2
+        }
         return TimeInterval(expiration) - now.timeIntervalSince1970 <= Self.unknownDurationRenewalLeadTime
     }
 
@@ -115,7 +124,7 @@ enum AppleMusicPlaybackReader {
                         end if
                     end try
                     set separator to ASCII character 30
-                    return currentArtist & separator & (persistent ID of currentSong) & separator & (duration of currentSong as text) & separator & (player position as text) & separator & (followingSameArtistDuration as text)
+                    return currentArtist & separator & (persistent ID of currentSong) & separator & (duration of currentSong as text) & separator & (player position as text) & separator & (followingSameArtistDuration as text) & separator & (name of currentSong) & separator & (album of currentSong) & separator & (shuffle enabled as text)
                 end if
                 return "__ALERT_CALENDAR_NOT_PLAYING__"
             end tell
@@ -129,7 +138,7 @@ enum AppleMusicPlaybackReader {
             }
             guard rawValue != "__ALERT_CALENDAR_NOT_PLAYING__" else { return .stopped }
             let components = rawValue.components(separatedBy: String(UnicodeScalar(30)))
-            guard components.count == 5,
+            guard components.count == 8,
                   let artist = SlackConnection.normalizedValue(components[0]),
                   let position = parseTimeInterval(components[3]),
                   position >= 0 else { return .unavailable }
@@ -140,7 +149,16 @@ enum AppleMusicPlaybackReader {
                 return .unavailable
             }
 
-            let followingSameArtistDuration = max(0, parseTimeInterval(components[4]) ?? 0)
+            // Streaming albums often have no AppleScript current playlist. Music's
+            // saved queue contains their order and full track metadata instead.
+            let queuedDuration = components[7] == "false"
+                ? AppleMusicQueueReader.followingSameArtistDuration(
+                    title: components[5],
+                    artist: artist,
+                    album: components[6]
+                )
+                : nil
+            let followingSameArtistDuration = max(0, queuedDuration ?? parseTimeInterval(components[4]) ?? 0)
             let remainingDuration: TimeInterval
             if let duration = parsedDuration, durationIsKnown {
                 remainingDuration = max(1, max(0, duration - position) + followingSameArtistDuration)

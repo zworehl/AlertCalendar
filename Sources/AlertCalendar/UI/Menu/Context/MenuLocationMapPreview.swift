@@ -36,7 +36,7 @@ struct MiniLocationMapView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Location Preview")
+            Text(L10n.text("Location Preview"))
                 .font(MenuMarkerMetrics.compactMetadataFont)
                 .foregroundStyle(.secondary)
 
@@ -54,7 +54,7 @@ struct MiniLocationMapView: View {
                     } else {
                         RoundedRectangle(cornerRadius: 8)
                             .fill(.quaternary)
-                        Text(isLoading ? "Loading map..." : "Map unavailable")
+                        Text(isLoading ? L10n.text("Loading map...") : L10n.text("Map unavailable"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

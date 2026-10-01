@@ -15,15 +15,15 @@ enum PermissionGrantState: String, CaseIterable {
     var badgeTitle: String {
         switch self {
         case .allowed:
-            return "Allowed"
+            return L10n.text("Allowed")
         case .notRequested:
-            return "Not Requested"
+            return L10n.text("Not Requested")
         case .limited:
-            return "Limited"
+            return L10n.text("Limited")
         case .denied:
-            return "Denied"
+            return L10n.text("Denied")
         case .restricted:
-            return "Restricted"
+            return L10n.text("Restricted")
         }
     }
 

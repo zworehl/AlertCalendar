@@ -23,7 +23,7 @@ extension SettingsView {
             }
 
             if slackStatusRuleEmojiNeedsPrettyInput(rule) {
-                Text("Use actual emoji like 🐶, 🗓️, or ⏳. Known Slack aliases are auto-converted when possible, but the fields look better with emoji characters.")
+                Text(L10n.text("Use actual emoji like 🐶, 🗓️, or ⏳. Known Slack aliases are auto-converted when possible, but the fields look better with emoji characters."))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -70,7 +70,7 @@ extension SettingsView {
     @ViewBuilder
     func slackStatusSyncRuleActionBar(index: Int, rule: SlackStatusSyncRule, isComplete: Bool) -> some View {
         HStack(spacing: 10) {
-            Picker("Priority", selection: $draft.slackStatusSyncRules[index].priority) {
+            Picker(L10n.text("Priority"), selection: $draft.slackStatusSyncRules[index].priority) {
                 ForEach(SlackStatusPriority.values, id: \.self) { value in
                     Text("\(value)").tag(value)
                 }
@@ -78,9 +78,9 @@ extension SettingsView {
             .pickerStyle(.menu)
             .controlSize(.small)
             .frame(width: 90)
-            .help("1 is highest priority. Drag rules to break ties.")
+            .help(L10n.text("1 is highest priority. Drag rules to break ties."))
 
-            Toggle("Active", isOn: $draft.slackStatusSyncRules[index].isEnabled)
+            Toggle(L10n.text("Active"), isOn: $draft.slackStatusSyncRules[index].isEnabled)
                 .font(.caption)
                 .toggleStyle(.switch)
                 .controlSize(.small)
@@ -93,7 +93,7 @@ extension SettingsView {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .help("Remove")
+            .help(L10n.text("Remove"))
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
     }
@@ -105,12 +105,12 @@ extension SettingsView {
             .foregroundStyle(.secondary)
             .frame(width: 24, height: 34)
             .contentShape(Rectangle())
-            .help("Drag to break ties between rules with the same priority")
+            .help(L10n.text("Drag to break ties between rules with the same priority"))
             .onDrag {
                 draggingSlackStatusRuleID = rule.id
                 return NSItemProvider(object: rule.id as NSString)
             }
-            .accessibilityLabel("Priority handle")
+            .accessibilityLabel(L10n.text("Priority handle"))
     }
 
     @ViewBuilder
@@ -118,7 +118,7 @@ extension SettingsView {
         if slackShouldUseInlineRuleEditorRows {
             HStack(alignment: .top, spacing: 14) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Calendar Mapping")
+                    Text(L10n.text("Calendar Mapping"))
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(.secondary)
 
@@ -137,7 +137,7 @@ extension SettingsView {
 
                 VStack(alignment: .leading, spacing: 8) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Active Status")
+                        Text(L10n.text("Active Status"))
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(.secondary)
 
@@ -203,7 +203,7 @@ extension SettingsView {
     func slackStatusSyncRuleWideEditors(index: Int) -> some View {
         HStack(alignment: .top, spacing: 14) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Calendar Mapping")
+                Text(L10n.text("Calendar Mapping"))
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
 
@@ -221,7 +221,7 @@ extension SettingsView {
                 .padding(.vertical, 4)
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("Active Status")
+                Text(L10n.text("Active Status"))
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
 
@@ -262,24 +262,24 @@ extension SettingsView {
         let startsBeforeEvent = draft.slackStatusSyncRules[index].startsBeforeEvent
 
         VStack(alignment: .leading, spacing: 4) {
-            Text("Timing")
+            Text(L10n.text("Timing"))
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 8) {
                 Toggle(
-                    "Set before event",
+                    L10n.text("Set before event"),
                     isOn: $draft.slackStatusSyncRules[index].startsBeforeEvent
                 )
                 .toggleStyle(.switch)
                 .controlSize(.small)
 
                 Picker(
-                    "Lead time",
+                    L10n.text("Lead time"),
                     selection: $draft.slackStatusSyncRules[index].leadMinutes
                 ) {
                     ForEach(AppSettingsRules.slackStatusLeadMinuteOptions, id: \.self) { minutes in
-                        Text("\(minutes) min").tag(minutes)
+                        Text(L10n.text("\(minutes) min")).tag(minutes)
                     }
                 }
                 .pickerStyle(.menu)
@@ -296,12 +296,12 @@ extension SettingsView {
     func slackStatusSyncRuleWidePreEventEditors(index: Int) -> some View {
         HStack(alignment: .top, spacing: 8) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Pre-event Text")
+                Text(L10n.text("Pre-event Text"))
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
 
                 TextField(
-                    "Starting soon",
+                    L10n.text("Starting soon"),
                     text: $draft.slackStatusSyncRules[index].preEventStatusText
                 )
                 .textFieldStyle(.roundedBorder)
@@ -309,7 +309,7 @@ extension SettingsView {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Pre-event Emoji")
+                Text(L10n.text("Pre-event Emoji"))
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
 
@@ -349,15 +349,15 @@ extension SettingsView {
         let usedPairKeys = slackStatusSyncUsedPairKeys(excludingRuleID: rule.id)
 
         SettingsLabeledMenuPicker(
-            title: "Workspace",
-            pickerTitle: "Slack workspace",
+            title: L10n.text("Workspace"),
+            pickerTitle: L10n.text("Slack workspace"),
             selection: Binding(
                 get: { draft.slackStatusSyncRules[index].connectionID },
                 set: { updateSlackStatusSyncRuleConnection($0, at: index) }
             ),
             layout: .stacked
         ) {
-            Text("Choose a workspace").tag("")
+            Text(L10n.text("Choose a workspace")).tag("")
             ForEach(slackConnections) { connection in
                 Text(connection.workspaceLabel)
                     .tag(connection.id)
@@ -380,15 +380,15 @@ extension SettingsView {
         let usedPairKeys = slackStatusSyncUsedPairKeys(excludingRuleID: rule.id)
 
         SettingsLabeledMenuPicker(
-            title: "Calendar",
-            pickerTitle: "Calendar for Slack sync",
+            title: L10n.text("Calendar"),
+            pickerTitle: L10n.text("Calendar for Slack sync"),
             selection: Binding(
                 get: { draft.slackStatusSyncRules[index].calendarID },
                 set: { updateSlackStatusSyncRuleCalendar($0, at: index) }
             ),
             layout: .stacked
         ) {
-            Text("Choose a calendar").tag("")
+            Text(L10n.text("Choose a calendar")).tag("")
             ForEach(availableEventCalendars) { calendar in
                 Text("\(calendar.title) • \(calendar.accountTitle)")
                     .tag(calendar.id)
@@ -408,12 +408,12 @@ extension SettingsView {
     @ViewBuilder
     func slackStatusSyncRuleTextSourcePicker(index: Int) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Status Mode")
+            Text(L10n.text("Status Mode"))
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.secondary)
 
             Picker(
-                "Slack status mode",
+                L10n.text("Slack status mode"),
                 selection: $draft.slackStatusSyncRules[index].statusTextSource
             ) {
                 ForEach(SlackStatusTextSource.allCases) { source in
@@ -429,12 +429,12 @@ extension SettingsView {
     @ViewBuilder
     func slackStatusSyncRuleTextField(index: Int) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Status Text")
+            Text(L10n.text("Status Text"))
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.secondary)
 
             TextField(
-                "In a meeting",
+                L10n.text("In a meeting"),
                 text: $draft.slackStatusSyncRules[index].statusText
             )
             .textFieldStyle(.roundedBorder)
@@ -445,7 +445,7 @@ extension SettingsView {
     @ViewBuilder
     func slackStatusSyncRuleEmojiField(index: Int) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Emoji")
+            Text(L10n.text("Emoji"))
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.secondary)
 

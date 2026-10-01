@@ -60,7 +60,7 @@ extension MenuContentView {
 
     @ViewBuilder
     func joinActionButton(for item: UpcomingItem) -> some View {
-        MenuActionButton(systemImage: "video", toolTip: "Join meeting", accessibilityLabel: "Join meeting") {
+        MenuActionButton(systemImage: "video", toolTip: L10n.text("Join meeting"), accessibilityLabel: L10n.text("Join meeting")) {
             openMeetingFromDropdown(item)
         }
         .frame(width: MenuActionControlMetrics.minimumHitTargetSize, height: MenuActionControlMetrics.minimumHitTargetSize)
@@ -76,7 +76,7 @@ extension MenuContentView {
 
     @ViewBuilder
     func openLinkActionButton(for item: UpcomingItem) -> some View {
-        MenuActionButton(systemImage: "link", toolTip: "Open link", accessibilityLabel: "Open link for \(item.title)") {
+        MenuActionButton(systemImage: "link", toolTip: L10n.text("Open link"), accessibilityLabel: L10n.text("Open link for \(item.title)")) {
             openLinkFromDropdown(item)
         }
         .frame(width: MenuActionControlMetrics.minimumHitTargetSize, height: MenuActionControlMetrics.minimumHitTargetSize)
@@ -93,7 +93,7 @@ extension MenuContentView {
 
     @ViewBuilder
     func skipActionButton(for item: UpcomingItem) -> some View {
-        MenuActionButton(systemImage: "forward.end", toolTip: "Skip this item", accessibilityLabel: "Skip \(item.title)") {
+        MenuActionButton(systemImage: "forward.end", toolTip: L10n.text("Skip this item"), accessibilityLabel: L10n.text("Skip \(item.title)")) {
             monitor.skipItem(item)
         }
         .frame(width: MenuActionControlMetrics.minimumHitTargetSize, height: MenuActionControlMetrics.minimumHitTargetSize)
@@ -103,8 +103,8 @@ extension MenuContentView {
     func mapActionButton(for item: UpcomingItem, locationText: String) -> some View {
         MenuActionButton(
             systemImage: "map",
-            toolTip: "Open in Maps",
-            accessibilityLabel: "Open \(displayLocationName(from: locationText)) in Maps"
+            toolTip: L10n.text("Open in Maps"),
+            accessibilityLabel: L10n.text("Open \(displayLocationName(from: locationText)) in Maps")
         ) {
             openMap(for: item, locationText: locationText)
         }
@@ -114,7 +114,7 @@ extension MenuContentView {
 
     @ViewBuilder
     func completeActionButton(for item: UpcomingItem) -> some View {
-        MenuActionButton(systemImage: "checkmark.circle", toolTip: "Complete reminder", accessibilityLabel: "Complete \(item.title)") {
+        MenuActionButton(systemImage: "checkmark.circle", toolTip: L10n.text("Complete reminder"), accessibilityLabel: L10n.text("Complete \(item.title)")) {
             monitor.markReminderCompleted(item)
         }
         .frame(width: MenuActionControlMetrics.minimumHitTargetSize, height: MenuActionControlMetrics.minimumHitTargetSize)
@@ -126,17 +126,28 @@ extension MenuContentView {
             && !CalendarMonitor.containsWebURL(in: locationText)
     }
 
-    static let menuTimeFormatter: DateFormatter = {
+    static var menuTimeFormatter: DateFormatter {
+        let formatter = cachedMenuTimeFormatter
+        formatter.locale = AlertCalendarLanguage.locale
+        formatter.dateFormat = AlertCalendarLanguage.uses24HourTime() ? "HH:mm" : "h:mm a"
+        return formatter
+    }
+    private static let cachedMenuTimeFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.locale = AlertCalendarLanguage.english
+        formatter.locale = AlertCalendarLanguage.locale
         formatter.dateStyle = .none
         formatter.dateFormat = AlertCalendarLanguage.uses24HourTime() ? "HH:mm" : "h:mm a"
         return formatter
     }()
 
-    static let menuDateTimeFormatter: DateFormatter = {
+    static var menuDateTimeFormatter: DateFormatter {
+        let formatter = cachedMenuDateTimeFormatter
+        formatter.locale = AlertCalendarLanguage.locale
+        return formatter
+    }
+    private static let cachedMenuDateTimeFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.locale = AlertCalendarLanguage.english
+        formatter.locale = AlertCalendarLanguage.locale
         formatter.dateFormat = "MMM d HH:mm"
         return formatter
     }()

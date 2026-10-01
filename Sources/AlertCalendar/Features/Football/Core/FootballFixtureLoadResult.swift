@@ -15,7 +15,7 @@ struct FootballFixtureLoadResult: Sendable {
     var warning: String? {
         guard !failures.isEmpty else { return nil }
         let reasons = Set(failures.map(\.reason)).sorted().joined(separator: " ")
-        return "\(failures.count) fixture date range(s) could not be refreshed. \(reasons) Available matches are kept; missing ranges will be retried."
+        return L10n.text("\(failures.count) fixture date range(s) could not be refreshed. \(reasons) Available matches are kept; missing ranges will be retried.")
     }
 
     func restoringCachedMatches(_ cached: [FootballFixtureMatch], calendar: Calendar = .current) -> [FootballFixtureMatch] {

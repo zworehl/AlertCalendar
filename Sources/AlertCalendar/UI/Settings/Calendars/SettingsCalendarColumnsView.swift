@@ -53,36 +53,36 @@ struct SettingsCalendarColumnsView: View {
 
     var eventSourcesCard: some View {
         sourceCard(
-            title: "Event Calendars",
-            subtitle: "Choose event sources and configure alert rules independently for each calendar."
+            title: L10n.text("Event Calendars"),
+            subtitle: L10n.text("Choose event sources and configure alert rules independently for each calendar.")
         ) {
             if includeEvents || includeAllDayEvents {
                 sourceSection(
-                    title: "Accounts",
+                    title: L10n.text("Accounts"),
                     calendars: availableEventCalendars,
                     selectedIDs: $selectedEventCalendarIDs,
                     showsMeetingBrowserControls: true
                 )
             } else {
-                disabledSection(title: "Event Calendars", message: "Events and all-day events are disabled.")
+                disabledSection(title: L10n.text("Event Calendars"), message: L10n.text("Events and all-day events are disabled."))
             }
         }
     }
 
     var reminderSourcesCard: some View {
         sourceCard(
-            title: "Reminder Lists",
-            subtitle: "Pick the reminder lists that can appear in Alert Calendar."
+            title: L10n.text("Reminder Lists"),
+            subtitle: L10n.text("Pick the reminder lists that can appear in Alert Calendar.")
         ) {
             if includeReminders {
                 sourceSection(
-                    title: "Accounts",
+                    title: L10n.text("Accounts"),
                     calendars: availableReminderCalendars,
                     selectedIDs: $selectedReminderCalendarIDs,
                     showsMeetingBrowserControls: false
                 )
             } else {
-                disabledSection(title: "Reminder Lists", message: "Reminders are disabled.")
+                disabledSection(title: L10n.text("Reminder Lists"), message: L10n.text("Reminders are disabled."))
             }
         }
     }
@@ -145,7 +145,7 @@ struct SettingsCalendarColumnsView: View {
         showsMeetingBrowserControls: Bool
     ) -> some View {
         if calendars.isEmpty {
-            Text("None found.")
+            Text(L10n.text("None found."))
                 .font(.caption)
                 .foregroundStyle(disabledColor)
         } else {

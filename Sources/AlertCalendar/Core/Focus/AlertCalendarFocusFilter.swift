@@ -141,7 +141,7 @@ private enum FocusCalendarEntityLoader {
 
     private static func normalizedAccountTitle(for calendar: EKCalendar) -> String {
         let raw = calendar.source.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        return raw.isEmpty ? "Other Account" : raw
+        return raw.isEmpty ? L10n.text("Other Account") : raw
     }
 }
 

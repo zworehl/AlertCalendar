@@ -63,9 +63,11 @@ extension CalendarMonitor {
     }
 
     nonisolated static func isDedicatedGameSalesCalendarTitle(_ title: String) -> Bool {
-        title.compare(
-            "Game Sales",
-            options: [.caseInsensitive, .diacriticInsensitive]
-        ) == .orderedSame
+        AppLanguage.allCases.contains { language in
+            title.compare(
+                L10n.lookup("Game Sales", language: language),
+                options: [.caseInsensitive, .diacriticInsensitive]
+            ) == .orderedSame
+        }
     }
 }

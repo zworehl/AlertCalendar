@@ -11,21 +11,21 @@ extension GameSalesFeedClient {
         var errorDescription: String? {
             switch self {
             case .invalidResponse:
-                return "The game-sale feeds returned an unreadable response."
+                return L10n.text("The game-sale feeds returned an unreadable response.")
             case .unsuccessfulResponse:
-                return "The official game-sale feeds are temporarily unavailable."
+                return L10n.text("The official game-sale feeds are temporarily unavailable.")
             case .unreadableHTML:
-                return "The official game-sale feeds could not be read."
+                return L10n.text("The official game-sale feeds could not be read.")
             case .refreshDeferred:
-                return "The game-sale feeds have not recovered yet. The app will retry automatically."
+                return L10n.text("The game-sale feeds have not recovered yet. The app will retry automatically.")
             case .transportFailure(let code):
                 switch code {
                 case URLError.notConnectedToInternet.rawValue:
-                    return "The last game-sale update failed while the internet connection was offline. The app will retry automatically."
+                    return L10n.text("The last game-sale update failed while the internet connection was offline. The app will retry automatically.")
                 case URLError.timedOut.rawValue:
-                    return "The game-sale feeds did not respond in time. The app will retry automatically."
+                    return L10n.text("The game-sale feeds did not respond in time. The app will retry automatically.")
                 default:
-                    return "The game-sale feeds could not be reached. The app will retry automatically."
+                    return L10n.text("The game-sale feeds could not be reached. The app will retry automatically.")
                 }
             }
         }

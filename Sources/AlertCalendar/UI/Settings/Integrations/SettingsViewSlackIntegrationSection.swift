@@ -70,7 +70,7 @@ extension SettingsView {
                 slackIntegrationConnectionManagement
                     .padding(.top, 10)
             } label: {
-                Label("Connection Management", systemImage: "key.horizontal")
+                Label(L10n.text("Connection Management"), systemImage: "key.horizontal")
                     .font(.subheadline.weight(.semibold))
             }
         }
@@ -91,7 +91,7 @@ extension SettingsView {
         VStack(alignment: .leading, spacing: 10) {
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 10) {
-                    Label("Connection Management", systemImage: "key.horizontal")
+                    Label(L10n.text("Connection Management"), systemImage: "key.horizontal")
                         .font(.subheadline.weight(.semibold))
 
                     Spacer(minLength: 8)
@@ -100,7 +100,7 @@ extension SettingsView {
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Label("Connection Management", systemImage: "key.horizontal")
+                    Label(L10n.text("Connection Management"), systemImage: "key.horizontal")
                         .font(.subheadline.weight(.semibold))
 
                     slackOpenAppsButton
@@ -117,7 +117,7 @@ extension SettingsView {
         Button {
             openSlackAppDashboard()
         } label: {
-            Label("Slack Apps…", systemImage: "link")
+            Label(L10n.text("Slack Apps…"), systemImage: "link")
         }
         .buttonStyle(.bordered)
         .controlSize(.small)
@@ -156,7 +156,7 @@ extension SettingsView {
     var slackIntegrationConnectionColumnContent: some View {
         VStack(alignment: .leading, spacing: 8) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Slack User Token")
+                Text(L10n.text("Slack User Token"))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
 
@@ -164,7 +164,7 @@ extension SettingsView {
                     .textFieldStyle(.roundedBorder)
             }
 
-            Text("Use an xoxp- token with users.profile:read and users.profile:write, or extract it from the clipboard. Connected tokens are stored in Keychain.")
+            Text(L10n.text("Use an xoxp- token with users.profile:read and users.profile:write, or extract it from the clipboard. Connected tokens are stored in Keychain."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -205,13 +205,13 @@ extension SettingsView {
     func integrationBadgeState(for _: SettingsIntegrationKind) -> SettingsCardBadgeState {
         if let slackConnectErrorMessage, !slackConnectErrorMessage.isEmpty {
             return SettingsCardBadgeState(
-                title: "Needs Attention",
+                title: L10n.text("Needs Attention"),
                 tint: Color(red: 0.92, green: 0.31, blue: 0.28)
             )
         }
         if let slackError = monitor.slackStatusSyncErrorDescription, !slackError.isEmpty {
             return SettingsCardBadgeState(
-                title: "Needs Attention",
+                title: L10n.text("Needs Attention"),
                 tint: Color(red: 0.92, green: 0.31, blue: 0.28)
             )
         }
@@ -219,37 +219,37 @@ extension SettingsView {
         let totalRuleCount = slackConfiguredStatusRuleCount
         if enabledRuleCount > 0 {
             return SettingsCardBadgeState(
-                title: enabledRuleCount == 1 ? "1 Active" : "\(enabledRuleCount) Active",
+                title: enabledRuleCount == 1 ? L10n.text("1 Active") : L10n.text("\(enabledRuleCount) Active"),
                 tint: Color(red: 0.24, green: 0.72, blue: 0.33)
             )
         }
         if totalRuleCount > 0 {
             return SettingsCardBadgeState(
-                title: totalRuleCount == 1 ? "1 Rule" : "\(totalRuleCount) Rules",
+                title: totalRuleCount == 1 ? L10n.text("1 Rule") : L10n.text("\(totalRuleCount) Rules"),
                 tint: Color(red: 0.24, green: 0.59, blue: 0.97)
             )
         }
         if !pendingChanges.slackTokensToConnect.isEmpty
             || !pendingChanges.slackConnectionsToRemove.isEmpty {
             return SettingsCardBadgeState(
-                title: "Pending Apply",
+                title: L10n.text("Pending Apply"),
                 tint: .orange
             )
         }
         if !slackConnections.isEmpty {
             return SettingsCardBadgeState(
-                title: "Connected",
+                title: L10n.text("Connected"),
                 tint: Color(red: 0.24, green: 0.72, blue: 0.33)
             )
         }
         if !slackUserTokenDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return SettingsCardBadgeState(
-                title: "Ready to Connect",
+                title: L10n.text("Ready to Connect"),
                 tint: Color(red: 0.24, green: 0.59, blue: 0.97)
             )
         }
         return SettingsCardBadgeState(
-            title: "Not Configured",
+            title: L10n.text("Not Configured"),
             tint: .secondary
         )
     }
@@ -259,7 +259,7 @@ extension SettingsView {
         ViewThatFits(in: .horizontal) {
             HStack(alignment: .top, spacing: 10) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Status Rules")
+                    Text(L10n.text("Status Rules"))
                         .font(.subheadline.weight(.semibold))
 
                     Text(slackStatusRulesSummary)
@@ -276,7 +276,7 @@ extension SettingsView {
 
             VStack(alignment: .leading, spacing: 8) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Status Rules")
+                    Text(L10n.text("Status Rules"))
                         .font(.subheadline.weight(.semibold))
 
                     Text(slackStatusRulesSummary)
@@ -296,7 +296,7 @@ extension SettingsView {
     @ViewBuilder
     var slackStatusRulesListContent: some View {
         if draft.slackStatusSyncRules.isEmpty && slackConnections.isEmpty {
-            Text("Connect a Slack workspace to configure calendar and music status rules.")
+            Text(L10n.text("Connect a Slack workspace to configure calendar and music status rules."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -328,7 +328,7 @@ extension SettingsView {
         Button {
             addSlackStatusSyncRule()
         } label: {
-            Label("Add Calendar Rule", systemImage: "plus")
+            Label(L10n.text("Add Calendar Rule"), systemImage: "plus")
         }
         .buttonStyle(.bordered)
         .controlSize(.small)
@@ -343,7 +343,7 @@ extension SettingsView {
     var slackConnectedWorkspacesMenu: some View {
         Menu {
             if slackConnections.isEmpty {
-                Text("No connected workspaces")
+                Text(L10n.text("No connected workspaces"))
             } else {
                 ForEach(slackConnections) { connection in
                     Button(role: .destructive) {
@@ -351,15 +351,15 @@ extension SettingsView {
                     } label: {
                         let ruleCount = slackStatusRuleCount(for: connection)
                         if ruleCount > 0 {
-                            Text("Disconnect \(connection.workspaceLabel) (\(ruleCount) rule\(ruleCount == 1 ? "" : "s"))")
+                            Text(L10n.text("Disconnect \(connection.workspaceLabel) (\(ruleCount) rule\(ruleCount == 1 ? "" : "s"))"))
                         } else {
-                            Text("Disconnect \(connection.workspaceLabel)")
+                            Text(L10n.text("Disconnect \(connection.workspaceLabel)"))
                         }
                     }
                 }
             }
         } label: {
-            Label("Workspaces", systemImage: "building.2")
+            Label(L10n.text("Workspaces"), systemImage: "building.2")
         }
         .buttonStyle(.bordered)
         .controlSize(.small)
@@ -369,22 +369,22 @@ extension SettingsView {
     func slackIntegrationDescription() -> String {
         guard !slackConnections.isEmpty else {
             if slackUserTokenDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                return "Paste a Slack user token, or copy any Slack payload that contains it and use Extract Token."
+                return L10n.text("Paste a Slack user token, or copy any Slack payload that contains it and use Extract Token.")
             }
-            return "The token is ready. Connect it to create one or more Slack status sync rules."
+            return L10n.text("The token is ready. Connect it to create one or more Slack status sync rules.")
         }
 
         let enabledRuleCount = slackEnabledStatusRuleCount
         let totalRuleCount = slackConfiguredStatusRuleCount
 
         if totalRuleCount == 0 {
-            return "Slack is connected. Configure a music rule or add a calendar rule."
+            return L10n.text("Slack is connected. Configure a music rule or add a calendar rule.")
         }
 
         if enabledRuleCount == 0 {
             return totalRuleCount == 1
-                ? "1 Slack sync rule is configured, but it is currently off."
-                : "\(totalRuleCount) Slack sync rules are configured, but they are currently off."
+                ? L10n.text("1 Slack sync rule is configured, but it is currently off.")
+                : L10n.text("\(totalRuleCount) Slack sync rules are configured, but they are currently off.")
         }
 
         var enabledConnectionIDs = Set(
@@ -396,7 +396,7 @@ extension SettingsView {
             enabledConnectionIDs.formUnion(draft.appleMusicStatus.connectionIDs)
         }
         let connectedWorkspaceCount = enabledConnectionIDs.count
-        return "\(enabledRuleCount) active Slack sync rules across \(connectedWorkspaceCount) workspace\(connectedWorkspaceCount == 1 ? "" : "s")."
+        return L10n.text("\(enabledRuleCount) active Slack sync rules across \(connectedWorkspaceCount) workspace\(connectedWorkspaceCount == 1 ? "" : "s").")
     }
 
     var slackStatusRulesSummary: String {
@@ -406,16 +406,16 @@ extension SettingsView {
         let workspaceCount = configuredConnectionIDs.count
 
         guard ruleCount > 0 else {
-            return "Add calendar rules or configure Apple Music or YouTube Music. Lower priority numbers win when statuses overlap."
+            return L10n.text("Add calendar rules or configure Apple Music or YouTube Music. Lower priority numbers win when statuses overlap.")
         }
 
         if workspaceCount == 0 {
-            return ruleCount == 1 ? "1 rule ready to finish." : "\(ruleCount) rules ready to finish."
+            return ruleCount == 1 ? L10n.text("1 rule ready to finish.") : L10n.text("\(ruleCount) rules ready to finish.")
         }
 
-        let ruleText = ruleCount == 1 ? "1 rule" : "\(ruleCount) rules"
-        let workspaceText = workspaceCount == 1 ? "1 workspace" : "\(workspaceCount) workspaces"
-        return "\(ruleText) across \(workspaceText)."
+        let ruleText = ruleCount == 1 ? L10n.text("1 rule") : L10n.text("\(ruleCount) rules")
+        let workspaceText = workspaceCount == 1 ? L10n.text("1 workspace") : L10n.text("\(workspaceCount) workspaces")
+        return L10n.text("\(ruleText) across \(workspaceText).")
     }
 
     var slackConfiguredStatusRuleCount: Int {

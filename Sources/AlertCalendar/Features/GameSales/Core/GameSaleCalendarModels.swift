@@ -12,15 +12,15 @@ enum GameSaleCalendarAlertOption: String, CaseIterable, Identifiable, Sendable {
     var title: String {
         switch self {
         case .none:
-            return "None"
+            return L10n.text("None")
         case .atTimeOfEvent:
-            return "At time of event"
+            return L10n.text("At time of event")
         case .fifteenMinutesBefore:
-            return "15 minutes before"
+            return L10n.text("15 minutes before")
         case .oneHourBefore:
-            return "1 hour before"
+            return L10n.text("1 hour before")
         case .oneDayBefore:
-            return "1 day before"
+            return L10n.text("1 day before")
         }
     }
 

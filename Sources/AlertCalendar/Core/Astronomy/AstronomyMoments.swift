@@ -23,10 +23,21 @@ enum AstronomyMoment: String, CaseIterable {
 
     init?(eventTitle: String) {
         let normalized = eventTitle.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        self.init(rawValue: normalized)
+        if let moment = Self(rawValue: normalized) {
+            self = moment
+            return
+        }
+        guard let moment = Self.allCases.first(where: { moment in
+            AppLanguage.allCases.contains { language in
+                L10n.lookup(moment.localizationKey, language: language).lowercased() == normalized
+            }
+        }) else { return nil }
+        self = moment
     }
 
-    var title: String {
+    var title: String { L10n.lookup(localizationKey) }
+
+    private var localizationKey: String {
         switch self {
         case .sunrise:
             return "Sunrise"

@@ -16,7 +16,7 @@ extension CalendarMonitor {
         now: Date
     ) -> String? {
         guard shouldShowTimedEventNowState(for: item, now: now) else { return nil }
-        return "\(compactTitle) now"
+        return L10n.text("\(compactTitle) now")
     }
 
     nonisolated static func travelDepartureMenuSegment(
@@ -37,10 +37,10 @@ extension CalendarMonitor {
                 from: now,
                 simplified: simplified
             )
-            return "\(compactTitle) leave in \(countdownText)"
+            return L10n.text("\(compactTitle) leave in \(countdownText)")
         }
 
-        return "Leave now for \(compactTitle)"
+        return L10n.text("Leave now for \(compactTitle)")
     }
 
     func menuLabel(
@@ -115,7 +115,7 @@ extension CalendarMonitor {
             return compactTitle
         }
         if item.isAllDay {
-            let allDayDetail = allDayLabel(for: item, now: now, simplified: simplified) ?? "all-day"
+            let allDayDetail = allDayLabel(for: item, now: now, simplified: simplified) ?? L10n.text("all-day")
             return Self.allDayMenuSegment(
                 compactTitle: compactTitle,
                 detail: allDayDetail,
@@ -123,17 +123,17 @@ extension CalendarMonitor {
             )
         }
         if item.kind == .reminder, item.date <= now {
-            return "\(compactTitle) \(elapsedCountdown(from: item.date, to: now, simplified: simplified)) ago"
+            return "\(compactTitle) \(L10n.text("\(elapsedCountdown(from: item.date, to: now, simplified: simplified)) ago"))"
         }
         if Self.isActiveTimedEvent(item, now: now), let endDate = item.endDate {
             switch activeEventDisplayMode {
             case .remaining:
-                return "\(compactTitle) \(relativeCountdown(to: endDate, from: now, simplified: simplified)) left"
+                return L10n.text("\(compactTitle) \(relativeCountdown(to: endDate, from: now, simplified: simplified)) left")
             case .elapsed:
-                return "\(compactTitle) started \(elapsedCountdown(from: item.date, to: now, simplified: simplified)) ago"
+                return L10n.text("\(compactTitle) started \(elapsedCountdown(from: item.date, to: now, simplified: simplified)) ago")
             }
         }
-        return "\(compactTitle) in \(relativeCountdown(to: item.date, from: now, simplified: simplified))"
+        return L10n.text("\(compactTitle) in \(relativeCountdown(to: item.date, from: now, simplified: simplified))")
     }
 
     nonisolated static func allDayMenuSegment(
@@ -141,7 +141,7 @@ extension CalendarMonitor {
         detail: String,
         isBirthday: Bool
     ) -> String {
-        if isBirthday, detail == "all-day" {
+        if isBirthday, detail == L10n.text("all-day") {
             return compactTitle
         }
         return "\(compactTitle) \(detail)"
@@ -156,7 +156,7 @@ extension CalendarMonitor {
         let aggregateText = FootballFixtureFormatter.menuBarAggregateText(for: footballMatch)
 
         if footballMatch.statusState == .scheduled, item.date > now {
-            let countdownText = "in \(relativeCountdown(to: item.date, from: now, simplified: simplified))"
+            let countdownText = L10n.text("in \(relativeCountdown(to: item.date, from: now, simplified: simplified))")
             if let aggregateText, !aggregateText.isEmpty {
                 return "\(aggregateText) \(countdownText)"
             }

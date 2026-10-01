@@ -49,7 +49,7 @@ struct SettingsCalendarAccountBrowserControls: View {
                 removeAccountRule()
             } label: {
                 HStack {
-                    Text("Default")
+                    Text(L10n.text("Default"))
                     if selectedBrowser == nil {
                         Image(systemName: "checkmark")
                     }
@@ -82,7 +82,7 @@ struct SettingsCalendarAccountBrowserControls: View {
                     Image(systemName: "arrow.uturn.backward.circle")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.secondary)
-                    Text("Default")
+                    Text(L10n.text("Default"))
                 }
 
                 Image(systemName: "chevron.down")
@@ -96,7 +96,7 @@ struct SettingsCalendarAccountBrowserControls: View {
             .background(SettingsControlChrome())
         }
         .menuStyle(.borderlessButton)
-        .accessibilityLabel("Browser for \(accountTitle)")
+        .accessibilityLabel(L10n.text("Browser for \(accountTitle)"))
     }
 
     @ViewBuilder
@@ -104,12 +104,12 @@ struct SettingsCalendarAccountBrowserControls: View {
         if let selectedBrowser {
             let options = profileOptions(for: selectedBrowser)
             if selectedBrowser.profileFamily == .none {
-                Text("Automatic")
+                Text(L10n.text("Automatic"))
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .frame(width: 104, alignment: .leading)
             } else if options.count <= 1 {
-                Text(profileIssuesByBrowser[selectedBrowser] == nil ? options[0].displayName : "Unavailable")
+                Text(profileIssuesByBrowser[selectedBrowser] == nil ? options[0].displayName : L10n.text("Unavailable"))
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(
                         profileIssuesByBrowser[selectedBrowser] == nil
@@ -119,7 +119,7 @@ struct SettingsCalendarAccountBrowserControls: View {
                     .frame(width: 104, alignment: .leading)
                     .help(profileIssuesByBrowser[selectedBrowser]?.message ?? options[0].detailText)
             } else {
-                Picker("\(selectedBrowser.title) profile", selection: profileBinding(for: selectedBrowser)) {
+                Picker(L10n.text("\(selectedBrowser.title) profile"), selection: profileBinding(for: selectedBrowser)) {
                     ForEach(options) { profile in
                         Text(profile.displayName).tag(profile.id)
                     }
@@ -129,7 +129,7 @@ struct SettingsCalendarAccountBrowserControls: View {
                 .controlSize(.small)
             }
         } else {
-            Text("Default")
+            Text(L10n.text("Default"))
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.secondary)
                 .frame(width: 104, alignment: .leading)

@@ -42,14 +42,14 @@ extension CalendarMonitor {
         let settings = snapshotSettings()
         let health = DataRefreshHealth.shared
         let states: [(String, String, String?)] = [
-            ("calendar.access", "Calendar", (settings.includeEvents || settings.includeAllDayEvents) && !hasEventsAccess
+            ("calendar.access", L10n.text("Calendar"), (settings.includeEvents || settings.includeAllDayEvents) && !hasEventsAccess
                 ? "Calendar access is unavailable. Check macOS permissions." : nil),
-            ("reminders", "Reminders", settings.includeReminders
+            ("reminders", L10n.text("Reminders"), settings.includeReminders
                 ? (hasRemindersAccess ? dataRefreshHealthState.reminderError : "Reminders access is unavailable. Check macOS permissions.") : nil),
             ("location", "Astronomy location", settings.useAutomaticAstronomyLocation ? dataRefreshHealthState.locationError : nil),
             ("slack", "Slack", settings.slackConnections.isEmpty ? nil : slackStatusSyncErrorDescription),
-            ("holidays.sync", "Holidays", settings.googleHolidayCountryIDs.isEmpty ? nil : googleHolidaySyncErrorDescription),
-            ("agenda-summary", "Agenda summary", agendaSummaryGenerationErrorDescription),
+            ("holidays.sync", L10n.text("Holidays"), settings.googleHolidayCountryIDs.isEmpty ? nil : googleHolidaySyncErrorDescription),
+            ("agenda-summary", L10n.text("Agenda summary"), agendaSummaryGenerationErrorDescription),
             ("title-rewrite", "Event title summaries", settings.rewriteEventTitlesWithAppleIntelligence
                 ? dataRefreshHealthState.titleRewriteError : nil)
         ]
@@ -80,7 +80,7 @@ extension CalendarMonitor {
             return
         }
         if await AlertCalendarUserNotifier.deliver(
-            identifier: Self.dataRefreshNotificationID, title: "Some information could not be updated", body: body
+            identifier: Self.dataRefreshNotificationID, title: L10n.text("Some information could not be updated"), body: body
         ) {
             defaults.set(now, forKey: DefaultsKeys.lastDataRefreshNotificationDate)
         }

@@ -10,8 +10,8 @@ extension SettingsView {
     var integrationsSettingsContent: some View {
         VStack(alignment: .leading, spacing: SettingsVisualMetrics.pageSpacing) {
             settingsSectionHeader(
-                title: "Connected Services",
-                subtitle: "Manage calendar, Apple Music, and YouTube Music activity in your Slack status.",
+                title: L10n.text("Connected Services"),
+                subtitle: L10n.text("Manage calendar, Apple Music, and YouTube Music activity in your Slack status."),
                 systemImage: "puzzlepiece.extension"
             )
 

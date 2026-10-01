@@ -54,15 +54,15 @@ struct SettingsGameSalesSectionView: View {
         VStack(alignment: .leading, spacing: 14) {
             if !monitor.hasEventsAccess {
                 feedbackPanel(
-                    title: "Calendar access required",
-                    detail: "Grant Calendar access to add and manage scheduled game sales.",
+                    title: L10n.text("Calendar access required"),
+                    detail: L10n.text("Grant Calendar access to add and manage scheduled game sales."),
                     systemImage: "calendar.badge.exclamationmark",
                     tint: .orange
                 )
             } else if writableCalendars.isEmpty {
                 feedbackPanel(
-                    title: "No writable calendars",
-                    detail: "Create or enable a writable Apple Calendar before adding game sales.",
+                    title: L10n.text("No writable calendars"),
+                    detail: L10n.text("Create or enable a writable Apple Calendar before adding game sales."),
                     systemImage: "calendar.badge.minus",
                     tint: .orange
                 )

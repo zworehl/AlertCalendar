@@ -390,25 +390,25 @@ enum FootballCalendarAlertOption: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .none:
-            return "None"
+            return L10n.text("None")
         case .atTimeOfEvent:
-            return "At time of event"
+            return L10n.text("At time of event")
         case .fiveMinutesBefore:
-            return "5 minutes before"
+            return L10n.text("5 minutes before")
         case .tenMinutesBefore:
-            return "10 minutes before"
+            return L10n.text("10 minutes before")
         case .fifteenMinutesBefore:
-            return "15 minutes before"
+            return L10n.text("15 minutes before")
         case .thirtyMinutesBefore:
-            return "30 minutes before"
+            return L10n.text("30 minutes before")
         case .oneHourBefore:
-            return "1 hour before"
+            return L10n.text("1 hour before")
         case .twoHoursBefore:
-            return "2 hours before"
+            return L10n.text("2 hours before")
         case .oneDayBefore:
-            return "1 day before"
+            return L10n.text("1 day before")
         case .twoDaysBefore:
-            return "2 days before"
+            return L10n.text("2 days before")
         }
     }
 

@@ -13,17 +13,17 @@ struct AstronomyCoordinatesCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Astronomy Coordinates")
+            Text(L10n.text("Astronomy Coordinates"))
                 .font(SettingsTypography.controlTitle)
                 .foregroundStyle(.primary)
 
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .center, spacing: 10) {
                     HStack(spacing: 6) {
-                        Toggle("Use automatic location", isOn: $useAutomaticAstronomyLocation)
-                        InfoTipButton(text: "Uses your current location to fill latitude/longitude for sunrise, solar noon, sunset, and solar midnight calculation.")
+                        Toggle(L10n.text("Use automatic location"), isOn: $useAutomaticAstronomyLocation)
+                        InfoTipButton(text: L10n.text("Uses your current location to fill latitude/longitude for sunrise, solar noon, sunset, and solar midnight calculation."))
                     }
-                    Button("Detect now") {
+                    Button(L10n.text("Detect now")) {
                         onDetectNow()
                     }
                 }
@@ -31,10 +31,10 @@ struct AstronomyCoordinatesCard: View {
 
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 6) {
-                        Toggle("Use automatic location", isOn: $useAutomaticAstronomyLocation)
-                        InfoTipButton(text: "Uses your current location to fill latitude/longitude for sunrise, solar noon, sunset, and solar midnight calculation.")
+                        Toggle(L10n.text("Use automatic location"), isOn: $useAutomaticAstronomyLocation)
+                        InfoTipButton(text: L10n.text("Uses your current location to fill latitude/longitude for sunrise, solar noon, sunset, and solar midnight calculation."))
                     }
-                    Button("Detect now") {
+                    Button(L10n.text("Detect now")) {
                         onDetectNow()
                     }
                 }
@@ -51,14 +51,14 @@ struct AstronomyCoordinatesCard: View {
                 ViewThatFits(in: .horizontal) {
                     HStack(alignment: .top, spacing: 12) {
                         coordinateField(
-                            title: "Latitude",
+                            title: L10n.text("Latitude"),
                             text: $latitudeInput,
                             axis: .latitude
                         )
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                         coordinateField(
-                            title: "Longitude",
+                            title: L10n.text("Longitude"),
                             text: $longitudeInput,
                             axis: .longitude
                         )
@@ -67,12 +67,12 @@ struct AstronomyCoordinatesCard: View {
 
                     VStack(alignment: .leading, spacing: 10) {
                         coordinateField(
-                            title: "Latitude",
+                            title: L10n.text("Latitude"),
                             text: $latitudeInput,
                             axis: .latitude
                         )
                         coordinateField(
-                            title: "Longitude",
+                            title: L10n.text("Longitude"),
                             text: $longitudeInput,
                             axis: .longitude
                         )

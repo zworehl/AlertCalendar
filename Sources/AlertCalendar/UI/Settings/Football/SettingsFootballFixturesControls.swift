@@ -297,13 +297,13 @@ extension SettingsFootballFixturesSectionView {
         SettingsAddToCalendarPicker(
             selection: $footballTargetCalendarID,
             calendars: writableCalendars,
-            pickerTitle: "Add fixtures to calendar",
-            helpText: "This calendar is used when you add a football fixture from the list below."
+            pickerTitle: L10n.text("Add fixtures to calendar"),
+            helpText: L10n.text("This calendar is used when you add a football fixture from the list below.")
         )
     }
 
     var showControlField: some View {
-        Picker("Football view", selection: $browseMode) {
+        Picker(L10n.text("Football view"), selection: $browseMode) {
             ForEach(FootballBrowseMode.allCases) { mode in
                 Image(systemName: mode.symbolName)
                     .accessibilityLabel(Text(mode.rawValue))
@@ -319,10 +319,10 @@ extension SettingsFootballFixturesSectionView {
 
     var calendarAlertControlField: some View {
         SettingsLabeledMenuPicker(
-            title: "Calendar Alert",
-            pickerTitle: "Football event alert",
+            title: L10n.text("Calendar Alert"),
+            pickerTitle: L10n.text("Football event alert"),
             selection: footballCalendarAlertOptionBinding,
-            helpText: "Applies the same Apple Calendar alert to every football fixture managed by Alert Calendar, including ones already added.",
+            helpText: L10n.text("Applies the same Apple Calendar alert to every football fixture managed by Alert Calendar, including ones already added."),
             layout: .inline(labelWidth: SettingsVisualMetrics.calendarAlertLabelWidth)
         ) {
             ForEach(FootballCalendarAlertOption.allCases) { option in
@@ -342,20 +342,20 @@ extension SettingsFootballFixturesSectionView {
 
     func footballNotificationGroup(layout: SettingsLabeledCheckboxGroupLayout) -> some View {
         SettingsLabeledCheckboxGroup(
-            title: "Notifications",
-            helpText: "Applies to football fixtures managed by Alert Calendar.",
+            title: L10n.text("Notifications"),
+            helpText: L10n.text("Applies to football fixtures managed by Alert Calendar."),
             layout: layout
         ) {
-            Toggle("Goals", isOn: $enableFootballGoalNotifications)
+            Toggle(L10n.text("Goals"), isOn: $enableFootballGoalNotifications)
 
-            Toggle("Disallowed goals", isOn: $enableFootballDisallowedGoalNotifications)
+            Toggle(L10n.text("Disallowed goals"), isOn: $enableFootballDisallowedGoalNotifications)
 
-            Toggle("Scorer names", isOn: $includeFootballGoalScorerInNotifications)
+            Toggle(L10n.text("Scorer names"), isOn: $includeFootballGoalScorerInNotifications)
                 .disabled(!enableFootballGoalNotifications)
 
-            Toggle("Final score", isOn: $enableFootballFinalNotifications)
+            Toggle(L10n.text("Final score"), isOn: $enableFootballFinalNotifications)
 
-            Toggle("Added matches", isOn: $enableFootballAutoAddNotifications)
+            Toggle(L10n.text("Added matches"), isOn: $enableFootballAutoAddNotifications)
         }
     }
 }

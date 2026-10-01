@@ -254,7 +254,7 @@ extension CalendarMonitor {
             _ = try await commitGoogleHolidayBatchIfNeeded(pendingMutationCount, force: true)
             persistManagedGoogleHolidayEventRecords([])
         } catch {
-            googleHolidaySyncErrorDescription = "Some managed holiday events could not be removed."
+            googleHolidaySyncErrorDescription = L10n.text("Some managed holiday events could not be removed.")
         }
     }
 

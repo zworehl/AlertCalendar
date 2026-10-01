@@ -23,13 +23,13 @@ struct MeetingBrowserProfileLoadIssue: Identifiable, Equatable {
     var message: String {
         switch reason {
         case .accessDenied:
-            return "macOS blocked access to \(browser.title) profile data."
+            return L10n.text("macOS blocked access to \(browser.title) profile data.")
         case .sourceMissing:
-            return "\(browser.title) profile data was not found. Open \(browser.title) once, then retry."
+            return L10n.text("\(browser.title) profile data was not found. Open \(browser.title) once, then retry.")
         case .invalidData:
-            return "\(browser.title) profile data could not be decoded."
+            return L10n.text("\(browser.title) profile data could not be decoded.")
         case .unreadable:
-            return "\(browser.title) profile data could not be read."
+            return L10n.text("\(browser.title) profile data could not be read.")
         }
     }
 }
@@ -396,7 +396,7 @@ enum MeetingBrowserProfileStore {
     private static func defaultChromiumProfile() -> MeetingBrowserProfileOption {
         MeetingBrowserProfileOption(
             id: MeetingBrowserRoute.defaultChromeProfileID,
-            displayName: "Default",
+            displayName: L10n.text("Default"),
             detailText: MeetingBrowserRoute.defaultChromeProfileID,
             isDefault: true
         )

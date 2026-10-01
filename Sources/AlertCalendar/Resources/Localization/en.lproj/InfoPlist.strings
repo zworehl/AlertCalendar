@@ -1,0 +1,9 @@
+"NSCalendarsUsageDescription" = "AlertCalendar needs Calendar access to show events, apply your per-calendar alert rules, and manage selected holidays, football fixtures, and game-sale campaigns.";
+"NSRemindersUsageDescription" = "AlertCalendar needs Reminders access to show your pending reminders.";
+"NSCalendarsFullAccessUsageDescription" = "AlertCalendar needs full Calendar access to read events, apply your per-calendar alert rules, and manage selected holidays, football fixtures, and game-sale campaigns.";
+"NSAppleEventsUsageDescription" = "AlertCalendar uses Apple Events to reveal selected managed events in Calendar, read matching Mail context when enabled, and read current playback from Apple Music or a supported YouTube Music browser when you enable Music status sync.";
+"NSAppDataUsageDescription" = "AlertCalendar reads local browser profile names so calendar meeting links can open in the profile you choose.";
+"NSRemindersFullAccessUsageDescription" = "AlertCalendar needs full Reminders access to show reminder due dates and any available due times.";
+"NSLocationWhenInUseUsageDescription" = "AlertCalendar uses your location to calculate local sun events.";
+"NSLocationUsageDescription" = "AlertCalendar uses your location to calculate local sun events.";
+"NSContactsUsageDescription" = "AlertCalendar uses your contacts to show organizer photos and invitee names in meeting previews.";

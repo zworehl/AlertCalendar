@@ -7,6 +7,7 @@ extension SettingsDraft {
     ) -> AppSettings {
         var settings = currentSettings
 
+        settings.language = language
         settings.includeEvents = includeEvents
         settings.includeAllDayEvents = includeAllDayEvents
         settings.includeReminders = includeReminders

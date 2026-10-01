@@ -30,7 +30,7 @@ extension SettingsView {
                 .fixedSize(horizontal: false, vertical: true)
 
             if let message = permissionActionMessages[permission],
-               !(permission == .location && grantState == .allowed && message == "Access granted.") {
+               !(permission == .location && grantState == .allowed && message == L10n.text("Access granted.")) {
                 Label(message, systemImage: grantState == .allowed ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
                     .font(.caption)
                     .foregroundStyle(grantState == .allowed ? Color.green : Color.orange)
@@ -189,7 +189,7 @@ extension SettingsView {
                 Button {
                     extractSlackTokenFromClipboard()
                 } label: {
-                    Label("Extract Token", systemImage: "doc.on.clipboard")
+                    Label(L10n.text("Extract Token"), systemImage: "doc.on.clipboard")
                 }
                 .buttonStyle(.bordered)
             }
@@ -200,7 +200,7 @@ extension SettingsView {
                 Button {
                     extractSlackTokenFromClipboard()
                 } label: {
-                    Label("Extract Token", systemImage: "doc.on.clipboard")
+                    Label(L10n.text("Extract Token"), systemImage: "doc.on.clipboard")
                 }
                 .buttonStyle(.bordered)
             }
@@ -218,11 +218,11 @@ extension SettingsView {
         }
         .buttonStyle(.borderedProminent)
         .disabled(slackUserTokenDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-        .help("Stage this Slack connection. It will connect when you click Apply.")
+        .help(L10n.text("Stage this Slack connection. It will connect when you click Apply."))
     }
 
     var slackIntegrationPrimaryButtonTitle: String {
-        slackConnections.isEmpty ? "Connect Token" : "Reconnect Token"
+        slackConnections.isEmpty ? L10n.text("Connect Token") : L10n.text("Reconnect Token")
     }
 
 }

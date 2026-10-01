@@ -14,9 +14,9 @@ enum ActiveEventDisplayMode: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .remaining:
-            return "Show time remaining"
+            return L10n.text("Show time remaining")
         case .elapsed:
-            return "Show elapsed time"
+            return L10n.text("Show elapsed time")
         }
     }
 }

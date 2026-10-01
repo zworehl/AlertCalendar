@@ -36,18 +36,18 @@ struct AstronomyDetectedLocation {
     var statusPrefix: String {
         switch source {
         case .system:
-            return "Auto location"
+            return L10n.text("Auto location")
         case .networkApproximate:
-            return "Approximate auto location"
+            return L10n.text("Approximate auto location")
         }
     }
 
     var detectedStatusPrefix: String {
         switch source {
         case .system:
-            return "Detected location"
+            return L10n.text("Detected location")
         case .networkApproximate:
-            return "Detected approximate location"
+            return L10n.text("Detected approximate location")
         }
     }
 }

@@ -22,7 +22,7 @@ When all Developer ID and notarization secrets are present, the workflow signs a
 
 ## Publishing
 
-1. Update `VERSION` and increment `BUILD_NUMBER` for every build.
+1. Update `VERSION`, increment `BUILD_NUMBER` for every build, and write `docs/release-notes/<version>.md`. The workflow includes those notes in the release and update feed.
 2. Run `./scripts/verify.sh` and `./install.sh` locally.
 3. Commit and push the release changes.
 4. Create and push the matching tag, for example `git tag -a v1.0.0 -m "AlertCalendar 1.0.0" && git push origin v1.0.0`.

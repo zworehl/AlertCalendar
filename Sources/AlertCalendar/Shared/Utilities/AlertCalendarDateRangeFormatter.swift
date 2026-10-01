@@ -19,6 +19,9 @@ enum AlertCalendarDateRangeFormatter {
             let monthText = makeMonthFormatter(locale: locale, calendar: calendar).string(from: startDay)
             let startDayNumber = calendar.component(.day, from: startDay)
             let endDayNumber = calendar.component(.day, from: lastInclusiveDay)
+            if AlertCalendarLanguage.current == .spanishLatinAmerica {
+                return "\(startDayNumber)-\(endDayNumber) \(monthText)"
+            }
             return "\(monthText) \(startDayNumber)-\(endDayNumber)"
         }
 
@@ -27,16 +30,16 @@ enum AlertCalendarDateRangeFormatter {
 
     private nonisolated static func makeDateFormatter(locale: Locale, calendar: Calendar) -> DateFormatter {
         let formatter = DateFormatter()
-        formatter.locale = AlertCalendarLanguage.english
+        formatter.locale = AlertCalendarLanguage.locale
         formatter.calendar = calendar
         formatter.timeZone = calendar.timeZone
-        formatter.dateFormat = "MMM d"
+        formatter.setLocalizedDateFormatFromTemplate("MMM d")
         return formatter
     }
 
     private nonisolated static func makeMonthFormatter(locale: Locale, calendar: Calendar) -> DateFormatter {
         let formatter = DateFormatter()
-        formatter.locale = AlertCalendarLanguage.english
+        formatter.locale = AlertCalendarLanguage.locale
         formatter.calendar = calendar
         formatter.timeZone = calendar.timeZone
         formatter.dateFormat = "MMM"

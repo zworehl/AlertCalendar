@@ -23,13 +23,13 @@ enum AgendaSummaryAvailability: Equatable, Sendable {
         case .available:
             return nil
         case .unsupportedSystem:
-            return "Agenda Summary requires macOS 26 or later."
+            return L10n.text("Agenda Summary requires macOS 26 or later.")
         case .deviceNotEligible:
-            return "Apple Intelligence isn't supported on this Mac, so Agenda Summary will remain hidden."
+            return L10n.text("Apple Intelligence isn't supported on this Mac, so Agenda Summary will remain hidden.")
         case .appleIntelligenceNotEnabled:
-            return "Turn on Apple Intelligence in System Settings to show Agenda Summary."
+            return L10n.text("Turn on Apple Intelligence in System Settings to show Agenda Summary.")
         case .modelNotReady:
-            return "Apple Intelligence is still preparing its on-device model. Agenda Summary will appear automatically when it is ready."
+            return L10n.text("Apple Intelligence is still preparing its on-device model. Agenda Summary will appear automatically when it is ready.")
         }
     }
 }
@@ -75,6 +75,7 @@ struct AgendaSummaryRequest: Equatable, Sendable {
         let personalizedContext: String?
     }
 
+    let language: AppLanguage
     let now: Date
     let timeZoneIdentifier: String
     let uses24HourTime: Bool
@@ -83,12 +84,14 @@ struct AgendaSummaryRequest: Equatable, Sendable {
 
     init(
         now: Date,
+        language: AppLanguage = .english,
         timeZone: TimeZone = .autoupdatingCurrent,
         locale: Locale = .autoupdatingCurrent,
         maximumWords: Int = AppSettingsRules.defaultAgendaSummaryMaximumWords,
         upcomingItems: [UpcomingItem],
         personalizedContextByItemKey: [String: String] = [:]
     ) {
+        self.language = language
         self.now = now
         self.timeZoneIdentifier = timeZone.identifier
         self.uses24HourTime = Self.localeUses24HourTime(locale)
@@ -149,12 +152,13 @@ struct AgendaSummaryRequest: Equatable, Sendable {
     }
 
     private static func isRelevantForSummary(_ item: UpcomingItem) -> Bool {
-        item.calendarName.caseInsensitiveCompare("Astronomy") != .orderedSame
+        item.calendarName.caseInsensitiveCompare(L10n.text("Astronomy")) != .orderedSame
             && AstronomyMoment(eventTitle: item.title) == nil
     }
 
     var fingerprint: Int {
         var hasher = Hasher()
+        hasher.combine(language)
         hasher.combine(maximumWords)
         for item in items {
             hasher.combine(item.sourceKey)
@@ -186,6 +190,7 @@ struct AgendaSummaryRequest: Equatable, Sendable {
 
     func generationFingerprint(usesLinkedPagePreviews: Bool) -> Int {
         var hasher = Hasher()
+        hasher.combine(language)
         hasher.combine(fingerprint)
         hasher.combine(usesLinkedPagePreviews)
         return hasher.finalize()
@@ -247,7 +252,7 @@ struct AgendaSummaryRequest: Equatable, Sendable {
     }
 
     private static func attentionLevel(for item: UpcomingItem) -> String {
-        if item.isAllDay || item.calendarName == "Astronomy" {
+        if item.isAllDay || item.calendarName == L10n.text("Astronomy") {
             return "background"
         }
         return "primary"

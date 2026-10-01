@@ -22,39 +22,39 @@ enum CalendarMonitorRefreshReason: String, CaseIterable, Hashable {
     var title: String {
         switch self {
         case .launchSnapshot:
-            return "Initial calendar snapshot"
+            return L10n.text("Initial calendar snapshot")
         case .launchConfirmation:
-            return "Initial calendar confirmation"
+            return L10n.text("Initial calendar confirmation")
         case .launch:
-            return "Launch"
+            return L10n.text("Launch")
         case .manual:
-            return "Manual"
+            return L10n.text("Manual")
         case .settingsChanged:
-            return "Settings changed"
+            return L10n.text("Settings changed")
         case .eventStoreChanged:
-            return "Calendar changed"
+            return L10n.text("Calendar changed")
         case .workspaceResumed:
-            return "Mac wake"
+            return L10n.text("Mac wake")
         case .periodic:
-            return "Periodic"
+            return L10n.text("Periodic")
         case .footballHeartbeat:
-            return "Football update"
+            return L10n.text("Football update")
         case .locationChanged:
-            return "Location changed"
+            return L10n.text("Location changed")
         case .calendarSelectionChanged:
-            return "Calendar selection changed"
+            return L10n.text("Calendar selection changed")
         case .focusFilterChanged:
-            return "Focus filter changed"
+            return L10n.text("Focus filter changed")
         case .itemAction:
-            return "Item action"
+            return L10n.text("Item action")
         case .footballCalendarAction:
-            return "Football calendar action"
+            return L10n.text("Football calendar action")
         case .slackConnectionChanged:
-            return "Slack connection changed"
+            return L10n.text("Slack connection changed")
         case .calendarSync:
-            return "Calendar sync"
+            return L10n.text("Calendar sync")
         case .remindersChanged:
-            return "Reminders updated"
+            return L10n.text("Reminders updated")
         }
     }
 
@@ -176,13 +176,13 @@ struct CalendarMonitorRefreshDiagnostics: Equatable {
     }
 
     var summary: String {
-        guard let lastReason else { return "Waiting for first refresh..." }
+        guard let lastReason else { return L10n.text("Waiting for first refresh...") }
         let durationText = lastDuration.map { String(format: "%.2fs", $0) } ?? "running"
         return "\(lastReason.title) - \(durationText)"
     }
 
     var pendingSummary: String {
-        guard !pendingReasons.isEmpty else { return "None" }
+        guard !pendingReasons.isEmpty else { return L10n.text("None") }
         return pendingReasons
             .sorted { $0.title < $1.title }
             .map(\.title)
@@ -190,7 +190,7 @@ struct CalendarMonitorRefreshDiagnostics: Equatable {
     }
 
     var phasesSummary: String {
-        guard !phaseDurations.isEmpty else { return "None" }
+        guard !phaseDurations.isEmpty else { return L10n.text("None") }
         return phaseDurations
             .sorted { $0.key < $1.key }
             .map { "\($0.key) \(String(format: "%.2fs", $0.value))" }

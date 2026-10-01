@@ -7,7 +7,7 @@ extension CalendarMonitor {
             return AstronomyDetectedLocation(coordinate: coordinate, source: .system)
         }
 
-        astronomyLocationStatus = "Detecting location..."
+        astronomyLocationStatus = L10n.text("Detecting location...")
 
         if let coordinate = await requestApproximateNetworkCoordinate() {
             return AstronomyDetectedLocation(coordinate: coordinate, source: .networkApproximate)
@@ -33,7 +33,7 @@ extension CalendarMonitor {
             manager.delegate = delegate
             manager.desiredAccuracy = kCLLocationAccuracyKilometer
             manager.distanceFilter = kCLDistanceFilterNone
-            astronomyLocationStatus = "Detecting location..."
+            astronomyLocationStatus = L10n.text("Detecting location...")
             manager.requestLocation()
             manager.startUpdatingLocation()
 

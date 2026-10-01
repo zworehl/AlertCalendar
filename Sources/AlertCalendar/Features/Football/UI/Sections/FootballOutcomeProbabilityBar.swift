@@ -24,14 +24,14 @@ struct FootballOutcomeProbabilityPresentation: Equatable {
         }
 
         var accessibilityPercentageText: String {
-            guard probability > 0 else { return "0 percent" }
+            guard probability > 0 else { return L10n.text("0 percent") }
             if probability < 0.01 {
-                return "less than 1 percent"
+                return L10n.text("less than 1 percent")
             }
             if percentagePoints == 100, probability < 1 {
-                return "more than 99 percent"
+                return L10n.text("more than 99 percent")
             }
-            return "\(percentagePoints) percent"
+            return L10n.text("\(percentagePoints) percent")
         }
     }
 
@@ -71,51 +71,51 @@ struct FootballOutcomeProbabilityPresentation: Equatable {
 
     var scopeTitle: String {
         if source == .finalResult {
-            return "Final result"
+            return L10n.text("Final result")
         }
         switch scope {
         case .regulationTime, .extraTimePossible:
-            return "Regulation result"
+            return L10n.text("Regulation result")
         case .decisiveResult:
-            return "Winner incl. penalties"
+            return L10n.text("Winner incl. penalties")
         }
     }
 
     var accessibilityScopeTitle: String {
         if source == .finalResult {
-            return "Final result"
+            return L10n.text("Final result")
         }
         switch scope {
         case .regulationTime, .extraTimePossible:
-            return "Result at the end of regulation, including added time"
+            return L10n.text("Result at the end of regulation, including added time")
         case .decisiveResult:
-            return "Winner, including extra time and penalties"
+            return L10n.text("Winner, including extra time and penalties")
         }
     }
 
     var sourceTitle: String {
         switch source {
         case .marketOdds:
-            return providerName.map { "Market · \($0)" } ?? "Market"
+            return providerName.map { "Market · \($0)" } ?? L10n.text("Market")
         case .liveMarketOdds:
-            return providerName.map { "Live market · \($0)" } ?? "Live market"
+            return providerName.map { "Live market · \($0)" } ?? L10n.text("Live market")
         case .heuristic:
-            return providerName.map { "Model · \($0)" } ?? "Model"
+            return providerName.map { "Model · \($0)" } ?? L10n.text("Model")
         case .finalResult:
-            return "Final"
+            return L10n.text("Final")
         }
     }
 
     var sourceDescription: String {
         switch source {
         case .marketOdds:
-            return providerName.map { "Pre-match market odds from \($0)" } ?? "Pre-match market odds"
+            return providerName.map { "Pre-match market odds from \($0)" } ?? L10n.text("Pre-match market odds")
         case .liveMarketOdds:
-            return providerName.map { "Live market odds from \($0)" } ?? "Live market odds"
+            return providerName.map { "Live market odds from \($0)" } ?? L10n.text("Live market odds")
         case .heuristic:
-            return providerName.map { "Model estimate using \($0) market odds" } ?? "Model estimate"
+            return providerName.map { "Model estimate using \($0) market odds" } ?? L10n.text("Model estimate")
         case .finalResult:
-            return "Final result"
+            return L10n.text("Final result")
         }
     }
 
@@ -128,11 +128,11 @@ struct FootballOutcomeProbabilityPresentation: Equatable {
             let title: String
             switch item.outcome {
             case .homeWin:
-                title = "\(homeTeamName) win"
+                title = L10n.text("\(homeTeamName) win")
             case .draw:
-                title = "Draw"
+                title = L10n.text("Draw")
             case .awayWin:
-                title = "\(awayTeamName) win"
+                title = L10n.text("\(awayTeamName) win")
             }
             return "\(title), \(item.accessibilityPercentageText)"
         }
@@ -322,14 +322,14 @@ struct FootballOutcomeProbabilityBar: View {
         nonempty(display?.homeAbbreviation)
             ?? nonempty(match.homeTeam.abbreviation)
             ?? nonempty(match.homeTeam.name)
-            ?? "Home"
+            ?? L10n.text("Home")
     }
 
     private var awayShortName: String {
         nonempty(display?.awayAbbreviation)
             ?? nonempty(match.awayTeam.abbreviation)
             ?? nonempty(match.awayTeam.name)
-            ?? "Away"
+            ?? L10n.text("Away")
     }
 
     private var homeAccessibleName: String {
@@ -345,11 +345,11 @@ struct FootballOutcomeProbabilityBar: View {
             let title: String
             switch item.outcome {
             case .homeWin:
-                title = "\(homeAccessibleName) win"
+                title = L10n.text("\(homeAccessibleName) win")
             case .draw:
-                title = "Draw"
+                title = L10n.text("Draw")
             case .awayWin:
-                title = "\(awayAccessibleName) win"
+                title = L10n.text("\(awayAccessibleName) win")
             }
             return "\(title), \(item.accessibilityPercentageText)"
         }
@@ -388,11 +388,11 @@ struct FootballOutcomeProbabilityBar: View {
     private func labelTitle(for outcome: FootballOutcomeProbabilityPresentation.Outcome) -> String {
         switch outcome {
         case .homeWin:
-            return "\(homeShortName) win"
+            return L10n.text("\(homeShortName) win")
         case .draw:
-            return "Draw"
+            return L10n.text("Draw")
         case .awayWin:
-            return "\(awayShortName) win"
+            return L10n.text("\(awayShortName) win")
         }
     }
 

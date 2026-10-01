@@ -30,11 +30,11 @@ enum SettingsCalendarCardAction {
     var helpText: String {
         switch self {
         case .add:
-            return "Stage this event to be added when you click Apply"
+            return L10n.text("Stage this event to be added when you click Apply")
         case .remove:
-            return "Stage this event to be removed when you click Apply"
+            return L10n.text("Stage this event to be removed when you click Apply")
         case .open:
-            return "Open this event in Apple Calendar"
+            return L10n.text("Open this event in Apple Calendar")
         }
     }
 }

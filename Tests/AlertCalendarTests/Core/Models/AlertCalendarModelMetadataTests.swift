@@ -96,6 +96,8 @@ final class AlertCalendarModelMetadataTests: AlertCalendarModelTestCase {
         XCTAssertEqual(FootballCompetitionCategory.clubCompetitions.title, "Club Competitions")
         XCTAssertEqual(FootballCompetitionCategory.nationalTeams.title, "National Teams")
         XCTAssertEqual(FootballCompetitionPreset.category(forCompetitionSlug: "fifa.world"), .nationalTeams)
+        XCTAssertEqual(FootballCompetitionPreset.category(forCompetitionSlug: "concacaf.nations.league"), .nationalTeams)
+        XCTAssertEqual(FootballCompetitionPreset.category(forCompetitionSlug: "uefa.nations"), .nationalTeams)
         XCTAssertEqual(FootballCompetitionPreset.category(forCompetitionSlug: "eng.1"), .clubCompetitions)
     }
     func testFootballCompetitionPresetsExposeRegionalBuckets() {
@@ -120,6 +122,8 @@ final class AlertCalendarModelMetadataTests: AlertCalendarModelTestCase {
         XCTAssertEqual(FootballCompetitionPreset.region(forCompetitionSlug: "conmebol.america"), .southAmerica)
         XCTAssertEqual(FootballCompetitionPreset.region(forCompetitionSlug: "esp.1"), .europe)
         XCTAssertEqual(FootballCompetitionPreset.region(forCompetitionSlug: "fifa.world"), .global)
+        XCTAssertEqual(FootballCompetitionPreset.region(forCompetitionSlug: "concacaf.nations.league"), .northAmerica)
+        XCTAssertEqual(FootballCompetitionPreset.region(forCompetitionSlug: "uefa.nations"), .europe)
     }
     func testCalendarColorPaletteOptionsHaveUniqueIDsAndKnownFallback() {
         let options = CalendarColorPalette.options

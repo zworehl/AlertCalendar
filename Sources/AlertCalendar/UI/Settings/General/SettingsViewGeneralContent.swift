@@ -32,6 +32,7 @@ extension SettingsView {
                 }
             }
 
+            languageSettingsSection
             softwareUpdateSettingsSection
             generalSettingsPreviewSection
         }
@@ -39,32 +40,32 @@ extension SettingsView {
 
     var generalAlertBehaviorSettingsSection: some View {
         settingsSection(
-            title: "Alert Behavior",
-            subtitle: "Control when upcoming items become urgent.",
+            title: L10n.text("Alert Behavior"),
+            subtitle: L10n.text("Control when upcoming items become urgent."),
             systemImage: "bell.badge"
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 settingsControlRow(
-                    title: "Blinking alert",
-                    detail: "Blinks red during the alert lead time, stopping when an event starts or a reminder becomes due."
+                    title: L10n.text("Blinking alert"),
+                    detail: L10n.text("Blinks red during the alert lead time, stopping when an event starts or a reminder becomes due.")
                 ) {
-                    Toggle("Blinking alert", isOn: $draft.enableBlinkAlert)
+                    Toggle(L10n.text("Blinking alert"), isOn: $draft.enableBlinkAlert)
                         .labelsHidden()
                         .toggleStyle(.switch)
-                        .accessibilityLabel(Text("Blinking alert"))
+                        .accessibilityLabel(Text(L10n.text("Blinking alert")))
                 }
 
                 settingsDivider()
 
                 settingsControlRow(
-                    title: "Alert lead time",
-                    detail: "Defines how early the urgent state begins before a meeting starts."
+                    title: L10n.text("Alert lead time"),
+                    detail: L10n.text("Defines how early the urgent state begins before a meeting starts.")
                 ) {
                     generalSettingStepperControl(
                         valueText: Self.durationValueText(
                             value: draft.alertLeadMinutes,
-                            singular: "minute",
-                            plural: "minutes"
+                            singular: L10n.text("minute"),
+                            plural: L10n.text("minutes")
                         )
                     ) {
                         Stepper("", value: $draft.alertLeadMinutes, in: 1 ... 60)
@@ -78,14 +79,14 @@ extension SettingsView {
     @ViewBuilder
     var generalMenuBarSettingsSection: some View {
         settingsSection(
-            title: "Menu Bar",
-            subtitle: "Tune the compact label that lives in the macOS menu bar.",
+            title: L10n.text("Menu Bar"),
+            subtitle: L10n.text("Tune the compact label that lives in the macOS menu bar."),
             systemImage: "menubar.rectangle"
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 settingsControlRow(
-                    title: "Rotation window",
-                    detail: "Only active or near-future items inside this window rotate through the label."
+                    title: L10n.text("Rotation window"),
+                    detail: L10n.text("Only active or near-future items inside this window rotate through the label.")
                 ) {
                     generalSettingStepperControl(
                         valueText: Self.menuBarRotationWindowValueText(
@@ -114,26 +115,26 @@ extension SettingsView {
                 settingsDivider()
 
                 settingsControlRow(
-                    title: "Focus on active events",
-                    detail: "Shows only currently active timed events. If several overlap, the menu bar rotates between those events; otherwise normal rotation continues."
+                    title: L10n.text("Focus on active events"),
+                    detail: L10n.text("Shows only currently active timed events. If several overlap, the menu bar rotates between those events; otherwise normal rotation continues.")
                 ) {
-                    Toggle("Focus on active events", isOn: $draft.focusMenuBarOnActiveEvents)
+                    Toggle(L10n.text("Focus on active events"), isOn: $draft.focusMenuBarOnActiveEvents)
                         .labelsHidden()
                         .toggleStyle(.switch)
-                        .accessibilityLabel(Text("Focus on active events"))
+                        .accessibilityLabel(Text(L10n.text("Focus on active events")))
                 }
 
                 settingsDivider()
 
                 settingsControlRow(
-                    title: "Queue rotation",
-                    detail: "Controls how quickly concurrent items trade the same menu bar space."
+                    title: L10n.text("Queue rotation"),
+                    detail: L10n.text("Controls how quickly concurrent items trade the same menu bar space.")
                 ) {
                     generalSettingStepperControl(
                         valueText: Self.durationValueText(
                             value: draft.concurrentEventRotationSeconds,
-                            singular: "second",
-                            plural: "seconds"
+                            singular: L10n.text("second"),
+                            plural: L10n.text("seconds")
                         )
                     ) {
                         Stepper("", value: $draft.concurrentEventRotationSeconds, in: 5 ... 300, step: 5)
@@ -144,8 +145,8 @@ extension SettingsView {
                 settingsDivider()
 
                 settingsControlRow(
-                    title: "Font size",
-                    detail: "Scales the menu bar label without changing dropdown content."
+                    title: L10n.text("Font size"),
+                    detail: L10n.text("Scales the menu bar label without changing dropdown content.")
                 ) {
                     generalSettingStepperControl(
                         valueText: String(format: "%.1f pt", draft.menuBarFontSize)
@@ -158,21 +159,21 @@ extension SettingsView {
                 settingsDivider()
 
                 settingsControlRow(
-                    title: "Shorten long titles",
-                    detail: "Shortens English titles while preserving their purpose. Birthdays use Birthday or Bday as space allows."
+                    title: L10n.text("Shorten long titles"),
+                    detail: L10n.text("Shortens English titles while preserving their purpose. Birthdays use Birthday or Bday as space allows.")
                 ) {
-                    Toggle("Shorten long titles", isOn: $draft.useEventTitleEllipsis)
+                    Toggle(L10n.text("Shorten long titles"), isOn: $draft.useEventTitleEllipsis)
                         .labelsHidden()
                         .toggleStyle(.switch)
-                        .accessibilityLabel(Text("Shorten long titles"))
+                        .accessibilityLabel(Text(L10n.text("Shorten long titles")))
                 }
 
                 if draft.useEventTitleEllipsis {
                     settingsDivider()
 
                     settingsControlRow(
-                        title: "Maximum characters",
-                        detail: "Sets the menu bar title limit before the countdown or status is added."
+                        title: L10n.text("Maximum characters"),
+                        detail: L10n.text("Sets the menu bar title limit before the countdown or status is added.")
                     ) {
                         generalSettingStepperControl(valueText: "\(draft.eventTitleMaxCharacters)") {
                             Stepper("", value: eventTitleMaxCharactersBinding, in: 8 ... 80)
@@ -183,47 +184,47 @@ extension SettingsView {
                     settingsDivider()
 
                     settingsControlRow(
-                        title: "Also shorten dropdown titles",
-                        detail: "Uses the same abbreviations and character limit in the dropdown list. Leave off to show original titles there."
+                        title: L10n.text("Also shorten dropdown titles"),
+                        detail: L10n.text("Uses the same abbreviations and character limit in the dropdown list. Leave off to show original titles there.")
                     ) {
-                        Toggle("Also shorten dropdown titles", isOn: useRewrittenEventTitlesInDropdownBinding)
+                        Toggle(L10n.text("Also shorten dropdown titles"), isOn: useRewrittenEventTitlesInDropdownBinding)
                             .labelsHidden()
                             .toggleStyle(.switch)
-                            .accessibilityLabel(Text("Also shorten dropdown titles"))
+                            .accessibilityLabel(Text(L10n.text("Also shorten dropdown titles")))
                     }
 
                     settingsDivider()
 
                     settingsControlRow(
-                        title: "Rewrite with Apple Intelligence",
+                        title: L10n.text("Rewrite with Apple Intelligence"),
                         detail: appleIntelligenceTitleRewriteIsAllowed
-                            ? "Rephrases English titles on device using event details and relevant attachment context. Local abbreviations work without Apple Intelligence."
-                            : "Requires at least 10 characters so the rewritten title still has room to say something useful."
+                            ? L10n.text("Rephrases English titles on device using event details and relevant attachment context. Local abbreviations work without Apple Intelligence.")
+                            : L10n.text("Requires at least 10 characters so the rewritten title still has room to say something useful.")
                     ) {
                         Toggle(
-                            "Rewrite titles with Apple Intelligence",
+                            L10n.text("Rewrite titles with Apple Intelligence"),
                             isOn: eventTitleRewriteBinding
                         )
                         .labelsHidden()
                         .toggleStyle(.switch)
                         .disabled(!agendaSummaryAvailability.isAvailable || !appleIntelligenceTitleRewriteIsAllowed)
-                        .accessibilityLabel(Text("Rewrite titles with Apple Intelligence"))
+                        .accessibilityLabel(Text(L10n.text("Rewrite titles with Apple Intelligence")))
                     }
 
                     if draft.rewriteEventTitlesWithAppleIntelligence && appleIntelligenceTitleRewriteIsAllowed {
                         settingsDivider()
 
                         settingsControlRow(
-                            title: "Use related Mail context",
-                            detail: "Optionally asks Apple Mail for a few messages whose subjects match strong identifiers or the exact event title. Only bounded, redacted context is used on device."
+                            title: L10n.text("Use related Mail context"),
+                            detail: L10n.text("Optionally asks Apple Mail for a few messages whose subjects match strong identifiers or the exact event title. Only bounded, redacted context is used on device.")
                         ) {
                             Toggle(
-                                "Use related Apple Mail messages when rewriting titles",
+                                L10n.text("Use related Apple Mail messages when rewriting titles"),
                                 isOn: $draft.useMailContextForEventTitleRewrite
                             )
                             .labelsHidden()
                             .toggleStyle(.switch)
-                            .accessibilityLabel(Text("Use related Mail context"))
+                            .accessibilityLabel(Text(L10n.text("Use related Mail context")))
                         }
                     }
 
@@ -240,23 +241,23 @@ extension SettingsView {
                 settingsDivider()
 
                 settingsControlRow(
-                    title: "Simplified countdown",
-                    detail: "Uses a compact one-unit countdown instead of a fuller multi-part value."
+                    title: L10n.text("Simplified countdown"),
+                    detail: L10n.text("Uses a compact one-unit countdown instead of a fuller multi-part value.")
                 ) {
-                    Toggle("Simplified countdown", isOn: $draft.useSimplifiedCountdown)
+                    Toggle(L10n.text("Simplified countdown"), isOn: $draft.useSimplifiedCountdown)
                         .labelsHidden()
                         .toggleStyle(.switch)
-                        .accessibilityLabel(Text("Simplified countdown"))
+                        .accessibilityLabel(Text(L10n.text("Simplified countdown")))
                 }
 
                 settingsDivider()
 
                 settingsControlRow(
-                    title: "Active event timer",
-                    detail: "Chooses whether active events read as time left or time already spent."
+                    title: L10n.text("Active event timer"),
+                    detail: L10n.text("Chooses whether active events read as time left or time already spent.")
                 ) {
                     generalSettingPickerControl {
-                        Picker("Active event timer", selection: $draft.activeEventDisplayMode) {
+                        Picker(L10n.text("Active event timer"), selection: $draft.activeEventDisplayMode) {
                             ForEach(ActiveEventDisplayMode.allCases) { mode in
                                 Text(mode.title).tag(mode)
                             }
@@ -272,14 +273,14 @@ extension SettingsView {
     @ViewBuilder
     func generalDropdownSettingsSection(maxContextualPreviewLeadMinutes: Int) -> some View {
         settingsSection(
-            title: "Dropdown",
-            subtitle: "Shape the list and contextual previews shown when the menu opens.",
+            title: L10n.text("Dropdown"),
+            subtitle: L10n.text("Shape the list and contextual previews shown when the menu opens."),
             systemImage: "list.bullet.rectangle"
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 settingsControlRow(
-                    title: "Time window",
-                    detail: "Expands from hours to days, weeks, and up to six months as you look further ahead."
+                    title: L10n.text("Time window"),
+                    detail: L10n.text("Expands from hours to days, weeks, and up to six months as you look further ahead.")
                 ) {
                     generalSettingStepperControl(
                         valueText: Self.dropdownWindowValueText(hours: draft.lookAheadHours)
@@ -304,8 +305,8 @@ extension SettingsView {
                 settingsDivider()
 
                 settingsControlRow(
-                    title: "Contextual preview lead time",
-                    detail: "Maps, attendees, daylight, and football previews activate only near the event."
+                    title: L10n.text("Contextual preview lead time"),
+                    detail: L10n.text("Maps, attendees, daylight, and football previews activate only near the event.")
                 ) {
                     generalSettingStepperControl(
                         valueText: Self.menuBarRotationWindowValueText(
@@ -320,8 +321,8 @@ extension SettingsView {
                 settingsDivider()
 
                 settingsControlRow(
-                    title: "Items in list",
-                    detail: "Sets the dropdown limit in groups of five, up to 100 rows."
+                    title: L10n.text("Items in list"),
+                    detail: L10n.text("Sets the dropdown limit in groups of five, up to 100 rows.")
                 ) {
                     generalSettingStepperControl(valueText: "\(draft.maxListItems)") {
                         Stepper("", value: $draft.maxListItems, in: 5 ... 100, step: 5)
@@ -332,28 +333,28 @@ extension SettingsView {
                 settingsDivider()
 
                 settingsControlRow(
-                    title: "Agenda summary",
-                    detail: "Uses Apple Intelligence on device to summarize the visible schedule, complete notes, and relevant context selected across supported local attachments."
+                    title: L10n.text("Agenda summary"),
+                    detail: L10n.text("Uses Apple Intelligence on device to summarize the visible schedule, complete notes, and relevant context selected across supported local attachments.")
                 ) {
-                    Toggle("Show agenda summary", isOn: $draft.showAgendaSummary)
+                    Toggle(L10n.text("Show agenda summary"), isOn: $draft.showAgendaSummary)
                         .labelsHidden()
                         .toggleStyle(.switch)
-                        .accessibilityLabel(Text("Show agenda summary"))
+                        .accessibilityLabel(Text(L10n.text("Show agenda summary")))
                 }
 
                 settingsDivider()
 
                 settingsControlRow(
-                    title: "Summary length",
-                    detail: "Sets the maximum number of words; shorter summaries are still allowed when they cover the visible agenda."
+                    title: L10n.text("Summary length"),
+                    detail: L10n.text("Sets the maximum number of words; shorter summaries are still allowed when they cover the visible agenda.")
                 ) {
                     generalSettingPickerControl {
                         Picker(
-                            "Summary length",
+                            L10n.text("Summary length"),
                             selection: $draft.agendaSummaryMaximumWords
                         ) {
                             ForEach(AppSettingsRules.agendaSummaryMaximumWordOptions, id: \.self) { wordCount in
-                                Text("\(wordCount) words").tag(wordCount)
+                                Text(L10n.text("\(wordCount) words")).tag(wordCount)
                             }
                         }
                         .labelsHidden()
@@ -365,17 +366,17 @@ extension SettingsView {
                 settingsDivider()
 
                 settingsControlRow(
-                    title: "Linked page previews",
-                    detail: "Off by default. When enabled, connects directly to up to three public HTTPS pages, which can observe the request. Meeting links, private networks, files, credentials, and sensitive URL parameters stay blocked."
+                    title: L10n.text("Linked page previews"),
+                    detail: L10n.text("Off by default. When enabled, connects directly to up to three public HTTPS pages, which can observe the request. Meeting links, private networks, files, credentials, and sensitive URL parameters stay blocked.")
                 ) {
                     Toggle(
-                        "Use linked page previews in agenda summary",
+                        L10n.text("Use linked page previews in agenda summary"),
                         isOn: $draft.useLinkedPagePreviewsInAgendaSummary
                     )
                     .labelsHidden()
                     .toggleStyle(.switch)
                     .disabled(!draft.showAgendaSummary)
-                    .accessibilityLabel(Text("Use linked page previews in agenda summary"))
+                    .accessibilityLabel(Text(L10n.text("Use linked page previews in agenda summary")))
                 }
 
                 if let alertMessage = agendaSummaryAvailability.settingsAlertMessage
@@ -386,7 +387,7 @@ extension SettingsView {
                         .font(SettingsTypography.supportingText)
                         .foregroundStyle(.orange)
                         .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityLabel("Agenda Summary unavailable. \(alertMessage)")
+                        .accessibilityLabel(L10n.text("Agenda Summary unavailable. \(alertMessage)"))
                 }
             }
         }
@@ -394,8 +395,8 @@ extension SettingsView {
 
     var generalSettingsPreviewSection: some View {
         settingsSection(
-            title: "Live Preview",
-            subtitle: "One sample surface for the alert state, menu bar label, dropdown list, and contextual previews.",
+            title: L10n.text("Live Preview"),
+            subtitle: L10n.text("One sample surface for the alert state, menu bar label, dropdown list, and contextual previews."),
             systemImage: "rectangle.inset.filled.and.person.filled"
         ) {
             ViewThatFits(in: .horizontal) {
@@ -421,7 +422,7 @@ extension SettingsView {
 
     var generalMenuBarPreview: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Menu Bar")
+            Text(L10n.text("Menu Bar"))
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
 
@@ -436,7 +437,7 @@ extension SettingsView {
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
 
-                Text(draft.useSimplifiedCountdown ? "2h" : "2h 37m")
+                Text(draft.useSimplifiedCountdown ? L10n.text("2h") : L10n.text("2h 37m"))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
@@ -444,14 +445,14 @@ extension SettingsView {
 
             HStack(spacing: 8) {
                 showcaseQueueChip("Rotates every \(draft.concurrentEventRotationSeconds)s", isHighlighted: true)
-                showcaseQueueChip(draft.activeEventDisplayMode == .remaining ? "48m left" : "Started 12m ago")
+                showcaseQueueChip(draft.activeEventDisplayMode == .remaining ? L10n.text("48m left") : L10n.text("Started 12m ago"))
             }
         }
     }
 
     var generalDropdownPreview: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Dropdown")
+            Text(L10n.text("Dropdown"))
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
 
@@ -464,7 +465,7 @@ extension SettingsView {
                 }
             }
 
-            Text("Window: \(Self.dropdownWindowValueText(hours: draft.lookAheadHours))")
+            Text(L10n.text("Window: \(Self.dropdownWindowValueText(hours: draft.lookAheadHours))"))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
@@ -472,13 +473,13 @@ extension SettingsView {
 
     var generalPreviewContextTags: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Context")
+            Text(L10n.text("Context"))
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 6) {
                 showcaseTag("Map")
-                showcaseTag("Invitees")
+                showcaseTag(L10n.text("Invitees"))
                 showcaseTag("Daylight")
                 showcaseTag("Match")
             }

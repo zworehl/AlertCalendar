@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct AlertCalendarApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @AppStorage(DefaultsKeys.language) private var language = AppLanguage.english.rawValue
     @StateObject private var monitorOwner = CalendarMonitorOwner()
 
     private var monitor: CalendarMonitor {
@@ -33,7 +34,7 @@ struct AlertCalendarApp: App {
         MenuBarExtra(isInserted: .constant(true)) {
             MenuContentView(kindFilter: nil, headerTitle: "Alert Calendar")
                 .environmentObject(monitor)
-                .environment(\.locale, AlertCalendarLanguage.english)
+                .environment(\.locale, (AppLanguage(rawValue: language) ?? .english).locale)
         } label: {
             MenuBarMonitorStatusLabel(presentation: monitor.menuBarPresentationModel)
         }
@@ -41,14 +42,14 @@ struct AlertCalendarApp: App {
 
         Window(WindowMetadata.preferencesTitle, id: WindowMetadata.preferencesID) {
             SettingsView(monitor: monitor)
-                .environment(\.locale, AlertCalendarLanguage.english)
+                .environment(\.locale, (AppLanguage(rawValue: language) ?? .english).locale)
         }
         .defaultSize(width: 1240, height: 840)
         .windowResizability(.automatic)
         .windowToolbarStyle(.unified(showsTitle: true))
         .commands {
             CommandGroup(after: .windowArrangement) {
-                Button("Toggle Full Screen") {
+                Button(L10n.text("Toggle Full Screen")) {
                     resolvedSettingsWindow()?.toggleFullScreen(nil)
                 }
                 .keyboardShortcut("f", modifiers: [.control, .command])

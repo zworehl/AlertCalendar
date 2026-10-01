@@ -12,13 +12,13 @@ extension SettingsView {
         var title: String {
             switch self {
             case .atmosphere:
-                return "Atmosphere"
+                return L10n.text("Atmosphere")
             case .holidays:
-                return "Google Holidays"
+                return L10n.text("Google Holidays")
             case .football:
-                return "Football Fixtures"
+                return L10n.text("Football Fixtures")
             case .gameSales:
-                return "Game Sales"
+                return L10n.text("Game Sales")
             }
         }
 
@@ -38,13 +38,13 @@ extension SettingsView {
         var subtitle: String {
             switch self {
             case .atmosphere:
-                return "Bring daylight, lunar phases, and orbital moments into your schedule."
+                return L10n.text("Bring daylight, lunar phases, and orbital moments into your schedule.")
             case .holidays:
-                return "Combine regional holiday feeds into a writable Apple Calendar."
+                return L10n.text("Combine regional holiday feeds into a writable Apple Calendar.")
             case .football:
-                return "Follow supported competitions and add fixtures automatically."
+                return L10n.text("Follow supported competitions and add fixtures automatically.")
             case .gameSales:
-                return "Track upcoming promotions from your favorite game stores."
+                return L10n.text("Track upcoming promotions from your favorite game stores.")
             }
         }
 
