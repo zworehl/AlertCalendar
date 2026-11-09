@@ -227,7 +227,9 @@ extension SettingsView {
                     .textFieldStyle(.roundedBorder)
                     .frame(maxWidth: 240)
                     .onSubmit(addMusicEmoji)
-                Button(L10n.text("Add emoji"), action: addMusicEmoji)
+                Button(action: addMusicEmoji) {
+                    Label(L10n.text("Add emoji"), systemImage: "plus")
+                }
                     .disabled(draft.appleMusicStatus.emojis.count >= AppleMusicStatusSettings.maximumEmojis ||
                               SlackEmojiCatalog.normalizedEmoji(musicEmojiCandidate) == nil)
                     .controlSize(.small)

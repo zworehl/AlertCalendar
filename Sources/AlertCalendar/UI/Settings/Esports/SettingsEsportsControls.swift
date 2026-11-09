@@ -73,11 +73,13 @@ extension SettingsEsportsSectionView {
                 }
                 Spacer(minLength: 0)
                 if runtime.isConnected {
-                    Button(L10n.text("Disconnect")) {
+                    Button {
                         token = ""
                         connectionTask?.cancel()
                         connectionTask = Task { await runtime.disconnect() }
-                    }
+                    } label: { Label(L10n.text("Disconnect"), systemImage: "minus") }
+                    .labelStyle(.titleAndIcon)
+                    .fixedSize(horizontal: true, vertical: false)
                     .disabled(!runsLiveServices || isConnecting)
                     .accessibilityIdentifier("settings.esports.disconnect")
                 } else {
@@ -86,7 +88,11 @@ extension SettingsEsportsSectionView {
                         .disabled(isConnecting || !runsLiveServices)
                         .accessibilityIdentifier("settings.esports.token")
                         .onSubmit { connectProvider() }
-                    Button(isConnecting ? L10n.text("Connecting…") : L10n.text("Connect")) { connectProvider() }
+                    Button { connectProvider() } label: {
+                        Label(isConnecting ? L10n.text("Connecting…") : L10n.text("Connect"), systemImage: "link")
+                    }
+                        .labelStyle(.titleAndIcon)
+                        .fixedSize(horizontal: true, vertical: false)
                         .disabled(!runsLiveServices || isConnecting || token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         .accessibilityIdentifier("settings.esports.connect")
                 }
@@ -101,9 +107,10 @@ extension SettingsEsportsSectionView {
                 }
             }
             if !preferences.autoAddCompetitionIDs.isEmpty {
-                Button(L10n.text("Turn off automatic additions")) {
+                Button {
                     preferences.autoAddCompetitionIDs = []
-                }
+                } label: { Label(L10n.text("Turn off automatic additions"), systemImage: "xmark.circle") }
+                .labelStyle(.titleAndIcon)
                 .buttonStyle(.borderless)
                 .font(.caption)
                 .accessibilityIdentifier("settings.esports.disableAutoAdd")

@@ -63,8 +63,10 @@ extension SettingsView {
 
                     Spacer(minLength: 12)
 
-                    Button(L10n.text("Check Now")) {
+                    Button {
                         softwareUpdateController.checkForUpdates()
+                    } label: {
+                        Label(L10n.text("Check Now"), systemImage: "arrow.clockwise")
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)

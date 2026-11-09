@@ -102,7 +102,8 @@ struct SettingsEsportsProviderCard: View {
                 ))
                 .accessibilityIdentifier("settings.esports.provider.\(match.id).toggle")
         } else if pending != nil {
-            Button(action: toggle) { Image(systemName: "arrow.uturn.backward") }
+            Button(action: toggle) { Label(L10n.text("Undo pending change"), systemImage: "arrow.uturn.backward") }
+                .labelStyle(.iconOnly)
                 .buttonStyle(.bordered)
                 .accessibilityLabel(L10n.text("Undo pending change"))
                 .help(L10n.text("Undo pending change"))
