@@ -11,6 +11,14 @@ enum SettingsEsportsBrowseMode: String, CaseIterable, Identifiable {
         case .added: L10n.text("Added Matches")
         }
     }
+
+    var symbolName: String {
+        switch self {
+        case .schedule: "trophy"
+        case .nowAndNextDay: "clock"
+        case .added: "calendar.badge.checkmark"
+        }
+    }
 }
 
 struct SettingsEsportsCompetition: Identifiable, Equatable {

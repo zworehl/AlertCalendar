@@ -2,6 +2,8 @@
 
 Esports is a separate feed under Settings. It reads gaming events from the selected Apple Calendar sources, including the active Focus filter, and distinguishes local calendar events from provider-managed encounters. Existing local events are never adopted or overwritten automatically.
 
+The browser follows the football feed's layout: encounter cards and destination controls occupy the main column, while a right sidebar holds the view mode, date window, game and competition lists. The optional provider connection stays available in that sidebar.
+
 The local catalog recognizes League of Legends, Counter-Strike 2, Rocket League, StarCraft II, Age of Empires II, GeoGuessr, and Gran Turismo 7. A local event retains its original title, date, calendar and source link. Detection does not invent participants or a score. Releases and maintenance remain ordinary gaming events rather than matches.
 
 ## Optional provider connection

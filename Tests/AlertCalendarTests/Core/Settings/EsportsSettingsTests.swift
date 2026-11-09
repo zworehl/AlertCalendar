@@ -46,7 +46,7 @@ final class EsportsSettingsTests: XCTestCase {
         XCTAssertEqual(loaded.autoAddCompetitionIDs, ["tournament"])
         XCTAssertEqual(loaded.lookaheadDays, 180)
         XCTAssertEqual(loaded.lookbackDays, 0)
-        XCTAssertEqual(loaded.alertLeadMinutes, 0)
+        XCTAssertEqual(loaded.alertLeadMinutes, -1)
         let persisted = String(decoding: defaults.data(forKey: DefaultsKeys.esportsSettings)!, as: UTF8.self)
         XCTAssertFalse(persisted.lowercased().contains("token"))
     }

@@ -18,7 +18,7 @@ struct EsportsSettings: Codable, Equatable, Sendable {
             let value = $0.trimmingCharacters(in: .whitespacesAndNewlines)
             return value.isEmpty ? nil : value
         })
-        result.alertLeadMinutes = min(max(alertLeadMinutes, 0), 10_080)
+        result.alertLeadMinutes = min(max(alertLeadMinutes, -1), 10_080)
         result.lookbackDays = min(max(lookbackDays, 0), 365)
         result.lookaheadDays = min(max(lookaheadDays, 1), 180)
         return result

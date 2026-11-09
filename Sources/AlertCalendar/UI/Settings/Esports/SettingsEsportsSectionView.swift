@@ -16,24 +16,10 @@ struct SettingsEsportsSectionView: View {
     @State var token = ""
     @State var isConnecting = false
     @State var connectionTask: Task<Void, Never>?
+    @State var providerIsExpanded = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            calendarControls
-            providerControls
-            browseControls
-            refreshStatus
-            ScrollView(.vertical) {
-                LazyVStack(alignment: .leading, spacing: 14) {
-                    localSection
-                    providerSection
-                }
-                .padding(.trailing, 2)
-            }
-            .frame(minHeight: 180, maxHeight: .infinity)
-            .accessibilityIdentifier("settings.esports.matches")
-            .transaction { $0.animation = nil }
-        }
+        esportsColumns
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .accessibilityIdentifier("settings.esports.content")
         .onChange(of: selectedGame) { _ in selectedCompetitionKey = nil }
@@ -107,10 +93,17 @@ struct SettingsEsportsSectionView: View {
                 }
             }
             .font(.caption).foregroundStyle(.secondary)
+            .lineLimit(2)
             .frame(maxWidth: .infinity, alignment: .leading)
             Button {
                 Task { await runtime.refresh(force: true) }
             } label: { Label(L10n.text("Refresh Now"), systemImage: "arrow.clockwise") }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.bordered)
+                .frame(width: SettingsVisualMetrics.minimumInteractiveControlSize,
+                       height: SettingsVisualMetrics.minimumInteractiveControlSize)
+                .help(L10n.text("Refresh Now"))
+                .accessibilityLabel(L10n.text("Refresh Now"))
                 .disabled(!runsLiveServices || runtime.isRefreshing)
                 .accessibilityIdentifier("settings.esports.refresh")
         }
@@ -160,7 +153,11 @@ struct SettingsEsportsSectionView: View {
         }
     }
 
-    var cardColumns: [GridItem] { [GridItem(.adaptive(minimum: 260, maximum: 440), spacing: 10, alignment: .top)] }
+    var cardColumns: [GridItem] {
+        [GridItem(.adaptive(minimum: SettingsFootballFixturesSectionView.minimumMatchCardWidth,
+                            maximum: SettingsFootballFixturesSectionView.preferredMatchCardWidth),
+                  spacing: 12, alignment: .top)]
+    }
 
     func sectionHeader(_ title: String, count: Int, symbol: String) -> some View {
         HStack {

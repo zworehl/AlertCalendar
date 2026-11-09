@@ -66,7 +66,7 @@ struct EsportsEventContent: Codable, Equatable, Sendable {
         let knownEnd = match.endAt.flatMap { $0 > start ? $0 : nil }
         self.end = knownEnd ?? start.addingTimeInterval(7_200)
         self.title = "[\(match.game.displayName)] \(match.name)"
-        self.alertLeadMinutes = match.status == .canceled || match.status == .postponed ? 0 : alertLeadMinutes
+        self.alertLeadMinutes = match.status == .canceled || match.status == .postponed ? -1 : alertLeadMinutes
         var lines = [ManagedEsportsEventRecord.ownershipMarker, match.id, EsportsMatch.sourceAttribution]
         if !match.competitionName.isEmpty { lines.append(match.competitionName) }
         lines.append("Status: \(match.status.rawValue)")
@@ -88,13 +88,13 @@ struct EsportsEventContent: Codable, Equatable, Sendable {
 
     @MainActor func apply(to event: EKEvent) {
         event.title = title; event.startDate = start; event.endDate = end; event.notes = notes
-        event.alarms = alertLeadMinutes > 0 ? [EKAlarm(relativeOffset: -Double(alertLeadMinutes) * 60)] : nil
+        event.alarms = alertLeadMinutes >= 0 ? [EKAlarm(relativeOffset: -Double(alertLeadMinutes) * 60)] : nil
     }
 
     @MainActor func stillMatches(_ event: EKEvent) -> Bool {
         guard event.title == title, event.startDate == start, event.endDate == end, event.notes == notes else { return false }
         let alarms = event.alarms ?? []
-        if alertLeadMinutes == 0 { return alarms.isEmpty }
+        if alertLeadMinutes < 0 { return alarms.isEmpty }
         return alarms.count == 1 && alarms[0].absoluteDate == nil
             && abs(alarms[0].relativeOffset + Double(alertLeadMinutes) * 60) < 1
     }
