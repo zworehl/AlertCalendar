@@ -5,7 +5,10 @@
 /dist
 /Packages
 xcuserdata/
+/.vscode
 DerivedData/
 .swiftpm/configuration/registries.json
 .swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
 .netrc
+*.profraw
+/tmp/

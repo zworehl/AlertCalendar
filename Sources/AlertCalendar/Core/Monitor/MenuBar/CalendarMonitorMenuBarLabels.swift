@@ -6,18 +6,8 @@ extension CalendarMonitor {
     nonisolated static let timedEventStartAlertDuration: TimeInterval = 60
 
     nonisolated static func shouldShowTimedEventNowState(for item: UpcomingItem, now: Date) -> Bool {
-        guard item.kind == .event,
-              !item.isAllDay,
-              item.date <= now
-        else {
-            return false
-        }
-
-        if let endDate = item.endDate, endDate <= now {
-            return false
-        }
-
-        return now.timeIntervalSince(item.date) < timedEventStartAlertDuration
+        isActiveTimedEvent(item, now: now)
+            && now.timeIntervalSince(item.date) < timedEventStartAlertDuration
     }
 
     nonisolated static func timedEventNowMenuSegment(
@@ -26,7 +16,7 @@ extension CalendarMonitor {
         now: Date
     ) -> String? {
         guard shouldShowTimedEventNowState(for: item, now: now) else { return nil }
-        return "\(compactTitle) now"
+        return L10n.text("\(compactTitle) now")
     }
 
     nonisolated static func travelDepartureMenuSegment(
@@ -47,10 +37,10 @@ extension CalendarMonitor {
                 from: now,
                 simplified: simplified
             )
-            return "\(compactTitle) leave in \(countdownText)"
+            return L10n.text("\(compactTitle) leave in \(countdownText)")
         }
 
-        return "Leave now for \(compactTitle)"
+        return L10n.text("Leave now for \(compactTitle)")
     }
 
     func menuLabel(
@@ -60,6 +50,7 @@ extension CalendarMonitor {
         activeEventDisplayMode: ActiveEventDisplayMode,
         useEventTitleEllipsis: Bool,
         eventTitleMaxCharacters: Int,
+        titlePresentation: EventTitlePresentation? = nil,
         fallback: String
     ) -> String {
         guard let item else { return fallback }
@@ -69,7 +60,8 @@ extension CalendarMonitor {
             simplified: simplified,
             activeEventDisplayMode: activeEventDisplayMode,
             useEventTitleEllipsis: useEventTitleEllipsis,
-            eventTitleMaxCharacters: eventTitleMaxCharacters
+            eventTitleMaxCharacters: eventTitleMaxCharacters,
+            titlePresentation: titlePresentation
         )
     }
 
@@ -79,11 +71,17 @@ extension CalendarMonitor {
         simplified: Bool,
         activeEventDisplayMode: ActiveEventDisplayMode,
         useEventTitleEllipsis: Bool,
-        eventTitleMaxCharacters: Int
+        eventTitleMaxCharacters: Int,
+        titlePresentation: EventTitlePresentation? = nil
     ) -> String {
-        let baseTitle = item.footballMatch.map(FootballFixtureFormatter.calendarTitle(for:)) ?? item.title
+        let usesResolvedTitle = titlePresentation?.usesResolvedTitle == true
+        let baseTitle = usesResolvedTitle
+            ? titlePresentation?.title ?? item.title
+            : item.footballMatch.map(FootballFixtureFormatter.calendarTitle(for:)) ?? item.title
         let compactTitle: String
-        if useEventTitleEllipsis {
+        if usesResolvedTitle {
+            compactTitle = baseTitle
+        } else if useEventTitleEllipsis {
             compactTitle = trimmedTitle(baseTitle, maxLength: max(1, eventTitleMaxCharacters))
         } else {
             compactTitle = baseTitle
@@ -94,9 +92,7 @@ extension CalendarMonitor {
             return compactTitle
         }
 
-        if item.kind == .event,
-           item.date <= now,
-           (item.endDate ?? item.date) > now,
+        if Self.isActiveTimedEvent(item, now: now),
            FootballFixtureFormatter.looksLikeFootballCalendarTitle(item.title) {
             return compactTitle
         }
@@ -119,24 +115,36 @@ extension CalendarMonitor {
             return compactTitle
         }
         if item.isAllDay {
-            if isBirthdayItem(item) {
-                return compactTitle
-            }
-            let allDayDetail = allDayLabel(for: item, now: now, simplified: simplified) ?? "all-day"
-            return "\(compactTitle) \(allDayDetail)"
+            let allDayDetail = allDayLabel(for: item, now: now, simplified: simplified) ?? L10n.text("all-day")
+            return Self.allDayMenuSegment(
+                compactTitle: compactTitle,
+                detail: allDayDetail,
+                isBirthday: isBirthdayItem(item)
+            )
         }
         if item.kind == .reminder, item.date <= now {
-            return "\(compactTitle) \(elapsedCountdown(from: item.date, to: now, simplified: simplified)) ago"
+            return "\(compactTitle) \(L10n.text("\(elapsedCountdown(from: item.date, to: now, simplified: simplified)) ago"))"
         }
-        if item.kind == .event, let endDate = item.endDate, item.date <= now, endDate > now {
+        if Self.isActiveTimedEvent(item, now: now), let endDate = item.endDate {
             switch activeEventDisplayMode {
             case .remaining:
-                return "\(compactTitle) \(relativeCountdown(to: endDate, from: now, simplified: simplified)) left"
+                return L10n.text("\(compactTitle) \(relativeCountdown(to: endDate, from: now, simplified: simplified)) left")
             case .elapsed:
-                return "\(compactTitle) started \(elapsedCountdown(from: item.date, to: now, simplified: simplified)) ago"
+                return L10n.text("\(compactTitle) started \(elapsedCountdown(from: item.date, to: now, simplified: simplified)) ago")
             }
         }
-        return "\(compactTitle) in \(relativeCountdown(to: item.date, from: now, simplified: simplified))"
+        return L10n.text("\(compactTitle) in \(relativeCountdown(to: item.date, from: now, simplified: simplified))")
+    }
+
+    nonisolated static func allDayMenuSegment(
+        compactTitle: String,
+        detail: String,
+        isBirthday: Bool
+    ) -> String {
+        if isBirthday, detail == L10n.text("all-day") {
+            return compactTitle
+        }
+        return "\(compactTitle) \(detail)"
     }
 
     func footballMenuBarTrailingText(
@@ -148,7 +156,7 @@ extension CalendarMonitor {
         let aggregateText = FootballFixtureFormatter.menuBarAggregateText(for: footballMatch)
 
         if footballMatch.statusState == .scheduled, item.date > now {
-            let countdownText = "in \(relativeCountdown(to: item.date, from: now, simplified: simplified))"
+            let countdownText = L10n.text("in \(relativeCountdown(to: item.date, from: now, simplified: simplified))")
             if let aggregateText, !aggregateText.isEmpty {
                 return "\(aggregateText) \(countdownText)"
             }
@@ -163,13 +171,66 @@ extension CalendarMonitor {
         now: Date
     ) -> String? {
         guard let footballMatch = item.footballMatch else { return nil }
+        return Self.resolvedFootballMenuBarStatusText(for: footballMatch, now: now)
+    }
+
+    nonisolated static func resolvedFootballMenuBarStatusText(
+        for footballMatch: FootballFixtureMatch,
+        now: Date
+    ) -> String? {
         guard let badgeText = Self.footballStatusBadgeText(for: footballMatch, now: now) else { return nil }
 
         if footballMatch.statusState != .scheduled || footballMatch.statusReliability != .reported {
-            return badgeText
+            return Self.compactFootballStatusBadgeText(badgeText, for: footballMatch, now: now)
         }
 
         return nil
+    }
+
+    nonisolated static func shouldShowFootballMenuBarStatus(for item: UpcomingItem?) -> Bool {
+        item?.footballMatch != nil
+    }
+
+    nonisolated static func compactFootballMenuBarStatusText(_ badgeText: String) -> String {
+        compactFootballStatusBadgeText(badgeText)
+    }
+
+    nonisolated static func shouldShowFootballMenuBarDetails(
+        for item: UpcomingItem?,
+        in _: [UpcomingItem],
+        calendar _: Calendar = .current
+    ) -> Bool {
+        guard let item,
+              item.footballMenuBarDisplay != nil
+        else {
+            return false
+        }
+
+        return true
+    }
+
+    nonisolated static func menuBarItemsAreConcurrentEvents(
+        _ left: UpcomingItem,
+        _ right: UpcomingItem,
+        calendar: Calendar = .current
+    ) -> Bool {
+        guard left.kind == .event,
+              right.kind == .event,
+              !left.isAllDay,
+              !right.isAllDay
+        else {
+            return false
+        }
+
+        guard let leftEndDate = left.endDate,
+              let rightEndDate = right.endDate,
+              leftEndDate > left.date,
+              rightEndDate > right.date
+        else {
+            return calendar.isDate(left.date, equalTo: right.date, toGranularity: .minute)
+        }
+
+        return left.date < rightEndDate && right.date < leftEndDate
     }
 
     func isBirthdayItem(_ item: UpcomingItem) -> Bool {

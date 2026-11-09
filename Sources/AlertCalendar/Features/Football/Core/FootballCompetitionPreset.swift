@@ -9,9 +9,9 @@ enum FootballCompetitionCategory: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .clubCompetitions:
-            return "Club Competitions"
+            return L10n.text("Club Competitions")
         case .nationalTeams:
-            return "National Teams"
+            return L10n.text("National Teams")
         }
     }
 }
@@ -27,13 +27,13 @@ enum FootballCompetitionRegion: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .northAmerica:
-            return "North America"
+            return L10n.text("North America")
         case .southAmerica:
-            return "South America"
+            return L10n.text("South America")
         case .europe:
-            return "Europe"
+            return L10n.text("Europe")
         case .global:
-            return "Global"
+            return L10n.text("Global")
         }
     }
 }
@@ -48,7 +48,7 @@ struct FootballCompetitionPreset: Identifiable, Hashable {
 
     var id: String { slug }
 
-    static let suggestionWindowLookbackDays = 45
+    static let suggestionWindowLookbackDays = 90
     static let suggestionWindowLookaheadDays = 90
 
     static var suggestionWindowDescription: String {
@@ -71,9 +71,24 @@ struct FootballCompetitionPreset: Identifiable, Hashable {
         self.region = region
     }
 
+    static let costaRicanPrimeraDivision = club(
+        "crc.1",
+        "Costa Rican Primera Division",
+        region: .northAmerica
+    )
     static let ligaMX = club("mex.1", "Liga MX", region: .northAmerica)
     static let majorLeagueSoccer = club("usa.1", "MLS", region: .northAmerica)
+    static let centralAmericanCup = club(
+        "concacaf.central.american.cup",
+        "Concacaf Central American Cup",
+        region: .northAmerica
+    )
     static let goldCup = national("concacaf.gold", "Concacaf Gold Cup", region: .northAmerica)
+    static let concacafNationsLeague = national(
+        "concacaf.nations.league",
+        "Concacaf Nations League",
+        region: .northAmerica
+    )
     static let brasileiraoSerieA = club("bra.1", "Brasileirao Serie A", region: .southAmerica)
     static let ligaProfesionalArgentina = club("arg.1", "Liga Argentina", region: .southAmerica)
     static let primeraA = club("col.1", "Primera A", region: .southAmerica)
@@ -92,14 +107,18 @@ struct FootballCompetitionPreset: Identifiable, Hashable {
     static let europaLeague = club("uefa.europa", "UEFA Europa League", region: .europe)
     static let superCup = club("uefa.super_cup", "UEFA Super Cup", region: .europe)
     static let europeanChampionship = national("uefa.euro", "UEFA European Championship", region: .europe)
+    static let uefaNationsLeague = national("uefa.nations", "UEFA Nations League", region: .europe)
     static let clubWorldCup = club("fifa.cwc", "FIFA Club World Cup", region: .global)
     static let africaCupOfNations = national("caf.nations", "Africa Cup of Nations", region: .global)
     static let asianCup = national("afc.asian.cup", "AFC Asian Cup", region: .global)
 
     static let menuPresets: [FootballCompetitionPreset] = [
+        .costaRicanPrimeraDivision,
         .ligaMX,
         .majorLeagueSoccer,
+        .centralAmericanCup,
         .goldCup,
+        .concacafNationsLeague,
         .brasileiraoSerieA,
         .ligaProfesionalArgentina,
         .primeraA,
@@ -116,6 +135,7 @@ struct FootballCompetitionPreset: Identifiable, Hashable {
         .europaLeague,
         .superCup,
         .europeanChampionship,
+        .uefaNationsLeague,
         .worldCup,
         .fifaFriendlies,
         .clubWorldCup,

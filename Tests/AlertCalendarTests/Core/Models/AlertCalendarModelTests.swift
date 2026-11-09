@@ -1,4 +1,5 @@
 import AppKit
+import EventKit
 import Foundation
 import XCTest
 @testable import AlertCalendar
@@ -114,6 +115,69 @@ final class AlertCalendarModelTests: XCTestCase {
         )
     }
 
+    func testDeclinedOrCanceledEventsAreExcludedFromCalendarItems() {
+        XCTAssertFalse(
+            CalendarMonitor.shouldIncludeEvent(
+                status: .confirmed,
+                participationStatus: .declined
+            )
+        )
+        XCTAssertFalse(
+            CalendarMonitor.shouldIncludeEvent(
+                status: .canceled,
+                participationStatus: .accepted
+            )
+        )
+        XCTAssertTrue(
+            CalendarMonitor.shouldIncludeEvent(
+                status: .confirmed,
+                participationStatus: .tentative
+            )
+        )
+        XCTAssertTrue(
+            CalendarMonitor.shouldIncludeEvent(
+                status: .tentative,
+                participationStatus: nil
+            )
+        )
+    }
+
+    func testEventParticipationStatusTreatsExternalOrganizerAsPendingInvitation() {
+        XCTAssertEqual(
+            CalendarMonitor.eventParticipationStatus(
+                currentUserParticipantStatus: nil,
+                eventStatus: .tentative,
+                eventAvailability: .tentative,
+                organizerIsCurrentUser: false
+            ),
+            .pending
+        )
+    }
+
+    func testEventParticipationStatusDoesNotTreatCurrentUserEventAsPendingInvitation() {
+        XCTAssertEqual(
+            CalendarMonitor.eventParticipationStatus(
+                currentUserParticipantStatus: nil,
+                eventStatus: .tentative,
+                eventAvailability: .tentative,
+                organizerIsCurrentUser: true
+            ),
+            .tentative
+        )
+    }
+
+    func testEventParticipationStatusPrefersExplicitCurrentUserResponse() {
+        XCTAssertEqual(
+            CalendarMonitor.eventParticipationStatus(
+                currentUserParticipantStatus: .accepted,
+                eventStatus: .tentative,
+                eventAvailability: .tentative,
+                organizerIsCurrentUser: false
+            ),
+            .accepted
+        )
+    }
+
     func testAvailableCalendarEqualityComparesColorAndMetadata() {
         let lhs = AvailableCalendar(
             id: "1",
@@ -190,5 +254,91 @@ final class AlertCalendarModelTests: XCTestCase {
             .declined,
             .pending,
         ])
+    }
+
+    func testMeetingAttendeesNormalizedDeduplicatesMatchingDisplayNamesAcrossAliases() {
+        let attendees = MeetingAttendee.normalized([
+            MeetingAttendee(
+                id: "chad.jackson",
+                displayText: "Chad Jackson",
+                emailAddress: nil,
+                response: .pending
+            ),
+            MeetingAttendee(
+                id: "chad.jackson@getzilker.com",
+                displayText: "chad jackson",
+                emailAddress: "chad.jackson@getzilker.com",
+                response: .accepted
+            ),
+        ])
+
+        XCTAssertEqual(attendees.count, 1)
+        XCTAssertEqual(attendees.first?.displayText, "Chad Jackson")
+        XCTAssertEqual(attendees.first?.emailAddress, "chad.jackson@getzilker.com")
+        XCTAssertEqual(attendees.first?.response, .accepted)
+    }
+
+    func testParticipantMatchingOrganizerUsesEmailAndDisplayText() {
+        XCTAssertTrue(
+            CalendarMonitor.participantMatchesOrganizer(
+                participantEmailAddress: "ARI@example.com",
+                participantDisplayText: "Ari",
+                organizerEmailAddress: "ari@example.com",
+                organizerDisplayText: "Ari"
+            )
+        )
+        XCTAssertTrue(
+            CalendarMonitor.participantMatchesOrganizer(
+                participantEmailAddress: nil,
+                participantDisplayText: "ari@example.com",
+                organizerEmailAddress: "ari@example.com",
+                organizerDisplayText: "Ari"
+            )
+        )
+        XCTAssertTrue(
+            CalendarMonitor.participantMatchesOrganizer(
+                participantEmailAddress: nil,
+                participantDisplayText: "Ari Ramos",
+                organizerEmailAddress: nil,
+                organizerDisplayText: "ari ramos"
+            )
+        )
+        XCTAssertFalse(
+            CalendarMonitor.participantMatchesOrganizer(
+                participantEmailAddress: "sam@example.com",
+                participantDisplayText: "Sam",
+                organizerEmailAddress: "ari@example.com",
+                organizerDisplayText: "Ari"
+            )
+        )
+        XCTAssertFalse(
+            CalendarMonitor.participantMatchesOrganizer(
+                participantEmailAddress: "guest@example.com",
+                participantDisplayText: "Alex Smith",
+                organizerEmailAddress: "organizer@example.com",
+                organizerDisplayText: "Alex Smith"
+            )
+        )
+    }
+
+    func testCurrentUserInviteeIsIncludedUnlessTheyAreTheOrganizer() {
+        XCTAssertTrue(
+            CalendarMonitor.shouldIncludeInvitee(
+                isCurrentUser: true,
+                participantEmailAddress: "me@example.com",
+                participantDisplayText: "Me",
+                organizerEmailAddress: "ari@example.com",
+                organizerDisplayText: "Ari"
+            )
+        )
+        XCTAssertFalse(
+            CalendarMonitor.shouldIncludeInvitee(
+                isCurrentUser: true,
+                participantEmailAddress: "ari@example.com",
+                participantDisplayText: "Ari",
+                organizerEmailAddress: "ari@example.com",
+                organizerDisplayText: "Ari"
+            )
+        )
     }
 }

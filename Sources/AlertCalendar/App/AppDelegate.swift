@@ -1,16 +1,40 @@
 import AppKit
 import UserNotifications
 
+enum SettingsUnsavedChangesChoice {
+    case apply
+    case discard
+    case keepEditing
+}
+
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let settingsWindowIdentifier = NSUserInterfaceItemIdentifier(WindowMetadata.preferencesID)
     private var emojiShortcutMonitor: Any?
+    private weak var settingsWindowCloseGuard: SettingsWindowCloseGuard?
+    private var runtime: AlertCalendarApp?
+    private var isPreparingForTermination = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        SoftwareUpdateController.shared.start()
         UNUserNotificationCenter.current().delegate = self
         NSApp.mainMenu = makeMainMenu()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleLanguageDidChange),
+            name: .alertCalendarLanguageDidChange,
+            object: nil
+        )
         installEmojiShortcutMonitor()
         ensureAccessoryActivationPolicy()
+        runtime = AlertCalendarApp(appDelegate: self)
+        runtime?.start()
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(openSettingsFromMainMenu(_:)),
+            name: .alertCalendarReopenRequested,
+            object: nil
+        )
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleWindowDidBecomeKey(_:)),
@@ -29,7 +53,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         false
     }
 
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        openSettingsFromMainMenu(nil)
+        return false
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if settingsWindowCloseGuard?.hasUnsavedChanges == true {
+            guard resolveUnsavedSettingsChanges(presentUnsavedSettingsAlert()) else { return .terminateCancel }
+        }
+        guard let runtime else { return .terminateNow }
+        guard !isPreparingForTermination else { return .terminateLater }
+        isPreparingForTermination = true
+        Task { @MainActor in
+            await runtime.prepareForTermination()
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
+        runtime?.stop()
         if let emojiShortcutMonitor {
             NSEvent.removeMonitor(emojiShortcutMonitor)
             self.emojiShortcutMonitor = nil
@@ -38,6 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+        DistributedNotificationCenter.default().removeObserver(self)
     }
 
     private func installEmojiShortcutMonitor() {
@@ -68,7 +113,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func handleWindowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
         guard isSettingsWindow(window) else { return }
+        settingsWindowCloseGuard?.clear()
+        settingsWindowCloseGuard = nil
         DispatchQueue.main.async { [weak self] in
+            self?.runtime?.settingsDidClose(window)
             self?.restoreAccessoryActivationPolicyIfNeeded()
         }
     }
@@ -103,16 +151,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
+    @objc
+    func openSettingsFromMainMenu(_ sender: Any?) {
+        if let window = resolvedSettingsWindow(sender: sender) {
+            prepareForSettingsPresentation()
+            configureSettingsWindow(window)
+            window.makeKeyAndOrderFront(nil)
+            window.makeMain()
+            return
+        }
+
+        runtime?.showSettings()
+    }
+
     func restoreAccessoryActivationPolicyIfNeeded() {
         guard !hasVisibleSettingsWindow else { return }
         ensureAccessoryActivationPolicy()
     }
 
     private func ensureAccessoryActivationPolicy() {
+        guard NSApplication.shared.activationPolicy() != .accessory else { return }
         _ = NSApplication.shared.setActivationPolicy(.accessory)
     }
 
     private func ensureRegularActivationPolicy() {
+        guard NSApplication.shared.activationPolicy() != .regular else { return }
         _ = NSApplication.shared.setActivationPolicy(.regular)
     }
 
@@ -137,34 +200,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             ?? NSApp.windows.first(where: isSettingsWindow)
     }
 
+    @objc private func handleLanguageDidChange() {
+        NSApp.mainMenu = makeMainMenu()
+        for window in NSApp.windows where window.identifier == settingsWindowIdentifier {
+            window.title = WindowMetadata.preferencesTitle
+        }
+    }
+
     private func makeMainMenu() -> NSMenu {
         let mainMenu = NSMenu()
 
         let appMenuItem = NSMenuItem()
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "About \(ProcessInfo.processInfo.processName)", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(withTitle: L10n.text("About \(ProcessInfo.processInfo.processName)"), action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         appMenu.addItem(NSMenuItem.separator())
-        appMenu.addItem(withTitle: "Hide \(ProcessInfo.processInfo.processName)", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
-        let hideOthersItem = NSMenuItem(title: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
+        let settingsItem = NSMenuItem(
+            title: L10n.text("Settings…"),
+            action: #selector(openSettingsFromMainMenu(_:)),
+            keyEquivalent: ","
+        )
+        settingsItem.keyEquivalentModifierMask = [.command]
+        settingsItem.target = self
+        appMenu.addItem(settingsItem)
+        appMenu.addItem(NSMenuItem.separator())
+        let checkForUpdatesItem = NSMenuItem(
+            title: L10n.text("Check for Updates…"),
+            action: #selector(SoftwareUpdateController.checkForUpdates(_:)),
+            keyEquivalent: ""
+        )
+        checkForUpdatesItem.target = SoftwareUpdateController.shared
+        appMenu.addItem(checkForUpdatesItem)
+        appMenu.addItem(NSMenuItem.separator())
+        appMenu.addItem(withTitle: L10n.text("Hide \(ProcessInfo.processInfo.processName)"), action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        let hideOthersItem = NSMenuItem(title: L10n.text("Hide Others"), action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
         hideOthersItem.keyEquivalentModifierMask = [.command, .option]
         appMenu.addItem(hideOthersItem)
-        appMenu.addItem(withTitle: "Show All", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
+        appMenu.addItem(withTitle: L10n.text("Show All"), action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
         appMenu.addItem(NSMenuItem.separator())
-        appMenu.addItem(withTitle: "Quit \(ProcessInfo.processInfo.processName)", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: L10n.text("Quit \(ProcessInfo.processInfo.processName)"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appMenuItem.submenu = appMenu
         mainMenu.addItem(appMenuItem)
 
         let editMenuItem = NSMenuItem()
-        let editMenu = NSMenu(title: "Edit")
-        editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
-        editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
-        editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        let editMenu = NSMenu(title: L10n.text("Edit"))
+        editMenu.addItem(withTitle: L10n.text("Cut"), action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: L10n.text("Copy"), action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: L10n.text("Paste"), action: #selector(NSText.paste(_:)), keyEquivalent: "v")
         editMenu.addItem(NSMenuItem.separator())
-        editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editMenu.addItem(withTitle: L10n.text("Select All"), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         editMenu.addItem(NSMenuItem.separator())
 
         let emojiItem = NSMenuItem(
-            title: "Emoji & Symbols",
+            title: L10n.text("Emoji & Symbols"),
             action: #selector(NSApplication.orderFrontCharacterPalette(_:)),
             keyEquivalent: "e"
         )
@@ -175,8 +262,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         mainMenu.addItem(editMenuItem)
 
         let viewMenuItem = NSMenuItem()
-        let viewMenu = NSMenu(title: "View")
-        let toggleFullScreenItem = NSMenuItem(title: "Toggle Full Screen", action: #selector(toggleSettingsFullScreen(_:)), keyEquivalent: "f")
+        let viewMenu = NSMenu(title: L10n.text("View"))
+        let toggleFullScreenItem = NSMenuItem(title: L10n.text("Toggle Full Screen"), action: #selector(toggleSettingsFullScreen(_:)), keyEquivalent: "f")
         toggleFullScreenItem.keyEquivalentModifierMask = [.control, .command]
         toggleFullScreenItem.target = self
         viewMenu.addItem(toggleFullScreenItem)
@@ -186,14 +273,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         return mainMenu
     }
 
-    func configureSettingsWindow(_ window: NSWindow) {
+    func configureSettingsWindow(_ window: NSWindow, closeGuard: SettingsWindowCloseGuard? = nil) {
+        if let closeGuard {
+            settingsWindowCloseGuard = closeGuard
+        }
         window.identifier = settingsWindowIdentifier
         window.delegate = self
         window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable])
         window.collectionBehavior.remove(.fullScreenNone)
         window.collectionBehavior.insert([.fullScreenPrimary, .fullScreenAllowsTiling])
         window.tabbingMode = .disallowed
-        window.minSize = NSSize(width: 760, height: 720)
+        let minimumSettingsSize = NSSize(width: 980, height: 720)
+        window.minSize = minimumSettingsSize
+        if window.frame.width < minimumSettingsSize.width || window.frame.height < minimumSettingsSize.height {
+            window.setContentSize(
+                NSSize(
+                    width: max(window.frame.width, minimumSettingsSize.width),
+                    height: max(window.frame.height, minimumSettingsSize.height)
+                )
+            )
+        }
         window.setFrameAutosaveName(WindowMetadata.preferencesID)
         window.titleVisibility = .visible
         if let zoomButton = window.standardWindowButton(.zoomButton) {
@@ -204,9 +303,75 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         window.level = .normal
     }
+
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        guard isSettingsWindow(sender),
+              let closeGuard = settingsWindowCloseGuard,
+              closeGuard.hasUnsavedChanges else {
+            return true
+        }
+
+        return resolveUnsavedSettingsChanges(presentUnsavedSettingsAlert())
+    }
+
+    func resolveUnsavedSettingsChanges(_ choice: SettingsUnsavedChangesChoice) -> Bool {
+        guard let closeGuard = settingsWindowCloseGuard,
+              closeGuard.hasUnsavedChanges else {
+            return true
+        }
+
+        switch choice {
+        case .apply:
+            guard let applyChanges = closeGuard.applyChanges else { return false }
+            applyChanges()
+            closeGuard.hasUnsavedChanges = false
+            return true
+        case .discard:
+            guard let discardChanges = closeGuard.discardChanges else { return false }
+            discardChanges()
+            closeGuard.hasUnsavedChanges = false
+            return true
+        case .keepEditing:
+            return false
+        }
+    }
+
+    private func presentUnsavedSettingsAlert() -> SettingsUnsavedChangesChoice {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = L10n.text("Apply changes before leaving Settings?")
+        alert.informativeText = L10n.text("Configuration changes are staged until you apply them. You can apply them now, discard them, or keep editing.")
+        alert.addButton(withTitle: L10n.text("Apply Changes"))
+        alert.addButton(withTitle: L10n.text("Discard Changes"))
+        alert.addButton(withTitle: L10n.text("Keep Editing"))
+
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            return .apply
+        case .alertSecondButtonReturn:
+            return .discard
+        default:
+            return .keepEditing
+        }
+    }
 }
 
 extension AppDelegate: UNUserNotificationCenterDelegate {
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        if response.notification.request.identifier == CalendarMonitor.dataRefreshNotificationID,
+           response.actionIdentifier == UNNotificationDefaultActionIdentifier {
+            Task { @MainActor [weak self] in
+                UserDefaults.standard.set(SettingsView.SettingsTab.access.rawValue, forKey: SettingsNavigationPersistence.selectedTabKey)
+                self?.openSettingsFromMainMenu(nil)
+            }
+        }
+        completionHandler()
+    }
+
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,

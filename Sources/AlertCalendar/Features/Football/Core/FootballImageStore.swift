@@ -7,59 +7,173 @@ import UniformTypeIdentifiers
 actor FootballImageStore {
     private let fileManager: FileManager
     private let session: URLSession
+    private let transport: HTTPServiceTransport
     private let baseDirectoryURL: URL
+    private var failedRequestDates = AlertCalendarLRUCache<String, Date>(capacity: 256)
+    private var resolvedFiles = AlertCalendarLRUCache<String, (url: URL, modifiedAt: Date?)>(capacity: 512)
+    private var normalizedFilePaths: Set<String> = []
+    private var hasEnsuredDirectory = false
+    private var lastCleanupDate: Date?
+    private var requests: [String: Task<URL?, Never>] = [:]
     private static let requestTimeout: TimeInterval = 6
     private static let resourceTimeout: TimeInterval = 12
+    private static let failedRequestRetryInterval: TimeInterval = 30 * 60
+    private static let cleanupInterval: TimeInterval = 24 * 60 * 60
+    private static let cachedImageRetentionInterval: TimeInterval = 90 * 24 * 60 * 60
 
-    init(fileManager: FileManager = .default, session: URLSession? = nil) {
+    init(fileManager: FileManager = .default, session: URLSession? = nil, baseDirectoryURL: URL? = nil) {
         self.fileManager = fileManager
 
         if let session {
             self.session = session
+            self.transport = HTTPServiceTransport(session: session)
         } else {
             let configuration = URLSessionConfiguration.default
             configuration.timeoutIntervalForRequest = Self.requestTimeout
             configuration.timeoutIntervalForResource = Self.resourceTimeout
             configuration.waitsForConnectivity = false
             configuration.httpMaximumConnectionsPerHost = 8
-            self.session = URLSession(configuration: configuration)
+            let resolvedSession = URLSession(configuration: configuration)
+            self.session = resolvedSession
+            self.transport = HTTPServiceTransport(session: resolvedSession)
         }
 
         let applicationSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? fileManager.temporaryDirectory
-        self.baseDirectoryURL = applicationSupportURL
+        self.baseDirectoryURL = baseDirectoryURL ?? applicationSupportURL
             .appendingPathComponent("AlertCalendar", isDirectory: true)
             .appendingPathComponent("football-images", isDirectory: true)
     }
 
     func localFileURL(for remoteURL: URL?) async -> URL? {
         guard let remoteURL else { return nil }
-        ensureDirectoryExists(at: baseDirectoryURL)
+        let key = remoteURL.absoluteString
+        if let task = requests[key] {
+            await ExternalFeedMetrics.shared.recordCoalescedRequest(source: "football.images")
+            return await task.value
+        }
+        let task = Task { await self.resolveFileURL(for: remoteURL) }
+        requests[key] = task
+        defer { requests[key] = nil }
+        return await task.value
+    }
+
+    private func resolveFileURL(for remoteURL: URL) async -> URL? {
+        if !hasEnsuredDirectory {
+            ensureDirectoryExists(at: baseDirectoryURL)
+            hasEnsuredDirectory = true
+        }
+        let now = Date()
+        await ExternalFeedMetrics.shared.recordCheck(source: "football.images", at: now)
+        cleanupCachedImagesIfNeeded(now: now)
+
+        let requestKey = remoteURL.absoluteString
+        if let cached = resolvedFiles.value(forKey: requestKey), fileManager.fileExists(atPath: cached.url.path) {
+            await ExternalFeedMetrics.shared.recordCacheHit(
+                source: "football.images",
+                dataDate: cached.modifiedAt,
+                at: now
+            )
+            return cached.url
+        }
 
         let fileExtension = normalizedFileExtension(from: remoteURL)
         let fileName = "\(hashed(remoteURL.absoluteString)).\(fileExtension)"
         let destinationURL = baseDirectoryURL.appendingPathComponent(fileName)
 
         if fileManager.fileExists(atPath: destinationURL.path) {
-            normalizeExistingImageIfNeeded(at: destinationURL, remoteURL: remoteURL)
+            let modifiedAt = try? destinationURL.resourceValues(
+                forKeys: [.contentModificationDateKey]
+            ).contentModificationDate
+            await ExternalFeedMetrics.shared.recordCacheHit(
+                source: "football.images",
+                dataDate: modifiedAt,
+                at: now
+            )
+            if normalizedFilePaths.insert(destinationURL.path).inserted {
+                normalizeExistingImageIfNeeded(at: destinationURL, remoteURL: remoteURL)
+            }
+            resolvedFiles.insert((destinationURL, modifiedAt), forKey: requestKey)
             return destinationURL
         }
 
+        if let failedAt = failedRequestDates.value(forKey: requestKey),
+           now.timeIntervalSince(failedAt) < Self.failedRequestRetryInterval {
+            await ExternalFeedMetrics.shared.recordCacheHit(source: "football.images.negative")
+            return nil
+        }
+
+        let requestStartedAt = Date()
         do {
             var request = URLRequest(url: remoteURL)
             request.timeoutInterval = Self.requestTimeout
-            let (data, response) = try await session.data(for: request)
-            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode), !data.isEmpty else {
+            let (data, response) = try await transport.data(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                failedRequestDates.insert(now, forKey: requestKey)
+                await ExternalFeedMetrics.shared.recordTransportFailure(
+                    source: "football.images",
+                    duration: Date().timeIntervalSince(requestStartedAt)
+                )
+                return nil
+            }
+            await ExternalFeedMetrics.shared.recordNetworkResponse(
+                source: "football.images",
+                statusCode: http.statusCode,
+                responseBytes: data.count,
+                duration: Date().timeIntervalSince(requestStartedAt)
+            )
+            guard (200...299).contains(http.statusCode), !data.isEmpty else {
+                failedRequestDates.insert(now, forKey: requestKey)
                 return nil
             }
 
-            let imageData = Self.shouldRemoveCornerBackground(for: remoteURL)
-                ? Self.imageDataByRemovingCornerBackground(from: data) ?? data
-                : data
+            guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+                  CGImageSourceGetCount(source) > 0 else {
+                failedRequestDates.insert(now, forKey: requestKey)
+                return nil
+            }
+
+            let imageData = Self.normalizedImageData(from: data, remoteURL: remoteURL)
             try imageData.write(to: destinationURL, options: [.atomic])
+            failedRequestDates.removeValue(forKey: requestKey)
+            normalizedFilePaths.insert(destinationURL.path)
+            resolvedFiles.insert((destinationURL, now), forKey: requestKey)
+            await ExternalFeedMetrics.shared.recordValidatedData(source: "football.images", at: now)
             return destinationURL
         } catch {
+            if error is CancellationError || (error as? URLError)?.code == .cancelled || error is HTTPServiceRetryError { return nil }
+            failedRequestDates.insert(now, forKey: requestKey)
+            await ExternalFeedMetrics.shared.recordTransportFailure(
+                source: "football.images",
+                duration: Date().timeIntervalSince(requestStartedAt)
+            )
             return nil
+        }
+    }
+
+    private func cleanupCachedImagesIfNeeded(now: Date) {
+        if let lastCleanupDate,
+           now.timeIntervalSince(lastCleanupDate) < Self.cleanupInterval {
+            return
+        }
+        lastCleanupDate = now
+        resolvedFiles.removeAll(keepingCapacity: true)
+        normalizedFilePaths.removeAll(keepingCapacity: true)
+        guard let files = try? fileManager.contentsOfDirectory(
+            at: baseDirectoryURL,
+            includingPropertiesForKeys: [.contentModificationDateKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return
+        }
+
+        for fileURL in files {
+            guard let values = try? fileURL.resourceValues(forKeys: [.contentModificationDateKey]),
+                  let modifiedAt = values.contentModificationDate,
+                  now.timeIntervalSince(modifiedAt) > Self.cachedImageRetentionInterval else {
+                continue
+            }
+            try? fileManager.removeItem(at: fileURL)
         }
     }
 
@@ -74,14 +188,112 @@ actor FootballImageStore {
     }
 
     private func normalizeExistingImageIfNeeded(at url: URL, remoteURL: URL) {
-        guard Self.shouldRemoveCornerBackground(for: remoteURL),
-              let data = try? Data(contentsOf: url),
-              let imageData = Self.imageDataByRemovingCornerBackground(from: data),
-              imageData != data else {
+        guard Self.shouldNormalizeImage(for: remoteURL),
+              let data = try? Data(contentsOf: url) else {
+            return
+        }
+
+        let imageData = Self.normalizedImageData(from: data, remoteURL: remoteURL)
+        guard imageData != data else {
             return
         }
 
         try? imageData.write(to: url, options: [.atomic])
+    }
+
+    nonisolated static func shouldNormalizeImage(for remoteURL: URL) -> Bool {
+        shouldRemoveCornerBackground(for: remoteURL)
+            || shouldCropTransparentPadding(for: remoteURL)
+    }
+
+    nonisolated static func normalizedImageData(from data: Data, remoteURL: URL) -> Data {
+        if Self.shouldRemoveCornerBackground(for: remoteURL),
+           let imageData = Self.imageDataByRemovingCornerBackground(from: data) {
+            return imageData
+        }
+
+        if Self.shouldCropTransparentPadding(for: remoteURL),
+           let imageData = Self.imageDataByCroppingTransparentPadding(from: data) {
+            return imageData
+        }
+
+        return data
+    }
+
+    nonisolated static func shouldCropTransparentPadding(for remoteURL: URL) -> Bool {
+        remoteURL.host?.caseInsensitiveCompare("a.espncdn.com") == .orderedSame
+            && remoteURL.path.contains("/i/teamlogos/countries/500/")
+    }
+
+    nonisolated static func imageDataByCroppingTransparentPadding(from data: Data) -> Data? {
+        guard let imageSource = CGImageSourceCreateWithData(data as CFData, nil),
+              let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil),
+              let cropRect = transparentPaddingCropRect(for: cgImage),
+              let croppedImage = cgImage.cropping(to: cropRect) else {
+            return nil
+        }
+
+        guard cropRect.width < CGFloat(cgImage.width) || cropRect.height < CGFloat(cgImage.height) else {
+            return nil
+        }
+
+        return pngData(from: croppedImage)
+    }
+
+    private nonisolated static func transparentPaddingCropRect(for cgImage: CGImage) -> CGRect? {
+        let width = cgImage.width
+        let height = cgImage.height
+        guard width > 1, height > 1 else { return nil }
+
+        let bytesPerPixel = 4
+        let bytesPerRow = width * bytesPerPixel
+        var pixels = [UInt8](repeating: 0, count: height * bytesPerRow)
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let bitmapInfo = CGBitmapInfo.byteOrder32Big.rawValue
+            | CGImageAlphaInfo.premultipliedLast.rawValue
+
+        let didDraw = pixels.withUnsafeMutableBytes { buffer in
+            guard let baseAddress = buffer.baseAddress,
+                  let context = CGContext(
+                    data: baseAddress,
+                    width: width,
+                    height: height,
+                    bitsPerComponent: 8,
+                    bytesPerRow: bytesPerRow,
+                    space: colorSpace,
+                    bitmapInfo: bitmapInfo
+                  ) else {
+                return false
+            }
+
+            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+            return true
+        }
+        guard didDraw else { return nil }
+
+        var minX = width
+        var minY = height
+        var maxX = -1
+        var maxY = -1
+
+        for y in 0..<height {
+            for x in 0..<width {
+                let alpha = pixels[((y * width) + x) * bytesPerPixel + 3]
+                guard alpha > 16 else { continue }
+                minX = min(minX, x)
+                minY = min(minY, y)
+                maxX = max(maxX, x)
+                maxY = max(maxY, y)
+            }
+        }
+
+        guard maxX >= minX, maxY >= minY else { return nil }
+        return CGRect(
+            x: minX,
+            y: minY,
+            width: maxX - minX + 1,
+            height: maxY - minY + 1
+        )
     }
 
     nonisolated static func shouldRemoveCornerBackground(for remoteURL: URL) -> Bool {

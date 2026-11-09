@@ -6,337 +6,118 @@ import EventKit
 import SwiftUI
 
 struct SettingsView: View {
-    enum SettingsTab: String, CaseIterable, Identifiable {
-        case general = "General"
-        case feeds = "Feeds"
-        case calendars = "Calendars & Reminders"
-        case permissions = "Permissions"
-
-        var id: String { rawValue }
-
-        var symbolName: String {
-            switch self {
-            case .general:
-                return "slider.horizontal.3"
-            case .feeds:
-                return "sun.max"
-            case .calendars:
-                return "calendar"
-            case .permissions:
-                return "lock.shield"
-            }
-        }
-    }
-
-    enum FeedsSubsection: String, CaseIterable, Identifiable {
-        case atmosphere = "Astronomy"
-        case football = "Football"
-
-        var id: String { rawValue }
-
-        var title: String {
-            switch self {
-            case .atmosphere:
-                return "Sun, Moon & Orbit"
-            case .football:
-                return "Football Fixtures"
-            }
-        }
-    }
-
-    enum SettingsPermissionKind: String, CaseIterable, Identifiable, Hashable {
-        case events
-        case reminders
-        case location
-        case contacts
-
-        var id: String { rawValue }
-
-        var title: String {
-            switch self {
-            case .events:
-                return "Calendar Events"
-            case .reminders:
-                return "Reminders"
-            case .location:
-                return "Location"
-            case .contacts:
-                return "Contacts"
-            }
-        }
-
-        var summary: String {
-            switch self {
-            case .events:
-                return "Read events and reveal football fixtures in Calendar."
-            case .reminders:
-                return "Load reminder due dates and completion status."
-            case .location:
-                return "Use automatic coordinates for sunrise, sunset, and daylight previews."
-            case .contacts:
-                return "Match organizers and invitees with Contacts to show names and photos in meeting previews."
-            }
-        }
-
-        var fallbackSymbolName: String {
-            switch self {
-            case .events:
-                return "calendar.badge.clock"
-            case .reminders:
-                return "checklist.checked"
-            case .location:
-                return "location.circle"
-            case .contacts:
-                return "person.crop.circle"
-            }
-        }
-
-        var appIconPath: String {
-            switch self {
-            case .events:
-                return "/System/Applications/Calendar.app"
-            case .reminders:
-                return "/System/Applications/Reminders.app"
-            case .location:
-                return "/System/Applications/Maps.app"
-            case .contacts:
-                return "/System/Applications/Contacts.app"
-            }
-        }
-
-        var accentGradient: LinearGradient {
-            switch self {
-            case .events:
-                return LinearGradient(
-                    colors: [Color(red: 0.24, green: 0.59, blue: 0.97), Color(red: 0.30, green: 0.78, blue: 0.98)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            case .reminders:
-                return LinearGradient(
-                    colors: [Color(red: 0.36, green: 0.77, blue: 0.35), Color(red: 0.66, green: 0.87, blue: 0.34)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            case .location:
-                return LinearGradient(
-                    colors: [Color(red: 1.0, green: 0.52, blue: 0.27), Color(red: 0.99, green: 0.76, blue: 0.31)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            case .contacts:
-                return LinearGradient(
-                    colors: [Color(red: 0.43, green: 0.58, blue: 0.98), Color(red: 0.42, green: 0.81, blue: 0.92)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            }
-        }
-
-        var privacySettingsDeepLink: String {
-            switch self {
-            case .events:
-                return "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars"
-            case .reminders:
-                return "x-apple.systempreferences:com.apple.preference.security?Privacy_Reminders"
-            case .location:
-                return "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices"
-            case .contacts:
-                return "x-apple.systempreferences:com.apple.preference.security?Privacy_Contacts"
-            }
-        }
-
-        static func currentLocationAuthorizationStatus() -> CLAuthorizationStatus {
-            guard CLLocationManager.locationServicesEnabled() else { return .restricted }
-            return CLLocationManager().authorizationStatus
-        }
-
-        static func currentContactsAuthorizationStatus() -> CNAuthorizationStatus {
-            CNContactStore.authorizationStatus(for: .contacts)
-        }
-    }
-
-    enum SettingsIntegrationKind: String, CaseIterable, Identifiable {
-        case slackStatusSync
-
-        var id: String { rawValue }
-
-        var title: String {
-            switch self {
-            case .slackStatusSync:
-                return "Slack Status Sync"
-            }
-        }
-
-        var summary: String {
-            switch self {
-            case .slackStatusSync:
-                return "Update Slack with a customizable status while a selected calendar event is in progress."
-            }
-        }
-
-        var fallbackSymbolName: String {
-            switch self {
-            case .slackStatusSync:
-                return "message.badge.waveform"
-            }
-        }
-
-        var appIconPath: String {
-            switch self {
-            case .slackStatusSync:
-                return "/Applications/Slack.app"
-            }
-        }
-
-        var accentGradient: LinearGradient {
-            switch self {
-            case .slackStatusSync:
-                return LinearGradient(
-                    colors: [Color(red: 0.26, green: 0.76, blue: 0.52), Color(red: 0.91, green: 0.23, blue: 0.47)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            }
-        }
-    }
-
-    enum SettingsActionCardKind: Identifiable, Hashable {
-        case permission(SettingsPermissionKind)
-
-        var id: String {
-            switch self {
-            case let .permission(permission):
-                return "permission:\(permission.id)"
-            }
-        }
-    }
-
     let monitor: CalendarMonitor
+    var runsLiveServices = true
 
+    @StateObject var settingsWindowCloseGuard = SettingsWindowCloseGuard()
+    @StateObject var softwareUpdateController = SoftwareUpdateController.shared
     @State var draft = SettingsDraft.empty
+    @State var pendingChanges = SettingsPendingChanges()
+    @State var isApplyingChanges = false
     @State var didLoad = false
-    @State var selectedTab: SettingsTab = .general
-    @State var selectedFeedsSubsection: FeedsSubsection = .atmosphere
+    @AppStorage(SettingsNavigationPersistence.selectedTabKey)
+    var selectedTab: SettingsTab = .general
+    @AppStorage(SettingsNavigationPersistence.selectedFeedsSubsectionKey)
+    var selectedFeedsSubsection: FeedsSubsection = .atmosphere
+    @State var settingsSearchQuery = ""
     @State var activePermissionRequests: Set<SettingsPermissionKind> = []
+    @State var permissionActionMessages: [SettingsPermissionKind: String] = [:]
     @State var hasEventsAccess = false
     @State var hasRemindersAccess = false
     @State var availableEventCalendars: [AvailableCalendar] = []
     @State var availableReminderCalendars: [AvailableCalendar] = []
-    @State var calendarAccessDescription = "Requesting access..."
-    @State var astronomyLocationStatus = "Manual coordinates"
-    @State var locationAuthorizationStatus = SettingsPermissionKind.currentLocationAuthorizationStatus()
-    @State var contactsAuthorizationStatus = SettingsPermissionKind.currentContactsAuthorizationStatus()
+    @State var calendarAccessDescription = L10n.text("Requesting access...")
+    @State var calendarAlertRuleStatusDescription: String?
+    @State var astronomyLocationStatus = L10n.text("Manual coordinates")
+    @State var eventAuthorizationStatus: EKAuthorizationStatus = .notDetermined
+    @State var reminderAuthorizationStatus: EKAuthorizationStatus = .notDetermined
+    @State var locationAuthorizationStatus: CLAuthorizationStatus = .notDetermined
+    @State var contactsAuthorizationStatus: CNAuthorizationStatus = .notDetermined
+    @State var mailAutomationAuthorizationStatus: AppleMailAutomationAuthorizationStatus = .notDetermined
     @State var lastRefreshDate: Date?
+    @State var lastGameSalesRefreshDate: Date?
+    @State var googleHolidayLastRefreshDate: Date?
+    @State var lastFootballRefreshDate: Date?
+    @State var lastAstronomyLocationRefreshDate: Date?
+    @State var lastSlackStatusSyncDate: Date?
     @State var refreshDiagnostics = CalendarMonitorRefreshDiagnostics()
+    @State var isManualSettingsRefreshInProgress = false
+    @State var externalFeedDiagnostics = ExternalFeedDiagnostics()
+    @State var dataRefreshIssues: [DataRefreshIssue] = []
     @State var isShowingPermissionDiagnostics = false
-    @State var compactActionRowCounts: [Int] = [4]
     @State var slackUserTokenDraft = ""
+    @State var musicEmojiCandidate = ""
     @State var slackConnections: [SlackConnection] = []
     @State var slackConnectErrorMessage: String?
     @State var slackConnectionStatusMessage: String?
     @State var slackRuntimeStatusDescription: String?
+    @State var agendaSummaryAvailability = AgendaSummaryAvailability.unsupportedSystem
+    @State var agendaSummaryGenerationErrorDescription: String?
     @State var isRefreshingSlackConnectionMetadata = false
     @State var didAttemptSlackConnectionMetadataRefresh = false
-    @State var installedMeetingBrowsers: [MeetingBrowserKind] = MeetingBrowserCatalog.installedBrowsers()
-    @State var meetingBrowserProfilesByBrowser: [MeetingBrowserKind: [MeetingBrowserProfileOption]] = MeetingBrowserProfileStore.profilesByBrowser(
-        for: MeetingBrowserCatalog.installedBrowsers()
-    )
-    @State var settingsWindowWidth: CGFloat = 1040
+    @State var draggingSlackStatusRuleID: String?
+    @State var draggingMusicEmojiIndex: Int?
+    @State var isShowingSlackConnectionManagement = false
+    @State var slackStatusRulesColumnWidth: CGFloat = 0
+    @State var installedMeetingBrowsers: [MeetingBrowserKind] = []
+    @State var meetingBrowserProfileCatalog = MeetingBrowserProfileCatalog(profilesByBrowser: [:], issuesByBrowser: [:])
+    @State var browserProfileAuthorizationErrorMessage: String?
+    @State var settingsWindowWidth: CGFloat = 976
+    @State var settingsColumnVisibility: NavigationSplitViewVisibility = .all
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .center, spacing: 16) {
-                Picker("Settings section", selection: $selectedTab) {
-                    ForEach(SettingsTab.allCases) { tab in
-                        Label(tab.rawValue, systemImage: tab.symbolName)
-                            .tag(tab)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 420, alignment: .leading)
-
-                if selectedTab == .feeds {
-                    Spacer(minLength: 0)
-
-                    Picker("Feeds subsection", selection: $selectedFeedsSubsection) {
-                        ForEach(FeedsSubsection.allCases) { subsection in
-                            Text(subsection.rawValue).tag(subsection)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
-                    .frame(width: 240)
-                }
-            }
-            .padding(.bottom, 2)
-
-            Group {
-                if selectedTab == .feeds, selectedFeedsSubsection == .football {
-                    activeSettingsContent
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                } else {
-                    ScrollView(.vertical, showsIndicators: true) {
-                        LazyVStack(alignment: .leading, spacing: 16) {
-                            activeSettingsContent
-                        }
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                }
-            }
-
-            HStack {
-                Button("Cancel") {
-                    resetDraft()
-                }
-                .disabled(!hasUnsavedChanges)
-
-                Button("Apply") {
-                    applyDraft()
-                }
-                .keyboardShortcut(.defaultAction)
-                .buttonStyle(.borderedProminent)
-                .disabled(!hasUnsavedChanges)
-
-                Spacer()
-
-                Button("Refresh now") {
-                    monitor.refreshNow(reason: .manual)
-                }
-            }
+        GeometryReader { proxy in
+            settingsNavigationLayout
+                .frame(width: proxy.size.width, height: proxy.size.height)
         }
+        .disabled(isApplyingChanges)
+        .environment(\.controlSize, .regular)
         .contentShape(Rectangle())
         .simultaneousGesture(
             TapGesture().onEnded {
                 activateSettingsWindowIfNeeded()
             }
         )
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(20)
-        .background(Color(nsColor: .windowBackgroundColor))
         .background(
             SettingsWindowAccessor(
                 onResolve: { window in
                     guard let appDelegate = NSApp.delegate as? AppDelegate else { return }
                     appDelegate.prepareForSettingsPresentation()
-                    appDelegate.configureSettingsWindow(window)
-                },
-                onResize: { width in
-                    settingsWindowWidth = width
-                    updatePermissionButtonsLayout(windowWidth: width)
+                    appDelegate.configureSettingsWindow(window, closeGuard: settingsWindowCloseGuard)
                 }
             )
         )
-        .frame(minWidth: 760, idealWidth: 1040, minHeight: 720, idealHeight: 820)
+        .frame(
+            minWidth: 980,
+            idealWidth: 1240,
+            maxWidth: .infinity,
+            minHeight: 720,
+            idealHeight: 840,
+            maxHeight: .infinity
+        )
         .onAppear {
+            guard runsLiveServices else {
+                synchronizeSettingsStateFromMonitor()
+                synchronizeDraftWithStoredSettings(force: true)
+                didLoad = true
+                return
+            }
             activateSettingsWindowIfNeeded()
+            monitor.refreshAgendaSummaryAvailability()
+            agendaSummaryAvailability = monitor.agendaSummaryAvailability
+            agendaSummaryGenerationErrorDescription = monitor.agendaSummaryGenerationErrorDescription
             monitor.refreshAvailableCalendars()
-            synchronizeSettingsStateFromMonitor()
+            synchronizeSettingsStateFromMonitor(refreshBrowserProfiles: true)
             synchronizeDraftWithStoredSettings(force: true)
             didLoad = true
+            configureSettingsWindowCloseGuard()
             refreshSlackConnectionMetadataIfNeeded()
+        }
+        .onDisappear {
+            settingsWindowCloseGuard.clear()
+        }
+        .onChange(of: hasUnsavedChanges) { hasChanges in
+            settingsWindowCloseGuard.hasUnsavedChanges = hasChanges
         }
         .onReceive(monitor.$hasEventsAccess.removeDuplicates()) { value in
             hasEventsAccess = value
@@ -353,26 +134,66 @@ struct SettingsView: View {
         .onReceive(monitor.$calendarAccessDescription.removeDuplicates()) { description in
             calendarAccessDescription = description
         }
+        .onReceive(monitor.$calendarAlertRuleStatusDescription.removeDuplicates()) { description in
+            calendarAlertRuleStatusDescription = description
+        }
         .onReceive(monitor.$slackRuntimeStatusDescription.removeDuplicates()) { description in
             slackRuntimeStatusDescription = description
+        }
+        .onReceive(monitor.$agendaSummaryAvailability.removeDuplicates()) { availability in
+            agendaSummaryAvailability = availability
+        }
+        .onReceive(monitor.$agendaSummaryGenerationErrorDescription.removeDuplicates()) { description in
+            agendaSummaryGenerationErrorDescription = description
         }
         .onReceive(monitor.$astronomyLocationStatus.removeDuplicates()) { status in
             astronomyLocationStatus = status
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            guard runsLiveServices else { return }
+            monitor.refreshAgendaSummaryAvailability()
+            eventAuthorizationStatus = SettingsPermissionKind.currentEventAuthorizationStatus()
+            reminderAuthorizationStatus = SettingsPermissionKind.currentReminderAuthorizationStatus()
             locationAuthorizationStatus = SettingsPermissionKind.currentLocationAuthorizationStatus()
             contactsAuthorizationStatus = SettingsPermissionKind.currentContactsAuthorizationStatus()
+            refreshMailAutomationStatus(forceRefresh: true)
+            refreshMeetingBrowserProfiles()
         }
         .onReceive(monitor.$lastRefreshDate.removeDuplicates()) { date in
             lastRefreshDate = date
         }
+        .onReceive(monitor.$lastGameSalesRefreshDate.removeDuplicates()) { date in
+            lastGameSalesRefreshDate = date
+        }
+        .onReceive(monitor.$googleHolidayLastRefreshDate.removeDuplicates()) { date in
+            googleHolidayLastRefreshDate = date
+        }
+        .onReceive(monitor.$lastFootballRefreshDate.removeDuplicates()) { date in
+            lastFootballRefreshDate = date
+        }
+        .onReceive(monitor.$lastAstronomyLocationRefreshDate.removeDuplicates()) { date in
+            lastAstronomyLocationRefreshDate = date
+        }
+        .onReceive(monitor.$lastSlackStatusSyncDate.removeDuplicates()) { date in
+            lastSlackStatusSyncDate = date
+        }
         .onReceive(monitor.$refreshDiagnostics.removeDuplicates()) { diagnostics in
             refreshDiagnostics = diagnostics
+        }
+        .onReceive(monitor.$externalFeedDiagnostics.removeDuplicates()) { diagnostics in
+            externalFeedDiagnostics = diagnostics
+        }
+        .onReceive(monitor.$dataRefreshIssues.removeDuplicates()) { issues in
+            dataRefreshIssues = issues
         }
         .onReceive(monitor.$slackConnectionStatusMessage.removeDuplicates()) { message in
             slackConnectionStatusMessage = message
         }
-        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in
+        .onReceive(
+            NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+                .debounce(for: .milliseconds(150), scheduler: RunLoop.main)
+        ) { _ in
+            guard runsLiveServices else { return }
             synchronizeSettingsStateFromMonitor()
             synchronizeDraftWithStoredSettings()
         }
@@ -404,6 +225,10 @@ struct SettingsView: View {
             if normalizedMenuBarMinutes != draft.menuBarRotationWindowMinutes {
                 draft.menuBarRotationWindowMinutes = normalizedMenuBarMinutes
             }
+        }
+        .onPreferenceChange(SettingsDetailWidthPreferenceKey.self) { width in
+            guard width > 0 else { return }
+            settingsWindowWidth = width
         }
     }
 }

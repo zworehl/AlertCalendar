@@ -1,67 +1,86 @@
+import AppKit
 import SwiftUI
 
-@main
-struct AlertCalendarApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @StateObject private var monitor = CalendarMonitor()
+/// AppKit owns window presentation; SwiftUI owns the content of those windows.
+@MainActor
+final class AlertCalendarApp {
+    private let monitor = CalendarMonitor()
+    private weak var appDelegate: AppDelegate?
+    private var menuBar: MenuBarController?
+    private var settingsWindow: NSWindow?
 
-    init() {
+    init(appDelegate: AppDelegate) {
+        self.appDelegate = appDelegate
         NSWindow.allowsAutomaticWindowTabbing = false
     }
 
-    private func resolvedSettingsWindow() -> NSWindow? {
-        let settingsIdentifier = NSUserInterfaceItemIdentifier(WindowMetadata.preferencesID)
-        let candidateWindows: [NSWindow?] = [NSApp.keyWindow, NSApp.mainWindow]
-
-        for candidate in candidateWindows {
-            guard let window = candidate else { continue }
-            if window.identifier == settingsIdentifier || window.title == WindowMetadata.preferencesTitle {
-                return window
+    func start() {
+        guard menuBar == nil else { return }
+        let menuBar = MenuBarController(presentation: monitor.menuBarPresentationModel)
+        self.menuBar = menuBar
+        let actions = MenuDropdownActions(
+            dismiss: { [weak menuBar] in menuBar?.dismiss() },
+            openSettings: { [weak self] in self?.showSettings() }
+        )
+        menuBar.setContent(AnyView(
+            LocalizedAppContent { [monitor] in
+                MenuContentView(kindFilter: nil, headerTitle: "Alert Calendar")
+                    .environmentObject(monitor)
+                    .environment(\.menuDropdownActions, actions)
             }
-        }
-
-        return NSApp.windows.first { window in
-            window.identifier == settingsIdentifier || window.title == WindowMetadata.preferencesTitle
-        }
+        ))
     }
 
-    var body: some Scene {
-        MenuBarExtra(isInserted: .constant(true)) {
-            MenuContentView(kindFilter: nil, headerTitle: "Alert Calendar")
-                .environmentObject(monitor)
-        } label: {
-            MenuBarStatusLabel(
-                text: monitor.combinedMenuBarLabel,
-                color: monitor.combinedMenuBarColor,
-                alertedSegmentIndex: monitor.combinedMenuBarAlertedSegmentIndex,
-                alertTextOpacity: monitor.combinedMenuBarAlertTextOpacity,
-                dotColors: monitor.combinedMenuBarDotColors,
-                markerStyles: monitor.combinedMenuBarMarkerStyles,
-                segments: monitor.combinedMenuBarSegments,
-                segmentBackgroundColors: monitor.combinedMenuBarSegmentBackgroundColors,
-                segmentBackgroundProgresses: monitor.combinedMenuBarSegmentBackgroundProgresses,
-                footballDisplay: monitor.combinedMenuBarFootballDisplay,
-                footballTrailingText: monitor.combinedMenuBarFootballTrailingText,
-                footballStatusText: monitor.combinedMenuBarFootballStatusText,
-                footballStatusColor: monitor.combinedMenuBarFootballStatusColor,
-                footballGoalHighlightSide: monitor.combinedMenuBarFootballGoalHighlightSide,
-                footballGoalHighlightTextOpacity: monitor.combinedMenuBarFootballGoalHighlightTextOpacity
+    func showSettings() {
+        menuBar?.dismiss()
+        appDelegate?.prepareForSettingsPresentation()
+        let window: NSWindow
+        if let existing = settingsWindow {
+            window = existing
+        } else {
+            window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 1240, height: 840),
+                styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                backing: .buffered, defer: false
             )
+            window.isReleasedWhenClosed = false
+            window.identifier = NSUserInterfaceItemIdentifier(WindowMetadata.preferencesID)
+            window.title = WindowMetadata.preferencesTitle
+            window.toolbarStyle = .unified
+            appDelegate?.configureSettingsWindow(window)
+            if !window.setFrameUsingName(WindowMetadata.preferencesID) { window.center() }
+            window.contentView = NSHostingView(rootView: LocalizedAppContent { [monitor] in
+                SettingsView(monitor: monitor)
+            })
+            settingsWindow = window
         }
-        .menuBarExtraStyle(.window)
+        window.makeKeyAndOrderFront(nil)
+        window.makeMain()
+    }
 
-        Window(WindowMetadata.preferencesTitle, id: WindowMetadata.preferencesID) {
-            SettingsView(monitor: monitor)
-        }
-        .defaultSize(width: 1040, height: 820)
-        .windowResizability(.automatic)
-        .commands {
-            CommandGroup(after: .windowArrangement) {
-                Button("Toggle Full Screen") {
-                    resolvedSettingsWindow()?.toggleFullScreen(nil)
-                }
-                .keyboardShortcut("f", modifiers: [.control, .command])
-            }
-        }
+    func stop() {
+        menuBar?.stop()
+        menuBar = nil
+    }
+
+    func prepareForTermination() async {
+        await monitor.flushPersistentCachesForTermination()
+    }
+
+    func settingsDidClose(_ window: NSWindow) {
+        guard window === settingsWindow else { return }
+        // Recreate the view on the next opening so its draft and close guard
+        // start together, including their apply/discard callbacks.
+        settingsWindow = nil
+        window.contentView = nil
+    }
+}
+
+private struct LocalizedAppContent<Content: View>: View {
+    @AppStorage(DefaultsKeys.language) private var language = AppLanguage.english.rawValue
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        content().environment(\.locale, (AppLanguage(rawValue: language) ?? .english).locale)
     }
 }

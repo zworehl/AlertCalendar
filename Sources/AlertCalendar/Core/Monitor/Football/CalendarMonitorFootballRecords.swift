@@ -4,52 +4,32 @@ import EventKit
 import Foundation
 
 extension CalendarMonitor {
-    func migrateLegacyManagedFootballEventsIfNeeded(now: Date) {
+    @discardableResult
+    func migrateLegacyManagedFootballEventsIfNeeded(now: Date) -> Bool {
         let legacySnapshots = legacyManagedFootballEventSnapshots(
             now: now,
             lookbackDays: Self.footballManagedCleanupSearchLookbackDays,
             lookaheadDays: Self.footballManagedCleanupSearchLookaheadDays
         )
-        guard !legacySnapshots.isEmpty else { return }
+        guard !legacySnapshots.isEmpty else { return true }
 
         let preferredCalendarID = resolvedFootballTargetCalendar()?.calendarIdentifier
         let groupedSnapshots = Dictionary(grouping: legacySnapshots, by: \.reference)
-        var recordsByReference = Dictionary(uniqueKeysWithValues: managedFootballEventRecords.map { ($0.reference, $0) })
-        var needsCommit = false
-
-        for (reference, snapshots) in groupedSnapshots {
-            let sortedSnapshots = sortManagedFootballSnapshots(snapshots, preferredCalendarID: preferredCalendarID)
-            guard let keeper = sortedSnapshots.first else { continue }
-
-            if keeper.event.url != nil {
-                keeper.event.url = nil
-                do {
-                    try eventStore.save(keeper.event, span: .thisEvent, commit: false)
-                    needsCommit = true
-                } catch {
-                    continue
-                }
-            }
-
-            if let keeperRecord = managedFootballEventRecord(for: keeper.event, reference: reference) {
-                recordsByReference[reference] = keeperRecord
-            }
-
-            for duplicate in sortedSnapshots.dropFirst() {
-                do {
-                    try eventStore.remove(duplicate.event, span: .thisEvent, commit: false)
-                    needsCommit = true
-                } catch {
-                    continue
-                }
-            }
+        let groups = groupedSnapshots.values.map {
+            sortManagedFootballSnapshots($0, preferredCalendarID: preferredCalendarID)
         }
-
-        if needsCommit {
-            try? eventStore.commit()
+        do {
+            let records = try ManagedFootballMutationCoordinator.reconcileGroups(
+                groups, records: managedFootballEventRecords, clearLegacyURLs: true,
+                mutations: calendarMutations, refreshedRecord: managedFootballEventRecord(for:reference:)
+            )
+            persistManagedFootballEventRecords(records)
+            reportFootballCalendarMutation(source: "football.calendar-migration", error: nil)
+            return true
+        } catch {
+            reportFootballCalendarMutation(source: "football.calendar-migration", error: error)
+            return false
         }
-
-        persistManagedFootballEventRecords(Array(recordsByReference.values))
     }
 
     func sortManagedFootballSnapshots(
@@ -302,12 +282,12 @@ extension CalendarMonitor {
         return startDate >= lowerBound && startDate <= upperBound
     }
 
-    func revealCalendarEvent(_ event: EKEvent) -> Bool {
+    func revealCalendarEvent(_ event: EKEvent) async -> Bool {
         guard let eventUID = normalizedEventUID(for: event) else { return false }
 
         let script = Self.calendarRevealScript(eventUID: eventUID)
 
-        return Self.runAppleScript(script)
+        return await Self.runAppleScript(script)
     }
 
     func normalizedEventUID(for event: EKEvent) -> String? {
@@ -353,13 +333,16 @@ extension CalendarMonitor {
         """
     }
 
-    nonisolated static func runAppleScript(_ source: String) -> Bool {
-        AlertCalendarProcessRunner.run(
-            executableURL: URL(fileURLWithPath: "/usr/bin/osascript"),
-            arguments: ["-e", source],
-            waitUntilExit: true,
-            redirectsOutputToNull: false
-        ) == 0
+    nonisolated static func runAppleScript(_ source: String) async -> Bool {
+        do {
+            let response = try await AlertCalendarAutomation.shared.execute(
+                .init(operation: .script, bundleIdentifier: "com.apple.iCal", source: source),
+                timeout: 10
+            )
+            return response.errorNumber == nil && !Task.isCancelled
+        } catch {
+            return false
+        }
     }
 
     nonisolated static func appleScriptStringLiteral(_ value: String) -> String {

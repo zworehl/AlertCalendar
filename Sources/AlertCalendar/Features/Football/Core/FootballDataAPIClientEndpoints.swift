@@ -15,7 +15,9 @@ extension FootballDataAPIClient {
     static func summaryRootCacheKey(url: URL, match: FootballFixtureMatch) -> String {
         let statusDetail = match.statusDetailText ?? ""
         let statusPeriod = match.statusPeriod.map(String.init) ?? "n/a"
-        return "\(url.absoluteString)|\(match.id)|\(match.homeScore)|\(match.awayScore)|\(match.statusText)|\(match.statusState.rawValue)|\(statusDetail)|\(statusPeriod)"
+        let winner = match.officialWinner?.rawValue ?? "n/a"
+        let shootout = "\(match.homeShootoutScore.map(String.init) ?? "n/a")-\(match.awayShootoutScore.map(String.init) ?? "n/a")"
+        return "\(url.absoluteString)|\(match.id)|\(match.homeScore)|\(match.awayScore)|\(match.statusText)|\(match.statusState.rawValue)|\(statusDetail)|\(statusPeriod)|\(winner)|\(shootout)"
     }
 
     static func summaryURLs(for match: FootballFixtureMatch) -> [URL] {
@@ -46,6 +48,12 @@ extension FootballDataAPIClient {
         return urls
     }
 
+    static func athleteURL(athleteID: String) -> URL? {
+        let trimmedID = athleteID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedID.isEmpty else { return nil }
+        return URL(string: "https://sports.core.api.espn.com/v2/sports/soccer/athletes/\(trimmedID)?lang=en&region=us")
+    }
+
     static func scoreboardURL(
         slug: String,
         dateRange: (Date, Date)?
@@ -61,10 +69,12 @@ extension FootballDataAPIClient {
             formatter.locale = Locale(identifier: "en_US_POSIX")
             formatter.timeZone = .autoupdatingCurrent
             formatter.dateFormat = "yyyyMMdd"
+            let start = formatter.string(from: dateRange.0)
+            let end = formatter.string(from: dateRange.1)
             components?.queryItems = [
                 URLQueryItem(
                     name: "dates",
-                    value: "\(formatter.string(from: dateRange.0))-\(formatter.string(from: dateRange.1))"
+                    value: start == end ? start : "\(start)-\(end)"
                 ),
             ]
         }

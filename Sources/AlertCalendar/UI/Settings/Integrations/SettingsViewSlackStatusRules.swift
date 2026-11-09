@@ -1,0 +1,461 @@
+import AppKit
+import Combine
+import Contacts
+import CoreLocation
+import EventKit
+import SwiftUI
+
+extension SettingsView {
+    @ViewBuilder
+    func slackStatusSyncRuleCard(index: Int, rule: SlackStatusSyncRule) -> some View {
+        let isComplete = !draft.slackStatusSyncRules[index].connectionID.isEmpty &&
+            !draft.slackStatusSyncRules[index].calendarID.isEmpty
+
+        VStack(alignment: .leading, spacing: 8) {
+            slackStatusSyncRuleHeader(index: index, rule: rule, isComplete: isComplete)
+
+            if slackShouldUseWideRuleEditors {
+                slackStatusSyncRuleWideEditors(index: index)
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    slackStatusSyncRuleEditors(index: index)
+                }
+            }
+
+            if slackStatusRuleEmojiNeedsPrettyInput(rule) {
+                Text(L10n.text("Use actual emoji like 🐶, 🗓️, or ⏳. Known Slack aliases are auto-converted when possible, but the fields look better with emoji characters."))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .settingsInsetSurface()
+    }
+
+    @ViewBuilder
+    func slackStatusSyncRuleHeader(index: Int, rule: SlackStatusSyncRule, isComplete: Bool) -> some View {
+        if slackShouldUseInlineRuleEditorRows {
+            HStack(alignment: .top, spacing: 14) {
+                slackStatusSyncRuleDragHandle(for: rule)
+
+                slackStatusSyncRuleIdentity(for: rule)
+                    .frame(minWidth: 210, maxWidth: 300, alignment: .leading)
+
+                slackStatusRuleStatusPreviews(for: rule)
+                    .layoutPriority(1)
+
+                Spacer(minLength: 8)
+
+                slackStatusSyncRuleActionBar(index: index, rule: rule, isComplete: isComplete)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+        } else {
+            HStack(alignment: .top, spacing: 14) {
+                slackStatusSyncRuleDragHandle(for: rule)
+
+                VStack(alignment: .leading, spacing: 5) {
+                    slackStatusSyncRuleIdentity(for: rule)
+                    slackStatusRuleStatusPreviews(for: rule)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Spacer(minLength: 0)
+
+                slackStatusSyncRuleActionBar(index: index, rule: rule, isComplete: isComplete)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+        }
+    }
+
+    @ViewBuilder
+    func slackStatusSyncRuleActionBar(index: Int, rule: SlackStatusSyncRule, isComplete: Bool) -> some View {
+        HStack(spacing: 10) {
+            Picker(L10n.text("Priority"), selection: $draft.slackStatusSyncRules[index].priority) {
+                ForEach(SlackStatusPriority.values, id: \.self) { value in
+                    Text("\(value)").tag(value)
+                }
+            }
+            .pickerStyle(.menu)
+            .controlSize(.small)
+            .frame(width: 90)
+            .help(L10n.text("1 is highest priority. Drag rules to break ties."))
+
+            Toggle(L10n.text("Active"), isOn: $draft.slackStatusSyncRules[index].isEnabled)
+                .font(.caption)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .disabled(!isComplete)
+
+            Button(role: .destructive) {
+                removeSlackStatusSyncRule(rule.id)
+            } label: {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .help(L10n.text("Remove"))
+        }
+        .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+
+    @ViewBuilder
+    func slackStatusSyncRuleDragHandle(for rule: SlackStatusSyncRule) -> some View {
+        Image(systemName: "line.3.horizontal")
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(.secondary)
+            .frame(width: 24, height: 34)
+            .contentShape(Rectangle())
+            .help(L10n.text("Drag to break ties between rules with the same priority"))
+            .onDrag {
+                draggingSlackStatusRuleID = rule.id
+                return NSItemProvider(object: rule.id as NSString)
+            }
+            .accessibilityLabel(L10n.text("Priority handle"))
+    }
+
+    @ViewBuilder
+    func slackStatusSyncRuleEditors(index: Int) -> some View {
+        if slackShouldUseInlineRuleEditorRows {
+            HStack(alignment: .top, spacing: 14) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(L10n.text("Calendar Mapping"))
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    HStack(alignment: .top, spacing: 8) {
+                        slackStatusSyncRuleConnectionPicker(index: index)
+                            .frame(width: 144, alignment: .leading)
+
+                        slackStatusSyncRuleCalendarPicker(index: index)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .frame(minWidth: 280, maxWidth: .infinity, alignment: .topLeading)
+
+                Divider()
+                    .padding(.vertical, 4)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(L10n.text("Active Status"))
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+
+                        HStack(alignment: .top, spacing: 8) {
+                            slackStatusSyncRuleTextSourcePicker(index: index)
+                                .frame(width: 176, alignment: .leading)
+
+                            if draft.slackStatusSyncRules[index].statusTextSource == .fixed {
+                                slackStatusSyncRuleTextField(index: index)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            } else {
+                                Spacer(minLength: 0)
+                            }
+
+                            slackStatusSyncRuleEmojiField(index: index)
+                                .frame(width: 64, alignment: .leading)
+                        }
+                    }
+
+                    slackStatusSyncRuleTimingEditor(index: index)
+                }
+                .frame(minWidth: 380, maxWidth: .infinity, alignment: .topLeading)
+            }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                slackStatusSyncRuleConnectionPicker(index: index)
+                slackStatusSyncRuleCalendarPicker(index: index)
+
+                slackStatusSyncRuleTextSourcePicker(index: index)
+
+                HStack(alignment: .top, spacing: 8) {
+                    if draft.slackStatusSyncRules[index].statusTextSource == .fixed {
+                        slackStatusSyncRuleTextField(index: index)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    slackStatusSyncRuleEmojiField(index: index)
+                        .frame(width: 88, alignment: .leading)
+                }
+
+                slackStatusSyncRuleTimingEditor(index: index)
+            }
+        }
+    }
+
+    var slackShouldUseWideRuleEditors: Bool {
+        slackStatusRulesAvailableWidth >= slackWideRuleEditorMinimumColumnWidth
+    }
+
+    var slackShouldUseInlineRuleEditorRows: Bool {
+        slackStatusRulesAvailableWidth >= 760
+    }
+
+    var slackStatusRulesAvailableWidth: CGFloat {
+        if slackStatusRulesColumnWidth > 0 {
+            return slackStatusRulesColumnWidth
+        }
+        return max(settingsWindowWidth - 68, 0)
+    }
+
+    @ViewBuilder
+    func slackStatusSyncRuleWideEditors(index: Int) -> some View {
+        HStack(alignment: .top, spacing: 14) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(L10n.text("Calendar Mapping"))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                HStack(alignment: .top, spacing: 8) {
+                    slackStatusSyncRuleConnectionPicker(index: index)
+                        .frame(width: 170, alignment: .leading)
+
+                    slackStatusSyncRuleCalendarPicker(index: index)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .frame(minWidth: 330, maxWidth: .infinity, alignment: .topLeading)
+
+            Divider()
+                .padding(.vertical, 4)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(L10n.text("Active Status"))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                HStack(alignment: .top, spacing: 8) {
+                    slackStatusSyncRuleTextSourcePicker(index: index)
+                        .frame(width: 176, alignment: .leading)
+
+                    if draft.slackStatusSyncRules[index].statusTextSource == .fixed {
+                        slackStatusSyncRuleTextField(index: index)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        Spacer(minLength: 0)
+                    }
+
+                    slackStatusSyncRuleEmojiField(index: index)
+                        .frame(width: 80, alignment: .leading)
+                }
+            }
+            .frame(minWidth: 400, maxWidth: .infinity, alignment: .topLeading)
+
+            Divider()
+                .padding(.vertical, 4)
+
+            VStack(alignment: .leading, spacing: 6) {
+                slackStatusSyncRuleWideTimingControls(index: index)
+
+                if draft.slackStatusSyncRules[index].startsBeforeEvent {
+                    slackStatusSyncRuleWidePreEventEditors(index: index)
+                }
+            }
+            .frame(minWidth: 280, maxWidth: .infinity, alignment: .topLeading)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    func slackStatusSyncRuleWideTimingControls(index: Int) -> some View {
+        let startsBeforeEvent = draft.slackStatusSyncRules[index].startsBeforeEvent
+
+        VStack(alignment: .leading, spacing: 4) {
+            Text(L10n.text("Timing"))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 8) {
+                Toggle(
+                    L10n.text("Set before event"),
+                    isOn: $draft.slackStatusSyncRules[index].startsBeforeEvent
+                )
+                .toggleStyle(.switch)
+                .controlSize(.small)
+
+                Picker(
+                    L10n.text("Lead time"),
+                    selection: $draft.slackStatusSyncRules[index].leadMinutes
+                ) {
+                    ForEach(AppSettingsRules.slackStatusLeadMinuteOptions, id: \.self) { minutes in
+                        Text(L10n.text("\(minutes) min")).tag(minutes)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .frame(width: 82)
+                .disabled(!startsBeforeEvent)
+                .opacity(startsBeforeEvent ? 1 : 0.55)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    func slackStatusSyncRuleWidePreEventEditors(index: Int) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(L10n.text("Pre-event Text"))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                TextField(
+                    L10n.text("Starting soon"),
+                    text: $draft.slackStatusSyncRules[index].preEventStatusText
+                )
+                .textFieldStyle(.roundedBorder)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(L10n.text("Pre-event Emoji"))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                TextField(
+                    "⏳",
+                    text: $draft.slackStatusSyncRules[index].preEventStatusEmoji
+                )
+                .textFieldStyle(.roundedBorder)
+            }
+            .frame(width: 80, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    func slackStatusSyncRuleIdentity(for rule: SlackStatusSyncRule) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            slackWorkspaceBadge(for: rule)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(slackStatusRuleTitle(for: rule))
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+
+                Text(slackStatusRuleSubtitle(for: rule))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    func slackStatusSyncRuleConnectionPicker(index: Int) -> some View {
+        let rule = draft.slackStatusSyncRules[index]
+        let usedPairKeys = slackStatusSyncUsedPairKeys(excludingRuleID: rule.id)
+
+        SettingsLabeledMenuPicker(
+            title: L10n.text("Workspace"),
+            pickerTitle: L10n.text("Slack workspace"),
+            selection: Binding(
+                get: { draft.slackStatusSyncRules[index].connectionID },
+                set: { updateSlackStatusSyncRuleConnection($0, at: index) }
+            ),
+            layout: .stacked
+        ) {
+            Text(L10n.text("Choose a workspace")).tag("")
+            ForEach(slackConnections) { connection in
+                Text(connection.workspaceLabel)
+                    .tag(connection.id)
+                    .disabled(
+                        connection.id != rule.connectionID &&
+                            !isSlackStatusSyncPairAvailable(
+                                connectionID: connection.id,
+                                calendarID: rule.calendarID,
+                                usedPairKeys: usedPairKeys
+                            )
+                    )
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    func slackStatusSyncRuleCalendarPicker(index: Int) -> some View {
+        let rule = draft.slackStatusSyncRules[index]
+        let usedPairKeys = slackStatusSyncUsedPairKeys(excludingRuleID: rule.id)
+
+        SettingsLabeledMenuPicker(
+            title: L10n.text("Calendar"),
+            pickerTitle: L10n.text("Calendar for Slack sync"),
+            selection: Binding(
+                get: { draft.slackStatusSyncRules[index].calendarID },
+                set: { updateSlackStatusSyncRuleCalendar($0, at: index) }
+            ),
+            layout: .stacked
+        ) {
+            Text(L10n.text("Choose a calendar")).tag("")
+            ForEach(availableEventCalendars) { calendar in
+                Text("\(calendar.title) • \(calendar.accountTitle)")
+                    .tag(calendar.id)
+                    .disabled(
+                        calendar.id != rule.calendarID &&
+                            !isSlackStatusSyncPairAvailable(
+                                connectionID: rule.connectionID,
+                                calendarID: calendar.id,
+                                usedPairKeys: usedPairKeys
+                            )
+                    )
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    func slackStatusSyncRuleTextSourcePicker(index: Int) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(L10n.text("Status Mode"))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            Picker(
+                L10n.text("Slack status mode"),
+                selection: $draft.slackStatusSyncRules[index].statusTextSource
+            ) {
+                ForEach(SlackStatusTextSource.allCases) { source in
+                    Text(source.title).tag(source)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    func slackStatusSyncRuleTextField(index: Int) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(L10n.text("Status Text"))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            TextField(
+                L10n.text("In a meeting"),
+                text: $draft.slackStatusSyncRules[index].statusText
+            )
+            .textFieldStyle(.roundedBorder)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    func slackStatusSyncRuleEmojiField(index: Int) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(L10n.text("Emoji"))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            TextField(
+                "🗓️",
+                text: $draft.slackStatusSyncRules[index].statusEmoji
+            )
+            .textFieldStyle(.roundedBorder)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+}

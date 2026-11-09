@@ -2,6 +2,7 @@ import Foundation
 
 extension FootballDataAPIClient {
     func enrichTeams(in matches: [FootballFixtureMatch]) async -> [FootballFixtureMatch] {
+        loadPersistedTeamsIfNeeded()
         let teamIDs = Set(matches.flatMap { [$0.homeTeam.id, $0.awayTeam.id] }.filter { !$0.isEmpty })
         guard !teamIDs.isEmpty else { return matches }
 
@@ -18,8 +19,8 @@ extension FootballDataAPIClient {
 
         let fetched = await withTaskGroup(of: (String, TeamResponse?).self) { group in
             for teamID in missingTeamIDs {
-                group.addTask { [session] in
-                    let result = await Self.fetchTeamDetails(teamID: teamID, session: session)
+                group.addTask {
+                    let result = await self.teamDetails(teamID: teamID, now: now)
                     return (teamID, result)
                 }
             }
@@ -50,9 +51,42 @@ extension FootballDataAPIClient {
     }
 
     func hasFreshCachedTeam(_ teamID: String, now: Date) -> Bool {
-        guard teamCache[teamID] != nil else { return false }
-        guard let fetchedAt = teamCacheFetchedAt[teamID] else { return true }
-        return now.timeIntervalSince(fetchedAt) <= Self.teamCacheTTL
+        loadPersistedTeamsIfNeeded()
+        guard let team = teamCache[teamID],
+              let fetchedAt = teamCacheFetchedAt[teamID] else { return false }
+        let hasKnownCountry = FootballFixtureFormatter.flagEmoji(for: team.countryName) != "🏳️"
+        let ttl = hasKnownCountry ? Self.teamCacheTTL : Self.incompleteTeamCacheTTL
+        return now.timeIntervalSince(fetchedAt) <= ttl
+    }
+
+    private func loadPersistedTeamsIfNeeded() {
+        guard !hasLoadedPersistedTeams else { return }
+        hasLoadedPersistedTeams = true
+        guard let persisted = teamCacheStore?.load(now: AlertCalendarClock.nowRoundedToSecond(), ttl: Self.teamCacheTTL) else { return }
+        teamCache = persisted.mapValues(\.response).merging(teamCache) { _, current in current }
+        teamCacheFetchedAt = persisted.mapValues(\.fetchedAt).merging(teamCacheFetchedAt) { _, current in current }
+    }
+
+    func teamDetails(teamID: String, now: Date) async -> TeamResponse? {
+        if hasFreshCachedTeam(teamID, now: now) { return teamCache[teamID] }
+        if let failedAt = teamDetailFailures.value(forKey: teamID), now.timeIntervalSince(failedAt) < Self.incompleteTeamCacheTTL {
+            return nil
+        }
+        if let pending = teamDetailTasks[teamID] { return await pending.value }
+        let task = Task { [session, transport] in
+            await Self.fetchTeamDetails(teamID: teamID, session: session, transport: transport)
+        }
+        teamDetailTasks[teamID] = task
+        defer { teamDetailTasks[teamID] = nil }
+        let response = await task.value
+        if let response {
+            teamCache[teamID] = response
+            teamCacheFetchedAt[teamID] = now
+            teamDetailFailures.removeValue(forKey: teamID)
+        } else if !Task.isCancelled {
+            teamDetailFailures.insert(now, forKey: teamID)
+        }
+        return response
     }
 
     func persistTeamCache() {
@@ -123,7 +157,12 @@ extension FootballDataAPIClient {
             homeYellowCards: match.homeYellowCards,
             awayYellowCards: match.awayYellowCards,
             homeRedCards: match.homeRedCards,
-            awayRedCards: match.awayRedCards
+            awayRedCards: match.awayRedCards,
+            officialWinner: match.officialWinner,
+            homeShootoutScore: match.homeShootoutScore,
+            awayShootoutScore: match.awayShootoutScore,
+            pregameOutcomeProbabilities: match.pregameOutcomeProbabilities,
+            outcomeProbabilities: match.outcomeProbabilities
         )
     }
 

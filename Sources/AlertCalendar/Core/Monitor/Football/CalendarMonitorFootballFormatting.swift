@@ -55,11 +55,11 @@ extension CalendarMonitor {
         let dayAfterTomorrowStart = resolvedCalendar.date(byAdding: .day, value: 1, to: tomorrowStart) ?? tomorrowStart
 
         if startDate >= todayStart, startDate < tomorrowStart {
-            return "Today \(timeFormatter.string(from: startDate))"
+            return L10n.text("Today \(timeFormatter.string(from: startDate))")
         }
 
         if startDate >= tomorrowStart, startDate < dayAfterTomorrowStart {
-            return "Tomorrow \(timeFormatter.string(from: startDate))"
+            return L10n.text("Tomorrow \(timeFormatter.string(from: startDate))")
         }
 
         let dayDistance = abs(resolvedCalendar.dateComponents([.day], from: now, to: startDate).day ?? 0)
@@ -91,7 +91,7 @@ extension CalendarMonitor {
                 locale: locale,
                 timeZone: timeZone
             )
-            return "Started \(formatter.string(from: startDate))"
+            return L10n.text("Started \(formatter.string(from: startDate))")
         }
 
         let dayDistance = abs(resolvedCalendar.dateComponents([.day], from: startDate, to: now).day ?? 0)
@@ -101,7 +101,7 @@ extension CalendarMonitor {
             locale: locale,
             timeZone: timeZone
         )
-        return "Started \(formatter.string(from: startDate))"
+        return L10n.text("Started \(formatter.string(from: startDate))")
     }
 
     nonisolated static func footballScheduleText(
@@ -111,7 +111,7 @@ extension CalendarMonitor {
         locale: Locale = .autoupdatingCurrent,
         timeZone: TimeZone = .autoupdatingCurrent
     ) -> String {
-        if match.hasInterruptedStatus {
+        if match.hasInterruptedStatus, match.statusState != .inProgress {
             return footballKickoffStatusText(
                 for: match.startDate,
                 now: now,
@@ -145,7 +145,7 @@ extension CalendarMonitor {
         now: Date = AlertCalendarClock.nowRoundedToSecond()
     ) -> String? {
         if match.statusReliability == .awaitingLiveData || match.statusReliability == .delayedLiveData {
-            return "Soon"
+            return L10n.text("Soon")
         }
 
         let trimmed = match.statusText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -156,11 +156,11 @@ extension CalendarMonitor {
         }
 
         if match.statusState == .finished {
-            if normalized.contains("AET") {
-                return "AET"
-            }
-            if normalized.contains("PEN") || normalized == "PK" || normalized.contains("PENALTY") {
+            if footballStatusConfirmsPenaltyShootout(match) {
                 return "PEN"
+            }
+            if footballStatusConfirmsExtraTime(match) {
+                return "AET"
             }
             return "FT"
         }
@@ -192,7 +192,7 @@ extension CalendarMonitor {
             return "AET"
         }
 
-        if normalized.contains("PEN") || normalized == "PK" || normalized.contains("PENALTY") {
+        if FootballStatusText.indicatesPenaltyShootout(normalized) {
             return "PEN"
         }
 
@@ -255,6 +255,34 @@ extension CalendarMonitor {
         return "\(parsedMinute.baseMinute)'"
     }
 
+    nonisolated static func compactFootballStatusBadgeText(
+        _ badgeText: String,
+        for match: FootballFixtureMatch? = nil,
+        now: Date = AlertCalendarClock.nowRoundedToSecond()
+    ) -> String {
+        let trimmed = badgeText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = trimmed.uppercased()
+
+        guard normalized == "ET" || normalized.hasPrefix("ET ") else {
+            return badgeText
+        }
+
+        if normalized.hasPrefix("ET ") {
+            let minuteText = String(trimmed.dropFirst(2)).trimmingCharacters(in: .whitespacesAndNewlines)
+            if let parsedMinute = footballParsedMinuteComponents(from: minuteText) {
+                return parsedMinute.baseMinute > 90 ? minuteText : badgeText
+            }
+        }
+
+        if let match,
+           let liveMinute = footballLiveMinute(for: match, now: now),
+           liveMinute > 90 {
+            return "\(liveMinute)'"
+        }
+
+        return badgeText
+    }
+
     nonisolated static func footballStatusTintColor(for text: String) -> NSColor {
         let normalized = text.uppercased()
         if normalized == "ABN" {
@@ -272,13 +300,17 @@ extension CalendarMonitor {
         if normalized.contains("AET") {
             return .systemPurple
         }
-        if normalized.contains("PEN") || normalized == "PK" {
+        if FootballStatusText.indicatesPenaltyShootout(normalized) {
             return .systemRed
         }
         if normalized == "HT" {
             return .systemOrange
         }
         if normalized == "ET" || normalized.hasPrefix("ET ") {
+            return .systemIndigo
+        }
+        if let parsedMinute = footballParsedMinuteComponents(from: normalized),
+           parsedMinute.baseMinute > 90 {
             return .systemIndigo
         }
         if normalized == "SOON" {

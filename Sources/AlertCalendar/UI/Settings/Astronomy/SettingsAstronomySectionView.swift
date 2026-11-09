@@ -13,6 +13,7 @@ struct SettingsAstronomySectionView: View {
     let showsOrbitalHighlights: Bool
     let astronomyLatitude: Double
     let astronomyLongitude: Double
+    let availableWidth: CGFloat
     let solarTimesProvider: (Date, (lat: Double, lon: Double), TimeZone) -> SolarMoments?
     let nextLunarPhasesProvider: (Date) -> [AstronomyPreviewMoment]
     let nextOrbitalHighlightsProvider: (Date) -> [AstronomyPreviewMoment]
@@ -22,66 +23,71 @@ struct SettingsAstronomySectionView: View {
     }
 
     var body: some View {
-        GroupBox(title) {
+        VStack(alignment: .leading, spacing: 12) {
+            SettingsSectionHeaderView(title: title)
+
             if showsCalculatedTimes {
                 VStack(alignment: .leading, spacing: 12) {
-                    ViewThatFits(in: .horizontal) {
+                    if availableWidth >= 1_050 {
                         HStack(alignment: .top, spacing: 14) {
                             astronomyTimesSection
                                 .frame(maxWidth: .infinity, alignment: .leading)
+
+                            SettingsVerticalDivider()
+
                             orbitalHighlightsSection
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
-
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                    } else {
                         VStack(alignment: .leading, spacing: 10) {
                             astronomyTimesSection
+
+                            SettingsSectionDivider()
+
                             orbitalHighlightsSection
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
+                    SettingsSectionDivider()
+
                     lunarPhasesSection
                 }
             } else {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Enable astronomy feeds to preview sunrise, moon phases, and orbital highlights here.")
+                    Text(L10n.text("Enable astronomy feeds to preview sunrise, moon phases, and orbital highlights here."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     private var astronomyTimesSection: some View {
-        GroupBox("Calculated Sun Times") {
+        previewPanel("Calculated Sun Times") {
             VStack(alignment: .leading, spacing: 10) {
-                AstronomyArtworkCard(
-                    title: "Daylight Map",
-                    subtitle: hasValidCoordinates
-                        ? "A live world preview showing today’s terminator across Earth."
-                        : "Enter valid coordinates to unlock the daylight preview."
-                ) {
-                    DaylightPreviewArtwork(
-                        latitude: astronomyLatitude,
-                        longitude: astronomyLongitude,
-                        date: previewReferenceDate,
-                        isEnabled: hasValidCoordinates && !enabledSolarMoments.isEmpty
-                    )
-                    .aspectRatio(DaylightPreviewArtwork.preferredAspectRatio, contentMode: ContentMode.fit)
-                }
+                DaylightPreviewArtwork(
+                    latitude: astronomyLatitude,
+                    longitude: astronomyLongitude,
+                    date: previewReferenceDate,
+                    isEnabled: hasValidCoordinates && !enabledSolarMoments.isEmpty
+                )
+                .aspectRatio(DaylightPreviewArtwork.preferredAspectRatio, contentMode: ContentMode.fit)
 
                 if enabledSolarMoments.isEmpty {
-                    Text("Sun moments are currently hidden from Feeds.")
+                    Text(L10n.text("Sun moments are currently hidden from Feeds."))
                         .foregroundStyle(.secondary)
                 } else if let preview = nextAstronomyTimes() {
                     astronomyMomentsLayout(preview: preview)
                 } else {
-                    Text("Enter valid coordinates to calculate astronomy moments.")
+                    Text(L10n.text("Enter valid coordinates to calculate astronomy moments."))
                         .foregroundStyle(.secondary)
                 }
 
-                Text("Sunrise, solar noon, sunset, and solar midnight are calculated locally from these coordinates.")
+                Text(L10n.text("Sunrise, solar noon, sunset, and solar midnight are calculated locally from these coordinates."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -90,16 +96,16 @@ struct SettingsAstronomySectionView: View {
     }
 
     private var lunarPhasesSection: some View {
-        GroupBox("Calculated Moon Phases") {
+        previewPanel("Calculated Moon Phases") {
             VStack(alignment: .leading, spacing: 8) {
                 if showsMoonPhases {
                     astronomyPreviewLayout(preview: nextLunarPhases(), maximumColumns: 8)
                 } else {
-                    Text("Moon phases are currently hidden from Feeds.")
+                    Text(L10n.text("Moon phases are currently hidden from Feeds."))
                         .foregroundStyle(.secondary)
                 }
 
-                Text("Lunar phase changes are estimated locally from a mean synodic month and shown in your current time zone.")
+                Text(L10n.text("Lunar phase changes are estimated locally from a mean synodic month and shown in your current time zone."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -110,33 +116,42 @@ struct SettingsAstronomySectionView: View {
     private var orbitalHighlightsSection: some View {
         let preview = nextOrbitalHighlights()
 
-        return GroupBox("Orbital Highlights") {
+        return previewPanel(L10n.text("Orbital Highlights")) {
             VStack(alignment: .leading, spacing: 10) {
-                AstronomyArtworkCard(
-                    title: "Orbital Storyboard",
-                    subtitle: "Earth’s current orbital position, with the next seasonal or orbital milestone called out."
-                ) {
-                    OrbitalHighlightsArtwork(
-                        preview: preview,
-                        date: previewReferenceDate,
-                        isEnabled: showsOrbitalHighlights
-                    )
-                    .aspectRatio(2.02, contentMode: ContentMode.fit)
-                }
+                OrbitalHighlightsArtwork(
+                    preview: preview,
+                    date: previewReferenceDate,
+                    isEnabled: showsOrbitalHighlights
+                )
+                .aspectRatio(2.02, contentMode: ContentMode.fit)
 
                 if showsOrbitalHighlights {
                     astronomyPreviewLayout(preview: preview, maximumColumns: 3)
                 } else {
-                    Text("Orbital highlights are currently hidden from Feeds.")
+                    Text(L10n.text("Orbital highlights are currently hidden from Feeds."))
                         .foregroundStyle(.secondary)
                 }
 
-                Text("Perihelion, aphelion, solstices, and equinoxes are estimated from annual orbital and seasonal formulas, then shown in your current time zone.")
+                Text(L10n.text("Perihelion, aphelion, solstices, and equinoxes are estimated from annual orbital and seasonal formulas, then shown in your current time zone."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    private func previewPanel<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(SettingsTypography.panelTitle)
+                .foregroundStyle(.primary)
+
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     @ViewBuilder
@@ -158,22 +173,13 @@ struct SettingsAstronomySectionView: View {
             }
 
             Text(value)
-                .font(.system(size: 16, weight: .semibold))
+                .font(SettingsTypography.prominentValue)
                 .foregroundStyle(.primary)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Color.white.opacity(0.06))
-                )
-        )
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     @ViewBuilder
@@ -182,7 +188,7 @@ struct SettingsAstronomySectionView: View {
         maximumColumns: Int = 4
     ) -> some View {
         if preview.isEmpty {
-            Text("Unavailable right now.")
+            Text(L10n.text("Unavailable right now."))
                 .foregroundStyle(.secondary)
         } else {
             astronomyInfoGrid(
@@ -346,7 +352,7 @@ struct SettingsAstronomySectionView: View {
     }
 
     private func formattedAstronomyMoment(_ date: Date?, moment: AstronomyMoment) -> String {
-        guard let date else { return "Unavailable" }
+        guard let date else { return L10n.text("Unavailable") }
         let calendar = Calendar.current
 
         if AstronomyMoment.solarMoments.contains(moment) {
@@ -354,7 +360,7 @@ struct SettingsAstronomySectionView: View {
                 return Self.timeFormatter.string(from: date)
             }
             if calendar.isDateInTomorrow(date) {
-                return "Tomorrow, \(Self.timeFormatter.string(from: date))"
+                return L10n.text("Tomorrow, \(Self.timeFormatter.string(from: date))")
             }
             return "\(Self.dayFormatter.string(from: date)), \(Self.timeFormatter.string(from: date))"
         }
@@ -367,32 +373,48 @@ struct SettingsAstronomySectionView: View {
 
         let prefix: String
         if calendar.isDateInToday(date) {
-            prefix = "Today"
+            prefix = L10n.text("Today")
         } else if calendar.isDateInTomorrow(date) {
-            prefix = "Tomorrow"
+            prefix = L10n.text("Tomorrow")
         } else {
             prefix = Self.dayFormatter.string(from: date)
         }
         return "\(prefix), \(Self.timeFormatter.string(from: date))"
     }
 
-    private static let timeFormatter: DateFormatter = {
+    static var timeFormatter: DateFormatter {
+        let formatter = cachedTimeFormatter
+        formatter.locale = AlertCalendarLanguage.locale
+        formatter.dateFormat = AlertCalendarLanguage.uses24HourTime() ? "HH:mm" : "h:mm a"
+        return formatter
+    }
+    private static let cachedTimeFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "h:mm a"
         return formatter
     }()
 
-    private static let dayFormatter: DateFormatter = {
+    static var dayFormatter: DateFormatter {
+        let formatter = cachedDayFormatter
+        formatter.locale = AlertCalendarLanguage.locale
+        return formatter
+    }
+    private static let cachedDayFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "EEE"
         return formatter
     }()
 
-    private static let orbitalDateFormatter: DateFormatter = {
+    static var orbitalDateFormatter: DateFormatter {
+        let formatter = cachedOrbitalDateFormatter
+        formatter.locale = AlertCalendarLanguage.locale
+        return formatter
+    }
+    private static let cachedOrbitalDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.locale = .autoupdatingCurrent
+        formatter.locale = AlertCalendarLanguage.locale
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
         return formatter

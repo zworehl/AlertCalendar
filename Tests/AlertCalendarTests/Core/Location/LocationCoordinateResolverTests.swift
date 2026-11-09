@@ -2,6 +2,18 @@ import XCTest
 @testable import AlertCalendar
 
 final class LocationCoordinateResolverTests: XCTestCase {
+    func testSaprissaResolvesWithoutNetworkLookup() async {
+        let coordinate = await LocationCoordinateResolver.shared.coordinate(for: "Estadio Ricardo Saprissa")
+        XCTAssertEqual(coordinate, ResolvedLocationCoordinate(latitude: 9.96557, longitude: -84.07526))
+    }
+
+    func testSaprissaResolvesExistingMalformedCalendarLocation() async {
+        let coordinate = await LocationCoordinateResolver.shared.coordinate(
+            for: "Estadio Ricardo Saprissa, Estadio Nacional de Costa Rica, Costa Rica"
+        )
+        XCTAssertEqual(coordinate, ResolvedLocationCoordinate(latitude: 9.96557, longitude: -84.07526))
+    }
+
     func testSearchQueriesIncludeVenueAliasesWithLocationContext() {
         let queries = LocationCoordinateResolver.searchQueries(
             from: "Alberto Jose Armando (La Bombonera), Buenos Aires, Argentina"
@@ -27,7 +39,7 @@ final class LocationCoordinateResolverTests: XCTestCase {
         )
 
         XCTAssertTrue(queries.contains("Santiago Bernabéu Stadium, Madrid, Spain"))
-        XCTAssertTrue(queries.contains("Estadio Santiago Bernabéu, Madrid, Spain"))
+        XCTAssertTrue(queries.contains("Stadium Santiago Bernabéu, Madrid, Spain"))
     }
 
     func testSearchQueriesAddsStadiumVariantForSimpleGroundNames() {
@@ -39,12 +51,12 @@ final class LocationCoordinateResolverTests: XCTestCase {
         XCTAssertTrue(queries.contains("Anfield, Liverpool, England"))
     }
 
-    func testSearchQueriesAddsEstadioVariantForArenaVenues() {
+    func testSearchQueriesAddsEnglishStadiumVariantForArenaVenues() {
         let queries = LocationCoordinateResolver.searchQueries(
             from: "Arena da Baixada, Curitiba, Brazil"
         )
 
-        XCTAssertTrue(queries.contains("Estadio Arena da Baixada, Curitiba, Brazil"))
+        XCTAssertTrue(queries.contains("Stadium Arena da Baixada, Curitiba, Brazil"))
         XCTAssertTrue(queries.contains("Arena da Baixada, Curitiba, Brazil"))
     }
 

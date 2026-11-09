@@ -2,11 +2,10 @@ import AppKit
 import CoreLocation
 import EventKit
 import Foundation
-
 extension CalendarMonitor {
     func footballMatchStatusText(_ match: FootballFixtureMatch) -> String {
         if match.statusReliability == .awaitingLiveData || match.statusReliability == .delayedLiveData {
-            return "Starting soon"
+            return L10n.text("Starting soon")
         }
 
         switch match.statusState {
@@ -17,24 +16,6 @@ extension CalendarMonitor {
         case .scheduled, .unknown:
             return Self.footballKickoffStatusText(for: match.startDate)
         }
-    }
-
-    func shouldRefreshFootballOnHeartbeat(now: Date) -> Bool {
-        guard !managedFootballMatchIDs.isEmpty else {
-            return false
-        }
-
-        let trackedMatches = managedFootballMatchIDs.compactMap { footballMatchesByID[$0] }
-        let hasMissingTrackedMatches = trackedMatches.count < managedFootballMatchIDs.count
-        return CalendarMonitorTime.hasElapsed(
-            since: lastFootballManagedSyncDate,
-            now: now,
-            interval: Self.footballManagedRefreshInterval(
-                for: trackedMatches,
-                hasMissingTrackedMatches: hasMissingTrackedMatches,
-                now: now
-            )
-        )
     }
 
     nonisolated static func footballManagedRefreshInterval(
@@ -62,18 +43,63 @@ extension CalendarMonitor {
         }
 
         if matches.contains(where: { match in
-            let secondsFromKickoff = now.timeIntervalSince(match.startDate)
-            return secondsFromKickoff >= -FootballDataAPIClient.summaryPreBufferBeforeKickoff
-                && secondsFromKickoff <= FootballDataAPIClient.summaryPreBufferAfterKickoff
+            guard match.statusState == .finished,
+                  let actualEndDate = match.actualEndDate else {
+                return false
+            }
+            let secondsSinceFinal = now.timeIntervalSince(actualEndDate)
+            return secondsSinceFinal >= 0
+                && secondsSinceFinal <= footballPostMatchStabilizationWindow
         }) {
             return footballManagedSyncInterval
         }
 
         if matches.contains(where: { match in
+            guard match.statusState == .scheduled || match.statusState == .unknown else {
+                return false
+            }
+            let secondsFromKickoff = now.timeIntervalSince(match.startDate)
+            return secondsFromKickoff >= -FootballDataAPIClient.summaryPreBufferBeforeKickoff
+                && secondsFromKickoff <= footballKickoffGraceWindow
+        }) {
+            return footballManagedSyncInterval
+        }
+
+        if matches.contains(where: { match in
+            let secondsFromKickoff = now.timeIntervalSince(match.startDate)
+            if match.statusState == .finished, match.actualEndDate == nil {
+                return secondsFromKickoff >= 0
+                    && secondsFromKickoff <= FootballDataAPIClient.summaryPreBufferAfterKickoff
+            }
+
+            guard match.statusState == .scheduled || match.statusState == .unknown else { return false }
+            let timeUntilKickoff = match.startDate.timeIntervalSince(now)
+            let isApproaching = timeUntilKickoff > FootballDataAPIClient.summaryPreBufferBeforeKickoff
+                && timeUntilKickoff <= footballApproachingKickoffWindow
+            let isOverdue = secondsFromKickoff > footballKickoffGraceWindow
+                && secondsFromKickoff <= FootballDataAPIClient.summaryPreBufferAfterKickoff
+            return isApproaching || isOverdue
+        }) {
+            return footballApproachingRefreshInterval
+        }
+
+        if matches.contains(where: { match in
             match.statusState != .finished
+                && match.startDate >= now
                 && match.startDate <= now.addingTimeInterval(24 * 60 * 60)
         }) {
             return footballUpcomingRefreshInterval
+        }
+
+        let allFinishedMatchesAreSettled = matches.allSatisfy { match in
+            guard match.statusState == .finished,
+                  let actualEndDate = match.actualEndDate else {
+                return false
+            }
+            return now.timeIntervalSince(actualEndDate) > footballPostMatchStabilizationWindow
+        }
+        if allFinishedMatchesAreSettled {
+            return footballSettledRefreshInterval
         }
 
         return footballIdleRefreshInterval
@@ -98,6 +124,22 @@ extension CalendarMonitor {
         )
     }
 
+    nonisolated static func footballManagedMatchIDsNeedingVenueBackfill(
+        _ matches: [FootballFixtureMatch],
+        trackedMatchIDs: Set<String>,
+        cachedMatchesByID: [String: FootballFixtureMatch]
+    ) -> Set<String> {
+        Set(matches.compactMap { match in
+            guard trackedMatchIDs.contains(match.id),
+                  FootballCalendarLocation.resolvedText(
+                      reported: match.locationText,
+                      existing: cachedMatchesByID[match.id]?.locationText,
+                      structuredTitle: nil
+                  ) == nil else { return nil }
+            return match.id
+        })
+    }
+
     func trackedFootballEvents(now: Date) -> [ManagedFootballEventSnapshot] {
         resolveManagedFootballEventSnapshots().filter { snapshot in
             let startDate = snapshot.event.startDate ?? snapshot.record.startDate
@@ -116,10 +158,12 @@ extension CalendarMonitor {
 
         for record in deduplicatedRecords {
             guard let event = resolveManagedFootballEvent(for: record) else {
+                refreshedRecords.append(record)
                 continue
             }
 
             guard let refreshedRecord = managedFootballEventRecord(for: event, reference: record.reference) else {
+                refreshedRecords.append(record)
                 continue
             }
             refreshedRecords.append(refreshedRecord)
@@ -165,40 +209,24 @@ extension CalendarMonitor {
 
     @discardableResult
     func removeManagedFootballEventsOutsideSuggestionWindow(now: Date) -> Int {
-        var removedCount = 0
-        var survivingRecords: [ManagedFootballEventRecord] = []
+        performManagedFootballCleanup(now: now) ?? 0
+    }
 
-        for record in deduplicatedManagedFootballEventRecords(managedFootballEventRecords) {
-            let resolvedEvent = resolveManagedFootballEvent(for: record)
-            let effectiveStartDate = resolvedEvent?.startDate ?? record.startDate
-
-            guard Self.isManagedFootballEventWithinSuggestionWindow(startDate: effectiveStartDate, now: now) else {
-                if let resolvedEvent {
-                    do {
-                        try eventStore.remove(resolvedEvent, span: .thisEvent, commit: false)
-                        removedCount += 1
-                    } catch {
-                        continue
-                    }
-                }
-                continue
-            }
-
-            if let resolvedEvent,
-               let survivingRecord = managedFootballEventRecord(for: resolvedEvent, reference: record.reference) {
-                survivingRecords.append(survivingRecord)
-            } else {
-                survivingRecords.append(record)
-            }
+    /// Nil means the transaction failed; the caller must not advance its cadence.
+    func performManagedFootballCleanup(now: Date) -> Int? {
+        do {
+            let result = try ManagedFootballMutationCoordinator.removeExpired(
+                records: deduplicatedManagedFootballEventRecords(managedFootballEventRecords),
+                now: now, mutations: calendarMutations, resolve: resolveManagedFootballEvent(for:),
+                refreshedRecord: managedFootballEventRecord(for:reference:)
+            )
+            persistManagedFootballEventRecords(result.records)
+            reportFootballCalendarMutation(source: "football.calendar-cleanup", error: nil)
+            return result.removedCount
+        } catch {
+            reportFootballCalendarMutation(source: "football.calendar-cleanup", error: error)
+            return nil
         }
-
-        if removedCount > 0 {
-            try? eventStore.commit()
-        }
-
-        persistManagedFootballEventRecords(survivingRecords)
-
-        return removedCount
     }
 
     func deduplicatedFootballPresets(from competitionSlugs: [String]) -> [FootballCompetitionPreset] {
@@ -240,6 +268,11 @@ extension CalendarMonitor {
                 )
             }
             if let previousMatch = footballMatchesByID[match.id] {
+                queueFootballDisallowedGoalNotificationIfNeeded(
+                    from: previousMatch,
+                    to: match,
+                    settings: settings
+                )
                 queueFootballFinalNotificationIfNeeded(
                     from: previousMatch,
                     to: match,
@@ -249,56 +282,24 @@ extension CalendarMonitor {
             footballMatchesByID[match.id] = match
         }
 
-        let teams = matches
-            .flatMap { [$0.homeTeam, $0.awayTeam] }
-            .reduce(into: [String: FootballTeamSummary]()) { partialResult, team in
-                partialResult[team.id] = team
-            }
-
-        let teamLogoRequests = teams.values.compactMap { team -> (String, URL)? in
-            guard let logoURL = team.logoURL else {
-                return nil
-            }
-            return (team.id, logoURL)
+        let cacheStart = now.addingTimeInterval(-60 * 24 * 60 * 60)
+        let cacheEnd = now.addingTimeInterval(100 * 24 * 60 * 60)
+        let preservedMatchIDs = managedFootballMatchIDs
+        footballMatchesByID = footballMatchesByID.filter { matchID, match in
+            preservedMatchIDs.contains(matchID)
+                || (match.startDate >= cacheStart && match.startDate <= cacheEnd)
         }
-        let teamLogoPaths = await resolvedFootballLogoPaths(for: teamLogoRequests)
-        for (teamID, path) in teamLogoPaths where footballLocalLogoPathsByTeamID[teamID] != path {
-            footballLocalLogoPathsByTeamID[teamID] = path
-        }
-
-        let competitionLogoRequests = matches.compactMap { match -> (String, URL)? in
-            guard let logoURL = match.competitionLogoURL else {
-                return nil
-            }
-            return (match.competitionSlug, logoURL)
-        }
-        let competitionLogoPaths = await resolvedFootballLogoPaths(for: competitionLogoRequests)
-        for (competitionSlug, path) in competitionLogoPaths where footballLocalLogoPathsByCompetitionSlug[competitionSlug] != path {
-            footballLocalLogoPathsByCompetitionSlug[competitionSlug] = path
-        }
-    }
-
-    func resolvedFootballLogoPaths(for requests: [(String, URL)]) async -> [String: String] {
-        var seenIDs = Set<String>()
-        let uniqueRequests = requests.filter { seenIDs.insert($0.0).inserted }
-        guard !uniqueRequests.isEmpty else { return [:] }
-
-        return await withTaskGroup(of: (String, String?).self) { group in
-            for (id, url) in uniqueRequests {
-                group.addTask { [footballImageStore] in
-                    let localURL = await footballImageStore.localFileURL(for: url)
-                    return (id, localURL?.path)
+        if let footballMatchCacheStore {
+            let snapshot = FootballMatchCacheSnapshot(
+                fetchedAt: now,
+                matches: footballMatchesByID.values.sorted {
+                    $0.startDate == $1.startDate ? $0.id < $1.id : $0.startDate < $1.startDate
                 }
-            }
-
-            var paths: [String: String] = [:]
-            for await (id, path) in group {
-                if let path {
-                    paths[id] = path
-                }
-            }
-            return paths
+            )
+            scheduleFootballMatchCacheWrite(snapshot, store: footballMatchCacheStore)
         }
+
+        scheduleFootballLogoLoading(for: matches)
     }
 
     func matchesPreservingKnownTimingContext(_ matches: [FootballFixtureMatch]) -> [FootballFixtureMatch] {
@@ -337,6 +338,21 @@ extension CalendarMonitor {
             isNational: previousMatch.awayTeam.isNational,
             logoURL: previousMatch.awayTeam.logoURL
         )
+        let officialWinner = match.officialWinner ?? previousMatch.officialWinner
+        let homeShootoutScore = match.homeShootoutScore ?? previousMatch.homeShootoutScore
+        let awayShootoutScore = match.awayShootoutScore ?? previousMatch.awayShootoutScore
+        let pregameOutcomeProbabilities = match.pregameOutcomeProbabilities
+            ?? previousMatch.pregameOutcomeProbabilities
+        let outcomeProbabilities: FootballMatchOutcomeProbabilities?
+        if let probabilities = match.outcomeProbabilities {
+            outcomeProbabilities = probabilities
+        } else if previousMatch.outcomeProbabilities?.source == .liveMarketOdds {
+            // The current scoreboard response succeeded but no longer exposes the
+            // in-play market, so an older live quote must not survive the merge.
+            outcomeProbabilities = nil
+        } else {
+            outcomeProbabilities = previousMatch.outcomeProbabilities
+        }
 
         guard actualStartDate != match.actualStartDate
             || actualEndDate != match.actualEndDate
@@ -344,7 +360,12 @@ extension CalendarMonitor {
             || statusDetailText != match.statusDetailText
             || statusPeriod != match.statusPeriod
             || homeTeam != match.homeTeam
-            || awayTeam != match.awayTeam else {
+            || awayTeam != match.awayTeam
+            || officialWinner != match.officialWinner
+            || homeShootoutScore != match.homeShootoutScore
+            || awayShootoutScore != match.awayShootoutScore
+            || pregameOutcomeProbabilities != match.pregameOutcomeProbabilities
+            || outcomeProbabilities != match.outcomeProbabilities else {
             return match
         }
 
@@ -373,7 +394,12 @@ extension CalendarMonitor {
             homeYellowCards: match.homeYellowCards,
             awayYellowCards: match.awayYellowCards,
             homeRedCards: match.homeRedCards,
-            awayRedCards: match.awayRedCards
+            awayRedCards: match.awayRedCards,
+            officialWinner: officialWinner,
+            homeShootoutScore: homeShootoutScore,
+            awayShootoutScore: awayShootoutScore,
+            pregameOutcomeProbabilities: pregameOutcomeProbabilities,
+            outcomeProbabilities: outcomeProbabilities
         )
     }
 
@@ -391,8 +417,6 @@ extension CalendarMonitor {
     }
 
     nonisolated static func defaultFootballCompetitionSection(for preset: FootballCompetitionPreset) -> FootballMenuCompetitionSection {
-        return .placeholder(for: preset)
+        .placeholder(for: preset)
     }
-
-
 }

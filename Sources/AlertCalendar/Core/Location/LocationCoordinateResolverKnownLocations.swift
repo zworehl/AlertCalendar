@@ -34,6 +34,20 @@ extension LocationCoordinateResolver {
         let locations = [
             knownLocation(
                 aliases: [
+                    "Estadio Ricardo Saprissa",
+                    "Estadio Ricardo Saprissa Aymá",
+                    "Estadio Ricardo Saprissa, San Jose, Costa Rica",
+                    "Estadio Ricardo Saprissa Aymá, San José, Costa Rica",
+                    "Estadio Ricardo Saprissa, Tibás, Costa Rica",
+                    "Estadio Ricardo Saprissa, Estadio Nacional de Costa Rica, Costa Rica",
+                ],
+                // OpenStreetMap way 615789247 (stadium center).
+                latitude: 9.96557,
+                longitude: -84.07526,
+                timeZoneIdentifier: "America/Costa_Rica"
+            ),
+            knownLocation(
+                aliases: [
                     "Estadio Banorte, Mexico City, Mexico",
                     "Estadio Banorte, Ciudad de México, Mexico",
                     "Estadio Banorte, Ciudad de México, México",

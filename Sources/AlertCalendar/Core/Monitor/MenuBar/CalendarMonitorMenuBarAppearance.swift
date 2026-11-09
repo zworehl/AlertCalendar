@@ -4,7 +4,7 @@ import Foundation
 
 extension CalendarMonitor {
     func isTimedItemDisplayableInMenuBar(_ item: UpcomingItem, now: Date) -> Bool {
-        guard !item.isAllDay else { return false }
+        guard !item.isAllDay, !item.isDateOnlyReminder else { return false }
 
         if let endDate = item.endDate {
             return endDate > now
@@ -33,7 +33,10 @@ extension CalendarMonitor {
             return .reminder(item.calendarColor)
         }
         if isBirthdayItem(item) {
-            return .birthday(item.calendarColor)
+            return .color(item.calendarColor)
+        }
+        if let gameStore = item.gameStore {
+            return .gameStore(gameStore)
         }
         if item.kind == .event, item.isAllDay {
             return .allDay(item.calendarColor)
@@ -45,9 +48,6 @@ extension CalendarMonitor {
     }
 
     func backgroundTintColor(for item: UpcomingItem, now: Date) -> NSColor {
-        if item.showsMutedBackground {
-            return item.calendarColor.nsColor.withAlphaComponent(0.26)
-        }
         if item.kind == .reminder, item.date <= now {
             return item.calendarColor.nsColor.withAlphaComponent(0.26)
         }
@@ -68,18 +68,56 @@ extension CalendarMonitor {
             return (fullTint, 1.0)
         }
 
+        if let status = Self.participationTextureStatus(for: item) {
+            return (
+                item.calendarColor.nsColor.withAlphaComponent(status.appleCalendarStyle.backgroundAlpha),
+                1.0
+            )
+        }
+
         return (.clear, 0)
     }
 
-    func activeEventProgress(for item: UpcomingItem, now: Date, settings: AppSettings) -> CGFloat? {
-        Self.activeItemProgress(
+    func menuBarAccessorySymbolNames(for item: UpcomingItem) -> [String] {
+        let isBirthday = isBirthdayItem(item)
+        return Self.menuBarAccessorySymbolNames(
             for: item,
-            now: now,
-            weekdayOnlyEventCalendarIDs: settings.weekdayOnlyEventCalendarIDs,
-            weekdayOnlyDuration: { start, end in
-                weekdayOnlyDuration(from: start, to: end)
-            }
+            includesDocumentIndicator: !isBirthday,
+            includesRecurrenceIndicator: !isBirthday
         )
+    }
+
+    nonisolated static func menuBarAccessorySymbolNames(
+        for item: UpcomingItem,
+        includesDocumentIndicator: Bool = true,
+        includesRecurrenceIndicator: Bool = true
+    ) -> [String] {
+        var symbolNames: [String] = []
+        if item.kind == .event, item.hasDocumentIndicator, includesDocumentIndicator {
+            symbolNames.append("paperclip")
+        }
+        if item.isRecurring, includesRecurrenceIndicator {
+            symbolNames.append("repeat")
+        }
+
+        return symbolNames
+    }
+
+    func activeEventProgress(for item: UpcomingItem, now: Date, settings: AppSettings) -> CGFloat? {
+        Self.activeItemProgress(for: item, now: now)
+    }
+
+    func participationTextureStatus(for item: UpcomingItem) -> EventParticipationStatus? {
+        Self.participationTextureStatus(for: item)
+    }
+
+    nonisolated static func participationTextureStatus(for item: UpcomingItem) -> EventParticipationStatus? {
+        guard let status = item.eventParticipationStatus,
+              status.appleCalendarStyle.usesTexture else {
+            return nil
+        }
+
+        return status
     }
 
     nonisolated static func travelStartDate(for item: UpcomingItem) -> Date? {
@@ -118,11 +156,18 @@ extension CalendarMonitor {
     nonisolated static func activeItemProgress(
         for item: UpcomingItem,
         now: Date,
-        weekdayOnlyEventCalendarIDs: Set<String>,
-        weekdayOnlyDuration: (Date, Date) -> TimeInterval = { start, end in
-            end.timeIntervalSince(start)
-        }
+        calendar: Calendar = .current
     ) -> CGFloat? {
+        if item.isDateOnlyReminder {
+            guard let dueDay = calendar.dateInterval(of: .day, for: item.date),
+                  now >= dueDay.start else {
+                return nil
+            }
+
+            let elapsed = now.timeIntervalSince(dueDay.start)
+            return min(max(CGFloat(elapsed / dueDay.duration), 0), 1)
+        }
+
         if item.kind == .reminder {
             return item.date <= now ? 1 : nil
         }
@@ -131,40 +176,13 @@ extension CalendarMonitor {
         guard let endDate = item.endDate, endDate > item.date else { return nil }
         guard item.date <= now, now < endDate else { return nil }
 
-        let totalDuration: TimeInterval
-        let elapsed: TimeInterval
-        if item.kind == .event,
-           let calendarID = item.calendarID,
-           weekdayOnlyEventCalendarIDs.contains(calendarID) {
-            totalDuration = weekdayOnlyDuration(item.date, endDate)
-            elapsed = weekdayOnlyDuration(item.date, now)
-        } else {
-            totalDuration = endDate.timeIntervalSince(item.date)
-            elapsed = now.timeIntervalSince(item.date)
-        }
+        let totalDuration = endDate.timeIntervalSince(item.date)
+        let elapsed = now.timeIntervalSince(item.date)
         guard totalDuration > 0 else { return nil }
 
         return min(max(CGFloat(elapsed / totalDuration), 0), 1)
     }
 
-    func weekdayOnlyDuration(from start: Date, to end: Date) -> TimeInterval {
-        guard end > start else { return 0 }
-        let calendar = Calendar.current
-        var cursor = start
-        var total: TimeInterval = 0
-
-        while cursor < end {
-            let dayStart = calendar.startOfDay(for: cursor)
-            guard let nextDayStart = calendar.date(byAdding: .day, value: 1, to: dayStart) else { break }
-            let segmentEnd = min(end, nextDayStart)
-            if isWeekday(dayStart) {
-                total += segmentEnd.timeIntervalSince(cursor)
-            }
-            cursor = segmentEnd
-        }
-
-        return total
-    }
     func allDayLabel(for item: UpcomingItem, now: Date, simplified: Bool) -> String? {
         guard item.kind == .event, item.isAllDay else { return nil }
         return Self.allDayLabel(
@@ -184,10 +202,15 @@ extension CalendarMonitor {
     ) -> String {
         let startDay = calendar.startOfDay(for: startDate)
         if startDay > now {
-            return "in \(formattedRelativeCountdown(to: startDay, from: now, simplified: simplified))"
+            let today = calendar.startOfDay(for: now)
+            if let tomorrow = calendar.date(byAdding: .day, value: 1, to: today),
+               startDay == tomorrow {
+                return L10n.text("tomorrow")
+            }
+            return L10n.text("in \(formattedRelativeCountdown(to: startDay, from: now, simplified: simplified))")
         }
 
-        guard let endDate else { return "all-day" }
+        guard let endDate else { return L10n.text("all-day") }
 
         let endDay = calendar.startOfDay(for: endDate)
         let usesExclusiveEndDay = endDate == endDay
@@ -200,7 +223,7 @@ extension CalendarMonitor {
         }
 
         let daySpan = calendar.dateComponents([.day], from: startDay, to: lastInclusiveDay).day ?? 0
-        guard daySpan >= 1 else { return "all-day" }
+        guard daySpan >= 1 else { return L10n.text("all-day") }
 
         return Self.formattedAllDayRange(
             startDay: startDay,
@@ -216,10 +239,12 @@ extension CalendarMonitor {
         return .systemBlue
     }
 
+    nonisolated static func trimmedTitle(_ title: String, maxLength: Int) -> String {
+        EventTitleRewriteResolver.locallyTrimmedTitle(title, maximumCharacters: maxLength)
+    }
+
     func trimmedTitle(_ title: String, maxLength: Int) -> String {
-        guard title.count > maxLength else { return title }
-        let end = title.index(title.startIndex, offsetBy: maxLength - 1)
-        return String(title[..<end])
+        Self.trimmedTitle(title, maxLength: maxLength)
     }
 
     nonisolated static func formattedRelativeCountdown(to targetDate: Date, from sourceDate: Date, simplified: Bool) -> String {

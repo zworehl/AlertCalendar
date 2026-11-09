@@ -33,7 +33,7 @@ extension CalendarMonitor {
         referenceDate: Date
     ) async {
         guard defaults.bool(forKey: DefaultsKeys.useAutomaticAstronomyLocation) else {
-            astronomyLocationStatus = "Manual coordinates"
+            astronomyLocationStatus = L10n.text("Manual coordinates")
             return
         }
 
@@ -64,26 +64,34 @@ extension CalendarMonitor {
     }
 
     func updateAstronomyCoordinatesFromSystem() async {
+        dataRefreshHealthState.locationError = nil
+        defer {
+            if astronomyLocationStatus.hasPrefix(L10n.text("Could not"))
+                || astronomyLocationStatus.hasPrefix(L10n.text("Enable Location"))
+                || astronomyLocationStatus == L10n.text("Location Services are disabled.") {
+                dataRefreshHealthState.locationError = astronomyLocationStatus
+            }
+        }
         guard defaults.bool(forKey: DefaultsKeys.useAutomaticAstronomyLocation) else {
-            astronomyLocationStatus = "Manual coordinates"
+            astronomyLocationStatus = L10n.text("Manual coordinates")
             return
         }
 
         guard CLLocationManager.locationServicesEnabled() else {
-            astronomyLocationStatus = "Location Services are disabled."
+            astronomyLocationStatus = L10n.text("Location Services are disabled.")
             return
         }
 
         let status = await requestLocationAuthorizationIfNeeded()
 
         guard isLocationAuthorized(status) else {
-            astronomyLocationStatus = "Enable Location permission for automatic coordinates."
+            astronomyLocationStatus = L10n.text("Enable Location permission for automatic coordinates.")
             return
         }
 
         guard let detectedLocation = await requestBestAvailableAstronomyLocation() else {
             astronomyLocationStatus = fallbackAstronomyLocationStatus(
-                prefix: "Could not refresh current location"
+                prefix: L10n.text("Could not refresh current location")
             )
             return
         }
@@ -93,6 +101,8 @@ extension CalendarMonitor {
         let roundedLongitude = AppSettingsRules.roundedCoordinate(coordinate.longitude)
         defaults.set(roundedLatitude, forKey: DefaultsKeys.astronomyLatitude)
         defaults.set(roundedLongitude, forKey: DefaultsKeys.astronomyLongitude)
+        reloadCurrentSettings()
+        markAstronomyLocationRefreshed(at: fixedSecondNow())
         astronomyLocationStatus = String(
             format: "\(detectedLocation.statusPrefix): %.2f, %.2f",
             roundedLatitude,
@@ -103,20 +113,20 @@ extension CalendarMonitor {
 
     func detectAstronomyCoordinate() async -> CLLocationCoordinate2D? {
         guard CLLocationManager.locationServicesEnabled() else {
-            astronomyLocationStatus = "Location Services are disabled."
+            astronomyLocationStatus = L10n.text("Location Services are disabled.")
             return nil
         }
 
         let status = await requestLocationAuthorizationIfNeeded()
 
         guard isLocationAuthorized(status) else {
-            astronomyLocationStatus = "Enable Location permission for automatic coordinates."
+            astronomyLocationStatus = L10n.text("Enable Location permission for automatic coordinates.")
             return nil
         }
 
         guard let detectedLocation = await requestBestAvailableAstronomyLocation() else {
             astronomyLocationStatus = fallbackAstronomyLocationStatus(
-                prefix: "Could not detect current location"
+                prefix: L10n.text("Could not detect current location")
             )
             return nil
         }
@@ -133,12 +143,12 @@ extension CalendarMonitor {
     func fallbackAstronomyLocationStatus(prefix: String) -> String {
         guard let latitude = defaults.object(forKey: DefaultsKeys.astronomyLatitude) as? Double,
               let longitude = defaults.object(forKey: DefaultsKeys.astronomyLongitude) as? Double else {
-            return "\(prefix). Check Location Services and Wi-Fi, or enter coordinates manually."
+            return L10n.text("\(prefix). Check Location Services and Wi-Fi, or enter coordinates manually.")
         }
 
         guard (-90 ... 90).contains(latitude),
               (-180 ... 180).contains(longitude) else {
-            return "\(prefix). Check Location Services and Wi-Fi, or enter coordinates manually."
+            return L10n.text("\(prefix). Check Location Services and Wi-Fi, or enter coordinates manually.")
         }
 
         return String(

@@ -4,7 +4,7 @@ struct AppSettingsStore {
     let defaults: UserDefaults
 
     func registerDefaults() {
-        removeLegacyFocusFilterDefaults()
+        removeLegacyCalendarScheduleDefaults()
         defaults.register(defaults: registrationDefaults)
     }
 
@@ -39,8 +39,17 @@ struct AppSettingsStore {
             migratedRule.statusEmoji = legacySlackMeetingStatusEmoji
             return migratedRule
         }
+        let eventTitleMaxCharacters = AppSettingsRules.normalizedEventTitleMaxCharacters(
+            defaults.integer(forKey: DefaultsKeys.eventTitleMaxCharacters)
+        )
+        let rewriteEventTitlesWithAppleIntelligence = defaults.bool(
+            forKey: DefaultsKeys.rewriteEventTitlesWithAppleIntelligence
+        ) && AppSettingsRules.allowsAppleIntelligenceTitleRewrite(
+            maximumCharacters: eventTitleMaxCharacters
+        )
 
         return AppSettings(
+            language: AppLanguage(rawValue: defaults.string(forKey: DefaultsKeys.language) ?? "") ?? .english,
             includeEvents: defaults.bool(forKey: DefaultsKeys.includeEvents),
             includeAllDayEvents: defaults.bool(forKey: DefaultsKeys.includeAllDayEvents),
             includeReminders: defaults.bool(forKey: DefaultsKeys.includeReminders),
@@ -55,8 +64,7 @@ struct AppSettingsStore {
             astronomyLongitude: defaults.double(forKey: DefaultsKeys.astronomyLongitude),
             selectedEventCalendarIDs: selectedCalendarIDs(for: .event),
             selectedReminderCalendarIDs: selectedCalendarIDs(for: .reminder),
-            weekdayOnlyEventCalendarIDs: weekdayOnlyCalendarIDs(for: .event),
-            weekdayOnlyReminderCalendarIDs: weekdayOnlyCalendarIDs(for: .reminder),
+            calendarAlertRules: calendarAlertRules(),
             lookAheadHours: lookAheadHours,
             contextualPreviewLeadMinutes: AppSettingsRules.normalizedContextualPreviewLeadMinutes(
                 defaults.integer(forKey: DefaultsKeys.contextualPreviewLeadMinutes),
@@ -66,13 +74,23 @@ struct AppSettingsStore {
                 defaults.integer(forKey: DefaultsKeys.menuBarRotationWindowMinutes),
                 dropdownWindowHours: lookAheadHours
             ),
+            focusMenuBarOnActiveEvents: defaults.bool(forKey: DefaultsKeys.focusMenuBarOnActiveEvents),
             alertLeadMinutes: AppSettingsRules.normalizedAlertLeadMinutes(
                 defaults.integer(forKey: DefaultsKeys.alertLeadMinutes)
             ),
             concurrentEventRotationSeconds: AppSettingsRules.normalizedConcurrentEventRotationSeconds(
                 defaults.integer(forKey: DefaultsKeys.concurrentEventRotationSeconds)
             ),
-            maxListItems: max(1, defaults.integer(forKey: DefaultsKeys.maxListItems)),
+            maxListItems: AppSettingsRules.normalizedMaximumDropdownItems(
+                defaults.integer(forKey: DefaultsKeys.maxListItems)
+            ),
+            showAgendaSummary: defaults.bool(forKey: DefaultsKeys.showAgendaSummary),
+            agendaSummaryMaximumWords: AppSettingsRules.normalizedAgendaSummaryMaximumWords(
+                defaults.integer(forKey: DefaultsKeys.agendaSummaryMaximumWords)
+            ),
+            useLinkedPagePreviewsInAgendaSummary: defaults.bool(
+                forKey: DefaultsKeys.useLinkedPagePreviewsInAgendaSummary
+            ),
             enableBlinkAlert: defaults.bool(forKey: DefaultsKeys.enableBlinkAlert),
             menuBarFontSize: defaults.double(forKey: DefaultsKeys.menuBarFontSize),
             useSimplifiedCountdown: defaults.bool(forKey: DefaultsKeys.useSimplifiedCountdown),
@@ -80,25 +98,52 @@ struct AppSettingsStore {
                 rawValue: defaults.string(forKey: DefaultsKeys.activeEventDisplayMode) ?? ""
             ) ?? defaultSettings.activeEventDisplayMode,
             useEventTitleEllipsis: defaults.bool(forKey: DefaultsKeys.useEventTitleEllipsis),
-            eventTitleMaxCharacters: AppSettingsRules.normalizedEventTitleMaxCharacters(
-                defaults.integer(forKey: DefaultsKeys.eventTitleMaxCharacters)
-            ),
+            eventTitleMaxCharacters: eventTitleMaxCharacters,
+            rewriteEventTitlesWithAppleIntelligence: rewriteEventTitlesWithAppleIntelligence,
+            useRewrittenEventTitlesInDropdown: defaults.bool(forKey: DefaultsKeys.useEventTitleEllipsis)
+                && defaults.bool(forKey: DefaultsKeys.useRewrittenEventTitlesInDropdown),
+            useMailContextForEventTitleRewrite: rewriteEventTitlesWithAppleIntelligence
+                && defaults.bool(forKey: DefaultsKeys.useMailContextForEventTitleRewrite),
             footballTargetCalendarID: defaults.string(forKey: DefaultsKeys.footballTargetCalendarID) ?? defaultSettings.footballTargetCalendarID,
+            footballAutoAddCompetitionSlugs: Set(
+                defaults.stringArray(forKey: DefaultsKeys.footballAutoAddCompetitionSlugs) ?? []
+            ),
             footballCalendarAlertOption: FootballCalendarAlertOption(
                 rawValue: defaults.string(forKey: DefaultsKeys.footballCalendarAlertOption) ?? ""
             ) ?? defaultSettings.footballCalendarAlertOption,
+            pinLiveFootballScoresInMenuBar: defaults.bool(forKey: DefaultsKeys.pinLiveFootballScoresInMenuBar),
             enableFootballGoalNotifications: defaults.bool(forKey: DefaultsKeys.enableFootballGoalNotifications),
+            enableFootballDisallowedGoalNotifications: defaults.bool(forKey: DefaultsKeys.enableFootballDisallowedGoalNotifications),
             includeFootballGoalScorerInNotifications: defaults.bool(forKey: DefaultsKeys.includeFootballGoalScorerInNotifications),
             enableFootballFinalNotifications: defaults.bool(forKey: DefaultsKeys.enableFootballFinalNotifications),
-            showFinishedFootballMatches: defaults.bool(forKey: DefaultsKeys.showFinishedFootballMatches),
+            enableFootballAutoAddNotifications: defaults.bool(forKey: DefaultsKeys.enableFootballAutoAddNotifications),
             finishedFootballMatchLookbackDays: AppSettingsRules.normalizedFootballWindowDays(
                 defaults.integer(forKey: DefaultsKeys.finishedFootballMatchLookbackDays)
             ),
             footballMatchLookaheadDays: AppSettingsRules.normalizedFootballWindowDays(
                 defaults.integer(forKey: DefaultsKeys.footballMatchLookaheadDays)
             ),
+            gameSaleTargetCalendarID: defaults.string(forKey: DefaultsKeys.gameSaleTargetCalendarID)
+                ?? defaultSettings.gameSaleTargetCalendarID,
+            gameSaleCalendarAlertOption: GameSaleCalendarAlertOption(
+                rawValue: defaults.string(forKey: DefaultsKeys.gameSaleCalendarAlertOption) ?? ""
+            ) ?? defaultSettings.gameSaleCalendarAlertOption,
+            gameSaleAutoAddStores: Set(
+                (defaults.stringArray(forKey: DefaultsKeys.gameSaleAutoAddStoreIDs) ?? [])
+                    .compactMap(GameStore.init(rawValue:))
+            ),
+            enableGameSaleAutoAddNotifications: defaults.bool(
+                forKey: DefaultsKeys.enableGameSaleAutoAddNotifications
+            ),
+            googleHolidayCountryIDs: GoogleHolidayCountry.normalizedCountryIDs(
+                Set(defaults.stringArray(forKey: DefaultsKeys.googleHolidayCountryIDs) ?? [])
+            ),
+            googleHolidayTargetCalendarID: defaults.string(
+                forKey: DefaultsKeys.googleHolidayTargetCalendarID
+            ) ?? defaultSettings.googleHolidayTargetCalendarID,
             slackConnections: storedSlackConnections,
             slackStatusSyncRules: migratedSlackStatusSyncRules,
+            appleMusicStatus: appleMusicStatus(connections: storedSlackConnections),
             slackMeetingStatusText: legacySlackMeetingStatusText,
             slackMeetingStatusEmoji: legacySlackMeetingStatusEmoji,
             meetingBrowserRouting: meetingBrowserRoutingSettings()
@@ -106,6 +151,21 @@ struct AppSettingsStore {
     }
 
     func save(_ settings: AppSettings) {
+        let eventTitleMaxCharacters = AppSettingsRules.normalizedEventTitleMaxCharacters(
+            settings.eventTitleMaxCharacters
+        )
+        let rewriteEventTitlesWithAppleIntelligence = settings.useEventTitleEllipsis
+            && AppSettingsRules.allowsAppleIntelligenceTitleRewrite(
+                maximumCharacters: eventTitleMaxCharacters
+            )
+            && settings.rewriteEventTitlesWithAppleIntelligence
+        let useRewrittenEventTitlesInDropdown = settings.useEventTitleEllipsis
+            && settings.useRewrittenEventTitlesInDropdown
+        let useMailContextForEventTitleRewrite = rewriteEventTitlesWithAppleIntelligence
+            && settings.useMailContextForEventTitleRewrite
+
+        defaults.set(settings.language.rawValue, forKey: DefaultsKeys.language)
+        defaults.set([settings.language.rawValue], forKey: "AppleLanguages")
         defaults.set(settings.includeEvents, forKey: DefaultsKeys.includeEvents)
         defaults.set(settings.includeAllDayEvents, forKey: DefaultsKeys.includeAllDayEvents)
         defaults.set(settings.includeReminders, forKey: DefaultsKeys.includeReminders)
@@ -120,8 +180,11 @@ struct AppSettingsStore {
         defaults.set(AppSettingsRules.roundedCoordinate(settings.astronomyLongitude), forKey: DefaultsKeys.astronomyLongitude)
         defaults.set(Array(settings.selectedEventCalendarIDs).sorted(), forKey: DefaultsKeys.selectedEventCalendarIDs)
         defaults.set(Array(settings.selectedReminderCalendarIDs).sorted(), forKey: DefaultsKeys.selectedReminderCalendarIDs)
-        defaults.set(Array(settings.weekdayOnlyEventCalendarIDs).sorted(), forKey: DefaultsKeys.weekdayOnlyEventCalendarIDs)
-        defaults.set(Array(settings.weekdayOnlyReminderCalendarIDs).sorted(), forKey: DefaultsKeys.weekdayOnlyReminderCalendarIDs)
+        if let encodedCalendarAlertRules = try? JSONEncoder().encode(
+            CalendarAlertRule.normalized(settings.calendarAlertRules)
+        ) {
+            defaults.set(encodedCalendarAlertRules, forKey: DefaultsKeys.calendarAlertRules)
+        }
         defaults.set(AppSettingsRules.normalizedDropdownWindowHours(settings.lookAheadHours), forKey: DefaultsKeys.lookAheadHours)
         defaults.set(
             AppSettingsRules.normalizedContextualPreviewLeadMinutes(
@@ -137,27 +200,55 @@ struct AppSettingsStore {
             ),
             forKey: DefaultsKeys.menuBarRotationWindowMinutes
         )
+        defaults.set(settings.focusMenuBarOnActiveEvents, forKey: DefaultsKeys.focusMenuBarOnActiveEvents)
         defaults.set(AppSettingsRules.normalizedAlertLeadMinutes(settings.alertLeadMinutes), forKey: DefaultsKeys.alertLeadMinutes)
         defaults.set(
             AppSettingsRules.normalizedConcurrentEventRotationSeconds(settings.concurrentEventRotationSeconds),
             forKey: DefaultsKeys.concurrentEventRotationSeconds
         )
-        defaults.set(max(1, settings.maxListItems), forKey: DefaultsKeys.maxListItems)
+        defaults.set(
+            AppSettingsRules.normalizedMaximumDropdownItems(settings.maxListItems),
+            forKey: DefaultsKeys.maxListItems
+        )
+        defaults.set(settings.showAgendaSummary, forKey: DefaultsKeys.showAgendaSummary)
+        defaults.set(
+            AppSettingsRules.normalizedAgendaSummaryMaximumWords(settings.agendaSummaryMaximumWords),
+            forKey: DefaultsKeys.agendaSummaryMaximumWords
+        )
+        defaults.set(
+            settings.useLinkedPagePreviewsInAgendaSummary,
+            forKey: DefaultsKeys.useLinkedPagePreviewsInAgendaSummary
+        )
         defaults.set(settings.enableBlinkAlert, forKey: DefaultsKeys.enableBlinkAlert)
         defaults.set(settings.menuBarFontSize, forKey: DefaultsKeys.menuBarFontSize)
         defaults.set(settings.useSimplifiedCountdown, forKey: DefaultsKeys.useSimplifiedCountdown)
         defaults.set(settings.activeEventDisplayMode.rawValue, forKey: DefaultsKeys.activeEventDisplayMode)
         defaults.set(settings.useEventTitleEllipsis, forKey: DefaultsKeys.useEventTitleEllipsis)
+        defaults.set(eventTitleMaxCharacters, forKey: DefaultsKeys.eventTitleMaxCharacters)
         defaults.set(
-            AppSettingsRules.normalizedEventTitleMaxCharacters(settings.eventTitleMaxCharacters),
-            forKey: DefaultsKeys.eventTitleMaxCharacters
+            rewriteEventTitlesWithAppleIntelligence,
+            forKey: DefaultsKeys.rewriteEventTitlesWithAppleIntelligence
+        )
+        defaults.set(
+            useRewrittenEventTitlesInDropdown,
+            forKey: DefaultsKeys.useRewrittenEventTitlesInDropdown
+        )
+        defaults.set(
+            useMailContextForEventTitleRewrite,
+            forKey: DefaultsKeys.useMailContextForEventTitleRewrite
         )
         defaults.set(settings.footballTargetCalendarID, forKey: DefaultsKeys.footballTargetCalendarID)
+        defaults.set(
+            Array(settings.footballAutoAddCompetitionSlugs).sorted(),
+            forKey: DefaultsKeys.footballAutoAddCompetitionSlugs
+        )
         defaults.set(settings.footballCalendarAlertOption.rawValue, forKey: DefaultsKeys.footballCalendarAlertOption)
+        defaults.set(settings.pinLiveFootballScoresInMenuBar, forKey: DefaultsKeys.pinLiveFootballScoresInMenuBar)
         defaults.set(settings.enableFootballGoalNotifications, forKey: DefaultsKeys.enableFootballGoalNotifications)
+        defaults.set(settings.enableFootballDisallowedGoalNotifications, forKey: DefaultsKeys.enableFootballDisallowedGoalNotifications)
         defaults.set(settings.includeFootballGoalScorerInNotifications, forKey: DefaultsKeys.includeFootballGoalScorerInNotifications)
         defaults.set(settings.enableFootballFinalNotifications, forKey: DefaultsKeys.enableFootballFinalNotifications)
-        defaults.set(settings.showFinishedFootballMatches, forKey: DefaultsKeys.showFinishedFootballMatches)
+        defaults.set(settings.enableFootballAutoAddNotifications, forKey: DefaultsKeys.enableFootballAutoAddNotifications)
         defaults.set(
             AppSettingsRules.normalizedFootballWindowDays(settings.finishedFootballMatchLookbackDays),
             forKey: DefaultsKeys.finishedFootballMatchLookbackDays
@@ -165,6 +256,24 @@ struct AppSettingsStore {
         defaults.set(
             AppSettingsRules.normalizedFootballWindowDays(settings.footballMatchLookaheadDays),
             forKey: DefaultsKeys.footballMatchLookaheadDays
+        )
+        defaults.set(settings.gameSaleTargetCalendarID, forKey: DefaultsKeys.gameSaleTargetCalendarID)
+        defaults.set(settings.gameSaleCalendarAlertOption.rawValue, forKey: DefaultsKeys.gameSaleCalendarAlertOption)
+        defaults.set(
+            settings.gameSaleAutoAddStores.map(\.rawValue).sorted(),
+            forKey: DefaultsKeys.gameSaleAutoAddStoreIDs
+        )
+        defaults.set(
+            settings.enableGameSaleAutoAddNotifications,
+            forKey: DefaultsKeys.enableGameSaleAutoAddNotifications
+        )
+        defaults.set(
+            Array(GoogleHolidayCountry.normalizedCountryIDs(settings.googleHolidayCountryIDs)).sorted(),
+            forKey: DefaultsKeys.googleHolidayCountryIDs
+        )
+        defaults.set(
+            settings.googleHolidayTargetCalendarID,
+            forKey: DefaultsKeys.googleHolidayTargetCalendarID
         )
         defaults.set(
             SlackMeetingStatus.normalizedText(settings.slackMeetingStatusText),
@@ -187,6 +296,11 @@ struct AppSettingsStore {
         ) {
             defaults.set(encodedSlackStatusSyncRules, forKey: DefaultsKeys.slackStatusSyncRules)
         }
+        if let encodedAppleMusicStatus = try? JSONEncoder().encode(
+            settings.appleMusicStatus.normalized(validConnectionIDs: Set(settings.slackConnections.map(\.id)))
+        ) {
+            defaults.set(encodedAppleMusicStatus, forKey: DefaultsKeys.appleMusicStatus)
+        }
         if let encodedMeetingBrowserRouting = try? JSONEncoder().encode(
             settings.meetingBrowserRouting.normalized
         ) {
@@ -204,9 +318,10 @@ struct AppSettingsStore {
         return Set(defaults.stringArray(forKey: key) ?? [])
     }
 
-    func weekdayOnlyCalendarIDs(for kind: CalendarItemKind) -> Set<String> {
-        let key = kind == .event ? DefaultsKeys.weekdayOnlyEventCalendarIDs : DefaultsKeys.weekdayOnlyReminderCalendarIDs
-        return Set(defaults.stringArray(forKey: key) ?? [])
+    func calendarAlertRules(availableCalendarIDs: Set<String>? = nil) -> [CalendarAlertRule] {
+        guard let data = defaults.data(forKey: DefaultsKeys.calendarAlertRules) else { return [] }
+        let decoded = (try? JSONDecoder().decode([CalendarAlertRule].self, from: data)) ?? []
+        return CalendarAlertRule.normalized(decoded, validCalendarIDs: availableCalendarIDs)
     }
 
     func slackConnections() -> [SlackConnection] {
@@ -228,6 +343,14 @@ struct AppSettingsStore {
         )
     }
 
+    func appleMusicStatus(connections: [SlackConnection]) -> AppleMusicStatusSettings {
+        guard let data = defaults.data(forKey: DefaultsKeys.appleMusicStatus),
+              let decoded = try? JSONDecoder().decode(AppleMusicStatusSettings.self, from: data) else {
+            return AppleMusicStatusSettings()
+        }
+        return decoded.normalized(validConnectionIDs: Set(connections.map(\.id)))
+    }
+
     func meetingBrowserRoutingSettings(
         availableCalendarIDs: Set<String>? = nil
     ) -> MeetingBrowserRoutingSettings {
@@ -243,6 +366,7 @@ struct AppSettingsStore {
         let defaultSettings = AppSettings.defaults
 
         return [
+            DefaultsKeys.language: defaultSettings.language.rawValue,
             DefaultsKeys.includeEvents: defaultSettings.includeEvents,
             DefaultsKeys.includeAllDayEvents: defaultSettings.includeAllDayEvents,
             DefaultsKeys.includeReminders: defaultSettings.includeReminders,
@@ -255,29 +379,47 @@ struct AppSettingsStore {
             DefaultsKeys.astronomyColorID: defaultSettings.astronomyColorID,
             DefaultsKeys.astronomyLatitude: defaultSettings.astronomyLatitude,
             DefaultsKeys.astronomyLongitude: defaultSettings.astronomyLongitude,
-            DefaultsKeys.weekdayOnlyEventCalendarIDs: [],
-            DefaultsKeys.weekdayOnlyReminderCalendarIDs: [],
+            DefaultsKeys.calendarAlertRules: Data(),
             DefaultsKeys.lookAheadHours: defaultSettings.lookAheadHours,
             DefaultsKeys.contextualPreviewLeadMinutes: defaultSettings.contextualPreviewLeadMinutes,
             DefaultsKeys.menuBarRotationWindowMinutes: defaultSettings.menuBarRotationWindowMinutes,
+            DefaultsKeys.focusMenuBarOnActiveEvents: defaultSettings.focusMenuBarOnActiveEvents,
             DefaultsKeys.alertLeadMinutes: defaultSettings.alertLeadMinutes,
             DefaultsKeys.concurrentEventRotationSeconds: defaultSettings.concurrentEventRotationSeconds,
             DefaultsKeys.maxListItems: defaultSettings.maxListItems,
+            DefaultsKeys.showAgendaSummary: defaultSettings.showAgendaSummary,
+            DefaultsKeys.agendaSummaryMaximumWords: defaultSettings.agendaSummaryMaximumWords,
+            DefaultsKeys.useLinkedPagePreviewsInAgendaSummary: defaultSettings.useLinkedPagePreviewsInAgendaSummary,
             DefaultsKeys.enableBlinkAlert: defaultSettings.enableBlinkAlert,
             DefaultsKeys.useSimplifiedCountdown: defaultSettings.useSimplifiedCountdown,
             DefaultsKeys.activeEventDisplayMode: defaultSettings.activeEventDisplayMode.rawValue,
             DefaultsKeys.useEventTitleEllipsis: defaultSettings.useEventTitleEllipsis,
             DefaultsKeys.eventTitleMaxCharacters: defaultSettings.eventTitleMaxCharacters,
+            DefaultsKeys.rewriteEventTitlesWithAppleIntelligence: defaultSettings.rewriteEventTitlesWithAppleIntelligence,
+            DefaultsKeys.useRewrittenEventTitlesInDropdown: defaultSettings.useRewrittenEventTitlesInDropdown,
+            DefaultsKeys.useMailContextForEventTitleRewrite: defaultSettings.useMailContextForEventTitleRewrite,
             DefaultsKeys.menuBarFontSize: defaultSettings.menuBarFontSize,
             DefaultsKeys.skippedItemKeys: [],
             DefaultsKeys.footballTargetCalendarID: defaultSettings.footballTargetCalendarID,
+            DefaultsKeys.footballAutoAddCompetitionSlugs: Array(defaultSettings.footballAutoAddCompetitionSlugs),
             DefaultsKeys.footballCalendarAlertOption: defaultSettings.footballCalendarAlertOption.rawValue,
+            DefaultsKeys.pinLiveFootballScoresInMenuBar: defaultSettings.pinLiveFootballScoresInMenuBar,
             DefaultsKeys.enableFootballGoalNotifications: defaultSettings.enableFootballGoalNotifications,
+            DefaultsKeys.enableFootballDisallowedGoalNotifications: defaultSettings.enableFootballDisallowedGoalNotifications,
             DefaultsKeys.includeFootballGoalScorerInNotifications: defaultSettings.includeFootballGoalScorerInNotifications,
             DefaultsKeys.enableFootballFinalNotifications: defaultSettings.enableFootballFinalNotifications,
-            DefaultsKeys.showFinishedFootballMatches: defaultSettings.showFinishedFootballMatches,
+            DefaultsKeys.enableFootballAutoAddNotifications: defaultSettings.enableFootballAutoAddNotifications,
+            DefaultsKeys.showFinishedFootballMatches: true,
             DefaultsKeys.finishedFootballMatchLookbackDays: defaultSettings.finishedFootballMatchLookbackDays,
             DefaultsKeys.footballMatchLookaheadDays: defaultSettings.footballMatchLookaheadDays,
+            DefaultsKeys.gameSaleTargetCalendarID: defaultSettings.gameSaleTargetCalendarID,
+            DefaultsKeys.gameSaleCalendarAlertOption: defaultSettings.gameSaleCalendarAlertOption.rawValue,
+            DefaultsKeys.gameSaleAutoAddStoreIDs: defaultSettings.gameSaleAutoAddStores.map(\.rawValue),
+            DefaultsKeys.enableGameSaleAutoAddNotifications: defaultSettings.enableGameSaleAutoAddNotifications,
+            DefaultsKeys.googleHolidayCountryIDs: Array(defaultSettings.googleHolidayCountryIDs),
+            DefaultsKeys.googleHolidayTargetCalendarID: defaultSettings.googleHolidayTargetCalendarID,
+            DefaultsKeys.removeEndedGameSalesAutomatically: true,
+            DefaultsKeys.dismissedGameSaleEventIDs: [],
             DefaultsKeys.slackMeetingStatusText: defaultSettings.slackMeetingStatusText,
             DefaultsKeys.slackMeetingStatusEmoji: defaultSettings.slackMeetingStatusEmoji,
             DefaultsKeys.meetingBrowserRouting: (try? JSONEncoder().encode(defaultSettings.meetingBrowserRouting)) ?? Data(),
@@ -286,8 +428,10 @@ struct AppSettingsStore {
         ]
     }
 
-    private func removeLegacyFocusFilterDefaults() {
-        defaults.removeObject(forKey: "activeFocusCalendarFilterState")
+    private func removeLegacyCalendarScheduleDefaults() {
+        for key in ["weekdayOnlyEventCalendarIDs", "weekdayOnlyReminderCalendarIDs", "nonWorkingDateKeys", "activeFocusCalendarFilterState"] {
+            defaults.removeObject(forKey: key)
+        }
     }
 
     private func migratedLegacySlackStatusSyncRules(

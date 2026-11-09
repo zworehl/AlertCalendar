@@ -1,12 +1,26 @@
 import Foundation
 
 extension CalendarMonitor {
-    func activeSlackItemTitles(from items: [UpcomingItem], now: Date) -> String {
+    func managedSlackItemTitles(
+        from items: [UpcomingItem],
+        rules: [SlackStatusSyncRule],
+        now: Date
+    ) -> String {
         let titles = items.compactMap { item -> String? in
             guard Self.isSlackStatusMeetingItem(item) else { return nil }
             let endDate = item.endDate ?? item.date.addingTimeInterval(60 * 60)
-            guard item.date <= now && endDate > now else { return nil }
-            return "\(item.calendarName): \(item.title)"
+            if item.date <= now && endDate > now {
+                return "active[\(item.calendarName): \(item.title)]"
+            }
+
+            guard item.date > now else { return nil }
+            guard let calendarID = item.calendarID else { return nil }
+            guard rules.contains(where: { rule in
+                rule.calendarID == calendarID &&
+                    rule.startsBeforeEvent &&
+                    Self.slackStatusLeadDate(for: item, rule: rule) <= now
+            }) else { return nil }
+            return "upcoming[\(item.calendarName): \(item.title)]"
         }
 
         guard !titles.isEmpty else { return "none" }
@@ -34,9 +48,18 @@ extension CalendarMonitor {
     func appendSlackDiagnosticsLog(_ message: String) {
         guard let logURL = slackDiagnosticsLogURL() else { return }
 
+        let now = fixedSecondNow()
+        if message == lastSlackDiagnosticsMessage,
+           let previousDate = lastSlackDiagnosticsMessageDate,
+           now.timeIntervalSince(previousDate) < 5 * 60 {
+            return
+        }
+        lastSlackDiagnosticsMessage = message
+        lastSlackDiagnosticsMessageDate = now
+
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let line = "[\(formatter.string(from: fixedSecondNow()))] \(message)\n"
+        let line = "[\(formatter.string(from: now))] \(message)\n"
         let lineData = Data(line.utf8)
         let fileManager = FileManager.default
 

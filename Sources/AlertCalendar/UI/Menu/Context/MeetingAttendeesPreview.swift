@@ -4,7 +4,7 @@ import MapKit
 import SwiftUI
 
 private enum MeetingAttendeesPreviewLayout {
-    static let attendeeColumnCount = 2
+    static let maximumAttendeeColumnCount = 2
     static let attendeeRowHeight: CGFloat = 18
     static let attendeeRowSpacing: CGFloat = 8
     static let attendeeListVerticalPadding: CGFloat = 8
@@ -14,33 +14,31 @@ struct MeetingAttendeesPreview: View {
     let organizer: MeetingOrganizer?
     let attendees: [MeetingAttendee]
     let listHeight: CGFloat
+    let columnCount: Int
 
     @State private var presentedOrganizer: MeetingOrganizer?
     @State private var presentedAttendees: [MeetingAttendee] = []
     @State private var resolveTask: Task<Void, Never>?
 
-    let columns = [
-        GridItem(.flexible(minimum: 0, maximum: .infinity), spacing: 12, alignment: .leading),
-        GridItem(.flexible(minimum: 0, maximum: .infinity), spacing: 12, alignment: .leading),
-    ]
+    var resolvedColumnCount: Int {
+        min(max(1, columnCount), MeetingAttendeesPreviewLayout.maximumAttendeeColumnCount)
+    }
+
+    var columns: [GridItem] {
+        Array(
+            repeating: GridItem(.flexible(minimum: 0, maximum: .infinity), spacing: 12, alignment: .leading),
+            count: resolvedColumnCount
+        )
+    }
 
     var displayedOrganizer: MeetingOrganizer? {
         presentedOrganizer ?? organizer
     }
 
     var displayedAttendees: [MeetingAttendee] {
-        presentedAttendees.isEmpty ? attendees : presentedAttendees
-    }
-
-    var resolverKey: String {
-        let organizerKey = [
-            organizer?.displayText ?? "",
-            organizer?.emailAddress ?? "",
-        ].joined(separator: "|")
-        let attendeeKey = attendees
-            .map { "\($0.id)|\($0.displayText)|\($0.emailAddress ?? "")|\($0.response.rawValue)" }
-            .joined(separator: "|")
-        return "\(organizerKey)#\(attendeeKey)"
+        MeetingAttendee.normalized(
+            presentedAttendees.isEmpty ? attendees : presentedAttendees
+        )
     }
 
     var organizerSecondaryText: String? {
@@ -56,10 +54,14 @@ struct MeetingAttendeesPreview: View {
     var body: some View {
         let resolvedListHeight = Self.resolvedListHeight(
             attendeeCount: displayedAttendees.count,
-            maximumHeight: listHeight
+            maximumHeight: listHeight,
+            columnCount: resolvedColumnCount
         )
         let shouldScrollAttendees =
-            Self.attendeeListContentHeight(for: displayedAttendees.count) > listHeight + 0.5
+            Self.attendeeListContentHeight(
+                for: displayedAttendees.count,
+                columnCount: resolvedColumnCount
+            ) > listHeight + 0.5
 
         VStack(alignment: .leading, spacing: 10) {
             if let displayedOrganizer {
@@ -67,7 +69,7 @@ struct MeetingAttendeesPreview: View {
                     MeetingOrganizerAvatar(organizer: displayedOrganizer)
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Invitation from")
+                        Text(L10n.text("Invitation from"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
@@ -94,7 +96,7 @@ struct MeetingAttendeesPreview: View {
             }
 
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(displayedAttendees.count == 1 ? "Invitee" : "Invitees")
+                Text(displayedAttendees.count == 1 ? L10n.text("Invitee") : L10n.text("Invitees"))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
 
@@ -129,8 +131,17 @@ struct MeetingAttendeesPreview: View {
         .onAppear {
             resolveContacts()
         }
-        .onChange(of: resolverKey) { _ in
+        .onChange(of: organizer) { _ in
             resolveContacts()
+        }
+        .onChange(of: attendees) { _ in
+            resolveContacts()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .alertCalendarMeetingContactsDidChange)) { _ in
+            resolveContacts()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            resolveContacts(invalidateCache: true)
         }
         .onDisappear {
             resolveTask?.cancel()
@@ -138,34 +149,49 @@ struct MeetingAttendeesPreview: View {
         }
     }
 
-    func resolveContacts() {
+    func resolveContacts(invalidateCache: Bool = false) {
         presentedOrganizer = organizer
-        presentedAttendees = attendees
+        presentedAttendees = MeetingAttendee.normalized(attendees)
         resolveTask?.cancel()
 
         resolveTask = Task {
+            if invalidateCache {
+                await MeetingContactResolver.shared.invalidateCache()
+            }
             let resolvedOrganizer = await MeetingContactResolver.shared.resolve(organizer: organizer)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                presentedOrganizer = resolvedOrganizer
+            }
+
             let resolvedAttendees = await MeetingContactResolver.shared.resolve(attendees: attendees)
 
             guard !Task.isCancelled else { return }
 
             await MainActor.run {
-                presentedOrganizer = resolvedOrganizer
                 presentedAttendees = resolvedAttendees
             }
         }
     }
 
-    nonisolated static func resolvedListHeight(attendeeCount: Int, maximumHeight: CGFloat) -> CGFloat {
-        min(maximumHeight, attendeeListContentHeight(for: attendeeCount))
+    nonisolated static func resolvedListHeight(
+        attendeeCount: Int,
+        maximumHeight: CGFloat,
+        columnCount: Int = MeetingAttendeesPreviewLayout.maximumAttendeeColumnCount
+    ) -> CGFloat {
+        min(maximumHeight, attendeeListContentHeight(for: attendeeCount, columnCount: columnCount))
     }
 
-    nonisolated static func attendeeListContentHeight(for attendeeCount: Int) -> CGFloat {
+    nonisolated static func attendeeListContentHeight(
+        for attendeeCount: Int,
+        columnCount: Int = MeetingAttendeesPreviewLayout.maximumAttendeeColumnCount
+    ) -> CGFloat {
         guard attendeeCount > 0 else { return 0 }
 
+        let resolvedColumnCount = min(max(1, columnCount), MeetingAttendeesPreviewLayout.maximumAttendeeColumnCount)
         let rowCount = CGFloat(
-            (attendeeCount + MeetingAttendeesPreviewLayout.attendeeColumnCount - 1)
-                / MeetingAttendeesPreviewLayout.attendeeColumnCount
+            (attendeeCount + resolvedColumnCount - 1)
+                / resolvedColumnCount
         )
         return (rowCount * MeetingAttendeesPreviewLayout.attendeeRowHeight)
             + (max(0, rowCount - 1) * MeetingAttendeesPreviewLayout.attendeeRowSpacing)
@@ -227,5 +253,6 @@ struct MeetingOrganizerAvatar: View {
         }
         .frame(width: 40, height: 40)
         .clipShape(Circle())
+        .accessibilityHidden(true)
     }
 }

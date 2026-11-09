@@ -4,6 +4,110 @@ import XCTest
 
 @MainActor
 final class MenuBarStatusLabelTests: XCTestCase {
+    func testAstronomyMenuMarkersUseMonochromeSystemSymbols() throws {
+        for moment in AstronomyMoment.allCases {
+            let image = try XCTUnwrap(
+                AstronomyIconProvider.monochromeImage(
+                    for: moment,
+                    pointSize: 14,
+                    tintColor: .white
+                ),
+                "Missing monochrome marker for \(moment.rawValue)"
+            )
+
+            XCTAssertFalse(image.isTemplate)
+            XCTAssertGreaterThan(image.size.width, 0)
+            XCTAssertGreaterThan(image.size.height, 0)
+            XCTAssertTrue(
+                try imageHasOnlyWhiteVisiblePixels(image),
+                "Marker is not monochrome white for \(moment.rawValue)"
+            )
+        }
+    }
+
+    func testInitialLoadingIndicatorUsesTheAlertCalendarIconWithACompactBadge() {
+        XCTAssertEqual(MenuBarLoadingIndicator.iconSize, 18)
+        XCTAssertEqual(MenuBarLoadingIndicator.badgeDiameter, 9)
+        XCTAssertEqual(MenuBarLoadingIndicator.canvasSize, NSSize(width: 20, height: 18))
+        XCTAssertGreaterThan(MenuBarLoadingIndicator.appIcon.size.width, 0)
+        XCTAssertGreaterThan(MenuBarLoadingIndicator.appIcon.size.height, 0)
+    }
+
+    func testInitialLoadingIndicatorHasDistinctSpinnerFrames() throws {
+        XCTAssertEqual(MenuBarLoadingIndicator.frames.count, MenuBarLoadingIndicator.frameCount)
+        XCTAssertTrue(MenuBarLoadingIndicator.frames.allSatisfy { !$0.isTemplate })
+        XCTAssertTrue(MenuBarLoadingIndicator.frames.allSatisfy { $0.size == MenuBarLoadingIndicator.canvasSize })
+
+        let firstFrame = try XCTUnwrap(MenuBarLoadingIndicator.frames.first?.tiffRepresentation)
+        let laterFrame = try XCTUnwrap(MenuBarLoadingIndicator.frames[4].tiffRepresentation)
+        XCTAssertNotEqual(firstFrame, laterFrame)
+    }
+
+    func testMenuBarLoadingStateIsOnlyControlledByInitialLoad() {
+        let model = MenuBarPresentationModel()
+        XCTAssertTrue(model.isInitialLoading)
+        model.setInitialLoading(false)
+        XCTAssertFalse(model.isInitialLoading)
+    }
+
+    func testFootballLogoBecomesImmediatelyAvailableAfterAsynchronousPreload() async throws {
+        let image = NSImage(size: NSSize(width: 12, height: 8))
+        image.lockFocus()
+        NSColor.systemBlue.setFill()
+        NSRect(x: 0, y: 0, width: 12, height: 8).fill()
+        image.unlockFocus()
+
+        let data = try XCTUnwrap(image.tiffRepresentation)
+        let path = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("tiff")
+            .path
+        try data.write(to: URL(fileURLWithPath: path))
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        XCTAssertNil(MenuBarStatusLabel.immediatelyAvailableFootballLogo(at: path), "Rendering must not synchronously read image files")
+        let loaded = await FootballLocalImageCache.loadImage(for: path)
+        XCTAssertNotNil(loaded)
+        XCTAssertNotNil(MenuBarStatusLabel.immediatelyAvailableFootballLogo(at: path))
+        XCTAssertNotNil(FootballLocalImageCache.cachedImage(for: path))
+    }
+
+    func testConcurrentLogoPreloadsShareTheSameDecodedArtwork() async throws {
+        let image = NSImage(size: NSSize(width: 12, height: 8))
+        image.lockFocus()
+        NSColor.systemBlue.setFill()
+        NSRect(x: 0, y: 0, width: 12, height: 8).fill()
+        image.unlockFocus()
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).tiff")
+        try XCTUnwrap(image.tiffRepresentation).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let first = Task { @MainActor in
+            await FootballLocalImageCache.loadImage(for: url.path).map(ObjectIdentifier.init)
+        }
+        let second = Task { @MainActor in
+            await FootballLocalImageCache.loadImage(for: url.path).map(ObjectIdentifier.init)
+        }
+        let firstID = await first.value
+        let secondID = await second.value
+        XCTAssertNotNil(firstID)
+        XCTAssertEqual(firstID, secondID, "Concurrent views should receive the same decoded logo, not competing replacements")
+    }
+
+    func testFailedDecodeCanRetryWhenTheLocalFileArrives() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).tiff")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let missing = await FootballLocalImageCache.loadImage(for: url.path)
+        XCTAssertNil(missing)
+        let image = NSImage(size: NSSize(width: 12, height: 8))
+        image.lockFocus()
+        NSColor.systemBlue.setFill()
+        NSRect(x: 0, y: 0, width: 12, height: 8).fill()
+        image.unlockFocus()
+        try XCTUnwrap(image.tiffRepresentation).write(to: url)
+        let loaded = await FootballLocalImageCache.loadImage(for: url.path)
+        XCTAssertNotNil(loaded, "A completed failed decode must not remain stuck in the in-flight cache")
+    }
+
     func testSymbolMarkerAspectFitPreservesWideSymbolRatio() {
         let rect = CGRect(x: 10, y: 20, width: 12, height: 12)
         let fitted = MenuBarStatusLabel.aspectFitRect(
@@ -15,6 +119,21 @@ final class MenuBarStatusLabelTests: XCTestCase {
         XCTAssertEqual(fitted.height, 6, accuracy: 0.001)
         XCTAssertEqual(fitted.midX, rect.midX, accuracy: 0.001)
         XCTAssertEqual(fitted.midY, rect.midY, accuracy: 0.001)
+    }
+
+    func testFootballLogoAspectFillCoversCircleWithoutDistortion() {
+        let rect = CGRect(x: 10, y: 20, width: 18, height: 18)
+        let filled = MenuBarStatusLabel.aspectFillRect(
+            for: CGSize(width: 36, height: 18),
+            in: rect
+        )
+
+        XCTAssertEqual(filled.width, 36, accuracy: 0.001)
+        XCTAssertEqual(filled.height, 18, accuracy: 0.001)
+        XCTAssertEqual(filled.midX, rect.midX, accuracy: 0.001)
+        XCTAssertEqual(filled.midY, rect.midY, accuracy: 0.001)
+        XCTAssertLessThanOrEqual(filled.minX, rect.minX)
+        XCTAssertGreaterThanOrEqual(filled.maxX, rect.maxX)
     }
 
     func testFootballAttributedSegmentAppliesAlertColorButKeepsGoalHighlight() throws {
@@ -29,7 +148,9 @@ final class MenuBarStatusLabelTests: XCTestCase {
             awayScore: "0",
             competitionLocalLogoPath: nil,
             homeLocalLogoPath: nil,
-            awayLocalLogoPath: nil
+            awayLocalLogoPath: nil,
+            homeLogoUsesCircularOutline: true,
+            awayLogoUsesCircularOutline: true
         )
 
         let attributed = MenuBarStatusLabel.footballAttributedSegment(
@@ -62,6 +183,48 @@ final class MenuBarStatusLabelTests: XCTestCase {
         XCTAssertTrue(red.isEqual(NSColor.systemRed))
     }
 
+    func testParticipationTextColorDimsPendingButKeepsAcceptedSolid() {
+        let baseColor = NSColor.white.withAlphaComponent(0.97)
+
+        let accepted = MenuBarStatusLabel.segmentTextColor(
+            baseColor: baseColor,
+            participationStatus: .accepted
+        )
+        let pending = MenuBarStatusLabel.segmentTextColor(
+            baseColor: baseColor,
+            participationStatus: .pending
+        )
+
+        XCTAssertTrue(accepted.isEqual(baseColor))
+        XCTAssertLessThan(pending.alphaComponent, accepted.alphaComponent)
+    }
+
+    func testAccessorySymbolsReserveTrailingWidthForBothSymbols() {
+        let font = NSFont.systemFont(ofSize: 13, weight: .semibold)
+        let oneSymbolWidth = MenuBarStatusLabel.accessorySymbolsWidth(
+            symbolNames: ["paperclip"],
+            font: font
+        )
+        let twoSymbolWidth = MenuBarStatusLabel.accessorySymbolsWidth(
+            symbolNames: ["paperclip", "repeat"],
+            font: font
+        )
+
+        XCTAssertGreaterThan(oneSymbolWidth, 0)
+        XCTAssertGreaterThan(twoSymbolWidth, oneSymbolWidth)
+    }
+
+    func testAccessorySymbolSizeTracksMenuFont() {
+        let small = MenuBarStatusLabel.accessorySymbolSize(
+            font: NSFont.systemFont(ofSize: 10, weight: .semibold)
+        )
+        let large = MenuBarStatusLabel.accessorySymbolSize(
+            font: NSFont.systemFont(ofSize: 18, weight: .semibold)
+        )
+
+        XCTAssertGreaterThan(large, small)
+    }
+
     private func textColor(in attributed: NSAttributedString, for text: String) throws -> NSColor {
         let range = (attributed.string as NSString).range(of: text)
         guard range.location != NSNotFound else {
@@ -72,5 +235,28 @@ final class MenuBarStatusLabelTests: XCTestCase {
         return try XCTUnwrap(
             attributed.attribute(.foregroundColor, at: range.location, effectiveRange: nil) as? NSColor
         )
+    }
+
+    private func imageHasOnlyWhiteVisiblePixels(_ image: NSImage) throws -> Bool {
+        let data = try XCTUnwrap(image.tiffRepresentation)
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(data: data))
+        var foundVisiblePixel = false
+
+        for y in 0..<bitmap.pixelsHigh {
+            for x in 0..<bitmap.pixelsWide {
+                guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB),
+                      color.alphaComponent > 0.01 else {
+                    continue
+                }
+                foundVisiblePixel = true
+                guard color.redComponent > 0.99,
+                      color.greenComponent > 0.99,
+                      color.blueComponent > 0.99 else {
+                    return false
+                }
+            }
+        }
+
+        return foundVisiblePixel
     }
 }

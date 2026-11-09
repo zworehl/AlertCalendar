@@ -15,7 +15,8 @@ extension CalendarMonitor {
         let futureWindowSeconds = TimeInterval(max(5, settings.menuBarRotationWindowMinutes) * 60)
         let futureWindowEnd = now.addingTimeInterval(futureWindowSeconds)
         let timedItems = upcomingItems.filter {
-            isTimedItemDisplayableInMenuBar($0, now: now)
+            !Self.shouldPinLiveFootballItem($0, settings: settings)
+                && isTimedItemDisplayableInMenuBar($0, now: now)
                 && Self.shouldIncludeTimedItemInMenuBarRotation(
                     $0,
                     now: now,
@@ -31,8 +32,13 @@ extension CalendarMonitor {
             )
         } : []
         let merged = deduplicatedItemsByNotificationKey(timedItems + allDayItems)
+        let candidates = Self.menuBarRotationCandidates(
+            from: merged,
+            now: now,
+            focusOnActiveEvents: settings.focusMenuBarOnActiveEvents
+        )
 
-        return merged.sorted { left, right in
+        return candidates.sorted { left, right in
             let leftPriority = menuBarQueuePriority(for: left)
             let rightPriority = menuBarQueuePriority(for: right)
             if leftPriority != rightPriority {
@@ -109,10 +115,10 @@ extension CalendarMonitor {
         hasLaterItemsInDropdownWindow: Bool
     ) -> String {
         guard hasLaterItemsInDropdownWindow else {
-            return "No upcoming items"
+            return L10n.text("No upcoming items")
         }
 
-        return "No items in next \(menuBarRotationWindowDescription(minutes: menuBarRotationWindowMinutes))"
+        return L10n.text("No items in next \(menuBarRotationWindowDescription(minutes: menuBarRotationWindowMinutes))")
     }
 
     nonisolated static func menuBarRotationWindowDescription(minutes: Int) -> String {
@@ -123,13 +129,13 @@ extension CalendarMonitor {
 
         var components: [String] = []
         if days > 0 {
-            components.append("\(days)d")
+            components.append(L10n.text("\(days)d"))
         }
         if hours > 0 {
-            components.append("\(hours)h")
+            components.append(L10n.text("\(hours)h"))
         }
         if remainingMinutes > 0 {
-            components.append("\(remainingMinutes)m")
+            components.append(L10n.text("\(remainingMinutes)m"))
         }
 
         return components.prefix(2).joined(separator: " ")
@@ -140,6 +146,10 @@ extension CalendarMonitor {
         now: Date,
         futureWindowEnd: Date
     ) -> Bool {
+        if item.kind == .reminder {
+            return item.date <= now || item.date <= futureWindowEnd
+        }
+
         if item.isAllDay {
             return shouldIncludeAllDayItem(
                 startDate: item.date,

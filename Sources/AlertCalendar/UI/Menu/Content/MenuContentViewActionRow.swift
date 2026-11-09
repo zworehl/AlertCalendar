@@ -5,71 +5,84 @@ import SwiftUI
 
 extension MenuContentView {
     @ViewBuilder
-    func actionRow(item: UpcomingItem, actions: [MenuAction]) -> some View {
+    func actionRow(
+        item: UpcomingItem,
+        actions: [MenuAction],
+        listPosition: MenuListRowPosition = .only
+    ) -> some View {
         MenuContentHoverContainer { isHovered in
-            actionRowContent(item: item, actions: actions, isHovered: isHovered)
+            actionRowContent(
+                item: item,
+                actions: actions,
+                isHovered: isHovered,
+                listPosition: listPosition
+            )
         }
     }
 
     @ViewBuilder
-    func actionRowContent(item: UpcomingItem, actions: [MenuAction], isHovered: Bool) -> some View {
-        let reservedTrailingWidth = isHovered ? hoverActionRowWidth(for: item) : 0
+    func actionRowContent(
+        item: UpcomingItem,
+        actions: [MenuAction],
+        isHovered: Bool,
+        listPosition: MenuListRowPosition
+    ) -> some View {
+        let reservedTrailingWidth = actionRowPrimaryTrailingReservation(
+            for: item,
+            actions: actions,
+            isHovered: isHovered
+        )
         let now = displayReferenceDate
 
         ZStack(alignment: .trailing) {
-            if item.kind == .reminder {
-                Button {
-                    monitor.markReminderCompleted(item)
-                } label: {
-                    rowPrimaryContent(
-                        for: item,
-                        now: now,
-                        isHovered: isHovered,
-                        hideTimeDetails: isHovered,
-                        reservedTrailingWidth: reservedTrailingWidth
-                    )
+            rowPrimaryContent(
+                for: item,
+                now: now,
+                isHovered: isHovered,
+                hideTimeDetails: isHovered,
+                reservedTrailingWidth: reservedTrailingWidth,
+                listPosition: listPosition
+            )
+
+            MenuActionButtonGroup {
+                if item.meetingURL != nil {
+                    joinActionButton(for: item)
                 }
-                .buttonStyle(.plain)
-            } else {
-                rowPrimaryContent(
-                    for: item,
-                    now: now,
-                    isHovered: isHovered,
-                    hideTimeDetails: isHovered,
-                    reservedTrailingWidth: reservedTrailingWidth
-                )
-            }
+                if shouldShowOpenLinkAction(for: item) {
+                    openLinkActionButton(for: item)
+                }
 
-            if isHovered {
-                HStack(spacing: 4) {
-                    if item.meetingURL != nil {
-                        joinActionButton(for: item)
-                    }
-
-                    ForEach(actions.indices, id: \.self) { index in
-                        switch actions[index] {
-                        case .skip:
-                            skipActionButton(for: item)
-                        case .complete:
-                            Button {
-                                monitor.markReminderCompleted(item)
-                            } label: {
-                                reminderCompletionActionLabel(color: Color(nsColor: item.calendarColor.nsColor))
-                            }
-                            .buttonStyle(.plain)
-                            .controlSize(.small)
-                            .help("Complete")
-                        }
+                ForEach(actions.indices, id: \.self) { index in
+                    switch actions[index] {
+                    case .skip:
+                        skipActionButton(for: item)
+                    case .complete:
+                        completeActionButton(for: item)
                     }
                 }
-                .frame(minWidth: 30, alignment: .trailing)
-                .padding(.trailing, 2)
             }
+            .frame(minWidth: MenuActionControlMetrics.minimumHitTargetSize, alignment: .trailing)
+            .padding(.trailing, MenuActionControlMetrics.trailingInset)
+            .opacity(isHovered ? 1 : 0)
+            .allowsHitTesting(isHovered)
+            .accessibilityHidden(!isHovered)
+            .disabled(!isHovered)
         }
         .font(.caption)
         .padding(.vertical, 0)
+        .frame(minHeight: MenuActionControlMetrics.minimumHitTargetSize, alignment: .center)
         .fixedSize(horizontal: false, vertical: true)
         .contentShape(Rectangle())
+    }
+
+    func actionRowTrailingReservation(
+        for item: UpcomingItem,
+        actions: [MenuAction]
+    ) -> CGFloat {
+        hoverActionRowWidth(
+            for: item,
+            actions: actions
+        )
     }
 
     @ViewBuilder
@@ -78,15 +91,22 @@ extension MenuContentView {
         now: Date,
         isHovered: Bool = false,
         hideTimeDetails: Bool = false,
-        reservedTrailingWidth: CGFloat = 0
+        reservedTrailingWidth: CGFloat = 0,
+        listPosition: MenuListRowPosition = .only
     ) -> some View {
         let accentColor = Color(nsColor: item.calendarColor.nsColor)
         let titleColor: Color = .primary
         let detailTextColor: Color = .secondary
         let tertiaryTextColor: Color = .secondary.opacity(0.85)
-        let titleFont = Font.system(size: 12, weight: .semibold)
-        let detailFont = Font.system(size: 11, weight: .medium)
-        let detailIconFont = Font.system(size: 12, weight: .regular)
+        let participationTextOpacity = item.eventParticipationStatus?.appleCalendarStyle.textAlpha ?? 1
+        let participationTextureStatus = monitor.participationTextureStatus(for: item)
+        let titleFont = MenuMarkerMetrics.rowTitleFont
+        let detailFont = MenuMarkerMetrics.rowDetailFont
+        let detailIconFont = Font.system(size: MenuMarkerMetrics.symbolSize, weight: .regular)
+        let accessorySymbolNames = Self.dropdownAccessorySymbolNames(
+            monitor.menuBarAccessorySymbolNames(for: item),
+            isHovered: isHovered
+        )
         let hasVirtualLocation = monitor.isVirtualLocationText(item.locationText)
         let usesEventStyleLayout = item.kind == .event
         let showTravelTime = item.kind == .event
@@ -100,26 +120,19 @@ extension MenuContentView {
             simplified: settings.useSimplifiedCountdown
         )
         let showRightTimeColumn = usesEventStyleLayout && (!item.isAllDay || allDayRightLabel != nil)
+        let minimumRowHeight = rowPrimaryContentMinimumHeight(
+            for: item,
+            showsTravelTime: showTravelTime,
+            showRightTimeColumn: showRightTimeColumn
+        )
+        let rowShape = MenuListRowBackgroundShape(position: listPosition, cornerRadius: 7)
         let textBlock = HStack(alignment: .top, spacing: 8) {
-            if let markerSymbol = markerSymbolName(for: item) {
-                Image(systemName: markerSymbol)
-                    .font(.system(size: 12, weight: .regular))
-                    .frame(width: 12, height: 12)
-                    .foregroundStyle(accentColor)
-                    .padding(.top, markerTopPadding(for: item))
-            } else if let image = markerImage(for: item, isReminderFilled: isHovered) {
-                let markerSize = markerImageSize(for: item)
-                Image(nsImage: image)
-                    .resizable()
-                    .interpolation(.high)
-                    .frame(width: markerSize.width, height: markerSize.height)
-                    .padding(.top, markerTopPadding(for: item))
-            } else {
-                Capsule()
-                    .fill(Color(nsColor: item.calendarColor.nsColor))
-                    .frame(width: 4)
-                    .padding(.vertical, 1)
-            }
+            menuMarkerColumn(
+                for: item,
+                isHovered: isHovered,
+                rowMinimumHeight: minimumRowHeight,
+                allowsReminderCompletion: true
+            )
 
             if usesEventStyleLayout {
                 HStack(alignment: .top, spacing: 6) {
@@ -129,6 +142,7 @@ extension MenuContentView {
                                 item: item,
                                 match: footballMatch,
                                 accentColor: accentColor,
+                                titleColor: titleColor.opacity(participationTextOpacity),
                                 titleFont: titleFont,
                                 detailFont: detailFont,
                                 detailIconFont: detailIconFont,
@@ -139,19 +153,27 @@ extension MenuContentView {
                                 HStack(alignment: .center, spacing: 4) {
                                     Image(systemName: "car.fill")
                                         .font(detailIconFont)
-                                        .frame(width: 12, height: 12, alignment: .center)
+                                        .frame(
+                                            width: MenuMarkerMetrics.symbolSize,
+                                            height: MenuMarkerMetrics.symbolSize,
+                                            alignment: .center
+                                        )
                                         .foregroundStyle(accentColor)
-                                    Text("\(travelMinutes) min travel time")
+                                    Text(L10n.text("\(travelMinutes) min travel time"))
                                         .font(detailFont)
                                         .foregroundStyle(detailTextColor)
                                 }
                             }
 
-                            Text(item.title)
-                                .font(titleFont)
-                                .foregroundStyle(titleColor)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
+                            titleLine(
+                                title: dropdownVisibleTitle(for: item),
+                                originalTitle: item.title,
+                                symbolNames: [],
+                                titleFont: titleFont,
+                                iconFont: detailIconFont,
+                                titleColor: titleColor.opacity(participationTextOpacity),
+                                iconColor: detailTextColor.opacity(participationTextOpacity)
+                            )
 
                             if !item.isAllDay, let locationText = item.locationText {
                                 let locationName = displayLocationName(from: locationText)
@@ -159,29 +181,40 @@ extension MenuContentView {
                                     HStack(alignment: .center, spacing: 4) {
                                         Image(systemName: locationSymbolName(for: item))
                                             .font(detailIconFont)
-                                            .frame(width: 12, height: 12, alignment: .center)
+                                            .frame(
+                                                width: MenuMarkerMetrics.symbolSize,
+                                                height: MenuMarkerMetrics.symbolSize,
+                                                alignment: .center
+                                            )
                                             .foregroundStyle(accentColor)
                                         Text(locationName)
                                             .font(detailFont)
-                                            .foregroundStyle(detailTextColor)
+                                            .foregroundStyle(detailTextColor.opacity(participationTextOpacity))
                                             .lineLimit(1)
                                             .truncationMode(.tail)
                                     }
                                 }
                             }
 
-                            if let meetingURL = item.meetingURL {
-                                HStack(alignment: .center, spacing: 4) {
-                                    Image(systemName: "video")
-                                        .font(detailIconFont)
-                                        .frame(width: 12, height: 12, alignment: .center)
-                                        .foregroundStyle(accentColor)
-                                    Text(meetingServiceName(for: meetingURL))
-                                        .font(detailFont)
-                                        .foregroundStyle(detailTextColor)
-                                }
-                            }
+                            linkDetailRow(
+                                for: item,
+                                detailFont: detailFont,
+                                accentColor: accentColor,
+                                detailTextColor: detailTextColor.opacity(participationTextOpacity),
+                                isHovered: isHovered
+                            )
                         }
+                    }
+                    .padding(
+                        .trailing,
+                        Self.dropdownAccessorySymbolsTrailingReservation(accessorySymbolNames)
+                    )
+                    .overlay(alignment: .trailing) {
+                        dropdownAccessorySymbols(
+                            symbolNames: accessorySymbolNames,
+                            iconFont: detailIconFont,
+                            iconColor: detailTextColor.opacity(participationTextOpacity)
+                        )
                     }
 
                     if showRightTimeColumn && !hideTimeDetails {
@@ -189,38 +222,49 @@ extension MenuContentView {
 
                         VStack(alignment: .trailing, spacing: 0) {
                             if showTravelTime, let travelStart = eventTravelStartDate(for: item) {
-                                Text(timeText(travelStart))
+                                Text(timedEventClockText(travelStart, for: item))
                                     .font(detailFont)
                                     .foregroundStyle(tertiaryTextColor)
+                                    .lineLimit(1)
                             }
 
                             if item.isAllDay {
                                 if let allDayRightLabel {
                                     Text(allDayRightLabel)
                                         .font(detailFont)
-                                        .foregroundStyle(detailTextColor)
+                                        .foregroundStyle(detailTextColor.opacity(participationTextOpacity))
+                                        .lineLimit(1)
                                 }
                             } else {
-                                Text(timeText(item.date))
+                                Text(timedEventClockText(item.date, for: item))
                                     .font(detailFont)
-                                    .foregroundStyle(detailTextColor)
+                                    .foregroundStyle(detailTextColor.opacity(participationTextOpacity))
+                                    .lineLimit(1)
                             }
 
                             if !item.isAllDay, let endDate = item.endDate, endDate > item.date {
-                                Text(timeText(endDate))
+                                Text(timedEventClockText(endDate, for: item))
                                     .font(detailFont)
-                                    .foregroundStyle(tertiaryTextColor)
+                                    .foregroundStyle(tertiaryTextColor.opacity(participationTextOpacity))
+                                    .lineLimit(1)
                             }
                         }
+                        .padding(.top, MenuMarkerMetrics.detailFirstLineTopPadding)
                     }
                 }
             } else {
                 if item.kind == .reminder {
                     HStack(alignment: .top, spacing: 6) {
                         VStack(alignment: .leading, spacing: 0) {
-                            Text(item.title)
-                                .font(titleFont)
-                                .foregroundStyle(titleColor)
+                            titleLine(
+                                title: dropdownVisibleTitle(for: item),
+                                originalTitle: item.title,
+                                symbolNames: accessorySymbolNames,
+                                titleFont: titleFont,
+                                iconFont: detailIconFont,
+                                titleColor: titleColor,
+                                iconColor: detailTextColor
+                            )
 
                             if !item.isAllDay, let locationText = item.locationText {
                                 let locationName = displayLocationName(from: locationText)
@@ -228,7 +272,11 @@ extension MenuContentView {
                                     HStack(alignment: .center, spacing: 4) {
                                         Image(systemName: locationSymbolName(for: item))
                                             .font(detailIconFont)
-                                            .frame(width: 12, height: 12, alignment: .center)
+                                            .frame(
+                                                width: MenuMarkerMetrics.symbolSize,
+                                                height: MenuMarkerMetrics.symbolSize,
+                                                alignment: .center
+                                            )
                                             .foregroundStyle(accentColor)
                                         Text(locationName)
                                             .font(detailFont)
@@ -239,53 +287,57 @@ extension MenuContentView {
                                 }
                             }
 
-                            if let meetingURL = item.meetingURL {
-                                HStack(alignment: .center, spacing: 4) {
-                                    Image(systemName: "video")
-                                        .font(detailIconFont)
-                                        .frame(width: 12, height: 12, alignment: .center)
-                                        .foregroundStyle(accentColor)
-                                    Text(meetingServiceName(for: meetingURL))
-                                        .font(detailFont)
-                                        .foregroundStyle(detailTextColor)
-                                }
-                            }
+                            linkDetailRow(
+                                for: item,
+                                detailFont: detailFont,
+                                accentColor: accentColor,
+                                detailTextColor: detailTextColor,
+                                isHovered: isHovered
+                            )
                         }
 
                         Spacer(minLength: 4)
 
                         if !hideTimeDetails {
                             VStack(alignment: .trailing, spacing: 0) {
-                                Text(
-                                    item.date <= now
-                                        ? Self.reminderDueText(
-                                            dueDate: item.date,
-                                            now: now,
-                                            simplified: settings.useSimplifiedCountdown
-                                        )
-                                        : timeText(item.date)
-                                )
+                                Text(Self.reminderScheduleText(
+                                    for: item,
+                                    now: now,
+                                    simplified: settings.useSimplifiedCountdown,
+                                    timedText: timeText(item.date)
+                                ))
                                     .font(detailFont)
                                     .foregroundStyle(detailTextColor)
                             }
+                            .padding(.top, MenuMarkerMetrics.detailFirstLineTopPadding)
                         }
                     }
                 } else {
                     VStack(alignment: .leading, spacing: 0) {
-                        Text(item.title)
-                            .font(titleFont)
-                            .foregroundStyle(titleColor)
+                        titleLine(
+                            title: dropdownVisibleTitle(for: item),
+                                originalTitle: item.title,
+                            symbolNames: accessorySymbolNames,
+                            titleFont: titleFont,
+                            iconFont: detailIconFont,
+                            titleColor: titleColor.opacity(participationTextOpacity),
+                            iconColor: detailTextColor.opacity(participationTextOpacity)
+                        )
 
-                            if !hideTimeDetails,
-                               let detailTime = timeRangeText(for: item) {
+                        if !hideTimeDetails,
+                           let detailTime = timeRangeText(for: item) {
                             HStack(alignment: .center, spacing: 4) {
                                 Image(systemName: "clock")
                                     .font(detailIconFont)
-                                    .frame(width: 12, height: 12, alignment: .center)
+                                    .frame(
+                                        width: MenuMarkerMetrics.symbolSize,
+                                        height: MenuMarkerMetrics.symbolSize,
+                                        alignment: .center
+                                    )
                                     .foregroundStyle(accentColor)
                                 Text(detailTime)
                                     .font(detailFont)
-                                    .foregroundStyle(detailTextColor)
+                                    .foregroundStyle(detailTextColor.opacity(participationTextOpacity))
                             }
                         }
                     }
@@ -293,51 +345,112 @@ extension MenuContentView {
             }
         }
         .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .padding(.top, MenuMarkerMetrics.rowContentTopPadding)
+        .padding(.bottom, MenuMarkerMetrics.rowContentBottomPadding)
         .padding(.trailing, reservedTrailingWidth)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: minimumRowHeight, alignment: .leading)
         .background(alignment: .leading) {
             let visual = monitor.segmentBackgroundVisual(for: item, now: now, settings: settings)
 
             if isHovered {
-                RoundedRectangle(cornerRadius: 7)
-                    .fill(Color.accentColor.opacity(0.10))
+                rowShape
+                    .fill(Color(nsColor: .unemphasizedSelectedContentBackgroundColor))
             }
 
             if visual.color.alphaComponent > 0.01 {
-                RoundedRectangle(cornerRadius: 7)
-                    .fill(Color(nsColor: visual.color).opacity(0.08))
+                rowShape
+                    .fill(
+                        Color(nsColor: visual.color)
+                            .opacity(participationTextureStatus != nil ? 0.55 : 0.08)
+                    )
+
+                if participationTextureStatus != nil {
+                    CalendarParticipationTexture(status: participationTextureStatus)
+                        .clipShape(rowShape)
+                }
             }
         }
         .overlay(alignment: .leading) {
             if let progress = monitor.activeEventProgress(for: item, now: now, settings: settings), progress > 0 {
                 GeometryReader { proxy in
-                    RoundedRectangle(cornerRadius: 7)
-                        .fill(Color(nsColor: item.calendarColor.nsColor).opacity(0.22))
-                        .frame(width: max(10, proxy.size.width * progress))
+                    ZStack(alignment: .leading) {
+                        rowShape
+                            .fill(Color(nsColor: item.calendarColor.nsColor).opacity(0.22))
+
+                        if participationTextureStatus != nil {
+                            CalendarParticipationTexture(status: participationTextureStatus)
+                                .clipShape(rowShape)
+                        }
+                    }
+                    .frame(width: max(10, proxy.size.width * progress))
                 }
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .clipShape(MenuListRowBackgroundShape(position: listPosition, cornerRadius: 7))
+        // Keep the active-event progress fill composited inside the row while
+        // the menu's scroll view and window resize during dismissal.
+        .compositingGroup()
 
         textBlock
     }
 
-}
+    @ViewBuilder
+    func titleLine(
+        title: String,
+        originalTitle: String? = nil,
+        symbolNames: [String],
+        titleFont: Font,
+        iconFont: Font,
+        titleColor: Color,
+        iconColor: Color
+    ) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            Text(title)
+                .help(originalTitle ?? title)
+                .accessibilityLabel(originalTitle ?? title)
+                .font(titleFont)
+                .foregroundStyle(titleColor)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .layoutPriority(0)
 
-struct MenuContentHoverContainer<Content: View>: View {
-    let content: (Bool) -> Content
-    @State private var isHovered = false
+            if !symbolNames.isEmpty {
+                Spacer(minLength: 8)
 
-    init(@ViewBuilder content: @escaping (Bool) -> Content) {
-        self.content = content
+                dropdownAccessorySymbols(
+                    symbolNames: symbolNames,
+                    iconFont: iconFont,
+                    iconColor: iconColor
+                )
+                .fixedSize()
+                .layoutPriority(1)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    var body: some View {
-        content(isHovered)
-            .onHover { hovering in
-                guard isHovered != hovering else { return }
-                isHovered = hovering
+    func dropdownVisibleTitle(for item: UpcomingItem) -> String {
+        monitor.eventTitle(for: item, inDropdown: true)
+    }
+
+    @ViewBuilder
+    func dropdownAccessorySymbols(
+        symbolNames: [String],
+        iconFont: Font,
+        iconColor: Color
+    ) -> some View {
+        HStack(spacing: 4) {
+            ForEach(symbolNames, id: \.self) { symbolName in
+                Image(systemName: symbolName)
+                    .font(iconFont)
+                    .frame(
+                        width: MenuMarkerMetrics.symbolSize,
+                        height: MenuMarkerMetrics.symbolSize,
+                        alignment: .center
+                    )
+                    .foregroundStyle(iconColor)
+                    .accessibilityHidden(true)
             }
+        }
     }
 }

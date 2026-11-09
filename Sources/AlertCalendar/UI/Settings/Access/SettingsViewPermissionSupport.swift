@@ -1,0 +1,324 @@
+import AppKit
+import Combine
+import Contacts
+import CoreLocation
+import EventKit
+import SwiftUI
+
+extension SettingsView {
+    func integrationDescription(for _: SettingsIntegrationKind) -> String {
+        slackIntegrationDescription()
+    }
+
+    func permissionPrimaryButton(
+        for permission: SettingsPermissionKind,
+        grantState: PermissionGrantState,
+        isRequesting: Bool
+    ) -> some View {
+        Button {
+            performPrimaryPermissionAction(permission, grantState: grantState)
+        } label: {
+            Label(
+                isRequesting ? L10n.text("Checking...") : permissionPrimaryActionTitle(for: permission, state: grantState),
+                systemImage: isRequesting ? "hourglass" : permissionPrimaryActionSymbol(for: grantState)
+            )
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.regular)
+        .disabled(isRequesting)
+    }
+
+    func permissionSettingsButton(for permission: SettingsPermissionKind) -> some View {
+        Button {
+            openPrivacySettings(for: permission)
+        } label: {
+            Label(L10n.text("Open Settings…"), systemImage: "gearshape")
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.regular)
+    }
+
+    @ViewBuilder
+    func permissionStatusBadge(for state: PermissionGrantState) -> some View {
+        cardStatusBadge(
+            SettingsCardBadgeState(title: state.badgeTitle, tint: state.tint)
+        )
+    }
+
+    @ViewBuilder
+    func cardStatusBadge(_ state: SettingsCardBadgeState) -> some View {
+        SettingsStatusBadge(title: state.title, tint: state.tint)
+    }
+
+    func permissionPrimaryActionTitle(for permission: SettingsPermissionKind, state: PermissionGrantState) -> String {
+        switch state {
+        case .allowed:
+            return L10n.text("Refresh status")
+        case .notRequested:
+            return L10n.text("Request access")
+        case .limited:
+            return permission == .location ? L10n.text("Check access") : L10n.text("Upgrade access")
+        case .denied, .restricted:
+            return L10n.text("Open Settings…")
+        }
+    }
+
+    func permissionPrimaryActionSymbol(for state: PermissionGrantState) -> String {
+        switch state {
+        case .allowed:
+            return "arrow.clockwise.circle"
+        case .notRequested:
+            return "hand.raised.circle"
+        case .limited:
+            return "arrow.up.circle"
+        case .denied, .restricted:
+            return "gearshape"
+        }
+    }
+
+    func performPrimaryPermissionAction(
+        _ permission: SettingsPermissionKind,
+        grantState: PermissionGrantState
+    ) {
+        switch grantState {
+        case .notRequested, .limited:
+            requestPermission(permission)
+        case .denied, .restricted:
+            permissionActionMessages[permission] = "macOS will not show the permission prompt again. Enable access for AlertCalendar in System Settings."
+            openPrivacySettings(for: permission)
+        case .allowed:
+            permissionActionMessages[permission] = nil
+            refreshPermissionStatuses(forceRefresh: true)
+        }
+    }
+
+    func permissionGrantDescription(for permission: SettingsPermissionKind, state: PermissionGrantState) -> String {
+        switch permission {
+        case .events:
+            switch state {
+            case .allowed:
+                return L10n.text("Alert Calendar can read upcoming events and use Calendar-backed football fixture actions.")
+            case .notRequested:
+                return L10n.text("This prompt has not been granted yet. Request it here to load events into the app.")
+            case .limited:
+                return L10n.text("Calendar access is only partially granted. Open Settings and switch Alert Calendar to full access so events can be read.")
+            case .denied:
+                return L10n.text("macOS denied event access. Use Open Settings to re-enable Calendar access for Alert Calendar.")
+            case .restricted:
+                return L10n.text("Event access is restricted by macOS or device policy.")
+            }
+        case .reminders:
+            switch state {
+            case .allowed:
+                return L10n.text("Reminder due dates and completion actions are available to the app.")
+            case .notRequested:
+                return L10n.text("This prompt has not been granted yet. Request it here to include reminders in the dropdown.")
+            case .limited:
+                return L10n.text("Reminders access is only partially granted. Open Settings and switch Alert Calendar to full access so reminders can be read.")
+            case .denied:
+                return L10n.text("macOS denied reminder access. Use Open Settings to re-enable Reminders access for Alert Calendar.")
+            case .restricted:
+                return L10n.text("Reminder access is restricted by macOS or device policy.")
+            }
+        case .location:
+            switch state {
+            case .allowed:
+                return L10n.text("Location access is available for automatic astronomy coordinates.")
+            case .notRequested:
+                return L10n.text("Location has not been requested yet. Grant it to support automatic astronomy coordinates and daylight maps, or enter coordinates manually in Atmosphere.")
+            case .limited:
+                return L10n.text("Location access is available for automatic astronomy coordinates.")
+            case .denied:
+                return L10n.text("Location access is denied. Use Open Settings to allow location for Alert Calendar, or switch to manual coordinates in Atmosphere.")
+            case .restricted:
+                return L10n.text("Location Services are unavailable or restricted on this Mac. Manual coordinates are available in Atmosphere.")
+            }
+        case .contacts:
+            switch state {
+            case .allowed:
+                return L10n.text("Meeting previews can use contact names and organizer photos from the Contacts app.")
+            case .notRequested:
+                return L10n.text("Contacts access has not been requested yet. Grant it to enrich invitee names and organizer avatars in meeting previews.")
+            case .limited:
+                return L10n.text("Contacts access is limited. Open Settings and allow full Contacts access for Alert Calendar.")
+            case .denied:
+                return L10n.text("Contacts access is denied. Use Open Settings to allow Contacts for Alert Calendar and show names or avatars in meeting previews.")
+            case .restricted:
+                return L10n.text("Contacts access is restricted by macOS or device policy.")
+            }
+        case .mail:
+            switch state {
+            case .allowed:
+                return L10n.text("When enabled, title rewriting can request a few matching messages from Apple Mail and process bounded, redacted context on device.")
+            case .notRequested:
+                return L10n.text("Mail automation has not been granted or Mail is not running. Request access to enable the optional related-mail context source.")
+            case .limited:
+                return L10n.text("Apple Mail automation is not fully available. Open Automation settings and allow AlertCalendar to control Mail.")
+            case .denied:
+                return L10n.text("macOS denied Apple Mail automation. Use Open Settings to allow AlertCalendar under Privacy & Security › Automation.")
+            case .restricted:
+                return L10n.text("Apple Mail automation is unavailable on this Mac or restricted by device policy.")
+            }
+        }
+    }
+
+    func permissionBorderColor(for state: PermissionGrantState) -> Color {
+        state.tint.opacity(0.24)
+    }
+
+    func permissionGrantState(for permission: SettingsPermissionKind) -> PermissionGrantState {
+        switch permission {
+        case .events:
+            if hasEventsAccess || Self.isGrantedEventKitAuthorizationStatus(eventAuthorizationStatus) {
+                return .allowed
+            }
+            return Self.permissionGrantState(for: eventAuthorizationStatus)
+        case .reminders:
+            if hasRemindersAccess || Self.isGrantedEventKitAuthorizationStatus(reminderAuthorizationStatus) {
+                return .allowed
+            }
+            return Self.permissionGrantState(for: reminderAuthorizationStatus)
+        case .location:
+            return Self.permissionGrantState(for: locationAuthorizationStatus)
+        case .contacts:
+            return Self.permissionGrantState(for: contactsAuthorizationStatus)
+        case .mail:
+            switch mailAutomationAuthorizationStatus {
+            case .authorized:
+                return .allowed
+            case .notDetermined, .mailUnavailable:
+                return .notRequested
+            case .denied:
+                return .denied
+            }
+        }
+    }
+
+    func requestPermission(_ permission: SettingsPermissionKind) {
+        guard !activePermissionRequests.contains(permission) else { return }
+        activePermissionRequests.insert(permission)
+        permissionActionMessages[permission] = nil
+
+        Task { @MainActor in
+            defer { activePermissionRequests.remove(permission) }
+
+            let granted: Bool
+            switch permission {
+            case .events:
+                granted = await monitor.requestEventsAccess()
+                monitor.hasEventsAccess = granted
+                eventAuthorizationStatus = SettingsPermissionKind.currentEventAuthorizationStatus(forceRefresh: true)
+                monitor.updateAccessDescription()
+            case .reminders:
+                granted = await monitor.requestRemindersAccess()
+                monitor.hasRemindersAccess = granted
+                reminderAuthorizationStatus = SettingsPermissionKind.currentReminderAuthorizationStatus(forceRefresh: true)
+                monitor.updateAccessDescription()
+            case .location:
+                let status = await monitor.requestLocationAuthorizationIfNeeded()
+                granted = Self.permissionGrantState(for: status) == .allowed
+                locationAuthorizationStatus = status
+                SettingsPermissionKind.updateCachedLocationAuthorizationStatus(status)
+                if monitor.currentSettings.useAutomaticAstronomyLocation,
+                   granted {
+                    monitor.refreshAstronomyCoordinatesFromSystem()
+                }
+            case .contacts:
+                granted = await MeetingContactResolver.shared.requestAccess()
+                contactsAuthorizationStatus = SettingsPermissionKind.currentContactsAuthorizationStatus(forceRefresh: true)
+            case .mail:
+                mailAutomationAuthorizationStatus = await AppleMailAutomationPermission.requestAccess()
+                granted = mailAutomationAuthorizationStatus == .authorized
+            }
+
+            permissionActionMessages[permission] = granted
+                ? L10n.text("Access granted.")
+                : L10n.text("macOS did not grant access. Use Open Settings to enable it for AlertCalendar.")
+            refreshPermissionStatuses()
+        }
+    }
+
+    func refreshPermissionStatuses(forceRefresh: Bool = true) {
+        eventAuthorizationStatus = SettingsPermissionKind.currentEventAuthorizationStatus(forceRefresh: forceRefresh)
+        reminderAuthorizationStatus = SettingsPermissionKind.currentReminderAuthorizationStatus(forceRefresh: forceRefresh)
+        locationAuthorizationStatus = SettingsPermissionKind.currentLocationAuthorizationStatus(forceRefresh: forceRefresh)
+        contactsAuthorizationStatus = SettingsPermissionKind.currentContactsAuthorizationStatus(forceRefresh: forceRefresh)
+        mailAutomationAuthorizationStatus = AppleMailAutomationPermission.currentStatus()
+        refreshMailAutomationStatus(forceRefresh: forceRefresh)
+        for permission in SettingsPermissionKind.allCases
+            where permissionGrantState(for: permission) == .allowed
+                && permissionActionMessages[permission] != L10n.text("Access granted.") {
+            permissionActionMessages[permission] = nil
+        }
+        monitor.refreshAvailableCalendars()
+        synchronizeSettingsStateFromMonitor()
+        monitor.refreshNow(reason: .manual)
+    }
+
+    func refreshMailAutomationStatus(forceRefresh: Bool = false) {
+        Task { @MainActor in
+            let status = await AppleMailAutomationPermission.refreshStatus(forceRefresh: forceRefresh)
+            let didChange = mailAutomationAuthorizationStatus != status
+            mailAutomationAuthorizationStatus = status
+            if didChange { monitor.refreshNow(reason: .manual) }
+        }
+    }
+
+    func openPrivacySettings() {
+        let deepLinks = SettingsPermissionKind.allCases.map(\.privacySettingsDeepLink)
+
+        for rawValue in deepLinks {
+            guard let url = URL(string: rawValue) else { continue }
+            if AlertCalendarWorkspace.open(url) {
+                return
+            }
+        }
+
+        if let settingsAppURL = URL(string: "x-apple.systempreferences:") {
+            AlertCalendarWorkspace.open(settingsAppURL)
+        }
+    }
+
+    func openPrivacySettings(for permission: SettingsPermissionKind) {
+        guard let url = URL(string: permission.privacySettingsDeepLink) else {
+            openPrivacySettings()
+            return
+        }
+
+        if !AlertCalendarWorkspace.open(url) {
+            openPrivacySettings()
+        }
+    }
+
+    func statusPill(title: String, value: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text("\(title):")
+                .foregroundStyle(.secondary)
+            Text(value)
+                .textSelection(.enabled)
+        }
+    }
+
+    func stepperRow<Control: View>(title: String, valueText: String, helpText: String? = nil, @ViewBuilder control: () -> Control) -> some View {
+        HStack {
+            HStack(spacing: 6) {
+                Text(title)
+                if let helpText {
+                    InfoTipButton(text: helpText)
+                }
+            }
+            Spacer(minLength: 12)
+            HStack(spacing: 8) {
+                control()
+                Text(valueText)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+            .frame(width: 170, alignment: .trailing)
+        }
+    }
+}

@@ -48,14 +48,34 @@ extension FootballDataAPIClient {
         detail: String?,
         displayClock: String?
     ) -> String? {
+        let normalizedPreferred = normalizedStatusToken(preferredStatusText)
+        let resolvedDetail = detail?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedDisplayClock = displayClock?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if interruptedMatchState(from: normalizedPreferred) != nil {
+            if let resolvedDetail,
+               !resolvedDetail.isEmpty,
+               normalizedStatusToken(resolvedDetail) != normalizedPreferred,
+               statusTextLooksLikeMinute(resolvedDetail) {
+                return resolvedDetail
+            }
+
+            if let resolvedDisplayClock,
+               !resolvedDisplayClock.isEmpty,
+               normalizedStatusToken(resolvedDisplayClock) != normalizedPreferred,
+               statusTextLooksLikeMinute(resolvedDisplayClock) {
+                return resolvedDisplayClock
+            }
+        }
+
         let candidates = [
-            detail?.trimmingCharacters(in: .whitespacesAndNewlines),
-            displayClock?.trimmingCharacters(in: .whitespacesAndNewlines),
+            resolvedDetail,
+            resolvedDisplayClock,
         ]
 
         for candidate in candidates {
             guard let candidate, !candidate.isEmpty else { continue }
-            if normalizedStatusToken(candidate) != normalizedStatusToken(preferredStatusText) {
+            if normalizedStatusToken(candidate) != normalizedPreferred {
                 return candidate
             }
         }
@@ -98,7 +118,13 @@ extension FootballDataAPIClient {
     }
 
     static func statusTextShouldRemainAsReported(_ statusText: String) -> Bool {
-        FootballStatusText.indicatesInterruptedPlay(normalizedStatusToken(statusText))
+        interruptedMatchState(from: statusText) != nil
+    }
+
+    static func interruptedMatchState(
+        from statusText: String
+    ) -> FootballInterruptedMatchState? {
+        FootballInterruptedMatchState(statusText: statusText)
     }
 
     static func statusTextShouldPreferDetail(shortDetail: String, detail: String) -> Bool {
@@ -109,12 +135,12 @@ extension FootballDataAPIClient {
             return false
         }
 
-        if FootballStatusText.indicatesInterruptedPlay(normalizedShort) {
+        if interruptedMatchState(from: normalizedShort) != nil {
             return false
         }
 
-        if FootballStatusText.indicatesInterruptedPlay(normalizedDetail)
-            && !FootballStatusText.indicatesInterruptedPlay(normalizedShort) {
+        if interruptedMatchState(from: normalizedDetail) != nil
+            && interruptedMatchState(from: normalizedShort) == nil {
             return true
         }
 
@@ -130,7 +156,7 @@ extension FootballDataAPIClient {
     }
 
     static func statusTextLooksLikeMinute(_ text: String) -> Bool {
-        let pattern = #"\d{1,3}(?:\+\d{1,2})?\s*'"#
+        let pattern = #"\d{1,3}\s*['’]?(?:\s*\+\s*\d{1,2})?\s*['’]"#
         return text.range(of: pattern, options: .regularExpression) != nil
     }
 
@@ -284,6 +310,73 @@ extension FootballDataAPIClient {
             return intValue(seriesCompetitor["aggregateScore"])
         }
 
+        return nil
+    }
+
+    static func officialWinnerSide(
+        homeCompetitor: [String: Any]?,
+        awayCompetitor: [String: Any]?
+    ) -> FootballScoreSide? {
+        let homeWon = providerBooleanValue(homeCompetitor?["winner"])
+            ?? providerBooleanValue(homeCompetitor?["isWinner"])
+        let awayWon = providerBooleanValue(awayCompetitor?["winner"])
+            ?? providerBooleanValue(awayCompetitor?["isWinner"])
+
+        if homeWon == true, awayWon != true { return .home }
+        if awayWon == true, homeWon != true { return .away }
+        return nil
+    }
+
+    static func shootoutScore(from competitor: [String: Any]?) -> Int? {
+        guard let competitor else { return nil }
+
+        for key in ["shootoutScore", "penaltyScore", "penaltiesScore"] {
+            if let score = nonnegativeProviderScore(competitor[key]) {
+                return score
+            }
+        }
+
+        if let shootout = competitor["shootout"] as? [String: Any],
+           let score = nonnegativeProviderScore(shootout["score"])
+            ?? nonnegativeProviderScore(shootout["value"])
+            ?? nonnegativeProviderScore(shootout["displayValue"]) {
+            return score
+        }
+
+        let linescores = competitor["linescores"] as? [[String: Any]] ?? []
+        return linescores.reversed().first(where: { linescore in
+            let period = intValue(linescore["period"]) ?? intValue(linescore["periodNumber"])
+            let label = [
+                stringValue(linescore["label"]),
+                stringValue(linescore["displayName"]),
+                stringValue(linescore["period"]),
+            ]
+                .compactMap { $0 }
+                .joined(separator: " ")
+                .uppercased()
+            return (period ?? 0) >= 5 || label.contains("PEN") || label.contains("SHOOT")
+        }).flatMap { linescore in
+            nonnegativeProviderScore(linescore["value"])
+                ?? nonnegativeProviderScore(linescore["score"])
+                ?? nonnegativeProviderScore(linescore["displayValue"])
+        }
+    }
+
+    private static func nonnegativeProviderScore(_ raw: Any?) -> Int? {
+        guard let score = intValue(raw), score >= 0 else { return nil }
+        return score
+    }
+
+    private static func providerBooleanValue(_ raw: Any?) -> Bool? {
+        if let value = raw as? Bool { return value }
+        if let value = raw as? NSNumber {
+            if value.doubleValue == 1 { return true }
+            if value.doubleValue == 0 { return false }
+            return nil
+        }
+        guard let value = stringValue(raw)?.lowercased() else { return nil }
+        if ["true", "yes", "1", "winner", "won"].contains(value) { return true }
+        if ["false", "no", "0", "loser", "lost"].contains(value) { return false }
         return nil
     }
 

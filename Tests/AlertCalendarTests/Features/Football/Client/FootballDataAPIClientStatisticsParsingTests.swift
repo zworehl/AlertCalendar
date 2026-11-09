@@ -161,6 +161,67 @@ final class FootballDataAPIClientStatisticsParsingTests: FootballDataAPIClientTe
 
         XCTAssertNil(endDate)
     }
+
+    func testActualEndDateUsesGenericEndMatchForPenaltyShootout() {
+        let fallbackStartDate = FootballDataAPIClient.parseEventDate("2022-12-18T15:00:00Z")!
+        let actualKickoff = FootballDataAPIClient.parseEventDate("2022-12-18T15:02:00Z")!
+        let shootoutEnd = FootballDataAPIClient.parseEventDate("2022-12-18T17:55:00Z")!
+        let root: [String: Any] = [
+            "keyEvents": [
+                [
+                    "type": ["text": "End Extra Time", "type": "end-extra-time"],
+                    "wallclock": "2022-12-18T17:42:00Z",
+                ],
+                [
+                    "type": ["text": "End Match", "type": "end-match"],
+                    "wallclock": "2022-12-18T17:55:00Z",
+                ],
+            ],
+        ]
+
+        let endDate = FootballDataAPIClient.actualEndDate(
+            from: root,
+            fallbackStartDate: fallbackStartDate,
+            actualStartDate: actualKickoff,
+            statusPeriod: 5
+        )
+
+        XCTAssertEqual(endDate, shootoutEnd)
+    }
+
+    func testSummarySnapshotUsesKnownPeriodWhenPenaltySummaryOmitsIt() throws {
+        let fallbackStartDate = FootballDataAPIClient.parseEventDate("2022-12-18T15:00:00Z")!
+        let shootoutEnd = FootballDataAPIClient.parseEventDate("2022-12-18T17:55:00Z")!
+        let root: [String: Any] = [
+            "header": [
+                "competitions": [[
+                    "status": ["type": ["state": "post", "shortDetail": "FT-Pens"]],
+                    "competitors": [
+                        ["homeAway": "home", "score": "3", "winner": true, "shootoutScore": 4],
+                        ["homeAway": "away", "score": "3", "winner": false, "shootoutScore": 2],
+                    ],
+                ]],
+            ],
+            "keyEvents": [[
+                "type": ["text": "End Match", "type": "end-match"],
+                "wallclock": "2022-12-18T17:55:00Z",
+            ]],
+        ]
+
+        let snapshot = try XCTUnwrap(
+            FootballDataAPIClient.summarySnapshot(
+                from: root,
+                fallbackStartDate: fallbackStartDate,
+                fallbackStatusPeriod: 5
+            )
+        )
+
+        XCTAssertEqual(snapshot.statusPeriod, 5)
+        XCTAssertEqual(snapshot.actualEndDate, shootoutEnd)
+        XCTAssertEqual(snapshot.officialWinner, .home)
+        XCTAssertEqual(snapshot.homeShootoutScore, 4)
+        XCTAssertEqual(snapshot.awayShootoutScore, 2)
+    }
     func testRefreshStatusesIfNeededCanForceSummaryForFinishedMatchOutsideDefaultWindow() async throws {
         let scheduledStart = Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970) - 8 * 60 * 60)
         let actualKickoff = scheduledStart.addingTimeInterval(7 * 60)

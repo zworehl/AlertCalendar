@@ -1,0 +1,189 @@
+import AppKit
+import CoreLocation
+import EventKit
+import Foundation
+
+extension CalendarMonitor {
+    nonisolated static let footballAutoAddRefreshInterval: TimeInterval = 3 * 60 * 60
+
+    nonisolated static func normalizedFootballAutoAddCompetitionSlugs(_ slugs: [String]) -> [String] {
+        let requestedSlugs = Set(
+            slugs.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        )
+
+        return FootballCompetitionPreset.menuPresets
+            .map(\.slug)
+            .filter { requestedSlugs.contains($0) }
+    }
+
+    nonisolated static func footballMatchesEligibleForAutoAdd(
+        _ matches: [FootballFixtureMatch],
+        enabledCompetitionSlugs: Set<String>,
+        managedMatchIDs: Set<String>,
+        now: Date
+    ) -> [FootballFixtureMatch] {
+        deduplicatedFootballMatches(matches)
+            .filter { match in
+                guard enabledCompetitionSlugs.contains(match.competitionSlug) else { return false }
+                guard !managedMatchIDs.contains(match.id) else { return false }
+                guard !FootballFixtureFormatter.hasUnknownParticipants(in: match) else { return false }
+
+                switch match.statusState {
+                case .inProgress:
+                    return true
+                case .scheduled, .unknown:
+                    return match.startDate >= now || match.statusReliability != .reported
+                case .finished:
+                    return false
+                }
+            }
+            .map { match in
+                (match: match, priority: footballFixtureSortPriority(for: match, now: now))
+            }
+            .sorted { $0.priority < $1.priority }
+            .map(\.match)
+    }
+
+    func footballAutoAddCompetitionSlugs() -> Set<String> {
+        let normalizedSlugs = Self.normalizedFootballAutoAddCompetitionSlugs(
+            defaults.stringArray(forKey: DefaultsKeys.footballAutoAddCompetitionSlugs) ?? []
+        )
+        return Set(normalizedSlugs)
+    }
+
+    func setFootballAutoAddCompetitionSlugs(_ slugs: Set<String>) {
+        let normalizedSlugs = Self.normalizedFootballAutoAddCompetitionSlugs(Array(slugs))
+        guard normalizedSlugs != (defaults.stringArray(forKey: DefaultsKeys.footballAutoAddCompetitionSlugs) ?? []) else {
+            return
+        }
+        defaults.set(normalizedSlugs, forKey: DefaultsKeys.footballAutoAddCompetitionSlugs)
+    }
+
+    func setFootballAutoAddEnabled(_ isEnabled: Bool, for competition: FootballCompetitionPreset) {
+        var slugs = footballAutoAddCompetitionSlugs()
+        if isEnabled {
+            slugs.insert(competition.slug)
+        } else {
+            slugs.remove(competition.slug)
+        }
+        setFootballAutoAddCompetitionSlugs(slugs)
+    }
+
+    func syncAutoAddedFootballMatchesIfNeeded(now: Date, force: Bool = false) async {
+        guard !footballState.isAutoAddRefreshing else { return }
+        guard hasEventsAccess else { return }
+        let enabledSlugs = footballAutoAddCompetitionSlugs()
+        guard !enabledSlugs.isEmpty else { return }
+        guard force || CalendarMonitorTime.hasElapsed(
+            since: lastFootballAutoAddRefreshDate,
+            now: now,
+            interval: footballState.autoAddRefreshFailed ? 60 : Self.footballAutoAddRefreshInterval
+        ) else {
+            return
+        }
+
+        let presets = FootballCompetitionPreset.menuPresets.filter { enabledSlugs.contains($0.slug) }
+        guard !presets.isEmpty else { return }
+
+        footballState.isAutoAddRefreshing = true
+        defer { footballState.isAutoAddRefreshing = false }
+        lastFootballAutoAddRefreshDate = now
+        do {
+            let calendar = Calendar(identifier: .gregorian)
+            let dayStart = calendar.startOfDay(for: now)
+            let dateRangesBySlug = Dictionary(uniqueKeysWithValues: presets.map { preset in
+                let end = calendar.date(byAdding: .day, value: preset.lookaheadDays, to: dayStart) ?? dayStart
+                let ranges = FootballDataAPIClient.scoreboardDateRanges(
+                    start: dayStart,
+                    end: end,
+                    calendar: calendar
+                ).map { FootballScoreboardDateRange(start: $0.0, end: $0.1) }
+                return (preset.slug, ranges)
+            })
+            let result = try await footballClient.fetchFixtureLoadResult(
+                for: presets,
+                dateRangesByCompetitionSlug: dateRangesBySlug,
+                forceRefresh: force,
+                healthScope: "auto-add"
+            )
+            let fetchedMatches = result.restoringCachedMatches(Array(footballMatchesByID.values))
+            let refreshedMatches = await footballClient.refreshStatusesIfNeeded(for: fetchedMatches, forceRefresh: force)
+            let resolvedMatches = matchesPreservingKnownTimingContext(refreshedMatches)
+            await cacheFootballMatches(resolvedMatches)
+            footballState.autoAddRefreshFailed = !result.failures.isEmpty
+            if result.failures.isEmpty {
+                markFootballRefreshed(at: now)
+            }
+            updateFootballCompetitionSectionsAfterAutoAddRefresh(
+                presets: presets,
+                matches: resolvedMatches,
+                now: now,
+                failures: result.failures
+            )
+            await autoAddFootballMatches(resolvedMatches, enabledCompetitionSlugs: enabledSlugs, now: now)
+        } catch {
+            if !(error is CancellationError) { footballState.autoAddRefreshFailed = true }
+            return
+        }
+    }
+
+    func autoAddFootballMatches(
+        _ matches: [FootballFixtureMatch],
+        enabledCompetitionSlugs: Set<String>? = nil,
+        now: Date
+    ) async {
+        let slugs = enabledCompetitionSlugs ?? footballAutoAddCompetitionSlugs()
+        guard !slugs.isEmpty else { return }
+
+        let eligibleMatches = Self.footballMatchesEligibleForAutoAdd(
+            matches,
+            enabledCompetitionSlugs: slugs,
+            managedMatchIDs: managedFootballMatchIDs,
+            now: now
+        )
+        guard !eligibleMatches.isEmpty else { return }
+        guard resolvedFootballTargetCalendar() != nil else {
+            calendarAccessDescription = "Choose a writable event calendar before auto-adding fixtures."
+            return
+        }
+
+        for match in eligibleMatches where !managedFootballMatchIDs.contains(match.id) {
+            let didAdd = await addFootballMatchToCalendar(match)
+            if didAdd {
+                queueFootballAutoAddNotification(for: match, now: now)
+            }
+        }
+    }
+
+    func updateFootballCompetitionSectionsAfterAutoAddRefresh(
+        presets: [FootballCompetitionPreset],
+        matches: [FootballFixtureMatch],
+        now: Date,
+        failures: [FootballFixtureLoadFailure] = []
+    ) {
+        ensureFootballCompetitionSections()
+        let matchesByCompetitionSlug = Dictionary(grouping: matches, by: \.competitionSlug)
+
+        for preset in presets {
+            let sectionMatches = Self.resolvedFootballSectionMatches(
+                matchesByCompetitionSlug[preset.slug] ?? [],
+                cachedMatchesByID: footballMatchesByID,
+                now: now
+            )
+            updateFootballCompetitionSection(preset.id) { section in
+                let today = Calendar.autoupdatingCurrent.startOfDay(for: now)
+                let pastMatches = section.matches.filter { $0.startDate < today }
+                let retainedMatches = FootballFixtureLoadResult(matches: sectionMatches + pastMatches).restoringCachedMatches([])
+                return FootballMenuCompetitionSection(
+                    competition: preset,
+                    matches: retainedMatches,
+                    errorMessage: FootballFixtureLoadResult(failures: failures.filter { $0.competitionSlug == preset.slug }).warning,
+                    isLoading: false,
+                    hasLoaded: section.hasLoaded || !sectionMatches.isEmpty,
+                    checkedWindow: section.checkedWindow
+                )
+            }
+        }
+    }
+}

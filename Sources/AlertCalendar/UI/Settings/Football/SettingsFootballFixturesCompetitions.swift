@@ -3,17 +3,9 @@ import Combine
 import SwiftUI
 
 extension SettingsFootballFixturesSectionView {
-    var competitionListPanel: some View {
-        HStack(alignment: .top, spacing: 16) {
-            competitionSelectionContentPanel
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-
-            competitionFiltersPanel
-                .frame(width: 280, alignment: .topLeading)
-                .frame(maxHeight: .infinity, alignment: .topLeading)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
+    nonisolated static var competitionOffseasonFeedbackTitle: String { L10n.text("Offseason") }
+    nonisolated static let competitionSelectionStatusWidth: CGFloat = 72
+    nonisolated static let competitionSelectionStatusHeight: CGFloat = 18
 
     var competitionSelectionContentPanel: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -25,9 +17,7 @@ extension SettingsFootballFixturesSectionView {
 
                     Spacer()
 
-                    if !visibleMatches.isEmpty {
-                        competitionBulkActionButton(for: visibleMatches)
-                    }
+                    competitionAutoAddToggle(for: section)
 
                     if section.isLoading && !section.hasLoaded && section.matches.isEmpty {
                         ProgressView()
@@ -36,26 +26,38 @@ extension SettingsFootballFixturesSectionView {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.orange)
+                    } else if Self.isCompetitionOffseason(section) {
+                        Text(Self.competitionOffseasonFeedbackTitle)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
                     } else if section.hasLoaded {
                         Text("\(visibleMatches.count)")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
                     } else {
-                        Text("Load")
+                        Text(L10n.text("Load"))
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
                     }
                 }
 
+                SettingsSectionDivider()
+
                 competitionContent(for: section, visibleMatches: visibleMatches)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            } else if competitionSectionsByRegion.isEmpty {
+                if hasUnresolvedCompetitionLoads {
+                    loadingState(L10n.text("Checking competitions for available fixtures..."))
+                } else if !competitionSectionsWithErrors.isEmpty {
+                    competitionListFeedback
+                } else {
+                    emptyState(L10n.text("No competitions with fixtures are available right now."))
+                }
             } else {
                 emptyState("Choose a competition from the panel on the right.")
             }
         }
-        .padding(14)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(panelChrome)
     }
 
     func competitionSelectionHeader(for section: FootballMenuCompetitionSection) -> some View {
@@ -85,15 +87,25 @@ extension SettingsFootballFixturesSectionView {
     }
 
     var competitionFiltersPanel: some View {
+        ScrollView(.vertical, showsIndicators: true) {
+            competitionFiltersContent
+                .padding(.trailing, 2)
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .clipped()
+    }
+
+    var competitionFiltersContent: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .center, spacing: 12) {
-                Text("Browse")
+                Text(L10n.text("Browse"))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
 
                 Spacer()
 
-                Toggle("Show FT matches", isOn: $showFinishedFootballMatches)
+                Toggle(L10n.text("Show FT matches"), isOn: $showFinishedFootballMatches)
                     .toggleStyle(.checkbox)
                     .font(.subheadline.weight(.medium))
             }
@@ -101,7 +113,7 @@ extension SettingsFootballFixturesSectionView {
             if showFinishedFootballMatches {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        Text("FT lookback")
+                        Text(L10n.text("FT lookback"))
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
 
@@ -119,7 +131,7 @@ extension SettingsFootballFixturesSectionView {
                         step: 1
                     )
 
-                    Text("Finished matches stay visible until their estimated end time is older than this window.")
+                    Text(L10n.text("Finished matches stay visible until their estimated end time is older than this window."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -128,7 +140,7 @@ extension SettingsFootballFixturesSectionView {
 
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    Text("Ahead window")
+                    Text(L10n.text("Ahead window"))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
 
@@ -146,16 +158,35 @@ extension SettingsFootballFixturesSectionView {
                     step: 1
                 )
 
-                Text("Scheduled matches beyond this window are hidden from the browse list.")
+                Text(L10n.text("Scheduled matches beyond this window are hidden from the browse list."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Divider()
+            SettingsSectionDivider()
+
+            // Keep the status slot in the layout so background checks do not
+            // move every region and competition button up and down.
+            HStack(spacing: 8) {
+                Group {
+                    if footballMenuSections.contains(where: \.hasLoaded) {
+                        Image(systemName: "arrow.clockwise")
+                    } else {
+                        ProgressView().controlSize(.small)
+                    }
+                }
+                .frame(width: 16, height: 16)
+                Text(L10n.text("Checking competitions for available fixtures..."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(minHeight: 18)
+            .opacity(hasUnresolvedCompetitionLoads ? 1 : 0)
+            .accessibilityHidden(!hasUnresolvedCompetitionLoads)
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Region")
+                Text(L10n.text("Region"))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
 
@@ -164,31 +195,26 @@ extension SettingsFootballFixturesSectionView {
                 }
             }
 
-            Divider()
+            SettingsSectionDivider()
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Competition")
+                Text(L10n.text("Competition"))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
 
                 if selectedCompetitionSections.isEmpty {
                     emptyState("No competitions are available for the selected region.")
                 } else {
-                    ScrollView(.vertical, showsIndicators: true) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            ForEach(selectedCompetitionSections) { section in
-                                competitionSelectionButton(section)
-                            }
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(selectedCompetitionSections) { section in
+                            competitionSelectionButton(section)
                         }
-                        .padding(.trailing, 2)
                     }
-                    .frame(maxHeight: .infinity, alignment: .topLeading)
+                    .padding(.trailing, 2)
                 }
             }
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(panelChrome)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     @ViewBuilder
@@ -196,36 +222,55 @@ extension SettingsFootballFixturesSectionView {
         for section: FootballMenuCompetitionSection,
         visibleMatches: [FootballFixtureMatch]
     ) -> some View {
-        if section.isLoading && !section.hasLoaded && section.matches.isEmpty {
-            loadingState("Loading fixtures for \(section.competition.title)...")
-        } else if let errorMessage = section.errorMessage {
-            feedbackState(
-                title: "Could not load \(section.competition.title)",
-                text: errorMessage,
-                systemImage: "exclamationmark.triangle.fill",
-                tint: .orange,
-                buttonTitle: "Retry",
-                isButtonDisabled: section.isLoading
-            ) {
-                await loadCompetitionFixtures(section)
+        VStack(alignment: .leading, spacing: 12) {
+            if let errorMessage = section.errorMessage {
+                feedbackState(
+                    title: visibleMatches.isEmpty ? L10n.text("Could not load \(section.competition.title)") : L10n.text("Some fixtures could not be updated"),
+                    text: errorMessage,
+                    systemImage: "exclamationmark.triangle.fill",
+                    tint: .orange,
+                    buttonTitle: L10n.text("Retry"),
+                    isButtonDisabled: section.isLoading
+                ) {
+                    await loadCompetitionFixtures(section)
+                }
             }
-        } else if !section.hasLoaded && !section.isLoading && section.matches.isEmpty {
-            feedbackState(
-                title: "No matches loaded yet",
-                text: "Use Load Fixtures to fetch the \(FootballCompetitionPreset.suggestionWindowDescription) for this competition.",
-                systemImage: FootballFixtureFormatter.footballLocationSymbolName,
-                tint: .secondary,
-                buttonTitle: "Load Fixtures"
-            ) {
-                await loadCompetitionFixtures(section)
+
+            // One viewport identity for cached cards, including partial failures.
+            // Refreshing a warning must not recreate the scroll view and its rows.
+            if !visibleMatches.isEmpty {
+                matchCardsViewport(visibleMatches, showsCompetitionName: false)
+            } else if section.isLoading && !section.hasLoaded && section.matches.isEmpty {
+                loadingState("Loading fixtures for \(section.competition.title)...")
+            } else if section.errorMessage != nil {
+                EmptyView()
+            } else if !section.hasLoaded && !section.isLoading && section.matches.isEmpty {
+                feedbackState(
+                    title: L10n.text("No matches loaded yet"),
+                    text: L10n.text("Use Load Fixtures to fetch the \(FootballCompetitionPreset.suggestionWindowDescription) for this competition."),
+                    systemImage: FootballFixtureFormatter.footballLocationSymbolName,
+                    tint: .secondary,
+                    buttonTitle: L10n.text("Load Fixtures")
+                ) {
+                    await loadCompetitionFixtures(section)
+                }
+            } else if Self.isCompetitionOffseason(section) {
+                feedbackState(
+                    title: Self.competitionOffseasonFeedbackTitle,
+                    text: Self.competitionOffseasonFeedbackText(for: section.competition),
+                    systemImage: "pause.circle.fill",
+                    tint: .secondary,
+                    buttonTitle: L10n.text("Refresh Fixtures"),
+                    isButtonDisabled: section.isLoading
+                ) {
+                    await loadCompetitionFixtures(section)
+                }
+            } else {
+                emptyState(showFinishedFootballMatches
+                    ? L10n.text("No matches are available inside the current FT lookback and ahead windows.")
+                    : L10n.text("No unfinished matches available in the \(FootballCompetitionPreset.suggestionWindowDescription).")
+                )
             }
-        } else if visibleMatches.isEmpty {
-            emptyState(showFinishedFootballMatches
-                ? "No matches are available inside the current FT lookback and ahead windows."
-                : "No unfinished matches available in the \(FootballCompetitionPreset.suggestionWindowDescription)."
-            )
-        } else {
-            matchCardsViewport(visibleMatches, showsCompetitionName: false)
         }
     }
 
@@ -233,8 +278,9 @@ extension SettingsFootballFixturesSectionView {
         let isSelected = entry.region.id == selectedCompetitionRegionEntry?.region.id
 
         return Button {
-            selectedCompetitionRegionID = entry.region.id
-            selectedCompetitionID = entry.sections.first?.id
+            let nextCompetitionID = Self.preferredCompetitionID(in: entry.sections, currentID: selectedCompetitionID)
+            if selectedCompetitionRegionID != entry.region.id { selectedCompetitionRegionID = entry.region.id }
+            if selectedCompetitionID != nextCompetitionID { selectedCompetitionID = nextCompetitionID }
         } label: {
             HStack(spacing: 8) {
                 Text(entry.region.title)
@@ -243,23 +289,22 @@ extension SettingsFootballFixturesSectionView {
                 Spacer()
                 Text("\(entry.sections.count)")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(isSelected ? .white.opacity(0.92) : .secondary)
+                    .foregroundStyle(
+                        isSelected
+                            ? Color(nsColor: .selectedControlTextColor).opacity(0.92)
+                            : .secondary
+                    )
             }
             .font(.subheadline.weight(.medium))
-            .foregroundStyle(isSelected ? Color.white : .primary)
+            .foregroundStyle(isSelected ? Color(nsColor: .selectedControlTextColor) : .primary)
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(isSelected ? Color.accentColor : Color.primary.opacity(0.04))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(isSelected ? Color.accentColor.opacity(0.35) : Color.primary.opacity(0.06), lineWidth: 1)
-            )
+            .contentShape(Rectangle())
+            .background(SettingsSelectionRowChrome(isSelected: isSelected))
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     func competitionSelectionButton(_ section: FootballMenuCompetitionSection) -> some View {
@@ -276,57 +321,84 @@ extension SettingsFootballFixturesSectionView {
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                if section.isLoading && !section.hasLoaded && section.matches.isEmpty {
-                    ProgressView()
-                        .controlSize(.small)
-                } else if section.errorMessage != nil {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.orange)
-                } else if section.hasLoaded {
-                    Text("\(visibleMatchCount)")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(isSelected ? .white.opacity(0.92) : .secondary)
-                } else {
-                    Text("Load")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(isSelected ? .white.opacity(0.92) : .secondary)
+                Group {
+                    if section.isLoading && !section.hasLoaded && section.matches.isEmpty {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else if autoAddFootballCompetitionSlugs.contains(section.competition.slug) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(
+                                isSelected
+                                    ? Color(nsColor: .selectedControlTextColor).opacity(0.92)
+                                    : .green
+                            )
+                    } else if section.errorMessage != nil {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.orange)
+                    } else if Self.isCompetitionOffseason(section) {
+                        Text(Self.competitionOffseasonFeedbackTitle)
+                            .font(.caption.weight(.semibold))
+                            .lineLimit(1)
+                            .foregroundStyle(
+                                isSelected
+                                    ? Color(nsColor: .selectedControlTextColor).opacity(0.92)
+                                    : .secondary
+                            )
+                    } else if section.hasLoaded {
+                        Text("\(visibleMatchCount)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(
+                                isSelected
+                                    ? Color(nsColor: .selectedControlTextColor).opacity(0.92)
+                                    : .secondary
+                            )
+                    } else {
+                        Text(L10n.text("Load"))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(
+                                isSelected
+                                    ? Color(nsColor: .selectedControlTextColor).opacity(0.92)
+                                    : .secondary
+                            )
+                    }
                 }
+                .frame(
+                    width: Self.competitionSelectionStatusWidth,
+                    height: Self.competitionSelectionStatusHeight,
+                    alignment: .trailing
+                )
             }
             .font(.subheadline.weight(.medium))
-            .foregroundStyle(isSelected ? Color.white : .primary)
+            .foregroundStyle(isSelected ? Color(nsColor: .selectedControlTextColor) : .primary)
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(isSelected ? Color.accentColor : Color.primary.opacity(0.04))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(isSelected ? Color.accentColor.opacity(0.35) : Color.primary.opacity(0.06), lineWidth: 1)
-            )
+            .contentShape(Rectangle())
+            .background(SettingsSelectionRowChrome(isSelected: isSelected))
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     @ViewBuilder
     var competitionListFeedback: some View {
         if !hasAnyCompetitionCards && !competitionSectionsWithErrors.isEmpty {
             feedbackState(
-                title: "Could not load football fixtures",
+                title: L10n.text("Could not load football fixtures"),
                 text: competitionRetryMessage,
                 systemImage: "exclamationmark.triangle.fill",
                 tint: .orange,
-                buttonTitle: "Retry Failed Loads",
+                buttonTitle: L10n.text("Retry Failed Loads"),
                 isButtonDisabled: footballMenuSections.contains(where: \.isLoading)
             ) {
                 await retryFailedCompetitionLoads()
             }
         } else if !hasAnyCompetitionCards && !hasAttemptedCompetitionLoads {
             feedbackState(
-                title: "No football cards loaded yet",
-                text: "Expand a competition below to load its matches. If a request fails, you will see a retry button in that section.",
+                title: L10n.text("No football cards loaded yet"),
+                text: L10n.text("Expand a competition below to load its matches. If a request fails, you will see a retry button in that section."),
                 systemImage: FootballFixtureFormatter.footballLocationSymbolName,
                 tint: .secondary
             )
@@ -339,8 +411,18 @@ extension SettingsFootballFixturesSectionView {
             return errorMessage
         }
 
-        return "Several competitions could not be loaded right now. Try again in a moment."
+        return L10n.text("Several competitions could not be loaded right now. Try again in a moment.")
     }
 
+    nonisolated static func isCompetitionOffseason(_ section: FootballMenuCompetitionSection) -> Bool {
+        section.hasLoaded
+            && section.errorMessage == nil
+            && section.matches.isEmpty
+    }
 
+    nonisolated static func competitionOffseasonFeedbackText(for competition: FootballCompetitionPreset) -> String {
+        "No fixtures are available for \(competition.title) in the "
+            + "\(FootballCompetitionPreset.suggestionWindowDescription). "
+            + "This competition appears to be in its offseason."
+    }
 }

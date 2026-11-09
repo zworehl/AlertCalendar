@@ -8,6 +8,8 @@ extension CalendarMonitor {
             for: item.calendarID,
             settings: currentSettings.meetingBrowserRouting
         )
-        MeetingBrowserLauncher.open(meetingURL, route: route)
+        Task.detached(priority: .userInitiated) {
+            await MeetingBrowserLauncher.open(meetingURL, route: route)
+        }
     }
 }

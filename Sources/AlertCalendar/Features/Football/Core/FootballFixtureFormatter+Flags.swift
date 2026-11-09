@@ -78,24 +78,14 @@ extension FootballFixtureFormatter {
     }
 
     static func normalizedAbbreviation(_ raw: String, fallbackName: String) -> String {
-        let compactRaw = compactIdentifier(raw)
-        if !compactRaw.isEmpty {
-            return String(compactRaw.prefix(3))
-        }
-
-        let compactFallback = compactIdentifier(fallbackName)
-        guard !compactFallback.isEmpty else { return "TBD" }
-        return String(compactFallback.prefix(3))
+        FootballTeamBroadcastCode.normalized(raw, fallbackName: fallbackName)
     }
 
     static func teamDisplayIdentifier(for team: FootballTeamSummary) -> String {
         if isUnknownTeam(team) {
             return "TBD"
         }
-        if team.isNational {
-            return fifaCode(for: team)
-        }
-        return normalizedAbbreviation(team.abbreviation, fallbackName: team.name)
+        return FootballTeamBroadcastCode.identifier(for: team)
     }
 
     static func teamFlag(for team: FootballTeamSummary) -> String {
@@ -110,24 +100,36 @@ extension FootballFixtureFormatter {
                 }
             }
         }
-        return flagEmoji(for: team.countryName)
+        let clubCountry = team.isNational ? nil : FootballClubCountryResolver.countryName(
+            teamID: team.id,
+            name: team.name
+        )
+        return flagEmoji(for: clubCountry ?? team.countryName)
     }
 
     static func isUnknownTeam(_ team: FootballTeamSummary) -> Bool {
         let abbreviation = team.abbreviation.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         let normalizedName = FootballDataAPIClient.normalizedLookupKey(team.name)
+        let normalizedCountryName = FootballDataAPIClient.normalizedLookupKey(team.countryName)
         let compactName = compactIdentifier(team.name)
+        let missingCountryName = team.countryName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true
 
-        if abbreviation == "TBD" || abbreviation == "TBC" {
+        if ["TBD", "TBC", "TBDHOME", "TBDAWAY"].contains(compactIdentifier(abbreviation)) {
             return true
         }
 
-        if normalizedName.contains("winner")
-            || normalizedName.contains("runner up")
-            || normalizedName.contains("runner-up")
-            || normalizedName.contains("to be determined")
-            || normalizedName.contains("quarterfinal")
-            || normalizedName.contains("semifinal") {
+        if team.isNational,
+           isRecognizedNationalTeamName(team.name) {
+            return false
+        }
+
+        if isPlaceholderSlotDescription(normalizedName)
+            || isPlaceholderSlotDescription(normalizedCountryName) {
+            return true
+        }
+
+        if missingCountryName,
+           normalizedName.contains("group") || abbreviation == "GRO" || compactName == "GRO" {
             return true
         }
 
@@ -168,17 +170,6 @@ extension FootballFixtureFormatter {
         return candidates
     }
 
-    static func fifaCode(for team: FootballTeamSummary) -> String {
-        let compactRaw = compactIdentifier(team.abbreviation)
-        if compactRaw.count >= 3 {
-            return String(compactRaw.prefix(3))
-        }
-
-        let compactFallback = compactIdentifier(team.countryName ?? team.name)
-        guard !compactFallback.isEmpty else { return "TBD" }
-        return String(compactFallback.prefix(3))
-    }
-
     static func compactIdentifier(_ raw: String) -> String {
         raw
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -194,7 +185,27 @@ extension FootballFixtureFormatter {
         guard !compact.isEmpty else { return false }
 
         return compact.range(of: #"^G[A-Z]\d+$"#, options: .regularExpression) != nil
-            || compact.range(of: #"^RD\d+$"#, options: .regularExpression) != nil
+            || compact.range(of: #"^RD\d+[A-Z0-9]*$"#, options: .regularExpression) != nil
+            || compact.range(of: #"^[123][A-L]$"#, options: .regularExpression) != nil
+            || compact.range(of: #"^3RD[A-Z0-9]*$"#, options: .regularExpression) != nil
+    }
+
+    static func isPlaceholderSlotDescription(_ normalized: String) -> Bool {
+        guard !normalized.isEmpty else { return false }
+
+        if normalized.contains("winner")
+            || normalized.contains("runner up")
+            || normalized.contains("to be determined")
+            || normalized.contains("quarterfinal")
+            || normalized.contains("semifinal") {
+            return true
+        }
+
+        return normalized.contains("group") && normalized.contains("place")
+    }
+
+    static func isRecognizedNationalTeamName(_ raw: String) -> Bool {
+        flagEmoji(for: raw) != "🏳️"
     }
 
     static func flagEmoji(forRegionCode regionCode: String) -> String {
@@ -209,7 +220,7 @@ extension FootballFixtureFormatter {
     static func containsFlagEmoji(in text: String) -> Bool {
         text.unicodeScalars.contains { scalar in
             let value = scalar.value
-            return (0x1F1E6 ... 0x1F1FF).contains(value) || value == 0x1F3F4
+            return (0x1F1E6 ... 0x1F1FF).contains(value) || value == 0x1F3F3 || value == 0x1F3F4
         }
     }
 }

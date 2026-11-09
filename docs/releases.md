@@ -1,0 +1,40 @@
+# Releases and automatic updates
+
+AlertCalendar uses Sparkle 2, GitHub Releases, and GitHub Pages for signed automatic updates. The public source repository and releases live at `https://github.com/zworehl/AlertCalendar`, while the app reads its update feed from `https://zworehl.github.io/AlertCalendar/appcast.xml`.
+
+## One-time GitHub setup
+
+Add `SPARKLE_PRIVATE_KEY` to the Actions secrets in `zworehl/AlertCalendar`. It is the exact contents exported by Sparkle's `generate_keys -x` command for account `AlertCalendar` and is required for every release.
+
+Add the following secrets when a Developer ID Application certificate and Apple notarization credentials become available:
+
+- `DEVELOPER_ID_APPLICATION_P12_BASE64`: the exported Developer ID Application certificate and private key, base64 encoded.
+- `DEVELOPER_ID_APPLICATION_PASSWORD`: the password used when exporting that `.p12` file.
+- `APPLE_API_PRIVATE_KEY_BASE64`: the App Store Connect API `.p8` key, base64 encoded.
+- `APPLE_API_KEY_ID`: the API key ID.
+- `APPLE_API_ISSUER_ID`: the API issuer ID.
+
+The Sparkle public key is committed only in `install.sh`. Its private counterpart remains in the local login Keychain and must only be copied into the encrypted GitHub secret.
+
+In repository Settings > Pages, select **GitHub Actions** as the publishing source before creating the first tag.
+
+When all Developer ID and notarization secrets are present, the workflow signs and notarizes the app. If none are configured, it produces an ad hoc signed Apple-silicon public preview with explicit first-launch instructions. A partial Apple signing configuration fails instead of silently falling back.
+
+## Publishing
+
+1. Update `VERSION`, increment `BUILD_NUMBER` for every build, and write `docs/release-notes/<version>.md`. The workflow includes those notes in the release and update feed.
+2. Run `./scripts/verify.sh` and `./install.sh` locally.
+3. Commit and push the release changes.
+4. Create and push the matching tag, for example `git tag -a v1.0.0 -m "AlertCalendar 1.0.0" && git push origin v1.0.0`.
+
+The release workflow rejects a tag that does not match `VERSION`. It runs the same `scripts/verify.sh` pipeline as pull-request CI: architecture, localization, Python script tests, the Swift suite once with coverage, and an isolated signed app smoke session. Coverage artifacts distinguish the whole application measurement from the selected foundation and subsystem gates.
+
+The workflow creates a Sparkle-signed archive, checksum, appcast, GitHub Release, and Pages deployment. When Apple distribution credentials are configured, it additionally imports the Developer ID certificate, notarizes the app, and staples the ticket.
+
+Published assets are immutable. A rerun compares SHA-256 digests and skips identical files; it can upload missing assets after a partial publication, but different bytes under an existing asset name fail before any upload. It never uses `--clobber` or rewrites an existing release's notes. Use a new version/build/tag for changed archives.
+
+The channel retains the two previous release archives and their existing signed appcast items alongside the current version. Previously downloaded archives are never re-signed with the current workflow's private key. New appcast download links point to immutable GitHub Release asset URLs, and the previous archives remain on Pages for older cached feeds.
+
+An Apple Development certificate is suitable for local installation but not for public notarization. Replace an ad hoc preview with a new build number after Developer ID credentials become available; never reuse a published archive under the same build number.
+
+CI runs the bundle and source validation on macOS 15 and macOS 26. The minimum macOS 13 runtime remains a separate compatibility check on a machine that can run that OS; the hosted runner matrix does not claim runtime coverage for it.

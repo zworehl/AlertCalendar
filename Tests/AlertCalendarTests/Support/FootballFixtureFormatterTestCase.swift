@@ -19,7 +19,14 @@ class FootballFixtureFormatterTestCase: XCTestCase {
         homeTeam: FootballTeamSummary? = nil,
         awayTeam: FootballTeamSummary? = nil,
         homeScore: String = "0",
-        awayScore: String = "0"
+        awayScore: String = "0",
+        homeRedCards: Int = 0,
+        awayRedCards: Int = 0,
+        officialWinner: FootballScoreSide? = nil,
+        homeShootoutScore: Int? = nil,
+        awayShootoutScore: Int? = nil,
+        pregameOutcomeProbabilities: FootballMatchOutcomeProbabilities? = nil,
+        outcomeProbabilities: FootballMatchOutcomeProbabilities? = nil
     ) -> FootballFixtureMatch {
         FootballTestData.match(
             id: id,
@@ -41,7 +48,14 @@ class FootballFixtureFormatterTestCase: XCTestCase {
             homeTeam: homeTeam ?? FootballTestData.defaultClubHomeTeam,
             awayTeam: awayTeam ?? FootballTestData.defaultClubAwayTeam,
             homeScore: homeScore,
-            awayScore: awayScore
+            awayScore: awayScore,
+            homeRedCards: homeRedCards,
+            awayRedCards: awayRedCards,
+            officialWinner: officialWinner,
+            homeShootoutScore: homeShootoutScore,
+            awayShootoutScore: awayShootoutScore,
+            pregameOutcomeProbabilities: pregameOutcomeProbabilities,
+            outcomeProbabilities: outcomeProbabilities
         )
     }
 }

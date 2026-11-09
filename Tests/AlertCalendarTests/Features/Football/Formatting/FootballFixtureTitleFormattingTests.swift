@@ -95,6 +95,29 @@ final class FootballFixtureTitleFormattingTests: FootballFixtureFormatterTestCas
         XCTAssertEqual(FootballFixtureFormatter.calendarTitle(for: match), "BAR 🇪🇸 - 🇩🇪 BAY")
         XCTAssertFalse(display.showsScore)
     }
+    func testDelayedLiveFixtureKeepsCurrentScoreVisible() {
+        let match = makeMatch(
+            id: "match-delayed-live",
+            startDate: Date(timeIntervalSince1970: 1_720_000_000),
+            statusState: .inProgress,
+            statusText: "Delay",
+            statusDetailText: "45'+3'",
+            homeScore: "1",
+            awayScore: "0"
+        )
+
+        let display = FootballFixtureFormatter.menuBarDisplay(
+            for: match,
+            competitionLocalLogoURL: nil,
+            homeLocalLogoURL: nil,
+            awayLocalLogoURL: nil
+        )
+
+        XCTAssertTrue(match.hasInterruptedStatus)
+        XCTAssertTrue(match.hasVisibleScore)
+        XCTAssertEqual(FootballFixtureFormatter.calendarTitle(for: match), "BAR 🇪🇸 1 - 0 🇩🇪 BAY")
+        XCTAssertTrue(display.showsScore)
+    }
     func testScoreHighlightRangeFindsHomeAndAwayScoresInCalendarTitle() {
         let title = "BAR 🇪🇸 2 - 1 🇩🇪 BAY"
 
@@ -150,6 +173,60 @@ final class FootballFixtureTitleFormattingTests: FootballFixtureFormatterTestCas
         XCTAssertEqual(display.competitionLocalLogoPath, "/tmp/competition.png")
         XCTAssertEqual(display.homeLocalLogoPath, "/tmp/home.png")
         XCTAssertEqual(display.awayLocalLogoPath, "/tmp/away.png")
+        XCTAssertFalse(display.homeLogoUsesCircularOutline)
+        XCTAssertFalse(display.awayLogoUsesCircularOutline)
+    }
+    func testMenuBarDisplayMarksNationalTeamLogosAsCircular() {
+        let match = FootballTestData.friendlyMatch(
+            id: "national-badges",
+            statusState: .scheduled
+        )
+
+        let display = FootballFixtureFormatter.menuBarDisplay(
+            for: match,
+            competitionLocalLogoURL: nil,
+            homeLocalLogoURL: URL(fileURLWithPath: "/tmp/home-flag.png"),
+            awayLocalLogoURL: URL(fileURLWithPath: "/tmp/away-flag.png")
+        )
+
+        XCTAssertEqual(display.homeLocalLogoPath, "/tmp/home-flag.png")
+        XCTAssertEqual(display.awayLocalLogoPath, "/tmp/away-flag.png")
+        XCTAssertTrue(display.homeLogoUsesCircularOutline)
+        XCTAssertTrue(display.awayLogoUsesCircularOutline)
+    }
+    func testMenuBarDisplayUsesBundledFlagsForNationalTeamsWithoutProvidedLogoPaths() throws {
+        let match = FootballTestData.friendlyMatch(
+            id: "colombia-ghana",
+            statusState: .scheduled,
+            homeTeam: FootballTestData.nationalTeam(
+                id: "208",
+                name: "Colombia",
+                abbreviation: "COL",
+                countryName: "Colombia"
+            ),
+            awayTeam: FootballTestData.nationalTeam(
+                id: "4469",
+                name: "Ghana",
+                abbreviation: "GHA",
+                countryName: "Ghana"
+            )
+        )
+
+        let display = FootballFixtureFormatter.menuBarDisplay(
+            for: match,
+            competitionLocalLogoURL: nil,
+            homeLocalLogoURL: nil,
+            awayLocalLogoURL: nil
+        )
+
+        let homeLocalLogoPath = try XCTUnwrap(display.homeLocalLogoPath)
+        let awayLocalLogoPath = try XCTUnwrap(display.awayLocalLogoPath)
+        XCTAssertTrue(homeLocalLogoPath.hasSuffix("/football-flag-col.png"))
+        XCTAssertTrue(awayLocalLogoPath.hasSuffix("/football-flag-gha.png"))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: homeLocalLogoPath))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: awayLocalLogoPath))
+        XCTAssertTrue(display.homeLogoUsesCircularOutline)
+        XCTAssertTrue(display.awayLogoUsesCircularOutline)
     }
     func testCalendarTitleUsesBlackFlagAndTBDForUnknownKnockoutSlots() {
         let match = FootballFixtureMatch(
@@ -218,7 +295,62 @@ final class FootballFixtureTitleFormattingTests: FootballFixtureFormatterTestCas
         XCTAssertEqual(FootballFixtureFormatter.calendarTitle(for: match), "TBD 🏴 - 🏴 TBD")
         XCTAssertTrue(FootballFixtureFormatter.hasUnknownParticipants(in: match))
     }
-    func testClubIdentifiersAreTrimmedToThreeLetters() {
+    func testWorldCupKnockoutSlotCodesAreUnknownParticipants() {
+        for code in ["GRO", "3RD", "1I", "1L", "2J", "2K", "2L", "RD1", "RD16W5"] {
+            let team = FootballTeamSummary(
+                id: code.lowercased(),
+                name: code,
+                abbreviation: code,
+                logoURL: nil,
+                countryName: nil,
+                isNational: true
+            )
+
+            XCTAssertTrue(FootballFixtureFormatter.isUnknownTeam(team), "\(code) should be treated as a pending knockout slot")
+            XCTAssertEqual(FootballFixtureFormatter.teamDisplayIdentifier(for: team), "TBD")
+        }
+    }
+    func testWorldCupKnockoutSlotDescriptionsFromTeamCacheAreUnknownParticipants() {
+        for (code, countryName) in [
+            ("GRO", "Group A Winner"),
+            ("SFL", "Semifinal 1 Loser"),
+            ("SFW", "Semifinal 2 Winner"),
+        ] {
+            let team = FootballTeamSummary(
+                id: code.lowercased(),
+                name: code,
+                abbreviation: code,
+                logoURL: nil,
+                countryName: countryName,
+                isNational: true
+            )
+
+            XCTAssertTrue(FootballFixtureFormatter.isUnknownTeam(team), "\(countryName) should be treated as a pending knockout slot")
+            XCTAssertEqual(FootballFixtureFormatter.teamDisplayIdentifier(for: team), "TBD")
+        }
+    }
+    func testResolvedNationalTeamsAreNotMistakenForKnockoutSlotsWithoutCachedCountry() {
+        for (name, abbreviation, expectedIdentifier) in [
+            ("Canada", "CAN", "CAN"),
+            ("South Africa", "RSA", "RSA"),
+            ("Portugal", "POR", "POR"),
+            ("Romania", "ROU", "ROU"),
+            ("Poland", "POL", "POL"),
+        ] {
+            let team = FootballTeamSummary(
+                id: abbreviation.lowercased(),
+                name: name,
+                abbreviation: abbreviation,
+                logoURL: nil,
+                countryName: nil,
+                isNational: true
+            )
+
+            XCTAssertFalse(FootballFixtureFormatter.isUnknownTeam(team), "\(name) should be treated as a resolved national team")
+            XCTAssertEqual(FootballFixtureFormatter.teamDisplayIdentifier(for: team), expectedIdentifier)
+        }
+    }
+    func testClubIdentifiersUseAtMostThreeCharacters() {
         let team = FootballTeamSummary(
             id: "1",
             name: "Palmeiras",

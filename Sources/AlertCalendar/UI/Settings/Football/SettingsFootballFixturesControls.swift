@@ -4,39 +4,147 @@ import SwiftUI
 
 extension SettingsFootballFixturesSectionView {
     var footballContentSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            footballTopControlsSection
-
+        Group {
             if browseMode == .competitions && footballMenuSections.isEmpty {
-                emptyState("No competitions are configured right now.")
+                VStack(alignment: .leading, spacing: 12) {
+                    footballTopControlsSection
+
+                    SettingsSectionDivider()
+
+                    emptyState("No competitions are configured right now.")
+                }
+            } else if browseMode == .competitions {
+                footballCompetitionContentSection
             } else {
-                activeMatchesPanel
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                VStack(alignment: .leading, spacing: 12) {
+                    footballTopControlsSection
+
+                    SettingsSectionDivider()
+
+                    activeMatchesPanel
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    var footballCompetitionContentSection: some View {
+        HStack(alignment: .top, spacing: Self.competitionColumnSpacing) {
+            VStack(alignment: .leading, spacing: 12) {
+                footballControlsPanel(showsBrowseControl: false)
+
+                SettingsSectionDivider()
+
+                competitionSelectionContentPanel
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+            SettingsVerticalDivider()
+
+            VStack(alignment: .leading, spacing: 12) {
+                showControlField
+
+                SettingsSectionDivider()
+
+                competitionFiltersPanel
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
+            .frame(width: Self.competitionSidebarWidth, alignment: .topLeading)
+            .frame(maxHeight: .infinity, alignment: .topLeading)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    var footballTopControlsSection: some View {
+        footballControlsPanel(showsBrowseControl: true)
+    }
+
+    func footballControlsPanel(showsBrowseControl: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ViewThatFits(in: .horizontal) {
+                footballWideControlRow(showsBrowseControl: showsBrowseControl)
+
+                VStack(alignment: .leading, spacing: 12) {
+                    footballPrimaryControlsSection(showsBrowseControl: showsBrowseControl)
+                    footballNotificationControlsSection
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+
+            Toggle(L10n.text("Rotate live scores beside events"), isOn: $pinLiveFootballScoresInMenuBar)
+                .help(L10n.text("Live scores rotate one at a time on the right, independently of events, using the interval in General."))
+        }
+    }
+
+    func footballWideControlRow(showsBrowseControl: Bool) -> some View {
+        HStack(alignment: .center, spacing: 16) {
+            HStack(alignment: .center, spacing: 16) {
+                addToControlField
+                    .frame(width: Self.topMenuControlWidth, alignment: .leading)
+
+                calendarAlertControlField
+                    .frame(width: Self.topMenuControlWidth, alignment: .leading)
+
+                SettingsVerticalDivider(height: SettingsVisualMetrics.inlineDividerHeight)
+
+                footballNotificationGroup(layout: .inline)
+            }
+            .fixedSize(horizontal: true, vertical: false)
+
+            if showsBrowseControl {
+                Spacer(minLength: 0)
+
+                showControlField
+                    .frame(width: Self.topShowControlWidth, alignment: .trailing)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    func footballPrimaryControlsSection(showsBrowseControl: Bool) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 16) {
+                addToControlField
+                    .frame(maxWidth: Self.topMenuControlWidth, alignment: .leading)
+
+                calendarAlertControlField
+                    .frame(maxWidth: Self.topMenuControlWidth, alignment: .leading)
+
+                if showsBrowseControl {
+                    Spacer(minLength: 0)
+
+                    showControlField
+                        .frame(maxWidth: Self.topShowControlWidth, alignment: .trailing)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                addToControlField
+                calendarAlertControlField
+
+                if showsBrowseControl {
+                    HStack(spacing: 0) {
+                        Spacer(minLength: 0)
+
+                        showControlField
+                            .frame(maxWidth: Self.topShowControlWidth, alignment: .trailing)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     var writableCalendars: [AvailableCalendar] {
         writableEventCalendars
     }
 
-    var footballCalendarAlertOption: FootballCalendarAlertOption {
-        FootballCalendarAlertOption(rawValue: footballCalendarAlertOptionRaw) ?? .none
-    }
-
     var footballCalendarAlertOptionBinding: Binding<FootballCalendarAlertOption> {
-        Binding(
-            get: { footballCalendarAlertOption },
-            set: { footballCalendarAlertOptionRaw = $0.rawValue }
-        )
-    }
-
-    var footballCalendarAlertSummaryText: String {
-        if footballCalendarAlertOption == .none {
-            return "Managed football fixtures will be added without an Apple Calendar alert."
-        }
-        return "All managed football fixtures use the same Apple Calendar alert: \(footballCalendarAlertOption.title.lowercased())."
+        $footballCalendarAlertOption
     }
 
     var normalizedFinishedMatchLookbackDays: Int {
@@ -73,7 +181,7 @@ extension SettingsFootballFixturesSectionView {
         Group {
             switch browseMode {
             case .competitions:
-                competitionListPanel
+                competitionSelectionContentPanel
             case .liveAndNextDay:
                 liveAndNextDayPanel
             case .addedMatches:
@@ -83,7 +191,25 @@ extension SettingsFootballFixturesSectionView {
     }
 
     var upcomingManagedMatches: [FootballFixtureMatch] {
-        upcomingManagedMatchesCache
+        var matchesByKey = Dictionary(
+            uniqueKeysWithValues: upcomingManagedMatchesCache.map {
+                (SettingsPendingChanges.footballFixtureKey(for: $0), $0)
+            }
+        )
+
+        for (key, change) in pendingCalendarChanges {
+            switch change.mutation {
+            case .add:
+                matchesByKey[key] = change.item
+            case .remove:
+                matchesByKey.removeValue(forKey: key)
+            }
+        }
+
+        return CalendarMonitor.upcomingManagedFootballMatches(
+            from: Array(matchesByKey.values),
+            now: visibleNow
+        )
     }
 
     var upcomingManagedEventCount: Int {
@@ -172,125 +298,69 @@ extension SettingsFootballFixturesSectionView {
         hasAttemptedCompetitionLoadsCache
     }
 
-    var footballTopControlsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            footballPrimaryControlsSection
-            footballNotificationControlsSection
-        }
-    }
-
-    var footballPrimaryControlsSection: some View {
-        HStack(alignment: .top, spacing: 16) {
-            addToControlField
-                .frame(maxWidth: Self.topMenuControlWidth, alignment: .leading)
-
-            Spacer(minLength: 0)
-
-            showControlField
-                .frame(maxWidth: Self.topShowControlWidth, alignment: .trailing)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
     var addToControlField: some View {
-        footballControlField(
-            title: "Add To",
-            helpText: "This calendar is used when you add a football fixture from the list below.",
-            isInline: true
-        ) {
-            Picker("Add fixtures to calendar", selection: $footballTargetCalendarID) {
-                ForEach(writableCalendars) { calendar in
-                    Text(calendar.title).tag(calendar.id)
-                }
-            }
-            .pickerStyle(.menu)
-            .labelsHidden()
-        }
+        SettingsAddToCalendarPicker(
+            selection: $footballTargetCalendarID,
+            calendars: writableCalendars,
+            pickerTitle: L10n.text("Add fixtures to calendar"),
+            helpText: L10n.text("This calendar is used when you add a football fixture from the list below.")
+        )
     }
 
     var showControlField: some View {
-        Picker("Football view", selection: $browseMode) {
+        Picker(L10n.text("Football view"), selection: $browseMode) {
             ForEach(FootballBrowseMode.allCases) { mode in
-                Text(mode.rawValue).tag(mode)
+                Image(systemName: mode.symbolName)
+                    .accessibilityLabel(Text(mode.rawValue))
+                    .help(mode.rawValue)
+                    .tag(mode)
             }
         }
         .pickerStyle(.segmented)
         .labelsHidden()
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .help(browseMode.rawValue)
     }
 
     var calendarAlertControlField: some View {
-        footballControlField(
-            title: "Calendar Alert",
-            helpText: "Applies the same Apple Calendar alert to every football fixture managed by Alert Calendar, including ones already added.",
-            isInline: true
+        SettingsLabeledMenuPicker(
+            title: L10n.text("Calendar Alert"),
+            pickerTitle: L10n.text("Football event alert"),
+            selection: footballCalendarAlertOptionBinding,
+            helpText: L10n.text("Applies the same Apple Calendar alert to every football fixture managed by Alert Calendar, including ones already added."),
+            layout: .inline(labelWidth: SettingsVisualMetrics.calendarAlertLabelWidth)
         ) {
-            Picker("Football event alert", selection: footballCalendarAlertOptionBinding) {
-                ForEach(FootballCalendarAlertOption.allCases) { option in
-                    Text(option.title).tag(option)
-                }
+            ForEach(FootballCalendarAlertOption.allCases) { option in
+                Text(option.title).tag(option)
             }
-            .pickerStyle(.menu)
-            .labelsHidden()
         }
     }
 
     var footballNotificationControlsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            footballControlTitle(
-                title: "Notifications",
-                helpText: "Applies to football fixtures managed by Alert Calendar."
-            )
+        VStack(alignment: .leading, spacing: 10) {
+            SettingsSectionDivider()
 
-            HStack(alignment: .center, spacing: 18) {
-                Toggle("Goals", isOn: $enableFootballGoalNotifications)
-                    .toggleStyle(.checkbox)
-
-                Toggle("Scorer names", isOn: $includeFootballGoalScorerInNotifications)
-                    .toggleStyle(.checkbox)
-                    .disabled(!enableFootballGoalNotifications)
-
-                Toggle("Final score", isOn: $enableFootballFinalNotifications)
-                    .toggleStyle(.checkbox)
-            }
-            .font(.subheadline)
+            footballNotificationGroup(layout: .adaptive)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    func footballControlField<Control: View>(
-        title: String,
-        helpText: String? = nil,
-        isInline: Bool = false,
-        @ViewBuilder control: () -> Control
-    ) -> some View {
-        Group {
-            if isInline {
-                HStack(alignment: .center, spacing: 10) {
-                    footballControlTitle(title: title, helpText: helpText)
-                        .frame(width: Self.inlineFieldLabelWidth, alignment: .leading)
+    func footballNotificationGroup(layout: SettingsLabeledCheckboxGroupLayout) -> some View {
+        SettingsLabeledCheckboxGroup(
+            title: L10n.text("Notifications"),
+            helpText: L10n.text("Applies to football fixtures managed by Alert Calendar."),
+            layout: layout
+        ) {
+            Toggle(L10n.text("Goals"), isOn: $enableFootballGoalNotifications)
 
-                    control()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            } else {
-                VStack(alignment: .leading, spacing: 6) {
-                    footballControlTitle(title: title, helpText: helpText)
-                    control()
-                }
-            }
+            Toggle(L10n.text("Disallowed goals"), isOn: $enableFootballDisallowedGoalNotifications)
+
+            Toggle(L10n.text("Scorer names"), isOn: $includeFootballGoalScorerInNotifications)
+                .disabled(!enableFootballGoalNotifications)
+
+            Toggle(L10n.text("Final score"), isOn: $enableFootballFinalNotifications)
+
+            Toggle(L10n.text("Added matches"), isOn: $enableFootballAutoAddNotifications)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
-
-    func footballControlTitle(title: String, helpText: String?) -> some View {
-        HStack(spacing: 6) {
-            Text(title)
-            if let helpText {
-                InfoTipButton(text: helpText)
-            }
-        }
-        .font(.subheadline.weight(.medium))
-    }
-
-
 }

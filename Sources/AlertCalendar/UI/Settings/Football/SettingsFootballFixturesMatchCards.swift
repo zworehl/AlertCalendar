@@ -19,7 +19,7 @@ extension SettingsFootballFixturesSectionView {
             ZStack(alignment: .trailing) {
                 if let trailingText = footballCardTrailingText(for: match) {
                     Text(trailingText)
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(SettingsTypography.itemDetailEmphasized)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.trailing)
                         .lineLimit(2)
@@ -32,7 +32,7 @@ extension SettingsFootballFixturesSectionView {
                 matchCardActions(match, isVisible: isHovered)
             }
             .frame(
-                minWidth: Self.matchActionButtonSize,
+                minWidth: SettingsVisualMetrics.cardActionButtonSize,
                 maxWidth: Self.matchActionSlotWidth,
                 alignment: .trailing
             )
@@ -41,61 +41,46 @@ extension SettingsFootballFixturesSectionView {
 
     @ViewBuilder
     func matchCardActions(_ match: FootballFixtureMatch, isVisible: Bool) -> some View {
-        if managedFootballMatchIDs.contains(match.id) {
+        if effectiveFootballFixturePresence(match) {
             removeMatchButton(match, isVisible: isVisible)
         } else {
-            actionIconButton(
-                systemName: "plus",
-                tint: .green,
-                helpText: "Add this event to Apple Calendar",
+            SettingsCalendarCardActionButton(
+                calendarAction: .add,
                 isVisible: isVisible
             ) {
-                Task {
-                    await monitor.addFootballMatchToCalendar(match)
-                }
+                togglePendingFootballFixture(match)
             }
             .disabled(footballTargetCalendarID.isEmpty)
         }
     }
 
     func removeMatchButton(_ match: FootballFixtureMatch, isVisible: Bool) -> some View {
-        actionIconButton(
-            systemName: "minus",
-            tint: .red,
-            helpText: "Remove this event from Apple Calendar",
+        SettingsCalendarCardActionButton(
+            calendarAction: .remove,
             isVisible: isVisible
         ) {
-            monitor.removeFootballMatchFromCalendar(match)
+            togglePendingFootballFixture(match)
         }
     }
 
-    func actionIconButton(
-        systemName: String,
-        tint: Color,
-        helpText: String,
-        isVisible: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(tint)
-                .frame(width: Self.matchActionButtonSize, height: Self.matchActionButtonSize)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(tint.opacity(0.14))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .stroke(tint.opacity(0.28), lineWidth: 1)
-                )
-        }
-        .buttonStyle(.plain)
-        .help(helpText)
-        .opacity(isVisible ? 1 : 0)
-        .scaleEffect(isVisible ? 1 : 0.94)
-        .allowsHitTesting(isVisible)
-        .animation(.easeInOut(duration: 0.14), value: isVisible)
+    func persistedFootballFixturePresence(_ match: FootballFixtureMatch) -> Bool {
+        managedFootballMatchIDs.contains(match.id)
+    }
+
+    func effectiveFootballFixturePresence(_ match: FootballFixtureMatch) -> Bool {
+        let key = SettingsPendingChanges.footballFixtureKey(for: match)
+        return pendingCalendarChanges[key]?.mutation.makesItemPresent
+            ?? persistedFootballFixturePresence(match)
+    }
+
+    func togglePendingFootballFixture(_ match: FootballFixtureMatch) {
+        var changes = SettingsPendingChanges()
+        changes.footballFixtures = pendingCalendarChanges
+        changes.toggleFootballFixture(
+            match,
+            persistedIsPresent: persistedFootballFixturePresence(match)
+        )
+        pendingCalendarChanges = changes.footballFixtures
     }
 
     @ViewBuilder
@@ -126,7 +111,7 @@ extension SettingsFootballFixturesSectionView {
                     FootballStatusAccessoriesView(data: accessories)
                 }
             }
-            .font(.system(size: 13, weight: .semibold))
+            .font(SettingsTypography.itemTitle)
             .foregroundStyle(.primary)
             .fixedSize(horizontal: false, vertical: true)
         }
@@ -139,6 +124,7 @@ extension SettingsFootballFixturesSectionView {
                     localPath: localTeamLogoPath(for: team),
                     remoteURL: team.logoURL,
                     isUnknown: FootballFixtureFormatter.isUnknownTeam(team),
+                    usesCircularOutline: team.isNational,
                     size: 18,
                     placeholderSymbolSize: 9
                 )
@@ -149,6 +135,7 @@ extension SettingsFootballFixturesSectionView {
                     localPath: localTeamLogoPath(for: team),
                     remoteURL: team.logoURL,
                     isUnknown: FootballFixtureFormatter.isUnknownTeam(team),
+                    usesCircularOutline: team.isNational,
                     size: 18,
                     placeholderSymbolSize: 9
                 )
@@ -159,6 +146,7 @@ extension SettingsFootballFixturesSectionView {
 
     func teamNameText(_ team: FootballTeamSummary) -> some View {
         Text(FootballFixtureFormatter.teamDisplayIdentifier(for: team))
+            .help(FootballFixtureFormatter.teamDisplayName(for: team))
             .lineLimit(1)
             .truncationMode(.tail)
             .fixedSize(horizontal: true, vertical: false)
@@ -218,40 +206,34 @@ extension SettingsFootballFixturesSectionView {
         }
     }
 
-    func competitionBulkActionButton(for matches: [FootballFixtureMatch]) -> some View {
-        let shouldRemoveAll = matches.allSatisfy { managedFootballMatchIDs.contains($0.id) }
-        let title = shouldRemoveAll ? "Remove All" : "Add All"
-        let systemImage = shouldRemoveAll ? "minus.circle" : "plus.circle"
-
-        return Button {
-            Task {
-                await applyCompetitionBulkAction(to: matches, shouldRemoveAll: shouldRemoveAll)
-            }
-        } label: {
-            Label(title, systemImage: systemImage)
-        }
-        .buttonStyle(.bordered)
+    func competitionAutoAddToggle(for section: FootballMenuCompetitionSection) -> some View {
+        Toggle(
+            L10n.text("Auto-add"),
+            isOn: Binding(
+                get: {
+                    autoAddFootballCompetitionSlugs.contains(section.competition.slug)
+                },
+                set: { isEnabled in
+                    setFootballAutoAdd(isEnabled, for: section)
+                }
+            )
+        )
+        .toggleStyle(.checkbox)
         .controlSize(.small)
-        .disabled(!shouldRemoveAll && footballTargetCalendarID.isEmpty)
+        .font(SettingsTypography.inlineFieldLabel)
+        .help(L10n.text("Automatically add new fixtures from this competition to Apple Calendar."))
+        .disabled(footballTargetCalendarID.isEmpty)
     }
 
-    func applyCompetitionBulkAction(
-        to matches: [FootballFixtureMatch],
-        shouldRemoveAll: Bool
-    ) async {
-        if shouldRemoveAll {
-            for match in matches {
-                monitor.removeFootballMatchFromCalendar(match)
-            }
+    func setFootballAutoAdd(_ isEnabled: Bool, for section: FootballMenuCompetitionSection) {
+        var slugs = autoAddFootballCompetitionSlugs
+        if isEnabled {
+            slugs.insert(section.competition.slug)
         } else {
-            for match in matches where !managedFootballMatchIDs.contains(match.id) {
-                await monitor.addFootballMatchToCalendar(match)
-            }
+            slugs.remove(section.competition.slug)
         }
 
-        let now = Self.minuteReferenceDate(for: AlertCalendarClock.nowRoundedToSecond())
-        visibleNow = now
-        await refreshManagedMatchesPanel(now: now, force: true)
+        autoAddFootballCompetitionSlugs = slugs
     }
 
     func footballCardShowsMetadataLine(_ match: FootballFixtureMatch, showsCompetitionName: Bool) -> Bool {

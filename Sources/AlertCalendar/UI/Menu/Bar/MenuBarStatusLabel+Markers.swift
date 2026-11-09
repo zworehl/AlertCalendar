@@ -21,10 +21,17 @@ extension MenuBarStatusLabel {
             path.fill()
         case .reminder(let ringColor):
             drawReminderMarker(color: ringColor.nsColor, x: x, height: height, markerSize: imageMarkerSize)
-        case .birthday(let markerColor):
-            drawSymbolMarker(symbolName: "gift.circle.fill", tintColor: markerColor.nsColor, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
         case .allDay(let markerColor):
             drawSymbolMarker(symbolName: "calendar.circle.fill", tintColor: markerColor.nsColor, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
+        case .gameStore(let store):
+            GameStoreSymbolProvider.image(for: store, size: markerWidth)?.draw(
+                in: NSRect(
+                    x: x,
+                    y: floor((height - markerWidth) / 2),
+                    width: markerWidth,
+                    height: markerWidth
+                )
+            )
         case .travel(let markerColor):
             drawSymbolMarker(symbolName: "car.fill", tintColor: markerColor.nsColor, x: x, height: height, markerWidth: imageMarkerSize, markerHeight: imageMarkerSize)
         case .sunrise:
@@ -71,7 +78,6 @@ extension MenuBarStatusLabel {
         case .color:
             return defaultWidth
         case .reminder,
-            .birthday,
             .allDay,
             .travel,
             .sunrise,
@@ -93,12 +99,22 @@ extension MenuBarStatusLabel {
             .lastQuarter,
             .waningCrescent:
             return imageWidth
+        case .gameStore:
+            return imageWidth
         }
+    }
+
+    static func outerHorizontalPadding(
+        hasBackground: Bool,
+        defaultPadding: CGFloat
+    ) -> CGFloat {
+        hasBackground ? defaultPadding : 0
     }
 
     static func drawSegmentBackground(
         color: NSColor,
         progress: CGFloat,
+        textureStatus: EventParticipationStatus?,
         segmentStartX: CGFloat,
         segmentWidth: CGFloat,
         segmentHeight: CGFloat,
@@ -138,7 +154,45 @@ extension MenuBarStatusLabel {
         NSBezierPath(roundedRect: backgroundRect, xRadius: cornerRadius, yRadius: cornerRadius).addClip()
         color.setFill()
         NSBezierPath(rect: fillRect).fill()
+        if textureStatus?.appleCalendarStyle.usesTexture == true {
+            drawParticipationTexture(
+                in: backgroundRect,
+                participationStatus: textureStatus,
+                cornerRadius: cornerRadius
+            )
+        }
         NSGraphicsContext.restoreGraphicsState()
+    }
+
+    static func drawParticipationTexture(
+        in rect: NSRect,
+        participationStatus: EventParticipationStatus?,
+        cornerRadius: CGFloat
+    ) {
+        guard let style = participationStatus?.appleCalendarStyle,
+              style.usesTexture,
+              let context = NSGraphicsContext.current?.cgContext else {
+            return
+        }
+
+        context.saveGState()
+        context.addPath(
+            CGPath(
+                roundedRect: rect,
+                cornerWidth: cornerRadius,
+                cornerHeight: cornerRadius,
+                transform: nil
+            )
+        )
+        context.clip()
+        context.translateBy(x: rect.minX, y: rect.maxY)
+        context.scaleBy(x: 1, y: -1)
+        context.addPath(
+            CalendarParticipationTexturePattern.path(in: rect.size, style: style)
+        )
+        context.setFillColor(NSColor.black.withAlphaComponent(style.stripeAlpha).cgColor)
+        context.fillPath()
+        context.restoreGState()
     }
 
     static func drawAstronomyMarker(moment: AstronomyMoment, x: CGFloat, height: CGFloat, markerWidth: CGFloat, markerHeight: CGFloat) {
@@ -151,7 +205,11 @@ extension MenuBarStatusLabel {
             height: markerHeight
         )
 
-        if let icon = AstronomyIconProvider.image(for: moment, pointSize: pointSize) {
+        if let icon = AstronomyIconProvider.monochromeImage(
+            for: moment,
+            pointSize: pointSize,
+            tintColor: NSColor.white.withAlphaComponent(0.97)
+        ) {
             icon.draw(in: rect)
         }
     }
@@ -172,12 +230,14 @@ extension MenuBarStatusLabel {
 
     static func drawSymbolMarker(symbolName: String, tintColor: NSColor, x: CGFloat, height: CGFloat, markerWidth: CGFloat, markerHeight: CGFloat) {
         let pointSize = max(markerWidth, markerHeight)
-        let config = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .regular)
-        guard let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
-            .withSymbolConfiguration(config) else {
+        guard let symbol = MenuSymbolImageProvider.tintedSystemSymbol(
+            named: symbolName,
+            pointSize: pointSize,
+            weight: .regular,
+            tintColor: tintColor
+        ) else {
             return
         }
-        symbol.isTemplate = true
         let rect = NSRect(
             x: x,
             y: floor((height - markerHeight) / 2),
@@ -186,8 +246,6 @@ extension MenuBarStatusLabel {
         )
         let drawingRect = aspectFitRect(for: symbol.size, in: rect)
         symbol.draw(in: drawingRect)
-        tintColor.setFill()
-        drawingRect.fill(using: .sourceAtop)
     }
 
     static func aspectFitRect(for imageSize: CGSize, in rect: CGRect) -> CGRect {

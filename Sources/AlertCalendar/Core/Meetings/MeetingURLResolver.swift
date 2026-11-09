@@ -1,6 +1,9 @@
 import Foundation
 
 enum MeetingURLResolver {
+    private static let linkDetectorThreadKey = "AlertCalendar.MeetingURLResolver.linkDetector"
+    private static let detectedURLCache = MeetingURLDetectionCache()
+
     private static let assetExtensions: Set<String> = [
         "png", "jpg", "jpeg", "gif", "svg", "webp", "bmp", "ico", "tif", "tiff", "heic", "avif",
     ]
@@ -49,7 +52,10 @@ enum MeetingURLResolver {
     }
 
     static func allURLs(in text: String) -> [URL] {
-        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else {
+        if let cached = detectedURLCache.value(for: text) {
+            return cached
+        }
+        guard let detector = linkDetector() else {
             return []
         }
 
@@ -64,7 +70,34 @@ enum MeetingURLResolver {
             }
         }
 
+        detectedURLCache.insert(urls, for: text)
         return urls
+    }
+
+    static func shouldInspectTextForURLs(_ text: String) -> Bool {
+        let normalized = text.lowercased()
+        let urlMarkers = [
+            "://",
+            "www.",
+            "http",
+            "msteams:",
+            "microsoftteams:",
+            "teams.",
+            "zoom.",
+            "meet.",
+            "webex.",
+            "whereby.",
+            "jitsi.",
+            "chime.aws",
+            "amazonchime.",
+            "aka.ms",
+            "g.co",
+            ".com",
+            ".net",
+            ".org",
+        ]
+
+        return urlMarkers.contains { normalized.contains($0) }
     }
 
     static func resolvedMeetingURL(from url: URL) -> URL? {
@@ -212,6 +245,20 @@ enum MeetingURLResolver {
         return [decodedText, text]
     }
 
+    private static func linkDetector() -> NSDataDetector? {
+        let threadDictionary = Thread.current.threadDictionary
+        if let detector = threadDictionary[linkDetectorThreadKey] as? NSDataDetector {
+            return detector
+        }
+
+        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else {
+            return nil
+        }
+
+        threadDictionary[linkDetectorThreadKey] = detector
+        return detector
+    }
+
     private static func isMeetingAssetURL(_ url: URL) -> Bool {
         let host = (url.host ?? "").lowercased()
         let absolute = url.absoluteString.lowercased()
@@ -250,6 +297,31 @@ enum MeetingURLResolver {
             || host.contains("meet.jit.si")
             || host.contains("chime.aws")
             || host.contains("amazonchime.")
+    }
+}
+
+private final class MeetingURLDetectionCache: @unchecked Sendable {
+    private final class URLList: NSObject {
+        let urls: [URL]
+
+        init(_ urls: [URL]) {
+            self.urls = urls
+        }
+    }
+
+    private let cache: NSCache<NSString, URLList> = {
+        let cache = NSCache<NSString, URLList>()
+        cache.countLimit = 256
+        cache.totalCostLimit = 2 * 1024 * 1024
+        return cache
+    }()
+
+    func value(for text: String) -> [URL]? {
+        cache.object(forKey: text as NSString)?.urls
+    }
+
+    func insert(_ urls: [URL], for text: String) {
+        cache.setObject(URLList(urls), forKey: text as NSString, cost: text.utf8.count)
     }
 }
 

@@ -50,6 +50,13 @@ enum FootballVenueCanonicalizer {
 
     private static let rules: [Rule] = [
         rule(
+            venueIDs: [],
+            names: ["Estadio Ricardo Saprissa", "Estadio Ricardo Saprissa Aymá"],
+            cities: [],
+            countries: ["Costa Rica"],
+            locationText: "Estadio Ricardo Saprissa, Tibás, Costa Rica"
+        ),
+        rule(
             venueIDs: ["1672"],
             names: ["Estadio Banorte", "Estadio Azteca"],
             cities: ["Mexico City", "Ciudad de México"],
@@ -265,6 +272,18 @@ enum FootballVenueCanonicalizer {
             !isPlaceholderLocationText(candidate) && normalized(candidate) != normalizedName
         } ?? false
 
+        let repeatsVenueNameAsCity = city.map { candidate in
+            !isPlaceholderLocationText(candidate) && normalized(candidate) == normalizedName
+        } ?? false
+        let country = stringValue(address?["country"])
+        let hasUsableCountry = country.map { !isPlaceholderLocationText($0) } ?? false
+        let hasStableVenueIdentifier = stringValue(venue["id"]) != nil
+            || stringValue(venue["$ref"]) != nil
+
+        if repeatsVenueNameAsCity, hasUsableCountry, hasStableVenueIdentifier {
+            return false
+        }
+
         return !hasSpecificCity && !hasSpecificState
     }
 
@@ -281,13 +300,10 @@ enum FootballVenueCanonicalizer {
             "center",
             "coliseum",
             "dome",
-            "estadio",
             "field",
             "ground",
             "park",
             "stadium",
-            "stade",
-            "stadio",
         ]
         return tokens.contains { venueTokens.contains($0) }
     }

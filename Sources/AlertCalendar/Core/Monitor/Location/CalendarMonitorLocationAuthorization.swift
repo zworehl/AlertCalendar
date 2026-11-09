@@ -4,7 +4,7 @@ import Foundation
 extension CalendarMonitor {
     func requestLocationPermissionIfNeeded() {
         guard CLLocationManager.locationServicesEnabled() else {
-            astronomyLocationStatus = "Location Services are disabled."
+            astronomyLocationStatus = L10n.text("Location Services are disabled.")
             return
         }
 
@@ -17,7 +17,7 @@ extension CalendarMonitor {
                     refreshAstronomyCoordinatesFromSystem()
                 }
             case .denied, .restricted:
-                astronomyLocationStatus = "Enable Location permission for automatic coordinates."
+                astronomyLocationStatus = L10n.text("Enable Location permission for automatic coordinates.")
             case .notDetermined:
                 break
             @unknown default:
@@ -28,7 +28,7 @@ extension CalendarMonitor {
 
     func requestLocationAuthorizationIfNeeded() async -> CLAuthorizationStatus {
         guard CLLocationManager.locationServicesEnabled() else {
-            astronomyLocationStatus = "Location Services are disabled."
+            astronomyLocationStatus = L10n.text("Location Services are disabled.")
             return .restricted
         }
 
@@ -36,7 +36,7 @@ extension CalendarMonitor {
         let status = manager.authorizationStatus
         guard status == .notDetermined else { return status }
 
-        astronomyLocationStatus = "Requesting location permissions..."
+        astronomyLocationStatus = L10n.text("Requesting location permissions...")
 
         return await withCheckedContinuation { continuation in
             var didResume = false

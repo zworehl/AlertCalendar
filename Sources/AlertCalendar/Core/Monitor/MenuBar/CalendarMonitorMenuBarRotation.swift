@@ -6,25 +6,27 @@ extension CalendarMonitor {
     nonisolated static func updatedFootballGoalHighlight(
         _ highlight: FootballGoalHighlight?,
         queueMatchIDs: Set<String>,
-        selectedMatchID: String?
+        selectedMatchID: String?,
+        now: Date,
+        rotationInterval: TimeInterval
     ) -> FootballGoalHighlight? {
         guard var highlight else { return nil }
         guard queueMatchIDs.contains(highlight.matchID) else { return nil }
 
-        if selectedMatchID == highlight.matchID {
-            highlight.hasBeenShownInMenuBar = true
-            return highlight
-        }
-
-        if highlight.hasBeenShownInMenuBar {
-            return nil
+        if let firstShownAt = highlight.firstShownInMenuBarAt {
+            // Active-event focus can keep the same match selected across rotation intervals.
+            guard selectedMatchID == highlight.matchID,
+                  now.timeIntervalSince(firstShownAt) < max(1, rotationInterval)
+            else { return nil }
+        } else if selectedMatchID == highlight.matchID {
+            highlight.firstShownInMenuBarAt = now
         }
 
         return highlight
     }
 
     func primaryReminderItem(now: Date) -> UpcomingItem? {
-        let reminders = upcomingItems.filter { $0.kind == .reminder }
+        let reminders = upcomingItems.filter { $0.kind == .reminder && !$0.isDateOnlyReminder }
         if let upcoming = reminders.first(where: { $0.date >= now }) {
             return upcoming
         }
@@ -93,21 +95,41 @@ extension CalendarMonitor {
         return items[rotatingIndex]
     }
 
+    nonisolated static func isActiveTimedEvent(_ item: UpcomingItem, now: Date) -> Bool {
+        guard item.kind == .event,
+              !item.isAllDay,
+              item.date <= now,
+              let endDate = item.endDate
+        else {
+            return false
+        }
+
+        return endDate > now
+    }
+
+    nonisolated static func menuBarRotationCandidates(
+        from items: [UpcomingItem],
+        now: Date,
+        focusOnActiveEvents: Bool
+    ) -> [UpcomingItem] {
+        guard focusOnActiveEvents else { return items }
+
+        let activeTimedEvents = items.filter { isActiveTimedEvent($0, now: now) }
+        return activeTimedEvents.isEmpty ? items : activeTimedEvents
+    }
+
     nonisolated static func shouldIncludeTimedItemInMenuBarRotation(
         _ item: UpcomingItem,
         now: Date,
         futureWindowSeconds: TimeInterval
     ) -> Bool {
-        guard !item.isAllDay else { return false }
+        guard !item.isAllDay, !item.isDateOnlyReminder else { return false }
 
         if item.kind == .reminder, item.date <= now {
             return true
         }
 
-        if item.kind == .event,
-           let endDate = item.endDate,
-           item.date <= now,
-           endDate > now {
+        if isActiveTimedEvent(item, now: now) {
             return true
         }
 

@@ -7,9 +7,10 @@ extension MenuContentView {
     @ViewBuilder
     func contextualActionCard(
         for item: UpcomingItem,
-        showsFootballCompetitionLine: Bool
+        showsFootballCompetitionLine: Bool,
+        snapshot: LayoutSnapshot
     ) -> some View {
-        let previewKind = contextualPreviewKind(for: item)
+        let previewKind = snapshot.contextualPreviewKind(for: item)
         let previewLocationText: String? = {
             if case let .location(locationText)? = previewKind {
                 return locationText
@@ -29,10 +30,11 @@ extension MenuContentView {
             return nil
         }()
 
+        let footballLayoutItemCount = snapshot.contextualFootballLayoutItemCount
         let shouldShowLocationPreview = previewLocationText != nil
             && Self.shouldShowContextualMapPreview(
                 for: item,
-                concurrentFootballMatchCount: footballContextualActionItems.count
+                contextualItemCount: footballLayoutItemCount
             )
         let shouldShowAttendeePreview = previewAttendees != nil
         let shouldShowJoinButton = shouldShowAttendeePreview && item.meetingURL != nil
@@ -42,10 +44,14 @@ extension MenuContentView {
             }
             return false
         }()
-        let mapPreviewHeight: CGFloat = shouldUseSplitDropdownLayout ? 96 : 112
-        let attendeePreviewListHeight: CGFloat = shouldUseSplitDropdownLayout ? 148 : 188
-        let footballContentLevel = contextualFootballContentLevel
+        let mapPreviewHeight: CGFloat = snapshot.shouldUseSplitDropdownLayout ? 96 : 112
+        let attendeePreviewListHeight = attendeePreviewMaximumListHeight(
+            for: item,
+            snapshot: snapshot
+        )
+        let footballContentLevel = snapshot.contextualFootballContentLevel
         let now = displayReferenceDate
+        let cardContentWidth = contextualPanelContentWidth(snapshot: snapshot)
 
         VStack(alignment: .leading, spacing: 6) {
             if let footballMatch = item.footballMatch {
@@ -54,17 +60,24 @@ extension MenuContentView {
                     match: footballMatch,
                     showsFootballCompetitionLine: showsFootballCompetitionLine,
                     previewLocationText: previewLocationText,
-                    now: now
+                    now: now,
+                    contextualItemCount: footballLayoutItemCount
                 )
+                .frame(width: cardContentWidth, alignment: .topLeading)
+                .clipped()
             } else {
                 if shouldShowDaylightPreview {
                     contextualDaylightHeader(for: item)
+                        .frame(width: cardContentWidth, alignment: .topLeading)
+                        .clipped()
                 } else {
                     contextualProgressHeader(
                         for: item,
                         locationText: previewLocationText,
                         showsJoinButton: shouldShowJoinButton
                     )
+                    .frame(width: cardContentWidth, alignment: .topLeading)
+                    .clipped()
                 }
             }
 
@@ -72,33 +85,44 @@ extension MenuContentView {
                let locationText = previewLocationText {
                 MiniLocationMapView(
                     locationText: locationText,
+                    locationCoordinate: item.locationCoordinate,
                     preferredHeight: mapPreviewHeight
                 )
+                    .frame(width: cardContentWidth, alignment: .topLeading)
+                    .clipped()
                     .id("\(item.notificationKey)|\(locationText)")
             } else if shouldShowAttendeePreview,
                       let previewAttendees {
                 MeetingAttendeesPreview(
                     organizer: previewOrganizer,
                     attendees: previewAttendees,
-                    listHeight: attendeePreviewListHeight
+                    listHeight: attendeePreviewListHeight,
+                    columnCount: 1
                 )
+                    .frame(width: cardContentWidth, alignment: .topLeading)
+                    .clipped()
                     .id("\(item.notificationKey)|attendees")
             } else if shouldShowDaylightPreview {
                 contextualDaylightPreview(
                     for: item,
                     preferredHeight: mapPreviewHeight
                 )
+                .frame(width: cardContentWidth, alignment: .topLeading)
+                .clipped()
             }
 
             if let footballMatch = item.footballMatch {
-                let concurrentFootballMatchCount = displayedContextualActionItems.count
                 let usesExpandedFootballHeader = Self.shouldUseExpandedContextualFootballHeader(
                     for: footballMatch,
-                    itemCount: concurrentFootballMatchCount
+                    itemCount: footballLayoutItemCount
                 )
                 let scorePlacement = Self.footballContextualScorePlacement(
                     for: footballMatch,
-                    itemCount: concurrentFootballMatchCount
+                    itemCount: footballLayoutItemCount
+                )
+                let outcomeProbabilities = CalendarMonitor.footballOutcomeProbabilities(
+                    for: footballMatch,
+                    now: now
                 )
 
                 if usesExpandedFootballHeader && scorePlacement == .headline {
@@ -107,18 +131,35 @@ extension MenuContentView {
                         display: item.footballMenuBarDisplay,
                         showsScore: true,
                         showsTeamNames: true,
-                        showsTeamLogos: true
+                        showsTeamLogos: true,
+                        availableWidth: cardContentWidth
                     )
                 }
 
-                if footballContentLevel.showsStats {
+                if footballContentLevel.showsStats && footballMatch.statusState != .scheduled {
                     FootballMatchStatsSection(
                         match: footballMatch,
                         display: item.footballMenuBarDisplay,
                         showsScoreHeader: Self.footballContextualScorePlacement(
                             for: footballMatch,
-                            itemCount: concurrentFootballMatchCount
-                        ) == .stats
+                            itemCount: footballLayoutItemCount
+                        ) == .stats,
+                        outcomeProbabilities: outcomeProbabilities,
+                        availableWidth: cardContentWidth
+                    )
+                }
+
+                if Self.shouldShowStandaloneContextualFootballOutcomeProbabilities(
+                    for: footballMatch,
+                    itemCount: footballLayoutItemCount
+                ),
+                   let outcomeProbabilities {
+                    FootballOutcomeProbabilityBar(
+                        match: footballMatch,
+                        display: item.footballMenuBarDisplay,
+                        probabilities: outcomeProbabilities,
+                        style: footballLayoutItemCount <= 1 ? .contextual : .compact,
+                        availableWidth: cardContentWidth
                     )
                 }
 
@@ -127,17 +168,19 @@ extension MenuContentView {
                     FootballGoalScorersSection(
                         match: footballMatch,
                         display: item.footballMenuBarDisplay,
-                        showsTeamHeader: Self.shouldShowGoalScorersSectionHeader(for: concurrentFootballMatchCount),
+                        showsTeamHeader: Self.shouldShowGoalScorersSectionHeader(for: footballLayoutItemCount),
                         showsScoreHeader: Self.footballContextualScorePlacement(
                             for: footballMatch,
-                            itemCount: concurrentFootballMatchCount
-                        ) == .goalScorers
+                            itemCount: footballLayoutItemCount
+                        ) == .goalScorers,
+                        availableWidth: cardContentWidth
                     )
                 }
             }
 
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(width: cardContentWidth, alignment: .leading)
+        .clipped()
     }
 
     func contextualFootballHeader(
@@ -145,7 +188,8 @@ extension MenuContentView {
         match footballMatch: FootballFixtureMatch,
         showsFootballCompetitionLine: Bool,
         previewLocationText: String?,
-        now: Date
+        now: Date,
+        contextualItemCount: Int
     ) -> some View {
         MenuContentHoverContainer { isHovered in
             contextualFootballHeaderContent(
@@ -154,6 +198,7 @@ extension MenuContentView {
                 showsFootballCompetitionLine: showsFootballCompetitionLine,
                 previewLocationText: previewLocationText,
                 now: now,
+                contextualItemCount: contextualItemCount,
                 isHovered: isHovered
             )
         }
@@ -165,15 +210,15 @@ extension MenuContentView {
         showsFootballCompetitionLine: Bool,
         previewLocationText: String?,
         now: Date,
+        contextualItemCount: Int,
         isHovered: Bool
     ) -> some View {
         HStack(spacing: 8) {
-            let concurrentFootballMatchCount = displayedContextualActionItems.count
             let scheduleText = Self.footballContextualScheduleText(for: footballMatch, now: now)
             let venueName = footballContextualVenueName(for: item, match: footballMatch)
             let usesExpandedFootballHeader = Self.shouldUseExpandedContextualFootballHeader(
                 for: footballMatch,
-                itemCount: concurrentFootballMatchCount
+                itemCount: contextualItemCount
             )
 
             VStack(alignment: .leading, spacing: 2) {
@@ -182,7 +227,7 @@ extension MenuContentView {
                         footballFixtureHeadline(
                             match: footballMatch,
                             display: item.footballMenuBarDisplay,
-                            font: .subheadline.weight(.semibold),
+                            font: MenuMarkerMetrics.contextualHeadlineFont,
                             showsScore: true,
                             showsInlineAggregate: true,
                             showsCardBadges: true,
@@ -202,12 +247,16 @@ extension MenuContentView {
                 if let venueName {
                     HStack(alignment: .center, spacing: 4) {
                         Image(systemName: locationSymbolName(for: item))
-                            .font(.system(size: 12, weight: .regular))
-                            .frame(width: 12, height: 12, alignment: .center)
+                            .font(.system(size: MenuMarkerMetrics.symbolSize, weight: .regular))
+                            .frame(
+                                width: MenuMarkerMetrics.symbolSize,
+                                height: MenuMarkerMetrics.symbolSize,
+                                alignment: .center
+                            )
                             .foregroundStyle(.secondary)
 
                         Text(venueName)
-                            .font(.caption)
+                            .font(MenuMarkerMetrics.rowDetailFont)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                             .truncationMode(.tail)
@@ -218,7 +267,7 @@ extension MenuContentView {
                            let scheduleText,
                            !scheduleText.isEmpty {
                             Text(scheduleText)
-                                .font(.caption.weight(.semibold))
+                                .font(MenuMarkerMetrics.contextualMetadataEmphasisFont)
                                 .foregroundStyle(.secondary)
                                 .multilineTextAlignment(.trailing)
                                 .lineLimit(1)
@@ -231,7 +280,7 @@ extension MenuContentView {
                     HStack {
                         Spacer(minLength: 0)
                         Text(scheduleText)
-                            .font(.caption.weight(.semibold))
+                            .font(MenuMarkerMetrics.contextualMetadataEmphasisFont)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.trailing)
                             .lineLimit(1)
@@ -243,7 +292,7 @@ extension MenuContentView {
                     footballCompetitionLine(
                         match: footballMatch,
                         display: item.footballMenuBarDisplay,
-                        font: .caption
+                        font: MenuMarkerMetrics.rowDetailFont
                     )
                 }
             }
@@ -254,6 +303,9 @@ extension MenuContentView {
                 contextualActionButtons(for: item, locationText: previewLocationText)
             }
         }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .menuRowHoverBackground(isHovered: isHovered)
         .contentShape(Rectangle())
     }
 
@@ -281,6 +333,7 @@ extension MenuContentView {
         isHovered: Bool
     ) -> some View {
         let now = displayReferenceDate
+        let headerHeight = contextualProgressHeaderHeight(for: item)
         let reservedTrailingWidth = isHovered ? contextualActionRowWidth(
             for: item,
             locationText: locationText,
@@ -295,6 +348,8 @@ extension MenuContentView {
                 hideTimeDetails: isHovered,
                 reservedTrailingWidth: reservedTrailingWidth
             )
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(height: headerHeight, alignment: .topLeading)
 
             if isHovered {
                 contextualActionButtons(
@@ -302,10 +357,33 @@ extension MenuContentView {
                     locationText: locationText,
                     showsJoinButton: showsJoinButton
                 )
-                .padding(.trailing, 6)
+                .padding(.trailing, MenuActionControlMetrics.trailingInset)
             }
         }
+        .frame(height: headerHeight, alignment: .topLeading)
+        .fixedSize(horizontal: false, vertical: true)
         .contentShape(Rectangle())
+    }
+
+    func contextualProgressHeaderHeight(for item: UpcomingItem) -> CGFloat {
+        let hasVirtualLocation = monitor.isVirtualLocationText(item.locationText)
+        let showsTravelTime = item.kind == .event
+            && !item.isAllDay
+            && item.meetingURL == nil
+            && !hasVirtualLocation
+            && (item.travelTimeMinutes ?? 0) > 0
+        let allDayRightLabel = monitor.allDayLabel(
+            for: item,
+            now: displayReferenceDate,
+            simplified: settings.useSimplifiedCountdown
+        )
+        let showRightTimeColumn = item.kind == .event && (!item.isAllDay || allDayRightLabel != nil)
+
+        return rowPrimaryContentMinimumHeight(
+            for: item,
+            showsTravelTime: showsTravelTime,
+            showRightTimeColumn: showRightTimeColumn
+        )
     }
 
 }

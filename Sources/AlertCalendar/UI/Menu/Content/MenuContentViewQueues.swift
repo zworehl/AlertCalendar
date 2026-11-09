@@ -4,85 +4,189 @@ import MapKit
 import SwiftUI
 
 extension MenuContentView {
-    var contextualActionSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+    func contextualActionSection(snapshot: LayoutSnapshot) -> some View {
+        let usesContentSizedViewport = snapshot.shouldUseSplitDropdownLayout
+            && !Self.usesSelfContainedAttendeeScrolling(
+                contextualItems: snapshot.displayedContextualActionItems,
+                previewKindsByKey: snapshot.contextualPreviewKindsByKey
+            )
+        return VStack(alignment: .leading, spacing: 8) {
             calendarSectionContainer(
-                height: shouldUseSplitDropdownLayout ? splitSharedPanelHeight : nil,
-                bottomPadding: shouldUseSplitDropdownLayout ? splitPanelBottomPadding : nil
+                height: usesContentSizedViewport ? nil : splitContextualPanelHeight(snapshot: snapshot),
+                bottomPadding: snapshot.shouldUseSplitDropdownLayout ? splitPanelBottomPadding : nil
             ) {
-                if shouldScrollContextualSplitPanel {
-                    ScrollView(.vertical, showsIndicators: true) {
-                        contextualActionPanelContent
+                if usesContentSizedViewport {
+                    MenuDropdownHeightContainer(
+                        maximumHeight: max(1, splitPrimaryColumnsHeightLimit(snapshot: snapshot)
+                            - panelTopPadding - splitPanelBottomPadding)
+                    ) {
+                        contextualActionPanelContent(snapshot: snapshot)
+                            .frame(width: contextualPanelContentWidth(snapshot: snapshot), alignment: .topLeading)
+                            .background(
+                                GeometryReader { proxy in
+                                    contextualPanelMeasurementBackground(
+                                        proxy: proxy,
+                                        snapshot: snapshot
+                                    )
+                                }
+                            )
                     }
-                    .frame(maxHeight: .infinity, alignment: .top)
+                    .frame(width: contextualPanelContentWidth(snapshot: snapshot), alignment: .topLeading)
+                    .clipped()
                 } else {
-                    contextualActionPanelContent
+                    contextualActionPanelContent(snapshot: snapshot)
+                        .frame(width: contextualPanelContentWidth(snapshot: snapshot), alignment: .topLeading)
+                        .background(
+                            GeometryReader { proxy in
+                                contextualPanelMeasurementBackground(
+                                    proxy: proxy,
+                                    snapshot: snapshot
+                                )
+                            }
+                        )
                 }
             }
         }
+        .frame(width: contextualPanelOuterWidth(snapshot: snapshot), alignment: .topLeading)
+        .clipped()
     }
 
-    var upcomingSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            calendarSectionContainer(
-                height: shouldUseSplitDropdownLayout ? splitSharedPanelHeight : nil,
-                bottomPadding: shouldUseSplitDropdownLayout ? splitPanelBottomPadding : nil
-            ) {
-                if queueItemsForActions.isEmpty {
-                    upcomingQueueRows
-                } else if shouldScrollUpcomingSplitPanel || !shouldUseSplitDropdownLayout {
-                    ScrollView(.vertical, showsIndicators: true) {
-                        upcomingQueueRows
-                    }
-                    .frame(
-                        maxHeight: shouldUseSplitDropdownLayout ? .infinity : upcomingListMaxHeight,
-                        alignment: .top
-                    )
-                } else {
-                    upcomingQueueRows
+    nonisolated static func usesSelfContainedAttendeeScrolling(
+        contextualItems: [UpcomingItem],
+        previewKindsByKey: [String: ContextualPreviewKind]
+    ) -> Bool {
+        guard contextualItems.count == 1,
+              let item = contextualItems.first,
+              case .attendees = previewKindsByKey[item.notificationKey] else {
+            return false
+        }
+
+        return true
+    }
+
+    func contextualPanelMeasurementBackground(
+        proxy: GeometryProxy,
+        snapshot: LayoutSnapshot
+    ) -> some View {
+        Color.clear.preference(
+            key: SplitContextualPanelMeasurementPreferenceKey.self,
+            value: SplitContextualPanelMeasurement(
+                key: snapshot.contextualPanelMeasurementKey,
+                height: proxy.size.height
+                    + panelTopPadding
+                    + (snapshot.shouldUseSplitDropdownLayout
+                        ? splitPanelBottomPadding
+                        : panelBottomPadding)
+            )
+        )
+    }
+
+    func upcomingSection(snapshot: LayoutSnapshot) -> some View {
+        calendarSectionContainer(
+            height: upcomingSplitPanelHeight(snapshot: snapshot),
+            bottomPadding: snapshot.shouldUseSplitDropdownLayout ? splitPanelBottomPadding : nil
+        ) {
+            if snapshot.queueItemsForActions.isEmpty {
+                upcomingQueueRows(snapshot: snapshot)
+            } else if shouldScrollUpcomingSplitPanel(snapshot: snapshot) {
+                ScrollView(.vertical, showsIndicators: shouldScrollUpcomingSplitPanel(snapshot: snapshot)) {
+                    upcomingQueueRows(snapshot: snapshot)
+                        .frame(width: upcomingPanelContentWidth(snapshot: snapshot), alignment: .topLeading)
                 }
+                .frame(width: upcomingPanelContentWidth(snapshot: snapshot), alignment: .topLeading)
+                .frame(height: upcomingSplitPanelContentHeight(snapshot: snapshot), alignment: .top)
+                .clipped()
+            } else if shouldScrollUpcomingSplitPanel(snapshot: snapshot) || !snapshot.shouldUseSplitDropdownLayout {
+                ScrollView(.vertical, showsIndicators: true) {
+                    upcomingQueueRows(snapshot: snapshot)
+                        .frame(width: upcomingPanelContentWidth(snapshot: snapshot), alignment: .topLeading)
+                }
+                .frame(width: upcomingPanelContentWidth(snapshot: snapshot), alignment: .topLeading)
+                .frame(
+                    maxHeight: snapshot.shouldUseSplitDropdownLayout ? .infinity : upcomingListMaxHeight,
+                    alignment: .top
+                )
+                .clipped()
+            } else {
+                upcomingQueueRows(snapshot: snapshot)
+                    .frame(width: upcomingPanelContentWidth(snapshot: snapshot), alignment: .topLeading)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .frame(width: upcomingPanelOuterWidth(snapshot: snapshot), alignment: .topLeading)
+        .clipped()
     }
 
-    var contextualActionPanelContent: some View {
+    @ViewBuilder
+    func dropdownSummarySections(snapshot: LayoutSnapshot) -> some View {
+        if snapshot.showsAgendaSummary {
+            dropdownSummarySectionContent(snapshot: snapshot)
+        }
+    }
+
+    private func dropdownSummarySectionContent(snapshot: LayoutSnapshot) -> some View {
+        agendaSummarySection(snapshot: snapshot)
+        .frame(
+            width: snapshot.shouldUseSplitDropdownLayout
+                ? splitContentOuterWidth(snapshot: snapshot)
+                : upcomingPanelOuterWidth(snapshot: snapshot),
+            alignment: .topLeading
+        )
+    }
+
+    var shouldDisplayAgendaSummary: Bool {
+        settings.showAgendaSummary
+            && monitor.agendaSummaryAvailability.isAvailable
+            && monitor.agendaSummaryState != .unavailable
+    }
+
+    func contextualActionPanelContent(snapshot: LayoutSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            if contextualSharedCompetitionIsActive {
-                contextualSharedCompetitionHeader
+            if snapshot.contextualSharedCompetitionIsActive {
+                contextualSharedCompetitionHeader(snapshot: snapshot)
             }
 
-            ForEach(Array(displayedContextualActionItems.enumerated()), id: \.element.notificationKey) { index, item in
+            ForEach(Array(snapshot.displayedContextualActionItems.enumerated()), id: \.element.notificationKey) { index, item in
                 contextualActionCard(
                     for: item,
-                    showsFootballCompetitionLine: !contextualSharedCompetitionIsActive
+                    showsFootballCompetitionLine: !snapshot.contextualSharedCompetitionIsActive,
+                    snapshot: snapshot
                 )
 
-                if index < displayedContextualActionItems.count - 1 {
+                if index < snapshot.displayedContextualActionItems.count - 1 {
                     Divider()
                 }
             }
         }
-        .background(
-            GeometryReader { proxy in
-                Color.clear.preference(
-                    key: SplitContextualPanelHeightPreferenceKey.self,
-                    value: proxy.size.height + panelTopPadding + (shouldUseSplitDropdownLayout ? splitPanelBottomPadding : panelBottomPadding)
-                )
-            }
-        )
     }
 
-    var upcomingQueueRows: some View {
-        VStack(spacing: 0) {
-            if queueItemsForActions.isEmpty {
-                emptySectionRow("No upcoming items")
+    func upcomingQueueRows(snapshot: LayoutSnapshot) -> AnyView {
+        let entries = Self.upcomingQueueEntries(
+            from: snapshot.queueItemsForActions,
+            birthdayCalendarIDs: monitor.birthdayCalendarIDs
+        )
+
+        return AnyView(VStack(spacing: 0) {
+            if entries.isEmpty {
+                emptySectionRow(L10n.text("No upcoming items"))
             } else {
-                ForEach(Array(queueItemsForActions.enumerated()), id: \.element.notificationKey) { index, item in
+                ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
                     if index > 0 {
                         Divider()
                     }
-                    actionRow(item: item, actions: [.skip])
+
+                    switch entry {
+                    case .item(let item):
+                        actionRow(
+                            item: item,
+                            actions: Self.upcomingItemActions(for: item),
+                            listPosition: MenuListRowPosition.position(
+                                for: index,
+                                itemCount: entries.count
+                            )
+                        )
+                    case .birthdayGroup(let group):
+                        birthdayGroupRows(group)
+                    }
                 }
             }
         }
@@ -90,26 +194,10 @@ extension MenuContentView {
             GeometryReader { proxy in
                 Color.clear.preference(
                     key: SplitUpcomingPanelHeightPreferenceKey.self,
-                    value: proxy.size.height + panelTopPadding + (shouldUseSplitDropdownLayout ? splitPanelBottomPadding : panelBottomPadding)
+                    value: proxy.size.height + panelTopPadding + (snapshot.shouldUseSplitDropdownLayout ? splitPanelBottomPadding : panelBottomPadding)
                 )
             }
-        )
-    }
-
-    var filteredAlertDescriptions: [String] {
-        let now = displayReferenceDate
-        let leadSeconds = TimeInterval(settings.alertLeadMinutes * 60)
-        let items = monitor.upcomingItems.filter { item in
-            guard AstronomyMoment(eventTitle: item.title) == nil else { return false }
-            if let kindFilter, item.kind != kindFilter {
-                return false
-            }
-            return CalendarMonitor.shouldAlertForItem(item, now: now, leadSeconds: leadSeconds)
-        }
-
-        return items.map {
-            CalendarMonitor.alertDescription(for: $0, now: now)
-        }
+        ))
     }
 
     var shouldShowSilenceButton: Bool {
@@ -128,7 +216,7 @@ extension MenuContentView {
                 futureWindowEnd: dropdownFutureWindowEnd(now: now)
             )
         }
-        return deduplicatedItems((allDayItems + timedItems).sorted { $0.date < $1.date })
+        return deduplicatedItems((allDayItems + timedItems).sorted { UpcomingItem.sortPrecedes($0, $1) })
     }
 
     var queueItemsForActions: [UpcomingItem] {
@@ -145,7 +233,7 @@ extension MenuContentView {
                 futureWindowEnd: dropdownFutureWindowEnd(now: now)
             )
         }
-        return deduplicatedItems((allDayItems + timedItems).sorted { $0.date < $1.date })
+        return deduplicatedItems((allDayItems + timedItems).sorted { UpcomingItem.sortPrecedes($0, $1) })
     }
 
     var queueItemsForSingleColumnLayout: [UpcomingItem] {
@@ -163,10 +251,33 @@ extension MenuContentView {
         let now = displayReferenceDate
         return Self.queueItemsForActions(
             from: queueItemsSource,
-            contextualItems: footballContextualActionItems,
+            contextualItems: splitContextualActionItemsForSplitLayout,
             now: now,
             futureWindowEnd: dropdownFutureWindowEnd(now: now),
             maxItems: max(1, settings.maxListItems)
+        )
+    }
+
+    var contextualPreviewKindsByKey: [String: ContextualPreviewKind] {
+        Dictionary(
+            uniqueKeysWithValues: contextualActionCandidates.compactMap { item in
+                contextualPreviewKind(for: item).map { (item.notificationKey, $0) }
+            }
+        )
+    }
+
+    var nonFootballContextualActionItems: [UpcomingItem] {
+        Self.contextualActionItems(
+            from: contextualActionCandidates.filter { $0.footballMatch == nil },
+            now: displayReferenceDate
+        )
+    }
+
+    var splitContextualActionItemsForSplitLayout: [UpcomingItem] {
+        Self.splitContextualActionItems(
+            contextualItems: contextualPreviewActionItems + nonFootballContextualActionItems,
+            footballItems: footballContextualActionItems,
+            previewKindsByKey: contextualPreviewKindsByKey
         )
     }
 
@@ -202,11 +313,64 @@ extension MenuContentView {
         return Array(filtered.prefix(max(1, maxItems)))
     }
 
+    nonisolated static func splitContextualActionItems(
+        contextualItems: [UpcomingItem],
+        footballItems: [UpcomingItem],
+        previewKindsByKey: [String: ContextualPreviewKind]
+    ) -> [UpcomingItem] {
+        var mergedItems: [UpcomingItem] = []
+        var seenKeys: Set<String> = []
+
+        for item in contextualItems + footballItems where seenKeys.insert(item.notificationKey).inserted {
+            mergedItems.append(item)
+        }
+
+        return mergedItems.sorted { left, right in
+            let leftPriority = splitContextualPriority(for: left, previewKindsByKey: previewKindsByKey)
+            let rightPriority = splitContextualPriority(for: right, previewKindsByKey: previewKindsByKey)
+            if leftPriority != rightPriority {
+                return leftPriority < rightPriority
+            }
+            return contextualItemSortPrecedes(left, right)
+        }
+    }
+
+    nonisolated private static func splitContextualPriority(
+        for item: UpcomingItem,
+        previewKindsByKey: [String: ContextualPreviewKind]
+    ) -> Int {
+        if case .attendees = previewKindsByKey[item.notificationKey] {
+            return 0
+        }
+        if item.footballMatch != nil {
+            return 1
+        }
+        return 2
+    }
+
+    nonisolated private static func contextualItemSortPrecedes(_ left: UpcomingItem, _ right: UpcomingItem) -> Bool {
+        if left.date != right.date {
+            return left.date < right.date
+        }
+        if left.kind != right.kind {
+            return left.kind.rawValue < right.kind.rawValue
+        }
+        let titleOrder = left.title.localizedCaseInsensitiveCompare(right.title)
+        if titleOrder != .orderedSame {
+            return titleOrder == .orderedAscending
+        }
+        return left.notificationKey < right.notificationKey
+    }
+
     nonisolated static func shouldIncludeInDropdownTimeWindow(
         _ item: UpcomingItem,
         now: Date,
         futureWindowEnd: Date
     ) -> Bool {
+        if item.kind == .reminder {
+            return item.date <= now || item.date <= futureWindowEnd
+        }
+
         if item.isAllDay {
             return CalendarMonitor.shouldIncludeAllDayItem(
                 startDate: item.date,
@@ -214,10 +378,6 @@ extension MenuContentView {
                 now: now,
                 futureWindowEnd: futureWindowEnd
             )
-        }
-
-        if item.kind == .reminder, item.date <= now {
-            return true
         }
 
         if item.kind == .event,
@@ -271,6 +431,10 @@ extension MenuContentView {
             }
         }
         return unique
+    }
+
+    static func upcomingItemActions(for item: UpcomingItem) -> [MenuAction] {
+        item.kind == .reminder ? [.skip, .complete] : [.skip]
     }
 
     enum MenuAction {

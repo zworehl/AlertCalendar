@@ -1,6 +1,30 @@
 import AppKit
 import SwiftUI
 
+private struct FootballConstrainedWidthModifier: ViewModifier {
+    let width: CGFloat?
+    let alignment: Alignment
+
+    func body(content: Content) -> some View {
+        Group {
+            if let width {
+                content
+                    .frame(width: width, alignment: alignment)
+            } else {
+                content
+                    .frame(maxWidth: .infinity, alignment: alignment)
+            }
+        }
+        .clipped()
+    }
+}
+
+extension View {
+    func footballConstrainedWidth(_ width: CGFloat?, alignment: Alignment = .leading) -> some View {
+        modifier(FootballConstrainedWidthModifier(width: width, alignment: alignment))
+    }
+}
+
 struct FootballStatusAccessoriesData {
     let badgeText: String?
     let warningText: String?
@@ -10,8 +34,11 @@ struct FootballStatusAccessoriesData {
     }
 
     static func resolved(for match: FootballFixtureMatch, now: Date = AlertCalendarClock.nowRoundedToSecond()) -> FootballStatusAccessoriesData {
-        FootballStatusAccessoriesData(
-            badgeText: CalendarMonitor.footballStatusBadgeText(for: match, now: now),
+        let badgeText = CalendarMonitor.footballStatusBadgeText(for: match, now: now).map {
+            CalendarMonitor.compactFootballStatusBadgeText($0, for: match, now: now)
+        }
+        return FootballStatusAccessoriesData(
+            badgeText: badgeText,
             warningText: CalendarMonitor.footballStatusWarningText(for: match)
         )
     }
@@ -21,18 +48,36 @@ struct FootballTeamLogoView: View {
     let localPath: String?
     let remoteURL: URL?
     let isUnknown: Bool
+    var usesCircularOutline = false
+    var circularOutlineColor: Color = .primary
     var size: CGFloat = 16
     var placeholderSymbolSize: CGFloat = 8
 
     var body: some View {
-        FootballRemoteLogoView(localPath: localPath, remoteURL: isUnknown ? nil : remoteURL, size: size) {
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                .fill(Color.secondary.opacity(0.15))
-                .overlay(
-                    Image(systemName: "shield")
-                        .font(.system(size: placeholderSymbolSize, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                )
+        FootballRemoteLogoView(
+            localPath: localPath,
+            remoteURL: isUnknown ? nil : remoteURL,
+            size: size,
+            usesCircularOutline: usesCircularOutline,
+            circularOutlineColor: circularOutlineColor
+        ) {
+            if usesCircularOutline {
+                Circle()
+                    .fill(FootballFlagCircleStyle.fill)
+                    .overlay(
+                        Image(systemName: "flag")
+                            .font(.system(size: placeholderSymbolSize, weight: .semibold))
+                            .foregroundStyle(FootballFlagCircleStyle.placeholderTint)
+                    )
+            } else {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(Color.secondary.opacity(0.15))
+                    .overlay(
+                        Image(systemName: "shield")
+                            .font(.system(size: placeholderSymbolSize, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    )
+            }
         }
     }
 }
@@ -44,7 +89,7 @@ struct FootballCompetitionLogoView: View {
     var placeholderSymbolSize: CGFloat = 10
 
     var body: some View {
-        FootballRemoteLogoView(localPath: localPath, remoteURL: remoteURL, size: size) {
+        FootballRemoteLogoView(localPath: localPath, remoteURL: remoteURL, size: size, usesCircularOutline: false) {
             Image(systemName: "trophy")
                 .font(.system(size: placeholderSymbolSize, weight: .semibold))
                 .foregroundStyle(.secondary)
@@ -59,7 +104,7 @@ struct FootballStatusBadgeView: View {
         let tint = Color(nsColor: CalendarMonitor.footballStatusTintColor(for: text))
 
         Text(text)
-            .font(.system(size: 10, weight: .semibold))
+            .font(.caption2.weight(.semibold))
             .foregroundStyle(tint)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
@@ -117,6 +162,8 @@ private struct FootballRemoteLogoView<Placeholder: View>: View {
     let localPath: String?
     let remoteURL: URL?
     let size: CGFloat
+    let usesCircularOutline: Bool
+    let circularOutlineColor: Color
     let placeholder: Placeholder
     @State private var localImage: NSImage?
     @State private var localImagePath: String?
@@ -126,11 +173,15 @@ private struct FootballRemoteLogoView<Placeholder: View>: View {
         localPath: String?,
         remoteURL: URL?,
         size: CGFloat,
+        usesCircularOutline: Bool,
+        circularOutlineColor: Color = FootballFlagCircleStyle.outerStroke,
         @ViewBuilder placeholder: () -> Placeholder
     ) {
         self.localPath = localPath
         self.remoteURL = remoteURL
         self.size = size
+        self.usesCircularOutline = usesCircularOutline
+        self.circularOutlineColor = circularOutlineColor
         self.placeholder = placeholder()
     }
 
@@ -141,18 +192,13 @@ private struct FootballRemoteLogoView<Placeholder: View>: View {
 
         Group {
             if let image = stateImage ?? cachedImage {
-                Image(nsImage: image)
-                    .resizable()
-                    .interpolation(.high)
-                    .scaledToFit()
+                logoImage(Image(nsImage: image))
             } else if shouldLoadLocalImage {
                 placeholder
             } else {
                 AsyncImage(url: remoteURL, transaction: Transaction(animation: nil)) { phase in
                     if let image = phase.image {
-                        image
-                            .resizable()
-                            .scaledToFit()
+                        logoImage(image)
                     } else {
                         placeholder
                     }
@@ -160,9 +206,46 @@ private struct FootballRemoteLogoView<Placeholder: View>: View {
             }
         }
         .frame(width: size, height: size)
+        .background {
+            if usesCircularOutline {
+                Circle()
+                    .fill(FootballFlagCircleStyle.fill)
+            }
+        }
+        .mask {
+            if usesCircularOutline {
+                Circle()
+            } else {
+                Rectangle()
+            }
+        }
+        .overlay {
+            if usesCircularOutline {
+                ZStack {
+                    Circle()
+                        .strokeBorder(circularOutlineColor, lineWidth: flagCircleBorderWidth)
+                    Circle()
+                        .inset(by: flagCircleBorderWidth)
+                        .strokeBorder(FootballFlagCircleStyle.innerStroke, lineWidth: 0.5)
+                }
+            }
+        }
         .task(id: localPath) {
             await loadLocalImageIfNeeded()
         }
+    }
+
+    private func logoImage(_ image: Image) -> some View {
+        image
+            .resizable()
+            .interpolation(.high)
+            .aspectRatio(contentMode: usesCircularOutline ? .fill : .fit)
+            .frame(width: size, height: size)
+            .clipped()
+    }
+
+    private var flagCircleBorderWidth: CGFloat {
+        max(1, size * 0.065)
     }
 
     @MainActor
@@ -203,40 +286,9 @@ private struct FootballRemoteLogoView<Placeholder: View>: View {
     }
 }
 
-@MainActor
-enum FootballLocalImageCache {
-    private static let cache: NSCache<NSString, NSImage> = {
-        let cache = NSCache<NSString, NSImage>()
-        cache.countLimit = 160
-        return cache
-    }()
-
-    static func cachedImage(for path: String) -> NSImage? {
-        cache.object(forKey: path as NSString)
-    }
-
-    static func store(_ image: NSImage, for path: String) {
-        cache.setObject(image, forKey: path as NSString)
-    }
-
-    static func loadImage(for path: String) async -> NSImage? {
-        if let cachedImage = cachedImage(for: path) {
-            return cachedImage
-        }
-
-        guard let imageData = await imageData(for: path),
-              !Task.isCancelled,
-              let image = NSImage(data: imageData) else {
-            return nil
-        }
-
-        store(image, for: path)
-        return image
-    }
-
-    nonisolated static func imageData(for path: String) async -> Data? {
-        await Task.detached(priority: .utility) {
-            try? Data(contentsOf: URL(fileURLWithPath: path))
-        }.value
-    }
+private enum FootballFlagCircleStyle {
+    static var fill: Color { Color.white.opacity(0.18) }
+    static var outerStroke: Color { .primary }
+    static var innerStroke: Color { Color.black.opacity(0.18) }
+    static var placeholderTint: Color { Color.white.opacity(0.82) }
 }

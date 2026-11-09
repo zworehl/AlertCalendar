@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import Foundation
 
 enum AlertCalendarWorkspace {
@@ -47,5 +48,9 @@ enum AlertCalendarWorkspace {
             image.size = size
         }
         return image
+    }
+
+    static func notificationPublisher(for name: Notification.Name) -> NotificationCenter.Publisher {
+        NSWorkspace.shared.notificationCenter.publisher(for: name)
     }
 }

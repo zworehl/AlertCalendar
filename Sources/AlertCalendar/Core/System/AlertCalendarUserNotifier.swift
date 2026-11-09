@@ -7,8 +7,9 @@ enum AlertCalendarUserNotifier {
         await ensureAuthorization()
     }
 
-    static func deliver(identifier: String, title: String, body: String) async {
-        guard await ensureAuthorization() else { return }
+    @discardableResult
+    static func deliver(identifier: String, title: String, body: String) async -> Bool {
+        guard await ensureAuthorization() else { return false }
 
         let content = UNMutableNotificationContent()
         content.title = title
@@ -21,7 +22,42 @@ enum AlertCalendarUserNotifier {
             trigger: nil
         )
 
+        do {
+            try await add(request)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    static func removeDeliveredRequests(withIdentifiers identifiers: [String]) {
+        UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: identifiers)
+    }
+
+    static func schedule(identifier: String, title: String, body: String, at date: Date) async {
+        guard date > Date(), await ensureAuthorization() else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+
+        let components = Calendar.current.dateComponents(
+            [.year, .month, .day, .hour, .minute, .second, .timeZone],
+            from: date
+        )
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        let request = UNNotificationRequest(
+            identifier: identifier,
+            content: content,
+            trigger: trigger
+        )
         try? await add(request)
+    }
+
+    static func removePendingRequests(withIdentifiers identifiers: [String]) {
+        guard !identifiers.isEmpty else { return }
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
     }
 
     private static func ensureAuthorization() async -> Bool {

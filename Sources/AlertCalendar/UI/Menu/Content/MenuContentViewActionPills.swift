@@ -3,15 +3,42 @@ import CoreLocation
 import MapKit
 import SwiftUI
 
+enum MenuActionControlMetrics {
+    static let minimumHitTargetSize: CGFloat = 28
+    static let symbolSize: CGFloat = 11
+    static let controlSpacing: CGFloat = 0
+    static let leadingClearance: CGFloat = 16
+    static let trailingInset: CGFloat = 6
+}
+
+struct MenuActionButtonGroup<Content: View>: View {
+    private let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        HStack(spacing: MenuActionControlMetrics.controlSpacing) {
+            content
+        }
+        .fixedSize(horizontal: true, vertical: true)
+        .background {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color(nsColor: .controlColor))
+        }
+    }
+}
+
 extension MenuContentView {
     func sectionHeader(_ title: String) -> some View {
         HStack {
-            Text(title)
-                .font(.caption.weight(.semibold))
+            Text(title.localizedCapitalized)
+                .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
-                .tracking(0.5)
             Spacer()
         }
+        .accessibilityAddTraits(.isHeader)
     }
 
     func emptySectionRow(_ text: String) -> some View {
@@ -24,100 +51,104 @@ extension MenuContentView {
     }
 
     func timeRangeText(for item: UpcomingItem) -> String? {
-        guard !item.isAllDay else { return nil }
-        let startText = Self.menuTimeFormatter.string(from: item.date)
-        guard let endDate = item.endDate, endDate > item.date else {
-            return startText
-        }
-        let endText = Self.menuTimeFormatter.string(from: endDate)
-        return "\(startText)-\(endText)"
-    }
-
-    @ViewBuilder
-    func actionPill<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        content()
-            .frame(height: 18)
-            .padding(.horizontal, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(.regularMaterial)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(Color.primary.opacity(0.18), lineWidth: 1)
-                    )
-            )
+        Self.timeRangeText(
+            startDate: item.date,
+            endDate: item.endDate,
+            isAllDay: item.isAllDay
+        )
     }
 
     @ViewBuilder
     func joinActionButton(for item: UpcomingItem) -> some View {
-        Button {
-            monitor.openMeeting(item)
-        } label: {
-            actionPill {
-                Text("Join")
-                    .font(.system(size: 11, weight: .semibold))
-            }
+        MenuActionButton(systemImage: "video", toolTip: L10n.text("Join meeting"), accessibilityLabel: L10n.text("Join meeting")) {
+            openMeetingFromDropdown(item)
         }
-        .buttonStyle(.borderless)
-        .controlSize(.small)
-        .help("Join")
+        .frame(width: MenuActionControlMetrics.minimumHitTargetSize, height: MenuActionControlMetrics.minimumHitTargetSize)
+        .disabled(item.meetingURL == nil)
+    }
+
+    func openMeetingFromDropdown(_ item: UpcomingItem) {
+        dropdownActions.dismiss()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            monitor.openMeeting(item)
+        }
+    }
+
+    @ViewBuilder
+    func openLinkActionButton(for item: UpcomingItem) -> some View {
+        MenuActionButton(systemImage: "link", toolTip: L10n.text("Open link"), accessibilityLabel: L10n.text("Open link for \(item.title)")) {
+            openLinkFromDropdown(item)
+        }
+        .frame(width: MenuActionControlMetrics.minimumHitTargetSize, height: MenuActionControlMetrics.minimumHitTargetSize)
+        .disabled(item.openLinkURL == nil)
+    }
+
+    func openLinkFromDropdown(_ item: UpcomingItem) {
+        guard let url = item.openLinkURL else { return }
+        dropdownActions.dismiss()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            AlertCalendarWorkspace.open(url)
+        }
     }
 
     @ViewBuilder
     func skipActionButton(for item: UpcomingItem) -> some View {
-        Button {
+        MenuActionButton(systemImage: "forward.end", toolTip: L10n.text("Skip this item"), accessibilityLabel: L10n.text("Skip \(item.title)")) {
             monitor.skipItem(item)
-        } label: {
-            actionPill {
-                Text("Skip")
-                    .font(.system(size: 11, weight: .semibold))
-            }
         }
-        .buttonStyle(.borderless)
-        .controlSize(.small)
-        .help("Skip")
+        .frame(width: MenuActionControlMetrics.minimumHitTargetSize, height: MenuActionControlMetrics.minimumHitTargetSize)
     }
 
     @ViewBuilder
     func mapActionButton(for item: UpcomingItem, locationText: String) -> some View {
-        Button {
+        MenuActionButton(
+            systemImage: "map",
+            toolTip: L10n.text("Open in Maps"),
+            accessibilityLabel: L10n.text("Open \(displayLocationName(from: locationText)) in Maps")
+        ) {
             openMap(for: item, locationText: locationText)
-        } label: {
-            actionPill {
-                HStack(spacing: 4) {
-                    Image(systemName: "map")
-                        .font(.system(size: 11, weight: .semibold))
-                    Text("Map")
-                        .font(.system(size: 11, weight: .semibold))
-                }
-            }
         }
-        .buttonStyle(.borderless)
-        .controlSize(.small)
-        .help("Map")
+        .frame(width: MenuActionControlMetrics.minimumHitTargetSize, height: MenuActionControlMetrics.minimumHitTargetSize)
+        .disabled(!Self.hasUsableContextualLocation(locationText))
     }
 
-    func reminderCompletionActionLabel(color: Color) -> some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 4.5, style: .continuous)
-                .fill(Color.primary.opacity(0.08))
-
-            Circle()
-                .stroke(color.opacity(0.96), lineWidth: 1.8)
-                .padding(1.2)
-
-            Circle()
-                .fill(color.opacity(0.98))
-                .padding(4.5)
+    @ViewBuilder
+    func completeActionButton(for item: UpcomingItem) -> some View {
+        MenuActionButton(systemImage: "checkmark.circle", toolTip: L10n.text("Complete reminder"), accessibilityLabel: L10n.text("Complete \(item.title)")) {
+            monitor.markReminderCompleted(item)
         }
-        .frame(width: 18, height: 18)
+        .frame(width: MenuActionControlMetrics.minimumHitTargetSize, height: MenuActionControlMetrics.minimumHitTargetSize)
     }
 
-    static let menuTimeFormatter: DateFormatter = {
+    nonisolated static func hasUsableContextualLocation(_ locationText: String?) -> Bool {
+        guard let locationText else { return false }
+        return !locationText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !CalendarMonitor.containsWebURL(in: locationText)
+    }
+
+    static var menuTimeFormatter: DateFormatter {
+        let formatter = cachedMenuTimeFormatter
+        formatter.locale = AlertCalendarLanguage.locale
+        formatter.dateFormat = AlertCalendarLanguage.uses24HourTime() ? "HH:mm" : "h:mm a"
+        return formatter
+    }
+    private static let cachedMenuTimeFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.locale = .autoupdatingCurrent
+        formatter.locale = AlertCalendarLanguage.locale
         formatter.dateStyle = .none
-        formatter.timeStyle = .short
+        formatter.dateFormat = AlertCalendarLanguage.uses24HourTime() ? "HH:mm" : "h:mm a"
+        return formatter
+    }()
+
+    static var menuDateTimeFormatter: DateFormatter {
+        let formatter = cachedMenuDateTimeFormatter
+        formatter.locale = AlertCalendarLanguage.locale
+        return formatter
+    }
+    private static let cachedMenuDateTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = AlertCalendarLanguage.locale
+        formatter.dateFormat = "MMM d HH:mm"
         return formatter
     }()
 
@@ -126,8 +157,84 @@ extension MenuContentView {
         return ceil((text as NSString).size(withAttributes: attributes).width)
     }
 
+    static func timeRangeText(
+        startDate: Date,
+        endDate: Date?,
+        isAllDay: Bool,
+        calendar: Calendar = .current,
+        timeText: @MainActor (Date) -> String = Self.timeText,
+        dateTimeText: @MainActor (Date) -> String = Self.dateTimeText
+    ) -> String? {
+        guard !isAllDay else { return nil }
+        let startText = timedEventClockText(
+            date: startDate,
+            startDate: startDate,
+            endDate: endDate,
+            calendar: calendar,
+            timeText: timeText,
+            dateTimeText: dateTimeText
+        )
+        guard let endDate, endDate > startDate else {
+            return startText
+        }
+
+        let endText = timedEventClockText(
+            date: endDate,
+            startDate: startDate,
+            endDate: endDate,
+            calendar: calendar,
+            timeText: timeText,
+            dateTimeText: dateTimeText
+        )
+        return "\(startText)-\(endText)"
+    }
+
+    static func timedEventClockText(
+        date: Date,
+        startDate: Date,
+        endDate: Date?,
+        calendar: Calendar = .current,
+        timeText: @MainActor (Date) -> String = Self.timeText,
+        dateTimeText: @MainActor (Date) -> String = Self.dateTimeText
+    ) -> String {
+        if timedRangeSpansMultipleDays(
+            startDate: startDate,
+            endDate: endDate,
+            calendar: calendar
+        ) {
+            return dateTimeText(date)
+        }
+
+        return timeText(date)
+    }
+
+    nonisolated static func timedRangeSpansMultipleDays(
+        startDate: Date,
+        endDate: Date?,
+        calendar: Calendar = .current
+    ) -> Bool {
+        guard let endDate, endDate > startDate else { return false }
+        return !calendar.isDate(startDate, inSameDayAs: endDate)
+    }
+
+    static func timeText(_ date: Date) -> String {
+        menuTimeFormatter.string(from: date)
+    }
+
+    static func dateTimeText(_ date: Date) -> String {
+        menuDateTimeFormatter.string(from: date)
+    }
+
     func timeText(_ date: Date) -> String {
-        Self.menuTimeFormatter.string(from: date)
+        Self.timeText(date)
+    }
+
+    func timedEventClockText(_ date: Date, for item: UpcomingItem) -> String {
+        Self.timedEventClockText(
+            date: date,
+            startDate: item.date,
+            endDate: item.endDate
+        )
     }
 
     func eventTravelStartDate(for item: UpcomingItem) -> Date? {
@@ -150,6 +257,10 @@ extension MenuContentView {
     func shouldShowLocationRow(locationName: String, meetingURL: URL?) -> Bool {
         let normalizedLocation = locationName.lowercased()
         guard !normalizedLocation.isEmpty else { return false }
+
+        if CalendarMonitor.containsWebURL(in: locationName) {
+            return false
+        }
 
         if monitor.isVirtualLocationText(locationName) {
             return false

@@ -1,11 +1,33 @@
 import Foundation
 
+enum SlackStatusTextSource: String, Codable, CaseIterable, Identifiable, Sendable {
+    case fixed
+    case eventTitle
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .fixed:
+            return L10n.text("Fixed Text")
+        case .eventTitle:
+            return L10n.text("Event Title")
+        }
+    }
+}
+
 struct SlackStatusSyncRule: Codable, Equatable, Identifiable, Sendable {
     let id: String
     var connectionID: String
     var calendarID: String
     var statusText: String
     var statusEmoji: String
+    var statusTextSource: SlackStatusTextSource
+    var priority: Int
+    var startsBeforeEvent: Bool
+    var leadMinutes: Int
+    var preEventStatusText: String
+    var preEventStatusEmoji: String
     var isEnabled: Bool
 
     enum CodingKeys: String, CodingKey {
@@ -14,6 +36,12 @@ struct SlackStatusSyncRule: Codable, Equatable, Identifiable, Sendable {
         case calendarID
         case statusText
         case statusEmoji
+        case statusTextSource
+        case priority
+        case startsBeforeEvent
+        case leadMinutes
+        case preEventStatusText
+        case preEventStatusEmoji
         case isEnabled
     }
 
@@ -23,6 +51,12 @@ struct SlackStatusSyncRule: Codable, Equatable, Identifiable, Sendable {
         calendarID: String,
         statusText: String = SlackMeetingStatus.defaultText,
         statusEmoji: String = SlackMeetingStatus.defaultEmoji,
+        statusTextSource: SlackStatusTextSource = .fixed,
+        priority: Int = 5,
+        startsBeforeEvent: Bool = false,
+        leadMinutes: Int = AppSettingsRules.defaultSlackStatusLeadMinutes,
+        preEventStatusText: String = SlackMeetingStatus.defaultPreEventText,
+        preEventStatusEmoji: String = SlackMeetingStatus.defaultPreEventEmoji,
         isEnabled: Bool
     ) {
         self.id = id
@@ -30,6 +64,12 @@ struct SlackStatusSyncRule: Codable, Equatable, Identifiable, Sendable {
         self.calendarID = calendarID
         self.statusText = statusText
         self.statusEmoji = statusEmoji
+        self.statusTextSource = statusTextSource
+        self.priority = SlackStatusPriority.normalized(priority)
+        self.startsBeforeEvent = startsBeforeEvent
+        self.leadMinutes = AppSettingsRules.normalizedSlackStatusLeadMinutes(leadMinutes)
+        self.preEventStatusText = SlackMeetingStatus.normalizedPreEventText(preEventStatusText)
+        self.preEventStatusEmoji = SlackMeetingStatus.normalizedEmoji(preEventStatusEmoji)
         self.isEnabled = isEnabled
     }
 
@@ -40,6 +80,21 @@ struct SlackStatusSyncRule: Codable, Equatable, Identifiable, Sendable {
         calendarID = try container.decodeIfPresent(String.self, forKey: .calendarID) ?? ""
         statusText = try container.decodeIfPresent(String.self, forKey: .statusText) ?? SlackMeetingStatus.defaultText
         statusEmoji = try container.decodeIfPresent(String.self, forKey: .statusEmoji) ?? SlackMeetingStatus.defaultEmoji
+        statusTextSource = (try? container.decodeIfPresent(SlackStatusTextSource.self, forKey: .statusTextSource)) ?? .fixed
+        priority = SlackStatusPriority.normalized(try container.decodeIfPresent(Int.self, forKey: .priority) ?? 5)
+        startsBeforeEvent = try container.decodeIfPresent(Bool.self, forKey: .startsBeforeEvent) ?? false
+        leadMinutes = AppSettingsRules.normalizedSlackStatusLeadMinutes(
+            try container.decodeIfPresent(Int.self, forKey: .leadMinutes)
+                ?? AppSettingsRules.defaultSlackStatusLeadMinutes
+        )
+        preEventStatusText = SlackMeetingStatus.normalizedPreEventText(
+            try container.decodeIfPresent(String.self, forKey: .preEventStatusText)
+                ?? statusText
+        )
+        preEventStatusEmoji = SlackMeetingStatus.normalizedEmoji(
+            try container.decodeIfPresent(String.self, forKey: .preEventStatusEmoji)
+                ?? statusEmoji
+        )
         isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? false
     }
 
@@ -78,24 +133,18 @@ struct SlackStatusSyncRule: Codable, Equatable, Identifiable, Sendable {
                     calendarID: calendarID,
                     statusText: SlackMeetingStatus.normalizedText(rule.statusText),
                     statusEmoji: SlackMeetingStatus.normalizedEmoji(rule.statusEmoji),
+                    statusTextSource: rule.statusTextSource,
+                    priority: rule.priority,
+                    startsBeforeEvent: rule.startsBeforeEvent,
+                    leadMinutes: rule.leadMinutes,
+                    preEventStatusText: rule.preEventStatusText,
+                    preEventStatusEmoji: rule.preEventStatusEmoji,
                     isEnabled: rule.isEnabled
                 )
             )
         }
 
-        return normalizedRules.sorted { lhs, rhs in
-            let connectionOrder = lhs.connectionID.localizedCaseInsensitiveCompare(rhs.connectionID)
-            if connectionOrder != .orderedSame {
-                return connectionOrder == .orderedAscending
-            }
-
-            let calendarOrder = lhs.calendarID.localizedCaseInsensitiveCompare(rhs.calendarID)
-            if calendarOrder != .orderedSame {
-                return calendarOrder == .orderedAscending
-            }
-
-            return lhs.id < rhs.id
-        }
+        return normalizedRules
     }
 
     static func firstAvailablePair(
@@ -185,6 +234,12 @@ struct SlackStatusSyncRule: Codable, Equatable, Identifiable, Sendable {
                 calendarID: resolvedPair.calendarID,
                 statusText: SlackMeetingStatus.normalizedText(rule.statusText),
                 statusEmoji: SlackMeetingStatus.normalizedEmoji(rule.statusEmoji),
+                statusTextSource: rule.statusTextSource,
+                priority: rule.priority,
+                startsBeforeEvent: rule.startsBeforeEvent,
+                leadMinutes: rule.leadMinutes,
+                preEventStatusText: rule.preEventStatusText,
+                preEventStatusEmoji: rule.preEventStatusEmoji,
                 isEnabled: rule.isEnabled
             )
             usedPairKeys.insert(pairKey(connectionID: resolvedPair.connectionID, calendarID: resolvedPair.calendarID))
@@ -244,7 +299,7 @@ struct SlackConnection: Codable, Equatable, Identifiable, Sendable {
     }
 
     var displayLabel: String {
-        return "\(resolvedDisplayName) on \(teamName)"
+        return L10n.text("\(resolvedDisplayName) on \(teamName)")
     }
 
     var workspaceLabel: String {
@@ -348,137 +403,5 @@ struct SlackProfileStatusIdentity: Equatable, Hashable, Sendable {
     init(text: String?, emoji: String?) {
         statusText = SlackConnection.normalizedValue(text) ?? ""
         statusEmoji = SlackConnection.normalizedValue(emoji).map(SlackMeetingStatus.normalizedEmoji) ?? ""
-    }
-}
-
-enum SlackMeetingStatus {
-    static let defaultText = "In a meeting"
-    static let defaultEmoji = "🗓️"
-
-    private static let friendlyEmojiAliases: [String: String] = [
-        ":spiral_calendar_pad:": "🗓️",
-        ":calendar:": "📅",
-        ":spiral_notepad:": "🗒️",
-        ":telephone_receiver:": "📞",
-        ":phone:": "📞",
-        ":laptop:": "💻",
-        ":computer:": "💻",
-        ":speech_balloon:": "💬",
-        ":microphone:": "🎤",
-        ":video_camera:": "📹",
-        ":camera:": "📷",
-        ":dog:": "🐶",
-        ":cat:": "🐱",
-    ]
-
-    static func normalizedText(_ rawValue: String?) -> String {
-        SlackConnection.normalizedValue(rawValue) ?? defaultText
-    }
-
-    static func normalizedEmoji(_ rawValue: String?) -> String {
-        guard let normalized = SlackConnection.normalizedValue(rawValue) else { return defaultEmoji }
-        return friendlyEmojiAliases[normalized.lowercased()] ?? normalized
-    }
-
-    static func looksLikeSlackAlias(_ rawValue: String?) -> Bool {
-        guard let normalized = SlackConnection.normalizedValue(rawValue) else { return false }
-        return normalized.first == ":" && normalized.last == ":" && normalized.count > 2
-    }
-
-    static func snapshot(
-        text: String?,
-        emoji: String?,
-        expirationTimestamp: Int
-    ) -> SlackProfileStatusSnapshot {
-        SlackProfileStatusSnapshot(
-            statusText: normalizedText(text),
-            statusEmoji: normalizedEmoji(emoji),
-            statusExpiration: expirationTimestamp
-        )
-    }
-
-    static func statusLine(text: String?, emoji: String?) -> String {
-        let normalizedText = normalizedText(text)
-        let normalizedEmoji = normalizedEmoji(emoji)
-        return "\(normalizedEmoji) \(normalizedText)"
-    }
-
-    static func statusIdentity(text: String?, emoji: String?) -> SlackProfileStatusIdentity {
-        SlackProfileStatusIdentity(
-            text: normalizedText(text),
-            emoji: normalizedEmoji(emoji)
-        )
-    }
-
-    static func hasSameStatusIdentity(
-        _ snapshot: SlackProfileStatusSnapshot,
-        _ candidate: SlackProfileStatusSnapshot
-    ) -> Bool {
-        snapshot.identity == candidate.identity
-    }
-
-    static func hasStatusIdentity(
-        _ snapshot: SlackProfileStatusSnapshot,
-        matching candidate: SlackProfileStatusIdentity
-    ) -> Bool {
-        snapshot.identity == candidate
-    }
-
-    static func isLikelyManaged(
-        _ snapshot: SlackProfileStatusSnapshot,
-        matching candidate: SlackProfileStatusIdentity
-    ) -> Bool {
-        hasStatusIdentity(snapshot, matching: candidate) && snapshot.statusExpiration > 0
-    }
-
-    static func isManaged(
-        _ snapshot: SlackProfileStatusSnapshot,
-        managedSnapshot: SlackProfileStatusSnapshot?
-    ) -> Bool {
-        guard let managedSnapshot else { return false }
-        return hasSameStatusIdentity(snapshot, managedSnapshot)
-    }
-}
-
-enum SlackCredentialAuthMethod: String, Codable, Equatable, Sendable {
-    case legacyUserToken
-    case oauthPKCE
-}
-
-struct SlackCredential: Codable, Equatable, Sendable {
-    let authMethod: SlackCredentialAuthMethod
-    let accessToken: String
-    let refreshToken: String?
-    let accessTokenExpiration: Date?
-    let clientID: String?
-    let grantedScopes: String?
-    let tokenType: String?
-
-    static func legacyUserToken(_ token: String) -> SlackCredential {
-        SlackCredential(
-            authMethod: .legacyUserToken,
-            accessToken: token,
-            refreshToken: nil,
-            accessTokenExpiration: nil,
-            clientID: nil,
-            grantedScopes: nil,
-            tokenType: "user"
-        )
-    }
-}
-
-enum SlackStoredKeychainCredential: Equatable, Sendable {
-    case legacyToken(String)
-    case credential(SlackCredential)
-}
-
-enum SlackUserTokenExtractor {
-    static func firstToken(in text: String) -> String? {
-        let fullRange = NSRange(text.startIndex..<text.endIndex, in: text)
-        let pattern = #"xoxe\.xoxp-[A-Za-z0-9-]+|xoxp-[A-Za-z0-9-]+"#
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
-        guard let match = regex.firstMatch(in: text, options: [], range: fullRange) else { return nil }
-        guard let range = Range(match.range, in: text) else { return nil }
-        return String(text[range])
     }
 }

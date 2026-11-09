@@ -3,49 +3,18 @@ import EventKit
 import Foundation
 
 extension CalendarMonitor {
-    nonisolated static func makeAllDayDateFormatter(locale: Locale) -> DateFormatter {
-        let formatter = DateFormatter()
-        formatter.locale = locale
-        formatter.dateFormat = "MMM d"
-        return formatter
-    }
-
-    nonisolated static func makeAllDayMonthFormatter(locale: Locale) -> DateFormatter {
-        let formatter = DateFormatter()
-        formatter.locale = locale
-        formatter.dateFormat = "MMM"
-        return formatter
-    }
-
-    nonisolated static let allDayDateFormatter: DateFormatter = {
-        makeAllDayDateFormatter(locale: .autoupdatingCurrent)
-    }()
-
-    nonisolated static let allDayMonthFormatter: DateFormatter = {
-        makeAllDayMonthFormatter(locale: .autoupdatingCurrent)
-    }()
-
     nonisolated static func formattedAllDayRange(
         startDay: Date,
         lastInclusiveDay: Date,
         calendar: Calendar = .current,
         locale: Locale? = nil
     ) -> String {
-        let dateFormatter = locale.map(makeAllDayDateFormatter(locale:)) ?? allDayDateFormatter
-        let monthFormatter = locale.map(makeAllDayMonthFormatter(locale:)) ?? allDayMonthFormatter
-
-        let sameMonth = calendar.isDate(startDay, equalTo: lastInclusiveDay, toGranularity: .month)
-            && calendar.isDate(startDay, equalTo: lastInclusiveDay, toGranularity: .year)
-        if sameMonth {
-            let monthText = monthFormatter.string(from: startDay)
-            let startDayNumber = calendar.component(.day, from: startDay)
-            let endDayNumber = calendar.component(.day, from: lastInclusiveDay)
-            return "\(monthText) \(startDayNumber)-\(endDayNumber)"
-        }
-
-        let startText = dateFormatter.string(from: startDay)
-        let endText = dateFormatter.string(from: lastInclusiveDay)
-        return "\(startText)-\(endText)"
+        AlertCalendarDateRangeFormatter.compactAllDayRange(
+            startDay: startDay,
+            lastInclusiveDay: lastInclusiveDay,
+            calendar: calendar,
+            locale: locale ?? .autoupdatingCurrent
+        )
     }
 
     func setIfChanged<T: Equatable>(_ keyPath: ReferenceWritableKeyPath<CalendarMonitor, T>, to newValue: T) {
@@ -91,6 +60,9 @@ extension CalendarMonitor {
         setIfChanged(\.combinedMenuBarSegments, to: state.segments)
         setColorArrayIfChanged(\.combinedMenuBarSegmentBackgroundColors, to: state.segmentBackgroundColors)
         setIfChanged(\.combinedMenuBarSegmentBackgroundProgresses, to: state.segmentBackgroundProgresses)
+        setIfChanged(\.combinedMenuBarSegmentParticipationStatuses, to: state.segmentParticipationStatuses)
+        setIfChanged(\.combinedMenuBarSegmentTextureStatuses, to: state.segmentTextureStatuses)
+        setIfChanged(\.combinedMenuBarSegmentAccessorySymbolNames, to: state.segmentAccessorySymbolNames)
         setIfChanged(\.combinedMenuBarFootballDisplay, to: state.footballDisplay)
         setIfChanged(\.combinedMenuBarFootballTrailingText, to: state.footballTrailingText)
         setIfChanged(\.combinedMenuBarFootballStatusText, to: state.footballStatusText)
@@ -98,9 +70,13 @@ extension CalendarMonitor {
         setIfChanged(\.combinedMenuBarFootballGoalHighlightSide, to: state.footballGoalHighlightSide)
         setIfChanged(\.combinedMenuBarFootballGoalHighlightTextOpacity, to: state.footballGoalHighlightTextOpacity)
         setMenuBarAlertAnimationEnabled(shouldAnimateAlert)
+
+        var publishedState = state
+        publishedState.alertTextOpacity = combinedMenuBarAlertTextOpacity
+        menuBarPresentationModel.apply(publishedState)
     }
 
-    nonisolated static let alertBlinkPeriod: TimeInterval = 1.2
+    nonisolated static let alertBlinkPeriod: TimeInterval = 2
 
     nonisolated static func alertBlinkTextOpacity(now: Date) -> CGFloat {
         let remainder = now.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: alertBlinkPeriod)
@@ -110,6 +86,8 @@ extension CalendarMonitor {
     }
 
     nonisolated static func shouldAlertForItem(_ item: UpcomingItem, now: Date, leadSeconds: TimeInterval) -> Bool {
+        guard !item.isDateOnlyReminder else { return false }
+
         let remaining = item.date.timeIntervalSince(now)
         if remaining > 0 && remaining <= leadSeconds {
             return true
@@ -118,9 +96,29 @@ extension CalendarMonitor {
         return shouldShowTimedEventNowState(for: item, now: now)
     }
 
+    nonisolated static func shouldBlinkForItem(_ item: UpcomingItem, now: Date, settings: AppSettings) -> Bool {
+        guard settings.enableBlinkAlert, item.date > now else { return false }
+        return shouldAlertForItem(item, now: now, settings: settings)
+    }
+
+    nonisolated static func shouldAlertForItem(_ item: UpcomingItem, now: Date, settings: AppSettings) -> Bool {
+        guard AstronomyMoment(eventTitle: item.title) == nil else { return false }
+
+        let leadSeconds = TimeInterval(max(1, settings.alertLeadMinutes) * 60)
+        return shouldAlertForItem(item, now: now, leadSeconds: leadSeconds)
+    }
+
     nonisolated static func alertDescription(for item: UpcomingItem, now: Date) -> String {
         if shouldShowTimedEventNowState(for: item, now: now) {
-            return "\(item.title) starts now."
+            return L10n.text("\(item.title) starts now.")
+        }
+
+        if item.kind == .reminder {
+            return AlertCalendarRelativeTimeFormatter.dueTimeDescription(
+                for: item.title,
+                targetDate: item.date,
+                now: now
+            )
         }
 
         return AlertCalendarRelativeTimeFormatter.leadTimeDescription(
@@ -131,10 +129,8 @@ extension CalendarMonitor {
     }
 
     func evaluateAlert(now: Date, settings: AppSettings) {
-        let leadSeconds = TimeInterval(max(1, settings.alertLeadMinutes) * 60)
         guard let candidate = upcomingItems.first(where: {
-            guard AstronomyMoment(eventTitle: $0.title) == nil else { return false }
-            return Self.shouldAlertForItem($0, now: now, leadSeconds: leadSeconds)
+            Self.shouldAlertForItem($0, now: now, settings: settings)
         }) else {
             setIfChanged(\.activeAlertItem, to: nil)
             return
@@ -169,22 +165,35 @@ extension CalendarMonitor {
             return
         }
 
-        let previewItems = displayedItemsForMenuBar(now: now, settings: settings)
-        let queueMatchIDs = Set(
-            unifiedMenuBarQueue(now: now, settings: settings)
-                .compactMap { $0.footballMatch?.id }
+        let pinnedScores = pinnedFootballMenuBarScores(now: now, settings: settings)
+        let selectedPinnedScore = Self.rotatingPinnedFootballMenuBarScore(
+            from: pinnedScores,
+            now: now,
+            rotationInterval: TimeInterval(max(5, settings.concurrentEventRotationSeconds)),
+            rotationState: &pinnedFootballMenuBarRotationState
         )
+        let previewItems = displayedItemsForMenuBar(now: now, settings: settings)
+        let menuBarQueue = unifiedMenuBarQueue(now: now, settings: settings)
+        let queueMatchIDs = Set(menuBarQueue.compactMap { $0.footballMatch?.id } + pinnedScores.map(\.id))
         activeFootballGoalHighlight = Self.updatedFootballGoalHighlight(
             activeFootballGoalHighlight,
             queueMatchIDs: queueMatchIDs,
-            selectedMatchID: previewItems.first?.footballMatch?.id
+            selectedMatchID: activeFootballGoalHighlight.flatMap { highlight in
+                selectedPinnedScore?.id == highlight.matchID ? highlight.matchID : nil
+            } ?? previewItems.first?.footballMatch?.id,
+            now: now,
+            rotationInterval: TimeInterval(max(5, settings.concurrentEventRotationSeconds))
         )
+        let displayedPinnedScores = pinnedFootballMenuBarScores(now: now, settings: settings)
+            .filter { $0.id == selectedPinnedScore?.id }
         if previewItems.isEmpty {
             let emptyStateText = Self.menuBarEmptyStateText(
                 menuBarRotationWindowMinutes: settings.menuBarRotationWindowMinutes,
                 hasLaterItemsInDropdownWindow: hasUpcomingItemsOutsideMenuBarWindow(now: now, settings: settings)
             )
-            applyMenuBarPresentationState(.empty(text: emptyStateText))
+            var emptyState = MenuBarPresentationState.empty(text: emptyStateText)
+            emptyState.pinnedFootballScores = displayedPinnedScores
+            applyMenuBarPresentationState(emptyState)
         } else {
             let segmentBackgrounds = previewItems.map { segmentBackgroundVisual(for: $0, now: now, settings: settings) }
             let segments = previewItems.map {
@@ -194,29 +203,42 @@ extension CalendarMonitor {
                     simplified: settings.useSimplifiedCountdown,
                     activeEventDisplayMode: settings.activeEventDisplayMode,
                     useEventTitleEllipsis: settings.useEventTitleEllipsis,
-                    eventTitleMaxCharacters: settings.eventTitleMaxCharacters
+                    eventTitleMaxCharacters: settings.eventTitleMaxCharacters,
+                    titlePresentation: eventTitlePresentation(for: $0, settings: settings)
                 )
             }
             let alertedSegmentIndex: Int?
             let alertTextOpacity: CGFloat
-            if settings.enableBlinkAlert,
-               let activeAlertItem,
-               let alertIndex = previewItems.firstIndex(where: { $0.notificationKey == activeAlertItem.notificationKey }) {
-                alertedSegmentIndex = alertIndex
+            let blinkingIndex = previewItems.firstIndex(where: {
+                !silencedAlertKeys.contains($0.notificationKey)
+                    && Self.shouldBlinkForItem($0, now: now, settings: settings)
+            })
+            if let blinkingIndex {
+                alertedSegmentIndex = blinkingIndex
                 alertTextOpacity = Self.alertBlinkTextOpacity(now: now)
             } else {
                 alertedSegmentIndex = nil
                 alertTextOpacity = 0
             }
-            let footballStatusText = previewItems.first.flatMap { footballMenuBarStatusText(for: $0, now: now) }
+            let selectedItem = previewItems.first
+            let showsFootballMenuBarDetails = Self.shouldShowFootballMenuBarDetails(
+                for: selectedItem,
+                in: menuBarQueue
+            )
+            let footballStatusText = Self.shouldShowFootballMenuBarStatus(for: selectedItem)
+                ? selectedItem.flatMap { footballMenuBarStatusText(for: $0, now: now) }
+                : nil
             let footballStatusColor = footballStatusText.map(Self.footballStatusTintColor(for:)) ?? .systemGreen
 
             let footballGoalHighlightSide: FootballScoreSide?
             let footballGoalHighlightTextOpacity: CGFloat
-            if let highlight = activeFootballGoalHighlight,
-               previewItems.first?.footballMatch?.id == highlight.matchID {
+            if showsFootballMenuBarDetails,
+               let highlight = activeFootballGoalHighlight,
+               selectedItem?.footballMatch?.id == highlight.matchID {
                 footballGoalHighlightSide = highlight.scoringSide
-                footballGoalHighlightTextOpacity = tickCount.isMultiple(of: 2) ? 1.0 : 0.0
+                footballGoalHighlightTextOpacity = Int(now.timeIntervalSinceReferenceDate).isMultiple(of: 2)
+                    ? 1.0
+                    : 0.0
             } else {
                 footballGoalHighlightSide = nil
                 footballGoalHighlightTextOpacity = 0
@@ -233,18 +255,27 @@ extension CalendarMonitor {
                     segments: segments,
                     segmentBackgroundColors: segmentBackgrounds.map(\.color),
                     segmentBackgroundProgresses: segmentBackgrounds.map(\.progress),
-                    footballDisplay: previewItems.first?.footballMenuBarDisplay,
-                    footballTrailingText: previewItems.first.flatMap {
-                        footballMenuBarTrailingText(
-                            for: $0,
-                            now: now,
-                            simplified: settings.useSimplifiedCountdown
-                        )
+                    segmentParticipationStatuses: previewItems.map(\.eventParticipationStatus),
+                    segmentTextureStatuses: previewItems.map {
+                        participationTextureStatus(for: $0)
                     },
+                    segmentAccessorySymbolNames: previewItems.map(menuBarAccessorySymbolNames(for:)),
+                    footballDisplay: showsFootballMenuBarDetails ? selectedItem?.footballMenuBarDisplay : nil,
+                    footballTrailingText: showsFootballMenuBarDetails
+                        ? selectedItem.flatMap {
+                            footballMenuBarTrailingText(
+                                for: $0,
+                                now: now,
+                                simplified: settings.useSimplifiedCountdown
+                            )
+                        }
+                        : nil,
                     footballStatusText: footballStatusText,
                     footballStatusColor: footballStatusColor,
                     footballGoalHighlightSide: footballGoalHighlightSide,
-                    footballGoalHighlightTextOpacity: footballGoalHighlightTextOpacity
+                    footballGoalHighlightTextOpacity: footballGoalHighlightTextOpacity,
+                    fullTitleText: previewItems.map(\.title).joined(separator: "\n"),
+                    pinnedFootballScores: displayedPinnedScores
                 )
             )
         }
@@ -262,7 +293,10 @@ extension CalendarMonitor {
             activeEventDisplayMode: settings.activeEventDisplayMode,
             useEventTitleEllipsis: settings.useEventTitleEllipsis,
             eventTitleMaxCharacters: settings.eventTitleMaxCharacters,
-            fallback: "No events"
+            titlePresentation: nextEvent.map {
+                eventTitlePresentation(for: $0, settings: settings)
+            },
+            fallback: L10n.text("No events")
         ))
 
         setIfChanged(\.remindersMenuBarLabel, to: menuLabel(
@@ -272,7 +306,10 @@ extension CalendarMonitor {
             activeEventDisplayMode: settings.activeEventDisplayMode,
             useEventTitleEllipsis: settings.useEventTitleEllipsis,
             eventTitleMaxCharacters: settings.eventTitleMaxCharacters,
-            fallback: "No reminders"
+            titlePresentation: nextReminder.map {
+                eventTitlePresentation(for: $0, settings: settings)
+            },
+            fallback: L10n.text("No reminders")
         ))
     }
 

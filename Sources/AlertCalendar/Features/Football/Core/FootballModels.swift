@@ -1,19 +1,18 @@
 import Foundation
 
-enum FootballFixtureStatusState: String, Hashable {
+enum FootballFixtureStatusState: String, Codable, Hashable, Sendable {
     case scheduled
     case inProgress
     case finished
     case unknown
 }
 
-enum FootballFixtureStatusReliability: String, Hashable {
+enum FootballFixtureStatusReliability: String, Codable, Hashable, Sendable {
     case reported
     case awaitingLiveData
     case delayedLiveData
 }
-
-struct FootballTeamSummary: Identifiable, Hashable {
+struct FootballTeamSummary: Codable, Identifiable, Hashable, Sendable {
     let id: String
     let name: String
     let abbreviation: String
@@ -22,9 +21,10 @@ struct FootballTeamSummary: Identifiable, Hashable {
     let isNational: Bool
 
     func withResolvedDetails(countryName: String?, isNational: Bool, logoURL: URL?) -> FootballTeamSummary {
-        let resolvedCountryName = countryName ?? self.countryName
         let resolvedIsNational = isNational || self.isNational
-        let resolvedLogoURL = FootballFederationLogoResolver.resolvedLogoURL(
+        let clubCountry = resolvedIsNational ? nil : FootballClubCountryResolver.countryName(teamID: id, name: name)
+        let resolvedCountryName = clubCountry ?? countryName ?? self.countryName
+        let resolvedLogoURL = FootballNationalLogoResolver.resolvedLogoURL(
             existingLogoURL: logoURL ?? self.logoURL,
             teamID: id,
             name: name,
@@ -44,7 +44,7 @@ struct FootballTeamSummary: Identifiable, Hashable {
     }
 }
 
-struct FootballFixtureSeriesSummary: Hashable {
+struct FootballFixtureSeriesSummary: Codable, Hashable, Sendable {
     let legNumber: Int?
     let legLabel: String?
     let seriesTitle: String?
@@ -78,7 +78,7 @@ struct FootballFixtureSeriesSummary: Hashable {
     }
 }
 
-struct FootballFixtureMatch: Identifiable, Hashable {
+struct FootballFixtureMatch: Codable, Identifiable, Hashable, Sendable {
     let id: String
     let competitionSlug: String
     let competitionName: String
@@ -104,6 +104,11 @@ struct FootballFixtureMatch: Identifiable, Hashable {
     let awayYellowCards: Int
     let homeRedCards: Int
     let awayRedCards: Int
+    let officialWinner: FootballScoreSide?
+    let homeShootoutScore: Int?
+    let awayShootoutScore: Int?
+    let pregameOutcomeProbabilities: FootballMatchOutcomeProbabilities?
+    let outcomeProbabilities: FootballMatchOutcomeProbabilities?
 
     init(
         id: String,
@@ -130,7 +135,12 @@ struct FootballFixtureMatch: Identifiable, Hashable {
         homeYellowCards: Int = 0,
         awayYellowCards: Int = 0,
         homeRedCards: Int = 0,
-        awayRedCards: Int = 0
+        awayRedCards: Int = 0,
+        officialWinner: FootballScoreSide? = nil,
+        homeShootoutScore: Int? = nil,
+        awayShootoutScore: Int? = nil,
+        pregameOutcomeProbabilities: FootballMatchOutcomeProbabilities? = nil,
+        outcomeProbabilities: FootballMatchOutcomeProbabilities? = nil
     ) {
         self.id = id
         self.competitionSlug = competitionSlug
@@ -157,6 +167,11 @@ struct FootballFixtureMatch: Identifiable, Hashable {
         self.awayYellowCards = awayYellowCards
         self.homeRedCards = homeRedCards
         self.awayRedCards = awayRedCards
+        self.officialWinner = officialWinner
+        self.homeShootoutScore = homeShootoutScore
+        self.awayShootoutScore = awayShootoutScore
+        self.pregameOutcomeProbabilities = pregameOutcomeProbabilities
+        self.outcomeProbabilities = outcomeProbabilities
     }
 
     var hasInterruptedStatus: Bool {
@@ -164,15 +179,13 @@ struct FootballFixtureMatch: Identifiable, Hashable {
     }
 
     var hasVisibleScore: Bool {
-        if hasInterruptedStatus {
-            return false
-        }
-
         switch statusState {
         case .scheduled:
             return false
-        case .inProgress, .finished, .unknown:
+        case .inProgress:
             return true
+        case .finished, .unknown:
+            return !hasInterruptedStatus
         }
     }
 
@@ -203,6 +216,7 @@ struct FootballMenuCompetitionSection: Identifiable, Equatable {
     let errorMessage: String?
     let isLoading: Bool
     let hasLoaded: Bool
+    var checkedWindow: FootballCompetitionAvailabilityWindow? = nil
 
     var id: String { competition.id }
 
@@ -235,7 +249,7 @@ struct FootballMatchesOverviewSection: Equatable {
     }
 }
 
-enum FootballScoreSide: String, Equatable {
+enum FootballScoreSide: String, Codable, Hashable, Sendable {
     case home
     case away
 }
@@ -252,12 +266,36 @@ struct FootballMenuBarDisplay: Equatable {
     let competitionLocalLogoPath: String?
     let homeLocalLogoPath: String?
     let awayLocalLogoPath: String?
+    let homeLogoUsesCircularOutline: Bool
+    let awayLogoUsesCircularOutline: Bool
 }
 
 struct FootballMatchGoalScorer: Identifiable, Hashable {
     let id: String
+    let athleteID: String?
     let name: String
     let minute: String?
+    let countryName: String?
+    let isOwnGoal: Bool
+    let isPenalty: Bool
+
+    init(
+        id: String,
+        athleteID: String? = nil,
+        name: String,
+        minute: String?,
+        countryName: String? = nil,
+        isOwnGoal: Bool = false,
+        isPenalty: Bool = false
+    ) {
+        self.id = id
+        self.athleteID = athleteID
+        self.name = name
+        self.minute = minute
+        self.countryName = countryName
+        self.isOwnGoal = isOwnGoal
+        self.isPenalty = isPenalty
+    }
 }
 
 struct FootballMatchGoalScorers: Hashable {
@@ -275,7 +313,7 @@ struct FootballMatchStatistic: Identifiable, Hashable {
 struct FootballGoalHighlight: Equatable {
     let matchID: String
     let scoringSide: FootballScoreSide
-    var hasBeenShownInMenuBar: Bool = false
+    var firstShownInMenuBarAt: Date?
 }
 
 struct ManagedFootballFixtureReference: Hashable {
@@ -353,25 +391,25 @@ enum FootballCalendarAlertOption: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .none:
-            return "None"
+            return L10n.text("None")
         case .atTimeOfEvent:
-            return "At time of event"
+            return L10n.text("At time of event")
         case .fiveMinutesBefore:
-            return "5 minutes before"
+            return L10n.text("5 minutes before")
         case .tenMinutesBefore:
-            return "10 minutes before"
+            return L10n.text("10 minutes before")
         case .fifteenMinutesBefore:
-            return "15 minutes before"
+            return L10n.text("15 minutes before")
         case .thirtyMinutesBefore:
-            return "30 minutes before"
+            return L10n.text("30 minutes before")
         case .oneHourBefore:
-            return "1 hour before"
+            return L10n.text("1 hour before")
         case .twoHoursBefore:
-            return "2 hours before"
+            return L10n.text("2 hours before")
         case .oneDayBefore:
-            return "1 day before"
+            return L10n.text("1 day before")
         case .twoDaysBefore:
-            return "2 days before"
+            return L10n.text("2 days before")
         }
     }
 

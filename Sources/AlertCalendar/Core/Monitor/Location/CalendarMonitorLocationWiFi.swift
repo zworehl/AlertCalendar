@@ -2,6 +2,14 @@ import CoreWLAN
 import Foundation
 
 extension CalendarMonitor {
+    func updateWiFiNetworkMonitoring(isEnabled: Bool) {
+        if isEnabled {
+            startWiFiNetworkMonitoring()
+        } else {
+            stopWiFiNetworkMonitoring()
+        }
+    }
+
     func startWiFiNetworkMonitoring() {
         guard wiFiClient == nil else { return }
 
@@ -25,6 +33,20 @@ extension CalendarMonitor {
             wiFiClient = nil
             wiFiEventDelegate = nil
         }
+    }
+
+    func stopWiFiNetworkMonitoring() {
+        guard let client = wiFiClient else { return }
+
+        do {
+            try client.stopMonitoringAllEvents()
+        } catch {
+            CalendarMonitorLog.location.debug("Stopping Wi-Fi monitoring failed: \(error.localizedDescription, privacy: .public)")
+        }
+        client.delegate = nil
+        wiFiClient = nil
+        wiFiEventDelegate = nil
+        lastObservedWiFiNetworkIdentity = nil
     }
 
     func handleWiFiNetworkChange(interfaceName: String?) {

@@ -9,29 +9,46 @@ struct SettingsFootballFixturesSectionView: View {
         case addedMatches = "Added Matches"
 
         var id: String { rawValue }
+
+        var symbolName: String {
+            switch self {
+            case .competitions:
+                return "trophy"
+            case .liveAndNextDay:
+                return "clock"
+            case .addedMatches:
+                return "calendar.badge.checkmark"
+            }
+        }
     }
 
-    static let scrollableMatchCardThreshold = 12
-    static let preferredMatchCardWidth: CGFloat = 306
-    static let minimumMatchCardWidth: CGFloat = 272
-    static let inlineFieldLabelWidth: CGFloat = 96
-    static let topMenuControlWidth: CGFloat = 320
-    static let topShowControlWidth: CGFloat = 500
-    static let matchActionButtonSize: CGFloat = 18
-    static let matchActionSlotWidth: CGFloat = 112
+    nonisolated static let preferredMatchCardWidth: CGFloat = 306
+    nonisolated static let minimumMatchCardWidth: CGFloat = 272
+    nonisolated static let topMenuControlWidth: CGFloat = 320
+    nonisolated static let topShowControlWidth: CGFloat = 500
+    nonisolated static let competitionColumnSpacing: CGFloat = 16
+    nonisolated static let competitionSidebarWidth: CGFloat = 320
+    nonisolated static let matchActionSlotWidth: CGFloat = 112
+    nonisolated static let minimumMatchListViewportHeight: CGFloat = 120
+    nonisolated static let maximumMatchListViewportHeight: CGFloat = 1_200
     static let minimumFootballWindowDays = AppSettingsRules.minimumFootballWindowDays
     static let maximumFootballWindowDays = AppSettingsRules.maximumFootballWindowDays
 
     let monitor: CalendarMonitor
 
-    @AppStorage(DefaultsKeys.footballTargetCalendarID) var footballTargetCalendarID = ""
-    @AppStorage(DefaultsKeys.footballCalendarAlertOption) var footballCalendarAlertOptionRaw = FootballCalendarAlertOption.none.rawValue
-    @AppStorage(DefaultsKeys.enableFootballGoalNotifications) var enableFootballGoalNotifications = true
-    @AppStorage(DefaultsKeys.includeFootballGoalScorerInNotifications) var includeFootballGoalScorerInNotifications = true
-    @AppStorage(DefaultsKeys.enableFootballFinalNotifications) var enableFootballFinalNotifications = true
+    @Binding var footballTargetCalendarID: String
+    @Binding var autoAddFootballCompetitionSlugs: Set<String>
+    @Binding var footballCalendarAlertOption: FootballCalendarAlertOption
+    @Binding var pinLiveFootballScoresInMenuBar: Bool
+    @Binding var enableFootballGoalNotifications: Bool
+    @Binding var enableFootballDisallowedGoalNotifications: Bool
+    @Binding var includeFootballGoalScorerInNotifications: Bool
+    @Binding var enableFootballFinalNotifications: Bool
+    @Binding var enableFootballAutoAddNotifications: Bool
     @AppStorage(DefaultsKeys.showFinishedFootballMatches) var showFinishedFootballMatches = true
-    @AppStorage(DefaultsKeys.finishedFootballMatchLookbackDays) var finishedFootballMatchLookbackDays = 7
-    @AppStorage(DefaultsKeys.footballMatchLookaheadDays) var footballMatchLookaheadDays = 14
+    @Binding var finishedFootballMatchLookbackDays: Int
+    @Binding var footballMatchLookaheadDays: Int
+    @Binding var pendingCalendarChanges: [String: SettingsPendingItemChange<FootballFixtureMatch>]
     @State var browseMode: FootballBrowseMode = .competitions
     @State var selectedCompetitionRegionID: String?
     @State var selectedCompetitionID: String?
@@ -41,7 +58,7 @@ struct SettingsFootballFixturesSectionView: View {
     @State var availableEventCalendars: [AvailableCalendar] = []
     @State var writableEventCalendars: [AvailableCalendar] = []
     @State var footballMenuSections: [FootballMenuCompetitionSection] = []
-    @State var footballLiveAndNextDaySection = FootballMatchesOverviewSection.placeholder(title: "Now & Next 24 Hours")
+    @State var footballLiveAndNextDaySection = FootballMatchesOverviewSection.placeholder(title: L10n.text("Now & Next 24 Hours"))
     @State var managedFootballMatchIDs: Set<String> = []
     @State var managedFootballMatches: [FootballFixtureMatch] = []
     @State var competitionSectionsByRegionCache: [(region: FootballCompetitionRegion, sections: [FootballMenuCompetitionSection])] = []
@@ -52,34 +69,22 @@ struct SettingsFootballFixturesSectionView: View {
     @State var upcomingManagedMatchesCache: [FootballFixtureMatch] = []
 
     var body: some View {
-        GroupBox("Football Fixtures") {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Add supported football matches to an Apple Calendar managed by Alert Calendar.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Text("Suggestions only include matches from the \(FootballCompetitionPreset.suggestionWindowDescription). If a managed fixture falls outside that window, Alert Calendar removes it automatically from Apple Calendar.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                if !hasEventsAccess {
-                    emptyState("Grant Calendar access to add football fixtures.")
-                } else if writableCalendars.isEmpty {
-                    emptyState("No writable event calendars are available.")
-                } else {
-                    footballContentSection
-                }
+        VStack(alignment: .leading, spacing: 14) {
+            if !hasEventsAccess {
+                emptyState("Grant Calendar access to add football fixtures.")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else if writableCalendars.isEmpty {
+                emptyState("No writable event calendars are available.")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                footballContentSection
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
             visibleNow = Self.minuteReferenceDate(for: AlertCalendarClock.nowRoundedToSecond())
             finishedFootballMatchLookbackDays = Self.normalizedFootballWindowDays(finishedFootballMatchLookbackDays)
             footballMatchLookaheadDays = Self.normalizedFootballWindowDays(footballMatchLookaheadDays)
-            if footballTargetCalendarID.isEmpty,
-               let resolvedCalendarID = monitor.footballTargetCalendarID() {
-                footballTargetCalendarID = resolvedCalendarID
-            }
             monitor.ensureFootballCompetitionSections()
             monitor.refreshManagedFootballTrackingSnapshot(now: visibleNow)
             synchronizeViewStateFromMonitor()
@@ -87,6 +92,8 @@ struct SettingsFootballFixturesSectionView: View {
         .task(id: browseMode) {
             switch browseMode {
             case .competitions:
+                await refreshCompetitionAvailability()
+                guard !Task.isCancelled, browseMode == .competitions else { return }
                 await loadSelectedCompetitionIfNeeded()
             case .liveAndNextDay:
                 await monitor.loadFootballLiveAndNextDaySection(force: false)
@@ -107,18 +114,18 @@ struct SettingsFootballFixturesSectionView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             let now = Self.minuteReferenceDate(for: AlertCalendarClock.nowRoundedToSecond())
             visibleNow = now
+            refreshCompetitionSectionsDerivedState()
             refreshManagedMatchesDerivedState(now: now)
             Task {
-                if browseMode == .liveAndNextDay {
+                if browseMode == .competitions {
+                    await refreshCompetitionAvailability()
+                } else if browseMode == .liveAndNextDay {
                     await monitor.loadFootballLiveAndNextDaySection(force: false)
                 }
                 if shouldRefreshManagedMatchesOnVisibleTick {
                     await refreshManagedMatchesPanel(now: now)
                 }
             }
-        }
-        .onChange(of: footballCalendarAlertOptionRaw) { _ in
-            applyFootballCalendarAlertPreference()
         }
         .onChange(of: showFinishedFootballMatches) { _ in
             refreshCompetitionSectionsDerivedState()
@@ -133,6 +140,7 @@ struct SettingsFootballFixturesSectionView: View {
 
             refreshCompetitionSectionsDerivedState()
             refreshLiveAndNextDayDerivedState()
+            Task { await refreshCompetitionAvailability() }
         }
         .onChange(of: footballMatchLookaheadDays) { newValue in
             let normalizedValue = Self.normalizedFootballWindowDays(newValue)
@@ -143,6 +151,7 @@ struct SettingsFootballFixturesSectionView: View {
 
             refreshCompetitionSectionsDerivedState()
             refreshLiveAndNextDayDerivedState()
+            Task { await refreshCompetitionAvailability() }
         }
         .onReceive(monitor.$hasEventsAccess.removeDuplicates()) { value in
             guard hasEventsAccess != value else { return }
@@ -174,4 +183,5 @@ struct SettingsFootballFixturesSectionView: View {
             refreshManagedMatchesDerivedState(now: visibleNow)
         }
     }
+
 }

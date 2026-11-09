@@ -2,13 +2,35 @@ import XCTest
 @testable import AlertCalendar
 
 final class SettingsDraftReducerTests: XCTestCase {
+    func testFinishedMatchVisibilityDoesNotChangeSettingsDraftOrGetOverwrittenByApply() throws {
+        let suiteName = "SettingsFTVisibility.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = AppSettingsStore(defaults: defaults)
+        store.registerDefaults()
+        let initial = store.load()
+        let initialDraft = SettingsDraft(settings: initial)
+        defaults.set(false, forKey: DefaultsKeys.showFinishedFootballMatches)
+        XCTAssertEqual(store.load(), initial)
+        XCTAssertEqual(SettingsDraft(settings: store.load()), initialDraft)
+        store.save(initial)
+        XCTAssertFalse(defaults.bool(forKey: DefaultsKeys.showFinishedFootballMatches))
+    }
+
     func testAppliedSettingsNormalizesDependentWindowsAndCoordinates() {
         var draft = SettingsDraft(settings: .defaults)
         draft.lookAheadHours = 4
         draft.contextualPreviewLeadMinutes = 194
         draft.menuBarRotationWindowMinutes = 110
+        draft.maxListItems = 98
         draft.astronomyLatitude = 18.1234567
         draft.astronomyLongitude = -66.7654321
+        draft.showAgendaSummary = false
+        draft.agendaSummaryMaximumWords = 76
+        draft.useLinkedPagePreviewsInAgendaSummary = true
+        draft.rewriteEventTitlesWithAppleIntelligence = true
+        draft.useRewrittenEventTitlesInDropdown = true
+        draft.useMailContextForEventTitleRewrite = true
 
         let settings = draft.applied(
             to: .defaults,
@@ -18,8 +40,33 @@ final class SettingsDraftReducerTests: XCTestCase {
         XCTAssertEqual(settings.lookAheadHours, 4)
         XCTAssertEqual(settings.contextualPreviewLeadMinutes, 180)
         XCTAssertEqual(settings.menuBarRotationWindowMinutes, 120)
+        XCTAssertEqual(settings.maxListItems, 100)
         XCTAssertEqual(settings.astronomyLatitude, 18.12)
         XCTAssertEqual(settings.astronomyLongitude, -66.77)
+        XCTAssertFalse(settings.showAgendaSummary)
+        XCTAssertEqual(settings.agendaSummaryMaximumWords, 80)
+        XCTAssertTrue(settings.useLinkedPagePreviewsInAgendaSummary)
+        XCTAssertTrue(settings.rewriteEventTitlesWithAppleIntelligence)
+        XCTAssertTrue(settings.useRewrittenEventTitlesInDropdown)
+        XCTAssertTrue(settings.useMailContextForEventTitleRewrite)
+    }
+
+    func testAppliedSettingsDisablesAppleIntelligenceTitleRewriteBelowTenCharacters() {
+        var draft = SettingsDraft(settings: .defaults)
+        draft.eventTitleMaxCharacters = 9
+        draft.rewriteEventTitlesWithAppleIntelligence = true
+        draft.useRewrittenEventTitlesInDropdown = true
+        draft.useMailContextForEventTitleRewrite = true
+
+        let settings = draft.applied(
+            to: .defaults,
+            availableEventCalendarIDs: []
+        )
+
+        XCTAssertEqual(settings.eventTitleMaxCharacters, 9)
+        XCTAssertFalse(settings.rewriteEventTitlesWithAppleIntelligence)
+        XCTAssertTrue(settings.useRewrittenEventTitlesInDropdown)
+        XCTAssertFalse(settings.useMailContextForEventTitleRewrite)
     }
 
     func testAppliedSettingsNormalizesSlackRulesAgainstKnownConnectionsAndCalendars() {
@@ -84,5 +131,57 @@ final class SettingsDraftReducerTests: XCTestCase {
         XCTAssertEqual(settings.meetingBrowserRouting.defaultRoute.profileID, "Default")
         XCTAssertEqual(settings.meetingBrowserRouting.rules.map(\.id), ["rule-a"])
         XCTAssertEqual(settings.meetingBrowserRouting.rules.first?.calendarIDs, Set(["cal-a"]))
+    }
+
+    func testAppliedSettingsKeepsAlertRulesOnlyForKnownCalendars() {
+        var draft = SettingsDraft(settings: .defaults)
+        draft.calendarAlertRules = [
+            CalendarAlertRule(calendarID: "cal-a", overwriteExistingAlerts: true),
+            CalendarAlertRule(calendarID: "missing"),
+        ]
+
+        let settings = draft.applied(
+            to: .defaults,
+            availableEventCalendarIDs: ["cal-a"]
+        )
+
+        XCTAssertEqual(settings.calendarAlertRules.map(\.calendarID), ["cal-a"])
+        XCTAssertTrue(settings.calendarAlertRules.first?.overwriteExistingAlerts == true)
+    }
+
+    func testAppliedSettingsIncludesFootballAndGameSaleDraftChanges() {
+        var draft = SettingsDraft(settings: .defaults)
+        draft.footballTargetCalendarID = "football-calendar"
+        draft.footballAutoAddCompetitionSlugs = [
+            FootballCompetitionPreset.majorLeagueSoccer.slug,
+            "unsupported-league",
+        ]
+        draft.footballCalendarAlertOption = .fifteenMinutesBefore
+        draft.enableFootballGoalNotifications = false
+        draft.finishedFootballMatchLookbackDays = 500
+        draft.footballMatchLookaheadDays = -5
+        draft.gameSaleTargetCalendarID = "sales-calendar"
+        draft.gameSaleCalendarAlertOption = .oneDayBefore
+        draft.gameSaleAutoAddStores = [.steam, .nintendoSwitch]
+        draft.enableGameSaleAutoAddNotifications = false
+
+        let settings = draft.applied(
+            to: .defaults,
+            availableEventCalendarIDs: []
+        )
+
+        XCTAssertEqual(settings.footballTargetCalendarID, "football-calendar")
+        XCTAssertEqual(
+            settings.footballAutoAddCompetitionSlugs,
+            [FootballCompetitionPreset.majorLeagueSoccer.slug]
+        )
+        XCTAssertEqual(settings.footballCalendarAlertOption, .fifteenMinutesBefore)
+        XCTAssertFalse(settings.enableFootballGoalNotifications)
+        XCTAssertEqual(settings.finishedFootballMatchLookbackDays, AppSettingsRules.maximumFootballWindowDays)
+        XCTAssertEqual(settings.footballMatchLookaheadDays, AppSettingsRules.minimumFootballWindowDays)
+        XCTAssertEqual(settings.gameSaleTargetCalendarID, "sales-calendar")
+        XCTAssertEqual(settings.gameSaleCalendarAlertOption, .oneDayBefore)
+        XCTAssertEqual(settings.gameSaleAutoAddStores, [.steam, .nintendoSwitch])
+        XCTAssertFalse(settings.enableGameSaleAutoAddNotifications)
     }
 }

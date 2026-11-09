@@ -247,7 +247,7 @@ extension FootballDataAPIClient {
     }
 
     static func teamAbbreviation(from team: [String: Any], fallbackName: String) -> String {
-        stringValue(team["abbreviation"]) ?? String(fallbackName.prefix(3)).uppercased()
+        stringValue(team["abbreviation"]) ?? ""
     }
 
     static func teamLogoURL(from team: [String: Any]) -> URL? {

@@ -9,6 +9,7 @@ extension MenuContentView {
         item: UpcomingItem,
         match: FootballFixtureMatch,
         accentColor: Color,
+        titleColor: Color,
         titleFont: Font,
         detailFont: Font,
         detailIconFont: Font,
@@ -18,6 +19,7 @@ extension MenuContentView {
             match: match,
             display: item.footballMenuBarDisplay,
             font: titleFont,
+            titleColor: titleColor,
             showsCardBadges: false,
             showsStatusAccessories: false
         )
@@ -28,7 +30,11 @@ extension MenuContentView {
                 HStack(alignment: .center, spacing: 4) {
                     Image(systemName: locationSymbolName(for: item))
                         .font(detailIconFont)
-                        .frame(width: 12, height: 12, alignment: .center)
+                        .frame(
+                            width: MenuMarkerMetrics.symbolSize,
+                            height: MenuMarkerMetrics.symbolSize,
+                            alignment: .center
+                        )
                         .foregroundStyle(accentColor)
                     Text(locationName)
                         .font(detailFont)
@@ -66,6 +72,7 @@ extension MenuContentView {
         match: FootballFixtureMatch,
         display: FootballMenuBarDisplay?,
         font: Font,
+        titleColor: Color = .primary,
         showsScore: Bool = true,
         showsInlineAggregate: Bool = false,
         showsCardBadges: Bool,
@@ -76,15 +83,18 @@ extension MenuContentView {
         HStack(alignment: .center, spacing: showsScore ? 6 : 10) {
             HStack(alignment: .center, spacing: showsScore ? 6 : 10) {
                 footballTeamLabel(
-                    abbreviation: display?.homeAbbreviation ?? FootballFixtureFormatter.teamDisplayIdentifier(for: match.homeTeam),
+                    abbreviation: FootballFixtureFormatter.teamDisplayIdentifier(for: match.homeTeam),
+                    fullName: FootballFixtureFormatter.teamDisplayName(for: match.homeTeam),
                     localLogoPath: display?.homeLocalLogoPath,
                     remoteLogoURL: FootballFixtureFormatter.isUnknownTeam(match.homeTeam) ? nil : match.homeTeam.logoURL,
                     isUnknown: FootballFixtureFormatter.isUnknownTeam(match.homeTeam),
+                    usesCircularOutline: match.homeTeam.isNational,
                     logoLeading: false,
                     yellowCards: match.homeYellowCards,
                     redCards: match.homeRedCards,
                     showsCardBadges: showsCardBadges,
-                    font: font
+                    font: font,
+                    titleColor: titleColor
                 )
 
                 if showsScore {
@@ -106,6 +116,8 @@ extension MenuContentView {
                                     .foregroundStyle(.secondary)
                             }
                         }
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                     } else {
                         HStack(spacing: 4) {
                             Text("-")
@@ -118,45 +130,54 @@ extension MenuContentView {
                                     .foregroundStyle(.secondary)
                             }
                         }
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                     }
                 }
 
                 footballTeamLabel(
-                    abbreviation: display?.awayAbbreviation ?? FootballFixtureFormatter.teamDisplayIdentifier(for: match.awayTeam),
+                    abbreviation: FootballFixtureFormatter.teamDisplayIdentifier(for: match.awayTeam),
+                    fullName: FootballFixtureFormatter.teamDisplayName(for: match.awayTeam),
                     localLogoPath: display?.awayLocalLogoPath,
                     remoteLogoURL: FootballFixtureFormatter.isUnknownTeam(match.awayTeam) ? nil : match.awayTeam.logoURL,
                     isUnknown: FootballFixtureFormatter.isUnknownTeam(match.awayTeam),
+                    usesCircularOutline: match.awayTeam.isNational,
                     logoLeading: true,
                     yellowCards: match.awayYellowCards,
                     redCards: match.awayRedCards,
                     showsCardBadges: showsCardBadges,
-                    font: font
+                    font: font,
+                    titleColor: titleColor
                 )
             }
-            .fixedSize(horizontal: true, vertical: false)
+            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
 
             if showsStatusAccessories && accessories.hasAccessories {
                 FootballStatusAccessoriesView(data: accessories)
-                    .fixedSize(horizontal: true, vertical: false)
+                    .layoutPriority(1)
             }
         }
         .font(font)
-        .foregroundStyle(.primary)
+        .foregroundStyle(titleColor)
         .frame(maxWidth: .infinity, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
+        .clipped()
     }
 
     @ViewBuilder
     func footballTeamLabel(
         abbreviation: String,
+        fullName: String,
         localLogoPath: String?,
         remoteLogoURL: URL?,
         isUnknown: Bool,
+        usesCircularOutline: Bool,
         logoLeading: Bool,
         yellowCards: Int,
         redCards: Int,
         showsCardBadges: Bool,
-        font: Font
+        font: Font,
+        titleColor: Color = .primary
     ) -> some View {
         HStack(spacing: 4) {
             if showsCardBadges && !logoLeading {
@@ -167,17 +188,27 @@ extension MenuContentView {
                 FootballTeamLogoView(
                     localPath: localLogoPath,
                     remoteURL: remoteLogoURL,
-                    isUnknown: isUnknown
+                    isUnknown: isUnknown,
+                    usesCircularOutline: usesCircularOutline,
+                    circularOutlineColor: titleColor
                 )
                 Text(abbreviation)
                     .font(font)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .truncationMode(.tail)
             } else {
                 Text(abbreviation)
                     .font(font)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .truncationMode(.tail)
                 FootballTeamLogoView(
                     localPath: localLogoPath,
                     remoteURL: remoteLogoURL,
-                    isUnknown: isUnknown
+                    isUnknown: isUnknown,
+                    usesCircularOutline: usesCircularOutline,
+                    circularOutlineColor: titleColor
                 )
             }
 
@@ -185,6 +216,9 @@ extension MenuContentView {
                 footballCardBadges(yellowCards: yellowCards, redCards: redCards)
             }
         }
+        .frame(minWidth: 0, alignment: .center)
+        .help(fullName)
+        .accessibilityLabel(fullName)
     }
 
     @ViewBuilder
@@ -209,7 +243,7 @@ extension MenuContentView {
 
             if count != 1 {
                 Text("\(count)")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(MenuMarkerMetrics.compactMetadataFont)
                     .foregroundStyle(.secondary)
             }
         }
@@ -231,7 +265,7 @@ extension MenuContentView {
     func footballFixtureContextBadge(for match: FootballFixtureMatch) -> some View {
         if let fixtureContext = footballFixtureContextBadgeText(for: match) {
             Text(fixtureContext)
-                .font(.system(size: 10, weight: .semibold))
+                .font(MenuMarkerMetrics.compactMetadataFont)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .padding(.horizontal, 6)

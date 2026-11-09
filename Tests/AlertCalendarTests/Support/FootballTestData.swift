@@ -87,7 +87,12 @@ enum FootballTestData {
         homeYellowCards: Int = 0,
         awayYellowCards: Int = 0,
         homeRedCards: Int = 0,
-        awayRedCards: Int = 0
+        awayRedCards: Int = 0,
+        officialWinner: FootballScoreSide? = nil,
+        homeShootoutScore: Int? = nil,
+        awayShootoutScore: Int? = nil,
+        pregameOutcomeProbabilities: FootballMatchOutcomeProbabilities? = nil,
+        outcomeProbabilities: FootballMatchOutcomeProbabilities? = nil
     ) -> FootballFixtureMatch {
         FootballFixtureMatch(
             id: id,
@@ -114,7 +119,12 @@ enum FootballTestData {
             homeYellowCards: homeYellowCards,
             awayYellowCards: awayYellowCards,
             homeRedCards: homeRedCards,
-            awayRedCards: awayRedCards
+            awayRedCards: awayRedCards,
+            officialWinner: officialWinner,
+            homeShootoutScore: homeShootoutScore,
+            awayShootoutScore: awayShootoutScore,
+            pregameOutcomeProbabilities: pregameOutcomeProbabilities,
+            outcomeProbabilities: outcomeProbabilities
         )
     }
 

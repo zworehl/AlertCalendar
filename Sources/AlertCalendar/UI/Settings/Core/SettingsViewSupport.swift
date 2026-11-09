@@ -15,15 +15,15 @@ enum PermissionGrantState: String, CaseIterable {
     var badgeTitle: String {
         switch self {
         case .allowed:
-            return "Allowed"
+            return L10n.text("Allowed")
         case .notRequested:
-            return "Not Requested"
+            return L10n.text("Not Requested")
         case .limited:
-            return "Limited"
+            return L10n.text("Limited")
         case .denied:
-            return "Denied"
+            return L10n.text("Denied")
         case .restricted:
-            return "Restricted"
+            return L10n.text("Restricted")
         }
     }
 
@@ -88,30 +88,33 @@ struct SettingsViewportHeightPreferenceKey: PreferenceKey {
     }
 }
 
+struct SettingsDetailWidthPreferenceKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 struct SettingsWindowAccessor: NSViewRepresentable {
     let onResolve: (NSWindow) -> Void
-    let onResize: (CGFloat) -> Void
 
     func makeNSView(context: Context) -> SettingsWindowObserverView {
-        SettingsWindowObserverView(onResolve: onResolve, onResize: onResize)
+        SettingsWindowObserverView(onResolve: onResolve)
     }
 
     func updateNSView(_ nsView: SettingsWindowObserverView, context: Context) {
         nsView.onResolve = onResolve
-        nsView.onResize = onResize
         nsView.resolveWindowIfNeeded()
     }
 }
 
 final class SettingsWindowObserverView: NSView {
     var onResolve: (NSWindow) -> Void
-    var onResize: (CGFloat) -> Void
     weak var lastResolvedWindow: NSWindow?
-    weak var observedWindow: NSWindow?
 
-    init(onResolve: @escaping (NSWindow) -> Void, onResize: @escaping (CGFloat) -> Void) {
+    init(onResolve: @escaping (NSWindow) -> Void) {
         self.onResolve = onResolve
-        self.onResize = onResize
         super.init(frame: .zero)
     }
 
@@ -133,34 +136,88 @@ final class SettingsWindowObserverView: NSView {
         DispatchQueue.main.async { [weak self, weak window] in
             guard let self, let window else { return }
             self.onResolve(window)
-            self.startObservingResize(for: window)
         }
     }
+}
 
-    func startObservingResize(for window: NSWindow) {
-        guard observedWindow !== window else { return }
-        stopObservingResize()
-        observedWindow = window
-        onResize(window.frame.width)
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleWindowResize),
-            name: NSWindow.didResizeNotification,
-            object: window
+extension SettingsView {
+    var settingsUsesTwoColumnLayout: Bool {
+        settingsWindowWidth >= SettingsVisualMetrics.generalTwoColumnMinimumWidth
+    }
+
+    var settingsUsesPreviewColumnLayout: Bool {
+        settingsWindowWidth >= 1240
+    }
+
+    var settingsControlColumnWidth: CGFloat {
+        let availableWidth = max(settingsWindowWidth - 40, 0)
+        return min(max(availableWidth * 0.34, 340), 460)
+    }
+
+    @ViewBuilder
+    func settingsSection<Content: View>(
+        title: String,
+        subtitle: String? = nil,
+        systemImage: String? = nil,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: SettingsVisualMetrics.sectionContentSpacing) {
+            settingsSectionHeader(title: title, subtitle: subtitle, systemImage: systemImage)
+            content()
+        }
+        .settingsPanelSurface()
+    }
+
+    @ViewBuilder
+    func settingsSectionHeader(title: String, subtitle: String? = nil, systemImage: String? = nil) -> some View {
+        SettingsSectionHeaderView(
+            title: title,
+            subtitle: subtitle,
+            systemImage: systemImage
         )
     }
 
-    func stopObservingResize() {
-        NotificationCenter.default.removeObserver(self, name: NSWindow.didResizeNotification, object: observedWindow)
-        observedWindow = nil
+    @ViewBuilder
+    func settingsControlRow<Control: View>(
+        title: String,
+        detail: String,
+        @ViewBuilder control: () -> Control
+    ) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: 16) {
+                settingsControlCopy(title: title, detail: detail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                control()
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                settingsControlCopy(title: title, detail: detail)
+                control()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(.vertical, 2)
     }
 
-    deinit {
-        NotificationCenter.default.removeObserver(self)
+    @ViewBuilder
+    func settingsControlCopy(title: String, detail: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(SettingsTypography.controlTitle)
+                .foregroundStyle(.primary)
+
+            Text(detail)
+                .font(SettingsTypography.supportingText)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
-    @objc private func handleWindowResize(_ notification: Notification) {
-        guard let window = notification.object as? NSWindow else { return }
-        onResize(window.frame.width)
+    @ViewBuilder
+    func settingsDivider() -> some View {
+        Divider()
+            .overlay(Color.primary.opacity(0.04))
     }
 }

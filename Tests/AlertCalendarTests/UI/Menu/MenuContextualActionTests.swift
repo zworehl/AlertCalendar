@@ -79,6 +79,129 @@ final class MenuContextualActionTests: AlertCalendarModelTestCase {
             ["match-1", "match-2"]
         )
     }
+    func testSplitContextualActionItemsIncludeActiveMeetingWithAttendeesBeforeFootballMatch() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let activeMatch = makeFootballUpcomingItem(
+            makeFootballMatch(
+                id: "match-1",
+                startDate: now.addingTimeInterval(-900),
+                actualStartDate: now.addingTimeInterval(-840),
+                statusState: .inProgress,
+                statusText: "14'"
+            )
+        )
+        let activeMeeting = UpcomingItem(
+            id: "meeting-1",
+            title: "Design review",
+            date: now.addingTimeInterval(-600),
+            endDate: now.addingTimeInterval(1800),
+            isAllDay: false,
+            showsMutedBackground: false,
+            travelTimeMinutes: nil,
+            locationText: nil,
+            meetingURL: URL(string: "https://meet.google.com/abc-defg-hij"),
+            organizer: MeetingOrganizer(displayText: "Ari", emailAddress: "ari@example.com"),
+            attendees: [
+                MeetingAttendee(
+                    id: "sam@example.com",
+                    displayText: "Sam",
+                    emailAddress: "sam@example.com",
+                    response: .accepted
+                )
+            ],
+            calendarID: "calendar-1",
+            calendarName: "Work",
+            calendarColor: .systemBlue,
+            kind: .event,
+            footballMatch: nil,
+            footballMenuBarDisplay: nil
+        )
+        let previewKindsByKey: [String: MenuContentView.ContextualPreviewKind] = [
+            activeMeeting.notificationKey: .attendees(activeMeeting.organizer, activeMeeting.attendees),
+            activeMatch.notificationKey: .location("Mercedes-Benz Stadium, Atlanta, Georgia, USA"),
+        ]
+
+        let items = MenuContentView.splitContextualActionItems(
+            contextualItems: [activeMatch, activeMeeting],
+            footballItems: [activeMatch],
+            previewKindsByKey: previewKindsByKey
+        )
+
+        XCTAssertEqual(items.map(\.id), ["meeting-1", "match-1"])
+    }
+    func testSplitContextualActionItemsKeepUpcomingEventWhenFootballMatchIsActive() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let activeMatch = makeFootballUpcomingItem(
+            makeFootballMatch(
+                id: "match-1",
+                startDate: now.addingTimeInterval(-900),
+                actualStartDate: now.addingTimeInterval(-840),
+                statusState: .inProgress,
+                statusText: "14'"
+            )
+        )
+        let elevenOClockEvent = makeUpcomingItem(
+            id: "event-11",
+            title: "Design review",
+            startDate: now.addingTimeInterval(30 * 60),
+            endDate: now.addingTimeInterval(60 * 60)
+        )
+        let previewKindsByKey: [String: MenuContentView.ContextualPreviewKind] = [
+            activeMatch.notificationKey: .location("Mercedes-Benz Stadium, Atlanta, Georgia, USA"),
+            elevenOClockEvent.notificationKey: .location("Somewhere"),
+        ]
+        let contextualPreviewItems = MenuContentView.contextualActionItems(
+            from: [activeMatch, elevenOClockEvent],
+            now: now
+        )
+        let upcomingNonFootballItems = MenuContentView.contextualActionItems(
+            from: [elevenOClockEvent],
+            now: now
+        )
+        let footballItems = MenuContentView.footballContextualActionItems(
+            from: [activeMatch, elevenOClockEvent],
+            now: now
+        )
+
+        let items = MenuContentView.splitContextualActionItems(
+            contextualItems: contextualPreviewItems + upcomingNonFootballItems,
+            footballItems: footballItems,
+            previewKindsByKey: previewKindsByKey
+        )
+
+        XCTAssertEqual(contextualPreviewItems.map(\.id), ["match-1"])
+        XCTAssertEqual(items.map(\.id), ["match-1", "event-11"])
+    }
+    func testSplitContextualActionItemsDeduplicateMergedContextualItems() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let activeMatch = makeFootballUpcomingItem(
+            makeFootballMatch(
+                id: "match-1",
+                startDate: now.addingTimeInterval(-900),
+                actualStartDate: now.addingTimeInterval(-840),
+                statusState: .inProgress,
+                statusText: "14'"
+            )
+        )
+        let activeRestriction = makeUpcomingItem(
+            id: "vehicle-restriction",
+            title: "Vehicle restriction",
+            startDate: now.addingTimeInterval(-60 * 60),
+            endDate: now.addingTimeInterval(10 * 60 * 60)
+        )
+        let previewKindsByKey: [String: MenuContentView.ContextualPreviewKind] = [
+            activeMatch.notificationKey: .location("NRG Stadium"),
+            activeRestriction.notificationKey: .location("San Jose"),
+        ]
+
+        let items = MenuContentView.splitContextualActionItems(
+            contextualItems: [activeMatch, activeRestriction, activeRestriction],
+            footballItems: [activeMatch],
+            previewKindsByKey: previewKindsByKey
+        )
+
+        XCTAssertEqual(items.map(\.id), ["match-1", "vehicle-restriction"])
+    }
     func testShouldShowContextualMapPreviewHidesFootballPreviewWhenThreeMatchesAreConcurrent() {
         let footballItem = makeFootballUpcomingItem(
             makeFootballMatch(
@@ -99,20 +222,57 @@ final class MenuContextualActionTests: AlertCalendarModelTestCase {
         XCTAssertFalse(
             MenuContentView.shouldShowContextualMapPreview(
                 for: footballItem,
-                concurrentFootballMatchCount: 3
+                contextualItemCount: 3
             )
         )
         XCTAssertTrue(
             MenuContentView.shouldShowContextualMapPreview(
                 for: footballItem,
-                concurrentFootballMatchCount: 2
+                contextualItemCount: 2
             )
         )
         XCTAssertTrue(
             MenuContentView.shouldShowContextualMapPreview(
                 for: regularItem,
-                concurrentFootballMatchCount: 4
+                contextualItemCount: 4
             )
+        )
+    }
+
+    func testFootballContextualContentLevelCountsRegularConcurrentEvents() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let footballItem = makeFootballUpcomingItem(
+            makeFootballMatch(
+                id: "match-with-event",
+                startDate: now.addingTimeInterval(-900),
+                actualStartDate: now.addingTimeInterval(-840),
+                statusState: .inProgress,
+                statusText: "14'",
+                homeScore: "1",
+                awayScore: "0"
+            )
+        )
+        let regularItem = makeUpcomingItem(
+            id: "concurrent-event",
+            title: "Design review",
+            startDate: now.addingTimeInterval(-600),
+            endDate: now.addingTimeInterval(1800)
+        )
+
+        let itemCount = MenuContentView.contextualFootballLayoutItemCount(
+            from: [footballItem, regularItem]
+        )
+        let contentLevel = MenuContentView.contextualFootballContentLevel(for: itemCount)
+
+        XCTAssertEqual(itemCount, 2)
+        XCTAssertFalse(contentLevel.showsStats)
+        XCTAssertTrue(contentLevel.showsGoalScorers)
+        XCTAssertEqual(
+            MenuContentView.footballContextualScorePlacement(
+                for: try! XCTUnwrap(footballItem.footballMatch),
+                itemCount: itemCount
+            ),
+            .goalScorers
         )
     }
     func testShouldShowContextualFootballGoalScorersIncludesUpToThreeMatchLayouts() {
@@ -127,6 +287,50 @@ final class MenuContextualActionTests: AlertCalendarModelTestCase {
         )
         XCTAssertFalse(
             MenuContentView.shouldShowContextualFootballGoalScorers(for: 4)
+        )
+    }
+    func testStandaloneContextualFootballOutcomeProbabilitiesShowForTwoPreviewLayouts() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let liveMatch = makeFootballMatch(
+            id: "live-outcome-probabilities",
+            startDate: now.addingTimeInterval(-900),
+            actualStartDate: now.addingTimeInterval(-840),
+            statusState: .inProgress,
+            statusText: "14'",
+            homeScore: "1",
+            awayScore: "0"
+        )
+        let scheduledMatch = makeFootballMatch(
+            id: "scheduled-outcome-probabilities",
+            startDate: now.addingTimeInterval(60 * 60),
+            actualStartDate: nil,
+            statusState: .scheduled,
+            statusText: "7:00 PM"
+        )
+
+        XCTAssertFalse(
+            MenuContentView.shouldShowStandaloneContextualFootballOutcomeProbabilities(
+                for: liveMatch,
+                itemCount: 1
+            )
+        )
+        XCTAssertTrue(
+            MenuContentView.shouldShowStandaloneContextualFootballOutcomeProbabilities(
+                for: liveMatch,
+                itemCount: 2
+            )
+        )
+        XCTAssertTrue(
+            MenuContentView.shouldShowStandaloneContextualFootballOutcomeProbabilities(
+                for: scheduledMatch,
+                itemCount: 1
+            )
+        )
+        XCTAssertFalse(
+            MenuContentView.shouldShowStandaloneContextualFootballOutcomeProbabilities(
+                for: liveMatch,
+                itemCount: 3
+            )
         )
     }
     func testFootballContextualScorePlacementMovesScoreToExpectedSection() {
@@ -443,6 +647,59 @@ final class MenuContextualActionTests: AlertCalendarModelTestCase {
         XCTAssertEqual(
             MeetingAttendeesPreview.resolvedListHeight(attendeeCount: 14, maximumHeight: 188),
             188
+        )
+    }
+
+    func testAttendeePreviewListHeightSupportsSingleColumnSplitLayout() {
+        XCTAssertEqual(
+            MeetingAttendeesPreview.resolvedListHeight(attendeeCount: 2, maximumHeight: 148, columnCount: 1),
+            60
+        )
+        XCTAssertEqual(
+            MeetingAttendeesPreview.resolvedListHeight(attendeeCount: 10, maximumHeight: 148, columnCount: 1),
+            148
+        )
+    }
+
+    func testSingleMeetingPreviewKeepsScrollingInsideAttendeeList() {
+        let meeting = makeUpcomingItem(
+            id: "meeting-preview",
+            title: "Team stand-up",
+            startDate: Date(timeIntervalSince1970: 1_720_000_000),
+            endDate: Date(timeIntervalSince1970: 1_720_001_800)
+        )
+        let attendees = [
+            MeetingAttendee(
+                id: "sam@example.com",
+                displayText: "Sam",
+                emailAddress: "sam@example.com",
+                response: .accepted
+            )
+        ]
+
+        XCTAssertTrue(
+            MenuContentView.usesSelfContainedAttendeeScrolling(
+                contextualItems: [meeting],
+                previewKindsByKey: [
+                    meeting.notificationKey: .attendees(nil, attendees)
+                ]
+            )
+        )
+        XCTAssertFalse(
+            MenuContentView.usesSelfContainedAttendeeScrolling(
+                contextualItems: [meeting, meeting],
+                previewKindsByKey: [
+                    meeting.notificationKey: .attendees(nil, attendees)
+                ]
+            )
+        )
+        XCTAssertFalse(
+            MenuContentView.usesSelfContainedAttendeeScrolling(
+                contextualItems: [meeting],
+                previewKindsByKey: [
+                    meeting.notificationKey: .location("San José")
+                ]
+            )
         )
     }
 }

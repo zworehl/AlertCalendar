@@ -4,62 +4,106 @@ import MapKit
 import SwiftUI
 
 extension MenuContentView {
-    var alertBannerSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ForEach(filteredAlertDescriptions, id: \.self) { alertText in
-                HStack(alignment: .center, spacing: 8) {
-                    Image(systemName: "exclamationmark.circle.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.red)
-                        .frame(width: 20, height: 20, alignment: .center)
-
-                    Text(alertText)
-                        .font(.subheadline.weight(.semibold))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.red.opacity(0.10))
-        )
-    }
-
     var headerView: some View {
-        HStack(alignment: .center, spacing: 8) {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(headerTitle)
-                    .font(.title3.weight(.semibold))
-            }
+        let isRefreshing = monitor.isInitialLoadInProgress || isManualDropdownRefreshInProgress
+
+        return HStack(alignment: .center, spacing: 4) {
+            Text(headerTitle)
+                .font(.headline)
+                .lineLimit(1)
+                .accessibilityAddTraits(.isHeader)
 
             Spacer()
 
-            if monitor.isInitialLoadInProgress {
+            ZStack {
                 ProgressView()
                     .controlSize(.small)
+                    .hidden()
+
+                if isRefreshing {
+                    ProgressView()
+                        .controlSize(.small)
+                }
             }
+            .padding(.horizontal, 4)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(L10n.text("Refreshing Alert Calendar"))
+            .accessibilityHidden(!isRefreshing)
 
             Button {
-                monitor.refreshNow(reason: .manual)
+                refreshDropdownManually()
             } label: {
-                Image(systemName: "arrow.clockwise")
+                Label(L10n.text("Refresh"), systemImage: "arrow.clockwise")
+                    .labelStyle(.iconOnly)
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .help("Refresh")
+            .buttonStyle(MenuToolbarButtonStyle())
+            .allowsHitTesting(!isRefreshing)
+            .keyboardShortcut("r", modifiers: .command)
+            .help(isRefreshing ? L10n.text("Refreshing") : L10n.text("Refresh"))
 
             Button {
                 openSettingsWindowFromDropdown()
             } label: {
-                Image(systemName: "gearshape")
+                Label(L10n.text("Settings"), systemImage: "gearshape")
+                    .labelStyle(.iconOnly)
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .help("Settings")
+            .buttonStyle(MenuToolbarButtonStyle())
+            .keyboardShortcut(",", modifiers: .command)
+            .help(L10n.text("Settings"))
+
+            Menu {
+                if monitor.hasSkippedItems() {
+                    Button {
+                        monitor.restoreSkippedItems()
+                    } label: {
+                        Label(L10n.text("Restore Skipped Items"), systemImage: "arrow.uturn.backward")
+                    }
+                }
+
+                if shouldShowSilenceButton {
+                    Button {
+                        monitor.silenceCurrentAlert()
+                    } label: {
+                        Label(L10n.text("Silence Current Alert"), systemImage: "bell.slash")
+                    }
+                }
+
+                if monitor.hasSkippedItems() || shouldShowSilenceButton {
+                    Divider()
+                }
+
+                Button {
+                    openAboutPanelFromDropdown()
+                } label: {
+                    Label(L10n.text("About Alert Calendar"), systemImage: "info.circle")
+                }
+
+                Divider()
+
+                Button {
+                    NSApplication.shared.terminate(nil)
+                } label: {
+                    Label(L10n.text("Quit Alert Calendar"), systemImage: "power")
+                }
+                .keyboardShortcut("q", modifiers: .command)
+            } label: {
+                Label(L10n.text("More Actions"), systemImage: "ellipsis.circle")
+                    .labelStyle(.iconOnly)
+                    .font(.system(size: MenuContentNativeMetrics.toolbarSymbolSize, weight: .medium))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.secondary)
+                    .frame(
+                        width: MenuContentNativeMetrics.toolbarButtonSize,
+                        height: MenuContentNativeMetrics.toolbarButtonSize
+                    )
+                    .contentShape(Rectangle())
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help(L10n.text("More Actions"))
         }
+        .frame(minHeight: MenuContentNativeMetrics.toolbarButtonSize)
     }
 
     var initialLoadingSection: some View {
@@ -71,10 +115,10 @@ extension MenuContentView {
                         .controlSize(.small)
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Loading upcoming items")
+                        Text(L10n.text("Loading upcoming items"))
                             .font(.subheadline.weight(.semibold))
 
-                        Text("Checking calendars, reminders, and feeds. \(monitor.calendarAccessDescription)")
+                        Text(L10n.text("Checking calendars, reminders, and feeds. \(monitor.calendarAccessDescription)"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -87,8 +131,30 @@ extension MenuContentView {
         }
     }
 
+    func refreshDropdownManually() {
+        guard !monitor.isInitialLoadInProgress,
+              !isManualDropdownRefreshInProgress else {
+            return
+        }
+
+        isManualDropdownRefreshInProgress = true
+        Task { @MainActor in
+            let startedAt = Date()
+            await monitor.enqueueRefreshAndWait(reason: .manual)
+
+            let remainingPresentationTime = max(0, 0.5 - Date().timeIntervalSince(startedAt))
+            if remainingPresentationTime > 0 {
+                try? await Task.sleep(
+                    nanoseconds: UInt64(remainingPresentationTime * 1_000_000_000)
+                )
+            }
+            isManualDropdownRefreshInProgress = false
+        }
+    }
+
     func calendarSectionContainer<Content: View>(
         height: CGFloat? = nil,
+        minimumHeight: CGFloat? = nil,
         bottomPadding: CGFloat? = nil,
         @ViewBuilder content: () -> Content
     ) -> some View {
@@ -100,146 +166,31 @@ extension MenuContentView {
         .padding(.horizontal, panelHorizontalPadding)
         .padding(.top, panelTopPadding)
         .padding(.bottom, resolvedBottomPadding)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(Color.primary.opacity(0.10), lineWidth: 1)
-                )
-        )
         .frame(height: height, alignment: .topLeading)
+        .frame(minHeight: minimumHeight, alignment: .topLeading)
+        .clipped()
+        .background(
+            RoundedRectangle(
+                cornerRadius: MenuContentNativeMetrics.sectionCornerRadius,
+                style: .continuous
+            )
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.64))
+        )
     }
 
     func openSettingsWindowFromDropdown() {
-        let sourceWindow = NSApp.keyWindow
-        let appDelegate = NSApp.delegate as? AppDelegate
-
-        if let appDelegate {
-            appDelegate.prepareForSettingsPresentation()
-        } else {
-            _ = NSApplication.shared.setActivationPolicy(.regular)
-            NSRunningApplication.current.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
-        }
-
-        if sourceWindow?.identifier != NSUserInterfaceItemIdentifier(WindowMetadata.preferencesID) {
-            sourceWindow?.orderOut(nil)
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
-            openWindow(id: WindowMetadata.preferencesID)
-        }
+        dropdownActions.openSettings()
     }
 
-    var dropdownMinimumWidth: CGFloat {
-        if shouldUseSplitDropdownLayout {
-            return dropdownPreferredWidth
-        }
+    func openAboutPanelFromDropdown() {
+        dropdownActions.dismiss()
 
-        return max(
-            minimumSingleColumnDropdownWidth,
-            singleColumnContextualMinimumWidth,
-            singleColumnQueueMinimumWidth
-        )
-    }
-
-    var dropdownPreferredWidth: CGFloat {
-        let contentWidth = splitActionsColumnWidth + splitQueueColumnWidth + splitColumnSpacing
-        return contentWidth + (dropdownOuterPadding * 2)
-    }
-
-    var singleColumnContextualMinimumWidth: CGFloat {
-        displayedContextualActionItems.reduce(minimumSingleColumnDropdownWidth) { partialResult, item in
-            max(partialResult, contextualCardMinimumWidth(for: item))
-        }
-    }
-
-    var singleColumnQueueMinimumWidth: CGFloat {
-        queueItemsForActions.reduce(minimumSingleColumnDropdownWidth) { partialResult, item in
-            max(partialResult, queueItemMinimumWidth(for: item))
-        }
-    }
-
-    var splitDropdownColumnHeightLimit: CGFloat {
-        let screenHeight = NSScreen.main?.visibleFrame.height ?? 960
-        return min(splitDropdownMaxColumnHeight, max(420, screenHeight * 0.72))
-    }
-
-    var splitSharedPanelHeight: CGFloat? {
-        guard shouldUseSplitDropdownLayout else { return nil }
-        let measuredHeight = max(splitContextualPanelHeight, splitUpcomingPanelHeight)
-        guard measuredHeight > 0 else { return nil }
-        return min(splitDropdownColumnHeightLimit, measuredHeight)
-    }
-
-    var shouldScrollContextualSplitPanel: Bool {
-        guard shouldUseSplitDropdownLayout,
-              let splitSharedPanelHeight else {
-            return false
-        }
-
-        return splitContextualPanelHeight > splitSharedPanelHeight + 0.5
-    }
-
-    var shouldScrollUpcomingSplitPanel: Bool {
-        guard shouldUseSplitDropdownLayout,
-              let splitSharedPanelHeight else {
-            return false
-        }
-
-        return splitUpcomingPanelHeight > splitSharedPanelHeight + 0.5
-    }
-
-    var shouldUseSplitDropdownLayout: Bool {
-        !footballContextualActionItems.isEmpty && !queueItemsForSplitLayout.isEmpty
-    }
-
-    var sharedContextualFootballMatches: [FootballFixtureMatch]? {
-        guard !displayedContextualActionItems.isEmpty else { return nil }
-
-        let footballMatches = displayedContextualActionItems.compactMap(\.footballMatch)
-        guard footballMatches.count == displayedContextualActionItems.count else { return nil }
-
-        return footballMatches
-    }
-
-    var sharedContextualFootballCompetitionTitle: String? {
-        guard let sharedContextualFootballMatches else { return nil }
-        return FootballFixtureFormatter.sharedCompetitionTitle(for: sharedContextualFootballMatches)
-    }
-
-    var sharedContextualFootballCompetitionLogoPath: String? {
-        guard sharedContextualFootballCompetitionTitle != nil else { return nil }
-        return displayedContextualActionItems.first?.footballMenuBarDisplay?.competitionLocalLogoPath
-    }
-
-    var sharedContextualFootballCompetitionLogoURL: URL? {
-        guard let sharedContextualFootballMatches,
-              sharedContextualFootballCompetitionTitle != nil else {
-            return nil
-        }
-
-        return sharedContextualFootballMatches.first?.competitionLogoURL
-    }
-
-    var contextualSharedCompetitionHeader: some View {
-        HStack(spacing: 6) {
-            FootballCompetitionLogoView(
-                localPath: sharedContextualFootballCompetitionLogoPath,
-                remoteURL: sharedContextualFootballCompetitionLogoURL,
-                placeholderSymbolSize: 11
+        DispatchQueue.main.async {
+            NSRunningApplication.current.activate(
+                options: [.activateAllWindows, .activateIgnoringOtherApps]
             )
-
-            Text("All listed matches are from \(sharedContextualFootballCompetitionTitle ?? "")")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.tail)
+            NSApplication.shared.orderFrontStandardAboutPanel(nil)
         }
-    }
-
-    var contextualSharedCompetitionIsActive: Bool {
-        sharedContextualFootballCompetitionTitle != nil
     }
 
     enum FootballContextualContentLevel {
@@ -276,7 +227,7 @@ extension MenuContentView {
         Self.contextualFootballContentLevel(for: displayedContextualActionItems.count)
     }
 
-    nonisolated private static func contextualFootballContentLevel(for itemCount: Int) -> FootballContextualContentLevel {
+    nonisolated static func contextualFootballContentLevel(for itemCount: Int) -> FootballContextualContentLevel {
         switch max(1, itemCount) {
         case 1:
             return .statsAndGoals
@@ -289,6 +240,17 @@ extension MenuContentView {
 
     nonisolated static func shouldShowContextualFootballGoalScorers(for itemCount: Int) -> Bool {
         contextualFootballContentLevel(for: itemCount).showsGoalScorers
+    }
+
+    nonisolated static func shouldShowStandaloneContextualFootballOutcomeProbabilities(
+        for match: FootballFixtureMatch,
+        itemCount: Int
+    ) -> Bool {
+        let contentLevel = contextualFootballContentLevel(for: itemCount)
+        if contentLevel.showsStats && match.statusState != .scheduled {
+            return false
+        }
+        return itemCount <= 2
     }
 
     nonisolated static func footballContextualScorePlacement(

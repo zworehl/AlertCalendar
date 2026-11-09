@@ -94,7 +94,7 @@ final class FootballDataAPIClientFetchMatchesTests: FootballDataAPIClientTestCas
         XCTAssertNil(matches.first?.locationText)
     }
 
-    func testFetchMatchesUsesFederationLogosForNationalCompetitionWithoutEnrichment() async throws {
+    func testFetchMatchesUsesCountryFlagsForNationalCompetitionWithoutEnrichment() async throws {
         let startDate = Date().addingTimeInterval(6 * 60 * 60)
         let startDateText = ISO8601DateFormatter().string(from: startDate)
         let session = makeMockSession { request in
@@ -164,15 +164,15 @@ final class FootballDataAPIClientFetchMatchesTests: FootballDataAPIClientTestCas
         XCTAssertTrue(match.awayTeam.isNational)
         XCTAssertEqual(
             match.homeTeam.logoURL?.absoluteString,
-            "https://api.fifa.com/api/v3/picture/associations-sq-2/USA"
+            "https://a.espncdn.com/i/teamlogos/countries/500/usa.png"
         )
         XCTAssertEqual(
             match.awayTeam.logoURL?.absoluteString,
-            "https://api.fifa.com/api/v3/picture/associations-sq-2/ESP"
+            "https://a.espncdn.com/i/teamlogos/countries/500/esp.png"
         )
     }
 
-    func testFetchMatchesUsesPresetCategoryForCustomNationalCompetitionLogos() async throws {
+    func testFetchMatchesUsesPresetCategoryForCustomNationalCompetitionFlags() async throws {
         let startDate = Date().addingTimeInterval(6 * 60 * 60)
         let startDateText = ISO8601DateFormatter().string(from: startDate)
         let session = makeMockSession { request in
@@ -240,11 +240,11 @@ final class FootballDataAPIClientFetchMatchesTests: FootballDataAPIClientTestCas
         let match = try XCTUnwrap(matches.first)
         XCTAssertEqual(
             match.homeTeam.logoURL?.absoluteString,
-            "https://api.fifa.com/api/v3/picture/associations-sq-2/CRC"
+            "https://a.espncdn.com/i/teamlogos/countries/500/crc.png"
         )
         XCTAssertEqual(
             match.awayTeam.logoURL?.absoluteString,
-            "https://api.fifa.com/api/v3/picture/associations-sq-2/MEX"
+            "https://a.espncdn.com/i/teamlogos/countries/500/mex.png"
         )
     }
 
@@ -498,7 +498,7 @@ final class FootballDataAPIClientFetchMatchesTests: FootballDataAPIClientTestCas
             value: FootballCompetitionPreset.majorLeagueSoccer.lookaheadDays,
             to: dayStart
         ) ?? dayStart
-        let expectedScoreboardRequestCount = 1 + FootballDataAPIClient.scoreboardDateRanges(
+        let expectedScoreboardRequestCount = FootballDataAPIClient.scoreboardDateRanges(
             start: expectedStart,
             end: expectedEnd,
             calendar: calendar
@@ -508,6 +508,48 @@ final class FootballDataAPIClientFetchMatchesTests: FootballDataAPIClientTestCas
         XCTAssertEqual(secondMatches.map(\.id), ["shared-scoreboard-match"])
         XCTAssertEqual(thirdMatches.map(\.id), ["shared-scoreboard-match"])
         XCTAssertEqual(scoreboardRequestCount, expectedScoreboardRequestCount)
+    }
+
+    func testForcedScoreboardRefreshBypassesFreshCache() async throws {
+        let url = try XCTUnwrap(
+            URL(string: "https://site.api.espn.com/apis/site/v2/sports/soccer/usa.1/scoreboard")
+        )
+        let startDateText = ISO8601DateFormatter().string(from: Date().addingTimeInterval(60 * 60))
+        let requestLock = NSLock()
+        var requestCount = 0
+        let session = makeMockSession { request in
+            requestLock.lock()
+            requestCount += 1
+            requestLock.unlock()
+            return try self.jsonResponse(
+                for: request,
+                body: self.scoreboardBody(
+                    leagueName: "MLS",
+                    matchID: "forced-scoreboard-match",
+                    startDateText: startDateText
+                )
+            )
+        }
+        let client = FootballDataAPIClient(session: session)
+
+        _ = try await client.scoreboardMatchesPage(
+            url: url,
+            slug: "usa.1",
+            competitionName: "MLS"
+        )
+        _ = try await client.scoreboardMatchesPage(
+            url: url,
+            slug: "usa.1",
+            competitionName: "MLS"
+        )
+        _ = try await client.scoreboardMatchesPage(
+            url: url,
+            slug: "usa.1",
+            competitionName: "MLS",
+            forceRefresh: true
+        )
+
+        XCTAssertEqual(requestCount, 2)
     }
     func testFetchMatchesCanSkipTeamEnrichmentForLightweightLists() async throws {
         let startDate = Date().addingTimeInterval(24 * 60 * 60)

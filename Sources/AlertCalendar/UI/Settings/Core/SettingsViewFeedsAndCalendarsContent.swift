@@ -8,46 +8,61 @@ import SwiftUI
 extension SettingsView {
     @ViewBuilder
     var liveFeedsSettingsContent: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            GroupBox("Live Feeds") {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Manage the non-calendar feeds that can appear in Alert Calendar, including sun moments, lunar phases, orbital highlights, and football fixtures.")
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
+        VStack(alignment: .leading, spacing: SettingsVisualMetrics.pageSpacing) {
             switch selectedFeedsSubsection {
             case .atmosphere:
                 atmosphereFeedsSubsection
+            case .holidays:
+                googleHolidaysSubsection
             case .football:
                 footballFeedsSubsection
+            case .gameSales:
+                gameSalesSubsection
             }
         }
-        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .frame(
+            maxWidth: .infinity,
+            maxHeight: selectedFeedsSubsection.usesEmbeddedDetailScroller ? .infinity : nil,
+            alignment: .topLeading
+        )
+    }
+
+    @ViewBuilder
+    var googleHolidaysSubsection: some View {
+        SettingsGoogleHolidaysSectionView(
+            monitor: monitor,
+            selectedCountryIDs: $draft.googleHolidayCountryIDs,
+            targetCalendarID: $draft.googleHolidayTargetCalendarID
+        )
     }
 
     @ViewBuilder
     var atmosphereFeedsSubsection: some View {
-        GroupBox("Sun, Moon & Orbit") {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 6) {
-                    Toggle("Include atmosphere moments", isOn: $draft.includeAstronomy)
-                    InfoTipButton(text: "Adds local sunrise, solar noon, sunset, solar midnight, estimated lunar phase changes, and estimated perihelion, aphelion, solstice, and equinox entries.")
-                }
+        VStack(alignment: .leading, spacing: SettingsVisualMetrics.pageSpacing) {
+            astronomyFeedControlsSection
 
-                astronomyFeedVisibilityCard
+            SettingsSectionDivider()
 
-                Text("The master toggle hides every astronomy feed without clearing the category choices. Configure automatic or manual astronomy coordinates from the Permissions tab.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            astronomyPreviewSection
         }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
 
+    private var astronomyCoordinateStatus: String? {
+        guard astronomyLocationStatus != L10n.text("Manual coordinates") else { return nil }
+        if astronomyLocationStatus.hasPrefix("Auto location:")
+            || astronomyLocationStatus.hasPrefix("Approximate auto location:")
+            || astronomyLocationStatus.hasPrefix("Detected location:")
+            || astronomyLocationStatus.hasPrefix("Detected approximate location:")
+            || astronomyLocationStatus.contains("Using saved coordinates:") {
+            return nil
+        }
+        return astronomyLocationStatus
+    }
+
+    var astronomyPreviewSection: some View {
         SettingsAstronomySectionView(
-            title: "Astronomy Preview",
+            title: L10n.text("Astronomy Preview"),
             showsCalculatedTimes: true,
             showsSunriseSunset: draft.includeAstronomy && draft.includeSunriseSunset,
             showsSolarNoonMidnight: draft.includeAstronomy && draft.includeSolarNoonMidnight,
@@ -55,6 +70,7 @@ extension SettingsView {
             showsOrbitalHighlights: draft.includeAstronomy && draft.includeOrbitalHighlights,
             astronomyLatitude: draft.astronomyLatitude,
             astronomyLongitude: draft.astronomyLongitude,
+            availableWidth: max(settingsWindowWidth - (SettingsVisualMetrics.detailHorizontalPadding * 2), 0),
             solarTimesProvider: { day, coordinate, timeZone in
                 monitor.solarTimes(for: day, coordinate: coordinate, timeZone: timeZone)
             },
@@ -67,76 +83,161 @@ extension SettingsView {
         )
     }
 
-    var astronomyFeedVisibilityCard: some View {
-        GroupBox("Visible in Feeds") {
-            VStack(alignment: .leading, spacing: 10) {
-                LazyVGrid(
-                    columns: [
-                        GridItem(.adaptive(minimum: 190, maximum: 260), alignment: .leading),
-                    ],
-                    alignment: .leading,
-                    spacing: 10
-                ) {
-                    Toggle("Sunrise & Sunset", isOn: $draft.includeSunriseSunset)
-                    Toggle("Solar Noon & Midnight", isOn: $draft.includeSolarNoonMidnight)
-                    Toggle("Moon Phases", isOn: $draft.includeMoonPhases)
-                    Toggle("Orbital Highlights", isOn: $draft.includeOrbitalHighlights)
-                }
+    var astronomyFeedControlsSection: some View {
+        let contentWidth = max(settingsWindowWidth - SettingsVisualMetrics.detailHorizontalPadding * 2, 0)
+        // Each column needs room for its controls, including a two-column feed list.
+        // AnyLayout retains coordinate editing state when the window changes size.
+        let layout = contentWidth >= 1_120
+            ? AnyLayout(HStackLayout(alignment: .top, spacing: 24))
+            : AnyLayout(VStackLayout(alignment: .leading, spacing: 16))
 
-                Text("Solar moments use your configured coordinates. Lunar phases plus orbital highlights are estimated locally and shown in your current time zone.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+        return layout {
+            astronomyMasterToggleControl
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+
+            astronomyFeedVisibilitySection
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+
+            AstronomyCoordinatesCard(
+                useAutomaticAstronomyLocation: $draft.useAutomaticAstronomyLocation,
+                astronomyLatitude: $draft.astronomyLatitude,
+                astronomyLongitude: $draft.astronomyLongitude,
+                locationStatus: astronomyCoordinateStatus,
+                onDetectNow: detectLocation
+            )
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+
+    var astronomyMasterToggleControl: some View {
+        settingsControlRow(
+            title: L10n.text("Atmosphere moments"),
+            detail: L10n.text("Hides or shows all astronomy feeds without clearing individual choices.")
+        ) {
+            Toggle(L10n.text("Include atmosphere moments"), isOn: $draft.includeAstronomy)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .accessibilityLabel(Text(L10n.text("Include atmosphere moments")))
+        }
+    }
+
+    var astronomyFeedVisibilitySection: some View {
+        SettingsLabeledCheckboxGroup(
+            title: L10n.text("Visible Feeds"),
+            minimumItemWidth: 170,
+            maximumItemWidth: 260
+        ) {
+            Toggle(L10n.text("Sunrise & Sunset"), isOn: $draft.includeSunriseSunset)
+            Toggle(L10n.text("Solar Noon & Midnight"), isOn: $draft.includeSolarNoonMidnight)
+            Toggle(L10n.text("Moon Phases"), isOn: $draft.includeMoonPhases)
+            Toggle(L10n.text("Orbital Highlights"), isOn: $draft.includeOrbitalHighlights)
         }
     }
 
     @ViewBuilder
     var footballFeedsSubsection: some View {
-        SettingsFootballFixturesSectionView(monitor: monitor)
+        SettingsFootballFixturesSectionView(
+            monitor: monitor,
+            footballTargetCalendarID: $draft.footballTargetCalendarID,
+            autoAddFootballCompetitionSlugs: $draft.footballAutoAddCompetitionSlugs,
+            footballCalendarAlertOption: $draft.footballCalendarAlertOption,
+            pinLiveFootballScoresInMenuBar: $draft.pinLiveFootballScoresInMenuBar,
+            enableFootballGoalNotifications: $draft.enableFootballGoalNotifications,
+            enableFootballDisallowedGoalNotifications: $draft.enableFootballDisallowedGoalNotifications,
+            includeFootballGoalScorerInNotifications: $draft.includeFootballGoalScorerInNotifications,
+            enableFootballFinalNotifications: $draft.enableFootballFinalNotifications,
+            enableFootballAutoAddNotifications: $draft.enableFootballAutoAddNotifications,
+            finishedFootballMatchLookbackDays: $draft.finishedFootballMatchLookbackDays,
+            footballMatchLookaheadDays: $draft.footballMatchLookaheadDays,
+            pendingCalendarChanges: $pendingChanges.footballFixtures
+        )
+    }
+
+    @ViewBuilder
+    var gameSalesSubsection: some View {
+        SettingsGameSalesSectionView(
+            monitor: monitor,
+            targetCalendarID: $draft.gameSaleTargetCalendarID,
+            calendarAlertOption: $draft.gameSaleCalendarAlertOption,
+            enableAutoAddNotifications: $draft.enableGameSaleAutoAddNotifications,
+            autoAddStores: $draft.gameSaleAutoAddStores,
+            pendingCalendarChanges: $pendingChanges.gameSales
+        )
     }
 
     @ViewBuilder
     var calendarSettingsContent: some View {
-        GroupBox("Sources") {
-            VStack(alignment: .leading, spacing: 10) {
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 18) {
-                        Toggle("Include Calendar Events", isOn: $draft.includeEvents)
-                        Toggle("Include All-day Events", isOn: $draft.includeAllDayEvents)
-                        Toggle("Include Reminders", isOn: $draft.includeReminders)
+        VStack(alignment: .leading, spacing: SettingsVisualMetrics.pageSpacing) {
+            if settingsWindowWidth >= 960 {
+                HStack(alignment: .top, spacing: SettingsVisualMetrics.pageSpacing) {
+                    VStack(alignment: .leading, spacing: SettingsVisualMetrics.pageSpacing) {
+                        calendarRoutingColumn
+                        focusFiltersSection
+                        calendarColumnsView(mode: .remindersOnly)
                     }
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
 
-                    VStack(alignment: .leading, spacing: 10) {
-                        Toggle("Include Calendar Events", isOn: $draft.includeEvents)
-                        Toggle("Include All-day Events", isOn: $draft.includeAllDayEvents)
-                        Toggle("Include Reminders", isOn: $draft.includeReminders)
-                    }
+                    calendarColumnsView(mode: .eventsOnly)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: SettingsVisualMetrics.pageSpacing) {
+                    calendarRoutingColumn
+                    focusFiltersSection
+                    calendarColumnsView(mode: .remindersOnly)
+                    calendarColumnsView(mode: .eventsOnly)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-
-        GroupBox("Default Selection") {
-            SettingsCalendarColumnsView(
-                includeEvents: draft.includeEvents,
-                includeAllDayEvents: draft.includeAllDayEvents,
-                includeReminders: draft.includeReminders,
-                availableEventCalendars: availableEventCalendars,
-                availableReminderCalendars: availableReminderCalendars,
-                installedMeetingBrowsers: installedMeetingBrowsers,
-                meetingBrowserProfilesByBrowser: meetingBrowserProfilesByBrowser,
-                onSelectionChanged: persistCalendarSelectionDraft,
-                selectedEventCalendarIDs: $draft.selectedEventCalendarIDs,
-                selectedReminderCalendarIDs: $draft.selectedReminderCalendarIDs,
-                weekdayOnlyEventCalendarIDs: $draft.weekdayOnlyEventCalendarIDs,
-                weekdayOnlyReminderCalendarIDs: $draft.weekdayOnlyReminderCalendarIDs,
-                meetingBrowserRouting: $draft.meetingBrowserRouting
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-
-        meetingBrowserRoutingSettingsContent
     }
+
+    func calendarColumnsView(mode: SettingsCalendarColumnsView.Mode) -> some View {
+        SettingsCalendarColumnsView(
+            mode: mode,
+            includeEvents: draft.includeEvents,
+            includeAllDayEvents: draft.includeAllDayEvents,
+            includeReminders: draft.includeReminders,
+            availableEventCalendars: availableEventCalendars,
+            availableReminderCalendars: availableReminderCalendars,
+            installedMeetingBrowsers: installedMeetingBrowsers,
+            meetingBrowserProfilesByBrowser: meetingBrowserProfilesByBrowser,
+            meetingBrowserProfileIssuesByBrowser: meetingBrowserProfileIssuesByBrowser,
+            onSelectionChanged: {},
+            selectedEventCalendarIDs: $draft.selectedEventCalendarIDs,
+            selectedReminderCalendarIDs: $draft.selectedReminderCalendarIDs,
+            calendarAlertRules: $draft.calendarAlertRules,
+            meetingBrowserRouting: $draft.meetingBrowserRouting
+        )
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+
+    var calendarRoutingColumn: some View {
+        VStack(alignment: .leading, spacing: SettingsVisualMetrics.pageSpacing) {
+            calendarSourceSelectionPanel
+            meetingBrowserRoutingSettingsContent
+            meetingBrowserProfileIssuesBanner
+        }
+    }
+
+    var focusFiltersSection: some View {
+        SettingsFocusFiltersSectionView(
+            monitor: monitor,
+            eventCalendars: availableEventCalendars,
+            reminderCalendars: availableReminderCalendars
+        )
+    }
+
+    var calendarSourceSelectionPanel: some View {
+        SettingsLabeledCheckboxGroup(
+            title: L10n.text("Visible Content"),
+            helpText: L10n.text("Choose the broad item types Alert Calendar can show before selecting individual calendars.")
+        ) {
+            Toggle(L10n.text("Calendar Events"), isOn: $draft.includeEvents)
+            Toggle(L10n.text("All-day Events"), isOn: $draft.includeAllDayEvents)
+            Toggle(L10n.text("Reminders"), isOn: $draft.includeReminders)
+        }
+        .settingsPanelSurface()
+    }
+
 }

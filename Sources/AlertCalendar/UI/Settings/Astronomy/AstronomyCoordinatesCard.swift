@@ -5,6 +5,7 @@ struct AstronomyCoordinatesCard: View {
     @Binding var useAutomaticAstronomyLocation: Bool
     @Binding var astronomyLatitude: Double
     @Binding var astronomyLongitude: Double
+    let locationStatus: String?
     let onDetectNow: () -> Void
     @State private var latitudeInput = ""
     @State private var longitudeInput = ""
@@ -12,47 +13,52 @@ struct AstronomyCoordinatesCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Divider()
-
-            Text("Astronomy Coordinates")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+            Text(L10n.text("Astronomy Coordinates"))
+                .font(SettingsTypography.controlTitle)
+                .foregroundStyle(.primary)
 
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .center, spacing: 10) {
                     HStack(spacing: 6) {
-                        Toggle("Use automatic location", isOn: $useAutomaticAstronomyLocation)
-                        InfoTipButton(text: "Uses your current location to fill latitude/longitude for sunrise, solar noon, sunset, and solar midnight calculation.")
+                        Toggle(L10n.text("Use automatic location"), isOn: $useAutomaticAstronomyLocation)
+                        InfoTipButton(text: L10n.text("Uses your current location to fill latitude/longitude for sunrise, solar noon, sunset, and solar midnight calculation."))
                     }
-                    Spacer(minLength: 8)
-                    Button("Detect now") {
+                    Button(L10n.text("Detect now")) {
                         onDetectNow()
                     }
                 }
+                .fixedSize(horizontal: true, vertical: false)
 
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 6) {
-                        Toggle("Use automatic location", isOn: $useAutomaticAstronomyLocation)
-                        InfoTipButton(text: "Uses your current location to fill latitude/longitude for sunrise, solar noon, sunset, and solar midnight calculation.")
+                        Toggle(L10n.text("Use automatic location"), isOn: $useAutomaticAstronomyLocation)
+                        InfoTipButton(text: L10n.text("Uses your current location to fill latitude/longitude for sunrise, solar noon, sunset, and solar midnight calculation."))
                     }
-                    Button("Detect now") {
+                    Button(L10n.text("Detect now")) {
                         onDetectNow()
                     }
                 }
+            }
+
+            if let locationStatus {
+                Text(locationStatus)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if !useAutomaticAstronomyLocation {
                 ViewThatFits(in: .horizontal) {
                     HStack(alignment: .top, spacing: 12) {
                         coordinateField(
-                            title: "Latitude",
+                            title: L10n.text("Latitude"),
                             text: $latitudeInput,
                             axis: .latitude
                         )
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                         coordinateField(
-                            title: "Longitude",
+                            title: L10n.text("Longitude"),
                             text: $longitudeInput,
                             axis: .longitude
                         )
@@ -61,12 +67,12 @@ struct AstronomyCoordinatesCard: View {
 
                     VStack(alignment: .leading, spacing: 10) {
                         coordinateField(
-                            title: "Latitude",
+                            title: L10n.text("Latitude"),
                             text: $latitudeInput,
                             axis: .latitude
                         )
                         coordinateField(
-                            title: "Longitude",
+                            title: L10n.text("Longitude"),
                             text: $longitudeInput,
                             axis: .longitude
                         )

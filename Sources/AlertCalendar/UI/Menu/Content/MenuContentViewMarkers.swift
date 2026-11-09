@@ -4,7 +4,77 @@ import MapKit
 import SwiftUI
 
 extension MenuContentView {
+    @ViewBuilder
+    func menuMarkerColumn(
+        for item: UpcomingItem,
+        isHovered: Bool = false,
+        rowMinimumHeight: CGFloat = MenuMarkerMetrics.singleLineRowMinimumHeight,
+        allowsReminderCompletion: Bool = false
+    ) -> some View {
+        MenuMarkerColumn {
+            if item.kind == .reminder, allowsReminderCompletion {
+                reminderCompletionMarkerButton(for: item, isHovered: isHovered)
+            } else if let markerSymbol = markerSymbolName(for: item) {
+                Image(systemName: markerSymbol)
+                    .font(.system(size: MenuMarkerMetrics.symbolSize, weight: .regular))
+                    .frame(
+                        width: MenuMarkerMetrics.symbolSize,
+                        height: MenuMarkerMetrics.symbolSize
+                    )
+                    .foregroundStyle(Color(nsColor: item.calendarColor.nsColor))
+                    .padding(.top, markerTopPadding(for: item))
+            } else if let image = markerImage(for: item, isReminderFilled: isHovered) {
+                let markerSize = markerImageSize(for: item)
+                Image(nsImage: image)
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: markerSize.width, height: markerSize.height)
+                    .padding(.top, markerTopPadding(for: item))
+            } else {
+                Capsule()
+                    .fill(Color(nsColor: item.calendarColor.nsColor))
+                    .frame(
+                        width: 4,
+                        height: Self.dropdownCalendarMarkerHeight(
+                            rowMinimumHeight: rowMinimumHeight
+                        )
+                    )
+                    .padding(.top, MenuMarkerMetrics.markerFirstLineTopPadding)
+            }
+        }
+    }
+
+    @ViewBuilder
+    func reminderCompletionMarkerButton(
+        for item: UpcomingItem,
+        isHovered: Bool
+    ) -> some View {
+        let markerSize = markerImageSize(for: item)
+
+        Button {
+            monitor.markReminderCompleted(item)
+        } label: {
+            Image(
+                nsImage: reminderMarkerImage(
+                    color: item.calendarColor.nsColor,
+                    isFilled: isHovered
+                )
+            )
+            .resizable()
+            .interpolation(.high)
+            .frame(width: markerSize.width, height: markerSize.height)
+            .padding(.top, markerTopPadding(for: item))
+        }
+        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+        .accessibilityLabel(L10n.text("Complete \(item.title)"))
+        .help(L10n.text("Complete reminder"))
+    }
+
     func markerImage(for item: UpcomingItem, isReminderFilled: Bool = false) -> NSImage? {
+        if let gameStore = item.gameStore {
+            return GameStoreSymbolProvider.image(for: gameStore, size: MenuMarkerMetrics.symbolSize)
+        }
         if item.kind == .reminder {
             return reminderMarkerImage(
                 color: item.calendarColor.nsColor,
@@ -49,32 +119,74 @@ extension MenuContentView {
         )
     }
 
+    nonisolated static func reminderScheduleText(
+        for item: UpcomingItem,
+        now: Date,
+        simplified: Bool,
+        timedText: String,
+        calendar: Calendar = .current
+    ) -> String {
+        guard item.hasExplicitTime else {
+            return AlertCalendarRelativeTimeFormatter.calendarDayRelativeText(
+                for: item.date,
+                relativeTo: now,
+                calendar: calendar
+            )
+        }
+        guard item.date <= now else { return timedText }
+        return reminderDueText(
+            dueDate: item.date,
+            now: now,
+            simplified: simplified
+        )
+    }
+
     func markerSymbolName(for item: UpcomingItem) -> String? {
         if monitor.isBirthdayItem(item) {
             return "gift.circle.fill"
         }
-        if item.kind == .event, item.isAllDay {
+        if item.kind == .event, item.isAllDay, item.gameStore == nil {
             return "calendar.circle.fill"
         }
         return nil
     }
 
     func astronomyMarkerImage(for moment: AstronomyMoment) -> NSImage {
-        if let image = AstronomyIconProvider.image(for: moment, pointSize: 13) {
+        if let image = AstronomyIconProvider.monochromeImage(
+            for: moment,
+            pointSize: MenuMarkerMetrics.symbolSize,
+            tintColor: .labelColor
+        ) {
             return image
         }
-        return NSImage(size: NSSize(width: 16, height: 12))
+        return NSImage(
+            size: NSSize(
+                width: MenuMarkerMetrics.symbolSize,
+                height: MenuMarkerMetrics.symbolSize
+            )
+        )
     }
 
     func markerTopPadding(for item: UpcomingItem) -> CGFloat {
-        item.kind == .reminder ? 0 : 2
+        if let gameStore = item.gameStore {
+            return Self.gameStoreMarkerTopPadding(for: gameStore)
+        }
+        return MenuMarkerMetrics.markerFirstLineTopPadding
+    }
+
+    nonisolated static func gameStoreMarkerTopPadding(for store: GameStore) -> CGFloat {
+        switch store {
+        case .steam:
+            return 1
+        case .nintendoSwitch:
+            return MenuMarkerMetrics.markerFirstLineTopPadding
+        case .xbox, .playStation:
+            return 0
+        }
     }
 
     func markerImageSize(for item: UpcomingItem) -> CGSize {
-        if AstronomyMoment(eventTitle: item.title) != nil {
-            return CGSize(width: 14, height: 14)
-        }
-        return CGSize(width: 12, height: 12)
+        CGSize(width: MenuMarkerMetrics.symbolSize, height: MenuMarkerMetrics.symbolSize)
     }
 
     enum ContextualPreviewKind: Equatable {
@@ -109,8 +221,8 @@ extension MenuContentView {
             return .daylight(daylightMoment)
         }
 
-        if let locationText = locationTextForMenuBarItem(item),
-           shouldShowPhysicalMap(for: item, locationText: locationText) {
+        if item.meetingURL == nil,
+           let locationText = locationTextForMenuBarItem(item) {
             return .location(locationText)
         }
 
@@ -122,14 +234,21 @@ extension MenuContentView {
     }
 
     func contextualCardMinimumWidth(for item: UpcomingItem) -> CGFloat {
-        guard let previewKind = contextualPreviewKind(for: item) else {
+        contextualCardMinimumWidth(for: item, previewKind: contextualPreviewKind(for: item))
+    }
+
+    func contextualCardMinimumWidth(
+        for item: UpcomingItem,
+        previewKind: ContextualPreviewKind?
+    ) -> CGFloat {
+        guard let previewKind else {
             return minimumSingleColumnDropdownWidth
         }
 
         switch previewKind {
         case .daylight:
-            let titleFont = NSFont.systemFont(ofSize: 12, weight: .semibold)
-            let timeFont = NSFont.systemFont(ofSize: 11, weight: .medium)
+            let titleFont = MenuMarkerMetrics.rowTitleNSFont
+            let timeFont = MenuMarkerMetrics.rowDetailNSFont
             let titleWidth = Self.measuredTextWidth(item.title, font: titleFont)
             let timeWidth = Self.measuredTextWidth(timeText(item.date), font: timeFont)
 
@@ -138,7 +257,7 @@ extension MenuContentView {
             let popupChromeWidth = (dropdownOuterPadding * 2) + 16
             return ceil(headerWidth + popupChromeWidth)
         case let .attendees(_, attendees):
-            let detailFont = NSFont.systemFont(ofSize: 11, weight: .medium)
+            let detailFont = MenuMarkerMetrics.rowDetailNSFont
             let widestAttendeeWidth = attendees
                 .prefix(6)
                 .map { Self.measuredTextWidth($0.displayText, font: detailFont) }
@@ -146,16 +265,24 @@ extension MenuContentView {
             let iconAllowance: CGFloat = 22
             let columnWidth = min(max(148, widestAttendeeWidth + iconAllowance), 190)
             let popupChromeWidth = (dropdownOuterPadding * 2) + 16
-            return ceil(max(392, (columnWidth * 2) + 12 + popupChromeWidth))
+            return ceil(max(320, columnWidth + popupChromeWidth))
         case .location:
             return minimumSingleColumnDropdownWidth
         }
     }
 
     func queueItemMinimumWidth(for item: UpcomingItem) -> CGFloat {
-        let titleFont = NSFont.systemFont(ofSize: 12, weight: .semibold)
-        let detailFont = NSFont.systemFont(ofSize: 11, weight: .medium)
-        let titleWidth = Self.measuredTextWidth(item.title, font: titleFont)
+        let titleFont = MenuMarkerMetrics.rowTitleNSFont
+        let detailFont = MenuMarkerMetrics.rowDetailNSFont
+        let accessorySymbolNames = monitor.menuBarAccessorySymbolNames(for: item)
+        let visibleTitle = dropdownVisibleTitle(for: item)
+        let measuredTitleWidth = Self.measuredTextWidth(visibleTitle, font: titleFont)
+        let titleWidth = Self.dropdownMeasuredTitleWidth(
+            visibleTitle: visibleTitle,
+            accessorySymbolNames: accessorySymbolNames,
+            titleFont: titleFont
+        )
+        let hoveredTitleWidth = measuredTitleWidth
         let markerColumnWidth: CGFloat = 20
         let spacingAfterMarker: CGFloat = 8
         let contentSpacing: CGFloat = 6
@@ -171,10 +298,10 @@ extension MenuContentView {
         )
         let showRightTimeColumn = usesEventStyleLayout && (!item.isAllDay || allDayRightLabel != nil)
         if showRightTimeColumn {
-            let startWidth = Self.measuredTextWidth(timeText(item.date), font: detailFont)
+            let startWidth = Self.measuredTextWidth(timedEventClockText(item.date, for: item), font: detailFont)
             let endWidth: CGFloat
             if let endDate = item.endDate, endDate > item.date {
-                endWidth = Self.measuredTextWidth(timeText(endDate), font: detailFont)
+                endWidth = Self.measuredTextWidth(timedEventClockText(endDate, for: item), font: detailFont)
             } else if let allDayRightLabel {
                 endWidth = Self.measuredTextWidth(allDayRightLabel, font: detailFont)
             } else {
@@ -184,71 +311,49 @@ extension MenuContentView {
         }
 
         let headerWidth = markerColumnWidth + spacingAfterMarker + titleWidth + (showRightTimeColumn ? (contentSpacing + rightColumnWidth) : 0)
-        let hoveredWidth = markerColumnWidth + spacingAfterMarker + titleWidth + contentSpacing + hoverActionRowWidth(for: item)
+        let hoveredWidth = markerColumnWidth + spacingAfterMarker + hoveredTitleWidth + contentSpacing + hoverActionRowWidth(for: item)
         return ceil(max(headerWidth, hoveredWidth) + popupChromeWidth)
     }
 
-    func hoverActionRowWidth(for item: UpcomingItem) -> CGFloat {
-        var widths: [CGFloat] = []
-
-        if item.meetingURL != nil {
-            widths.append(joinActionPillWidth())
-        }
-
-        widths.append(skipActionPillWidth())
-
-        return actionButtonOverlayWidth(for: widths, trailingPadding: 2)
-    }
-
-    func contextualActionRowWidth(
-        for item: UpcomingItem,
-        locationText: String?,
-        showsJoinButton: Bool
+    static func dropdownMeasuredTitleWidth(
+        visibleTitle: String,
+        accessorySymbolNames: [String],
+        titleFont: NSFont
     ) -> CGFloat {
-        var widths: [CGFloat] = [skipActionPillWidth()]
-
-        if showsJoinButton, item.meetingURL != nil {
-            widths.insert(joinActionPillWidth(), at: 0)
-        }
-
-        if let locationText,
-           !locationText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            widths.append(mapActionPillWidth())
-        }
-
-        return actionButtonOverlayWidth(for: widths, trailingPadding: 6)
+        measuredTextWidth(visibleTitle, font: titleFont)
+            + MenuBarStatusLabel.accessorySymbolsWidth(
+                symbolNames: accessorySymbolNames,
+                font: titleFont
+            )
     }
 
     func joinActionPillWidth() -> CGFloat {
-        let pillHorizontalPadding: CGFloat = 12
-        let joinTextFont = NSFont.systemFont(ofSize: 11, weight: .semibold)
-        let joinTextWidth = Self.measuredTextWidth("Join", font: joinTextFont)
-        return joinTextWidth + pillHorizontalPadding
+        MenuActionControlMetrics.minimumHitTargetSize
     }
 
     func mapActionPillWidth() -> CGFloat {
-        let pillHorizontalPadding: CGFloat = 12
-        let mapTextFont = NSFont.systemFont(ofSize: 11, weight: .semibold)
-        let mapTextWidth = Self.measuredTextWidth("Map", font: mapTextFont)
-        let mapIconWidth: CGFloat = 11
-        let mapInnerSpacing: CGFloat = 4
-        return mapIconWidth + mapInnerSpacing + mapTextWidth + pillHorizontalPadding
+        MenuActionControlMetrics.minimumHitTargetSize
+    }
+
+    func openLinkActionPillWidth() -> CGFloat {
+        MenuActionControlMetrics.minimumHitTargetSize
     }
 
     func skipActionPillWidth() -> CGFloat {
-        let pillHorizontalPadding: CGFloat = 12
-        let skipTextFont = NSFont.systemFont(ofSize: 11, weight: .semibold)
-        let skipTextWidth = Self.measuredTextWidth("Skip", font: skipTextFont)
-        return skipTextWidth + pillHorizontalPadding
+        MenuActionControlMetrics.minimumHitTargetSize
+    }
+
+    func completeActionPillWidth() -> CGFloat {
+        MenuActionControlMetrics.minimumHitTargetSize
     }
 
     func actionButtonOverlayWidth(for widths: [CGFloat], trailingPadding: CGFloat) -> CGFloat {
-        let pillHeight: CGFloat = 18
-        let pillSpacing: CGFloat = 4
-
         guard !widths.isEmpty else { return 0 }
-        let totalSpacing = pillSpacing * CGFloat(max(widths.count - 1, 0))
-        return widths.reduce(0, +) + totalSpacing + trailingPadding + pillHeight
+        let totalSpacing = MenuActionControlMetrics.controlSpacing * CGFloat(max(widths.count - 1, 0))
+        return widths.reduce(0, +)
+            + totalSpacing
+            + trailingPadding
+            + MenuActionControlMetrics.leadingClearance
     }
 
     var contextualActionCandidates: [UpcomingItem] {
@@ -269,7 +374,7 @@ extension MenuContentView {
     }
 
     var displayedContextualActionItems: [UpcomingItem] {
-        shouldUseSplitDropdownLayout ? footballContextualActionItems : contextualPreviewActionItems
+        shouldUseSplitDropdownLayout ? splitContextualActionItemsForSplitLayout : contextualPreviewActionItems
     }
 
     nonisolated static func contextualActionItems(
@@ -318,12 +423,16 @@ extension MenuContentView {
         )
     }
 
+    nonisolated static func contextualFootballLayoutItemCount(from displayedContextualItems: [UpcomingItem]) -> Int {
+        displayedContextualItems.contains { $0.footballMatch != nil } ? displayedContextualItems.count : 0
+    }
+
     nonisolated static func shouldShowContextualMapPreview(
         for item: UpcomingItem,
-        concurrentFootballMatchCount: Int
+        contextualItemCount: Int
     ) -> Bool {
         guard item.footballMatch != nil else { return true }
-        return concurrentFootballMatchCount < 3
+        return contextualItemCount < 3
     }
 
 }

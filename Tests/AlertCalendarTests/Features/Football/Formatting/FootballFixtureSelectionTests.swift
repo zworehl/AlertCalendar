@@ -176,6 +176,42 @@ final class FootballFixtureSelectionTests: FootballFixtureFormatterTestCase {
             ["known"]
         )
     }
+    func testLiveAndNextDayMatchesIncludeResolvedWorldCupKnockoutFixtureWithoutCachedCountryDetails() {
+        let calendar = Calendar(identifier: .gregorian)
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+
+        let match = makeMatch(
+            id: "canada-south-africa",
+            startDate: calendar.date(byAdding: .hour, value: 4, to: now)!,
+            statusState: .scheduled,
+            competitionSlug: "fifa.world",
+            homeTeam: FootballTeamSummary(
+                id: "467",
+                name: "South Africa",
+                abbreviation: "RSA",
+                logoURL: nil,
+                countryName: nil,
+                isNational: true
+            ),
+            awayTeam: FootballTeamSummary(
+                id: "206",
+                name: "Canada",
+                abbreviation: "CAN",
+                logoURL: nil,
+                countryName: nil,
+                isNational: true
+            )
+        )
+
+        XCTAssertEqual(
+            CalendarMonitor.liveAndNextDayMatches(
+                from: [match],
+                now: now,
+                calendar: calendar
+            ).map(\.id),
+            ["canada-south-africa"]
+        )
+    }
     func testUpcomingManagedFootballMatchesIncludeLiveAndFutureButExcludeFinished() {
         let calendar = Calendar(identifier: .gregorian)
         let now = Date(timeIntervalSince1970: 1_720_000_000)
@@ -266,4 +302,82 @@ final class FootballFixtureSelectionTests: FootballFixtureFormatterTestCase {
             ).map(\.id),
             ["known"]
         )
-    }}
+    }
+
+    func testFootballMatchesEligibleForAutoAddOnlyIncludeNewPlayableEnabledMatches() {
+        let calendar = Calendar(identifier: .gregorian)
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let enabledSlug = FootballCompetitionPreset.championsLeague.slug
+
+        let live = makeMatch(
+            id: "live",
+            startDate: calendar.date(byAdding: .minute, value: -30, to: now)!,
+            statusState: .inProgress,
+            competitionSlug: enabledSlug
+        )
+        let upcoming = makeMatch(
+            id: "upcoming",
+            startDate: calendar.date(byAdding: .hour, value: 5, to: now)!,
+            statusState: .scheduled,
+            competitionSlug: enabledSlug
+        )
+        let managed = makeMatch(
+            id: "managed",
+            startDate: calendar.date(byAdding: .hour, value: 6, to: now)!,
+            statusState: .scheduled,
+            competitionSlug: enabledSlug
+        )
+        let finished = makeMatch(
+            id: "finished",
+            startDate: calendar.date(byAdding: .hour, value: -2, to: now)!,
+            statusState: .finished,
+            competitionSlug: enabledSlug
+        )
+        let disabledCompetition = makeMatch(
+            id: "disabled",
+            startDate: calendar.date(byAdding: .hour, value: 7, to: now)!,
+            statusState: .scheduled,
+            competitionSlug: FootballCompetitionPreset.majorLeagueSoccer.slug
+        )
+        let unknownParticipant = makeMatch(
+            id: "unknown",
+            startDate: calendar.date(byAdding: .hour, value: 8, to: now)!,
+            statusState: .scheduled,
+            competitionSlug: enabledSlug,
+            awayTeam: FootballTeamSummary(
+                id: "17629",
+                name: "Quarterfinal 2 Winner",
+                abbreviation: "QFW2",
+                logoURL: nil,
+                countryName: nil,
+                isNational: false
+            )
+        )
+
+        XCTAssertEqual(
+            CalendarMonitor.footballMatchesEligibleForAutoAdd(
+                [upcoming, finished, disabledCompetition, live, unknownParticipant, managed],
+                enabledCompetitionSlugs: [enabledSlug],
+                managedMatchIDs: ["managed"],
+                now: now
+            ).map(\.id),
+            ["live", "upcoming"]
+        )
+    }
+
+    func testNormalizedFootballAutoAddCompetitionSlugsKeepKnownMenuOrder() {
+        XCTAssertEqual(
+            CalendarMonitor.normalizedFootballAutoAddCompetitionSlugs([
+                "not-real",
+                FootballCompetitionPreset.championsLeague.slug,
+                " ",
+                FootballCompetitionPreset.majorLeagueSoccer.slug,
+                FootballCompetitionPreset.championsLeague.slug,
+            ]),
+            [
+                FootballCompetitionPreset.majorLeagueSoccer.slug,
+                FootballCompetitionPreset.championsLeague.slug,
+            ]
+        )
+    }
+}

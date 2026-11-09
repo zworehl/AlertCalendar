@@ -64,6 +64,7 @@ final class FootballDataAPIClientGoalScorerParsingTests: FootballDataAPIClientTe
         XCTAssertEqual(scorers?.home.map(\.name), ["Lionel Messi", "Julian Alvarez"])
         XCTAssertEqual(scorers?.away.map(\.name), ["Carlos Mejia"])
         XCTAssertEqual(scorers?.home.map(\.minute), ["12'", "81'"])
+        XCTAssertEqual(scorers?.home.map(\.isPenalty), [false, true])
     }
     func testMatchGoalScorersReturnsNilWhenScoreIsZeroZero() {
         let match = makeMatch(
@@ -163,6 +164,126 @@ final class FootballDataAPIClientGoalScorerParsingTests: FootballDataAPIClientTe
 
         XCTAssertEqual(scorers?.home.map(\.name), ["Dominic Chanda (OG)"])
         XCTAssertEqual(scorers?.home.map(\.minute), ["68'"])
+        XCTAssertEqual(scorers?.home.map(\.isOwnGoal), [true])
+    }
+
+    func testMatchGoalScorersParsesParticipantAthleteID() {
+        let match = FootballTestData.match(
+            id: "club-goal-match",
+            statusState: .finished,
+            statusText: "FT",
+            homeScore: "0",
+            awayScore: "1"
+        )
+        let root: [String: Any] = [
+            "header": [
+                "competitions": [[
+                    "competitors": [
+                        [
+                            "homeAway": "home",
+                            "team": [
+                                "id": "83",
+                                "displayName": "Barcelona",
+                            ],
+                        ],
+                        [
+                            "homeAway": "away",
+                            "team": [
+                                "id": "132",
+                                "displayName": "Bayern Munich",
+                            ],
+                        ],
+                    ],
+                ]],
+            ],
+            "keyEvents": [
+                [
+                    "scoringPlay": true,
+                    "team": ["id": "132"],
+                    "clock": ["displayValue": "18'"],
+                    "participants": [
+                        ["athlete": ["id": "142200", "displayName": "Harry Kane"]],
+                    ],
+                    "type": ["text": "Goal - Volley"],
+                    "text": "Goal! Barcelona 0, FC Bayern München 1. Harry Kane (FC Bayern München) right footed shot.",
+                ],
+            ],
+        ]
+
+        let scorers = FootballDataAPIClient.matchGoalScorers(from: root, match: match)
+
+        XCTAssertEqual(scorers?.away.first?.name, "Harry Kane")
+        XCTAssertEqual(scorers?.away.first?.athleteID, "142200")
+        XCTAssertFalse(scorers?.away.first?.isPenalty ?? true)
+    }
+
+    func testFetchGoalScorersEnrichesParticipantCountryFromAthleteEndpoint() async throws {
+        let match = FootballTestData.match(
+            id: "club-goal-country-match",
+            statusState: .finished,
+            statusText: "FT",
+            homeScore: "0",
+            awayScore: "1"
+        )
+        let session = makeMockSession { request in
+            let url = try XCTUnwrap(request.url)
+            if url.host == "sports.core.api.espn.com" {
+                XCTAssertTrue(url.path.hasSuffix("/sports/soccer/athletes/142200"))
+                return try self.jsonResponse(
+                    for: request,
+                    body: [
+                        "id": "142200",
+                        "displayName": "Harry Kane",
+                        "citizenship": "England",
+                        "flag": ["alt": "England"],
+                    ]
+                )
+            }
+
+            return try self.jsonResponse(
+                for: request,
+                body: [
+                    "header": [
+                        "competitions": [[
+                            "competitors": [
+                                [
+                                    "homeAway": "home",
+                                    "team": [
+                                        "id": "83",
+                                        "displayName": "Barcelona",
+                                    ],
+                                ],
+                                [
+                                    "homeAway": "away",
+                                    "team": [
+                                        "id": "132",
+                                        "displayName": "Bayern Munich",
+                                    ],
+                                ],
+                            ],
+                        ]],
+                    ],
+                    "keyEvents": [
+                        [
+                            "scoringPlay": true,
+                            "team": ["id": "132"],
+                            "clock": ["displayValue": "18'"],
+                            "participants": [
+                                ["athlete": ["id": "142200", "displayName": "Harry Kane"]],
+                            ],
+                            "type": ["text": "Goal"],
+                            "text": "Goal! Barcelona 0, FC Bayern München 1. Harry Kane (FC Bayern München) right footed shot.",
+                        ],
+                    ],
+                ]
+            )
+        }
+        let client = FootballDataAPIClient(session: session)
+
+        let scorers = try await client.fetchGoalScorers(for: match)
+
+        XCTAssertEqual(scorers?.away.first?.name, "Harry Kane")
+        XCTAssertEqual(scorers?.away.first?.countryName, "England")
     }
     func testFetchGoalScorersDoesNotCacheIncompleteResults() async throws {
         let match = makeMatch(
