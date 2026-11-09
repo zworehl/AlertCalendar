@@ -70,6 +70,10 @@ extension SettingsView {
                         || dataRefreshIssues.contains { $0.id.hasPrefix("game-sales.") },
                     appliedDate: externalFeedDiagnostics.latestAppliedDate(sourcePrefix: "game-sales.")
                 )
+            case .esports:
+                // Provider freshness is also shown by the independently observed
+                // esports pane. The action bar reports the Calendar snapshot.
+                return PollingFreshness(title: L10n.text("Calendar"), date: lastRefreshDate)
             }
         case .integrations:
             return PollingFreshness(title: "Slack", date: lastSlackStatusSyncDate)

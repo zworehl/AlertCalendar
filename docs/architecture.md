@@ -78,6 +78,8 @@ Do the split only after current import rules are clean enough that the move is m
 
 ## Calendar mutation boundaries
 
+Esports has a separate `EsportsRuntime` and domain models. Its native Calendar adapter reads selected, Focus-visible sources; a provider match is never inferred from a local title. Possible local duplicates remain read-only. The optional personal REST connection uses a revisioned credential vault, an actor-backed cache and the shared HTTP recovery policy. Calendar ownership is recorded only after a committed mutation, and generic calendar alert rules leave managed esports alarms to the feed's own policy. See [the esports pilot](esports.md).
+
 `CalendarMutationCoordinator` stages and commits a synchronous batch without yielding the main actor. A failed save, removal, or commit resets the store before the monitor publishes ownership changes. Managed football records remain available during temporary read or write failures. `CalendarAlertFullSyncCoordinator` persists completed date windows per rules fingerprint, retries only pending windows with bounded backoff, and writes the final completion marker only after all windows succeed.
 
 ## Persistence and optional enrichment

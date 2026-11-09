@@ -114,6 +114,7 @@ extension SettingsView {
         let googleHolidayConfigurationChanged = settings.googleHolidayTargetCalendarID
                 != previousSettings.googleHolidayTargetCalendarID
             || settings.googleHolidayCountryIDs != previousSettings.googleHolidayCountryIDs
+        let esportsConfigurationChanged = settings.esports != previousSettings.esports
 
         if settings != previousSettings {
             monitor.persistSettings(settings)
@@ -142,6 +143,9 @@ extension SettingsView {
         }
 
         Task { @MainActor in
+            if esportsConfigurationChanged {
+                await monitor.refreshEsports(force: true)
+            }
             if footballConfigurationChanged {
                 let now = AlertCalendarClock.nowRoundedToSecond()
                 await monitor.syncAutoAddedFootballMatchesIfNeeded(now: now, force: true)
@@ -158,11 +162,24 @@ extension SettingsView {
             }
 
             await applyPendingContentChanges(stagedChanges)
+            // Successful managed additions can include their destination in the
+            // visible source selection. Preserve that change in this same draft.
+            draft.selectedEventCalendarIDs = monitor.currentSettings.selectedEventCalendarIDs
             isApplyingChanges = false
         }
     }
 
     func applyPendingContentChanges(_ stagedChanges: SettingsPendingChanges) async {
+        for change in stagedChanges.esportsMatches.values.sorted(by: { $0.item.id < $1.item.id }) {
+            let succeeded: Bool
+            switch change.mutation {
+            case .add:
+                succeeded = await monitor.esportsRuntime.addMatch(change.item)
+            case .remove:
+                succeeded = monitor.esportsRuntime.removeMatch(change.item)
+            }
+            if !succeeded { pendingChanges.esportsMatches[change.item.id] = change }
+        }
         let footballChanges = stagedChanges.footballFixtures.values.sorted {
             if $0.item.startDate != $1.item.startDate {
                 return $0.item.startDate < $1.item.startDate

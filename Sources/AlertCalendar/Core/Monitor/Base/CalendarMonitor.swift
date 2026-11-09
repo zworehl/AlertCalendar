@@ -75,6 +75,19 @@ final class CalendarMonitor: ObservableObject {
     let eventStore: EKEventStore
     let calendarMutations: CalendarMutationCoordinator
     let startsBackgroundServices: Bool
+    lazy var esportsRuntime: EsportsRuntime = {
+        let runtime = EsportsRuntime(
+            eventStore: eventStore, mutations: calendarMutations, defaults: defaults,
+            startsServices: startsBackgroundServices
+        )
+        runtime.onCalendarAdded = { [weak self] calendarID in
+            guard let self, !currentSettings.selectedEventCalendarIDs.contains(calendarID) else { return }
+            var settings = currentSettings
+            settings.selectedEventCalendarIDs.insert(calendarID)
+            persistSettings(settings)
+        }
+        return runtime
+    }()
     let cacheRepository = CalendarCacheRepository()
     var persistentCacheRestoreTask: Task<CalendarPersistentCacheSnapshot, Never>?
     var didRestorePersistentCaches = false
@@ -340,6 +353,7 @@ final class CalendarMonitor: ObservableObject {
             || currentSettings.useLinkedPagePreviewsInAgendaSummary != settings.useLinkedPagePreviewsInAgendaSummary
         if defaults === UserDefaults.standard { AlertCalendarLanguage.current = settings.language }
         currentSettings = settings
+        configureEsportsRuntime()
         if shouldInvalidateAgendaSummary {
             cancelAgendaSummary()
         }

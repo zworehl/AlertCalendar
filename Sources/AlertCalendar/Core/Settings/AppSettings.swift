@@ -1,6 +1,7 @@
 import Foundation
 
 struct AppSettings: Equatable {
+    var esports: EsportsSettings = .defaults
     var language: AppLanguage = .english
     var includeEvents: Bool
     var includeAllDayEvents: Bool
