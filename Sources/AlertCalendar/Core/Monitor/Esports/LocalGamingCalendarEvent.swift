@@ -29,7 +29,7 @@ enum GamingCalendarClassifier {
         let heading = normalized(plainTitle + " " + calendarName)
         let officialLoLURL = url?.host?.lowercased().split(separator: ".").suffix(2).joined(separator: ".") == "lolesports.com"
             || (notes ?? "").range(of: #"https://(?:[a-z0-9-]+\.)?lolesports\.com(?:/|\s|$)"#, options: [.regularExpression, .caseInsensitive]) != nil
-        let matches = EsportsGame.allCases.filter { game in
+        let matches = EsportsCatalog.games.filter { game in
             aliases(for: game).contains { contains($0, in: $0.count <= 4 ? heading : context) }
                 || (game == .leagueOfLegends && officialLoLURL)
         }
@@ -63,9 +63,7 @@ enum GamingCalendarClassifier {
         case .counterStrike2: ["counter-strike", "counter strike", "cs2", "csgo", "cs:go"]
         case .rocketLeague: ["rocket league", "rlcs"]
         case .starCraft2: ["starcraft ii", "starcraft 2", "starcraft2", "sc2"]
-        case .ageOfEmpires2: ["age of empires ii", "age of empires 2", "aoe2", "aoe ii", "wololo", "hidden cup"]
-        case .geoGuessr: ["geoguessr"]
-        case .granTurismo7: ["gran turismo 7", "gran turismo", "gt7", "gt world series", "gtws"]
+        case .ageOfEmpires2, .geoGuessr, .granTurismo7: []
         }
     }
 
@@ -75,9 +73,7 @@ enum GamingCalendarClassifier {
         case .counterStrike2: ["iem", "esl", "blast", "major", "pgl"]
         case .rocketLeague: ["rlcs"]
         case .starCraft2: ["gsl", "esl", "iem", "wcs"]
-        case .ageOfEmpires2: ["wololo", "hidden cup", "king of the desert", "nac"]
-        case .geoGuessr: ["world league"]
-        case .granTurismo7: ["gt world series", "gtws", "nations cup", "manufacturers cup"]
+        case .ageOfEmpires2, .geoGuessr, .granTurismo7: []
         }
     }
 }

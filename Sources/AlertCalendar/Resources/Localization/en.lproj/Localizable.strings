@@ -814,7 +814,7 @@
 "Calendar event found" = "Calendar event found";
 "Canceled" = "Canceled";
 "Choose a writable event calendar before adding esports matches." = "Choose a writable event calendar before adding esports matches.";
-"Choose which supported games to fetch after Apply. Calendar matches remain available for all seven games." = "Choose which supported games to fetch after Apply. Calendar matches remain available for all seven games.";
+"Choose which supported games to fetch after Apply." = "Choose which supported games to fetch after Apply.";
 "Competition filters apply to PandaScore matches. Calendar events keep their original titles." = "Competition filters apply to PandaScore matches. Calendar events keep their original titles.";
 "Competition unavailable" = "Competition unavailable";
 "Connect" = "Connect";
@@ -857,7 +857,6 @@
 "Pending addition" = "Pending addition";
 "Pending removal" = "Pending removal";
 "Postponed" = "Postponed";
-"Provider coverage is unavailable for this game. Its Apple Calendar matches remain available." = "Provider coverage is unavailable for this game. Its Apple Calendar matches remain available.";
 "Provider games" = "Provider games";
 "Read-only calendar event" = "Read-only calendar event";
 "Refreshing esports…" = "Refreshing esports…";

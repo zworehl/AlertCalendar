@@ -31,6 +31,7 @@ enum SettingsEsportsPresentation {
     static func competitions(in matches: [EsportsMatch], game: EsportsGame?) -> [SettingsEsportsCompetition] {
         var unique: [String: SettingsEsportsCompetition] = [:]
         for match in matches where game == nil || match.game == game {
+            guard EsportsCatalog.supports(match.game) else { continue }
             guard let competitionID = match.competitionID else { continue }
             let key = "\(match.game.rawValue):\(competitionID)"
             guard !match.competitionName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
@@ -55,7 +56,7 @@ enum SettingsEsportsPresentation {
         var byID = Dictionary(matches.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
         for (id, change) in pending where change.mutation == .add { byID[id] = change.item }
         return byID.values.filter { match in
-            guard game == nil || match.game == game else { return false }
+            guard EsportsCatalog.supports(match.game), game == nil || match.game == game else { return false }
             if let competitionKey {
                 guard let id = match.competitionID,
                       competitionKey == "\(match.game.rawValue):\(id)" else { return false }
@@ -83,7 +84,8 @@ enum SettingsEsportsPresentation {
         preferences: EsportsSettings, now: Date
     ) -> [LocalGamingCalendarEvent] {
         events.filter { event in
-            guard event.kind == .competitive, game == nil || event.game == game else { return false }
+            guard EsportsCatalog.supports(event.game), event.kind == .competitive,
+                  game == nil || event.game == game else { return false }
             if mode == .nowAndNextDay {
                 return event.startDate <= now.addingTimeInterval(86_400)
                     && (event.endDate ?? event.startDate) >= now

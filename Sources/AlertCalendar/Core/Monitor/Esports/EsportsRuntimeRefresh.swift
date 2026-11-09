@@ -88,6 +88,7 @@ extension EsportsRuntime {
             guard let start = event.startDate, let calendar = event.calendar,
                   selectedCalendarIDs.contains(calendar.calendarIdentifier),
                   let classification = GamingCalendarClassifier.classify(title: event.title ?? "", notes: event.notes, url: event.url, calendarName: calendar.title),
+                  EsportsCatalog.supports(classification.0),
                   classification.1 == .competitive else { continue }
             let reference = GamingCalendarClassifier.providerReference(in: event.notes)
             if let reference, let record = records[reference], record.calendarID == calendar.calendarIdentifier,

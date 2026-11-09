@@ -45,9 +45,15 @@ final class EsportsStorageAndPolicyTests: XCTestCase {
         XCTAssertFalse(PandaScoreTokenKeychainStore.isValid(String(repeating: "x", count: 4_097)))
     }
 
-    func testCatalogSeparatesVerifiedProviderCoverage() {
-        XCTAssertEqual(EsportsCatalog.games.count, 7)
-        XCTAssertEqual(Set(EsportsCatalog.providerGames), [.leagueOfLegends, .counterStrike2, .rocketLeague, .starCraft2])
+    func testCatalogExposesOnlyVerifiedProviderCoverageAndDecodesLegacyGames() throws {
+        let supported: Set<EsportsGame> = [.leagueOfLegends, .counterStrike2, .rocketLeague, .starCraft2]
+        XCTAssertEqual(Set(EsportsCatalog.games), supported)
+        XCTAssertEqual(Set(EsportsCatalog.providerGames), supported)
+        for game in [EsportsGame.ageOfEmpires2, .geoGuessr, .granTurismo7] {
+            let restored = try JSONDecoder().decode(EsportsGame.self, from: JSONEncoder().encode(game))
+            XCTAssertEqual(restored, game)
+            XCTAssertFalse(EsportsCatalog.supports(restored))
+        }
         XCTAssertNil(EsportsGame.geoGuessr.providerSlug)
         XCTAssertNil(EsportsGame.ageOfEmpires2.providerSlug)
         XCTAssertNil(EsportsGame.granTurismo7.providerSlug)

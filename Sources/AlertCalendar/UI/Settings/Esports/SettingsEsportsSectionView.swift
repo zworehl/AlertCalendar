@@ -132,9 +132,7 @@ struct SettingsEsportsSectionView: View {
     var providerSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             sectionHeader("PandaScore", count: displayedProviderMatches.count, symbol: "trophy")
-            if let game = selectedGame, game.providerSlug == nil {
-                feedback(L10n.text("Provider coverage is unavailable for this game. Its Apple Calendar matches remain available."))
-            } else if !runtime.isConnected && displayedProviderMatches.isEmpty {
+            if !runtime.isConnected && displayedProviderMatches.isEmpty {
                 feedback(L10n.text("Connect PandaScore to browse supported schedules and results."))
             } else if displayedProviderMatches.isEmpty {
                 feedback(runtime.isRefreshing ? L10n.text("Loading esports matches…") : L10n.text("No provider matches in this view."))

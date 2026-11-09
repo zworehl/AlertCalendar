@@ -85,7 +85,7 @@ extension SettingsEsportsSectionView {
             Text(L10n.text("Game")).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             selectionRow(title: L10n.text("All games"), count: matches.count + events.count,
                          isSelected: selectedGame == nil, id: "game.all") { selectedGame = nil }
-            ForEach(EsportsGame.allCases) { game in
+            ForEach(EsportsCatalog.games) { game in
                 selectionRow(title: game.displayName, count: counts[game] ?? 0,
                              isSelected: selectedGame == game, id: "game.\(game.rawValue)") { selectedGame = game }
             }

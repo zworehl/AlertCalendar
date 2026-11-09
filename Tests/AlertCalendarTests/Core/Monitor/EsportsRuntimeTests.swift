@@ -227,6 +227,20 @@ final class EsportsRuntimeTests: XCTestCase {
         XCTAssertEqual(runtime.presence(of: item), .absent)
     }
 
+    func testConfigurationDiscardsUnsupportedLocalProjectionWithoutWritingCalendar() {
+        let (runtime, calendar, defaults) = makeRuntime()
+        let supported = local(game: .leagueOfLegends, start: reference)
+        let unsupported = [EsportsGame.ageOfEmpires2, .geoGuessr, .granTurismo7].map { local(game: $0, start: reference) }
+        runtime.localEvents = [supported] + unsupported
+        var settings = configuredSettings(); settings.lookbackDays = 30
+        runtime.configure(settings: settings, selectedCalendarIDs: ["target"], hasEventsAccess: true)
+        XCTAssertEqual(runtime.localEvents, [supported])
+        XCTAssertEqual(calendar.commits, 0)
+        XCTAssertEqual(calendar.removals, 0)
+        XCTAssertTrue(calendar.pendingSave.isEmpty)
+        XCTAssertNil(defaults.data(forKey: EsportsRuntime.recordsKey))
+    }
+
     func testCredentialVaultRejectsLateOldSaveAfterDisconnectAndTermination() async throws {
         let tokens = EsportsTestTokenStore()
         let vault = EsportsCredentialVault(store: tokens)

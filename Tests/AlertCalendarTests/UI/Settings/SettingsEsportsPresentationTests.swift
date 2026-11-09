@@ -70,15 +70,29 @@ final class SettingsEsportsPresentationTests: XCTestCase {
         XCTAssertTrue(visible([fixture], mode: .added, managed: [fixture.id], pending: removed).isEmpty)
     }
 
-    func testUnsupportedProviderGameStillShowsCompetitiveLocalEventsWithoutGamingNews() {
-        let competition = local("competition", game: .ageOfEmpires2, kind: .competitive)
-        let release = local("release", game: .ageOfEmpires2, kind: .gamingEvent)
-        let other = local("other", game: .geoGuessr, kind: .competitive)
+    func testSupportedCalendarCompetitionRemainsVisibleWithoutGamingNews() {
+        let competition = local("competition", game: .starCraft2, kind: .competitive)
+        let release = local("release", game: .starCraft2, kind: .gamingEvent)
+        let other = local("other", game: .counterStrike2, kind: .competitive)
         let shown = SettingsEsportsPresentation.visibleLocalEvents(
-            [competition, release, other], game: .ageOfEmpires2, mode: .schedule,
+            [competition, release, other], game: .starCraft2, mode: .schedule,
             preferences: .defaults, now: now
         )
         XCTAssertEqual(shown.map(\.id), [competition.id])
+    }
+
+    func testLegacyUnsupportedGamesCannotReappearThroughCachedCardsOrPendingChanges() {
+        let unsupported = [EsportsGame.ageOfEmpires2, .geoGuessr, .granTurismo7]
+        let matches = unsupported.enumerated().map { index, game in match(index + 1, date: now, game: game) }
+        let events = unsupported.map { local($0.rawValue, game: $0, kind: .competitive) }
+        let pending = Dictionary(uniqueKeysWithValues: matches.map { ($0.id, SettingsPendingItemChange(item: $0, mutation: .add)) })
+        for mode in SettingsEsportsBrowseMode.allCases {
+            XCTAssertTrue(visible(matches, mode: mode, managed: Set(matches.map(\.id)), pending: pending).isEmpty)
+            XCTAssertTrue(SettingsEsportsPresentation.visibleLocalEvents(
+                events, game: nil, mode: mode, preferences: .defaults, now: now
+            ).isEmpty)
+        }
+        XCTAssertTrue(SettingsEsportsPresentation.competitions(in: matches, game: nil).isEmpty)
     }
 
     func testPendingChangesRemainUndoableAfterCalendarAccessOrDestinationDisappears() {

@@ -162,6 +162,32 @@ final class PandaScoreClientTests: IntegrationHTTPTestCase {
         XCTAssertTrue(result.isComplete)
     }
 
+    func testMissingTrackedDetailsRotateIndependentlyAcrossInterleavedGames() async throws {
+        let log = IntegrationRequestLog()
+        let client = PandaScoreClient(session: session { request in
+            let path = request.url!.path
+            log.record(path)
+            guard path.hasPrefix("/matches/"), let id = Int(request.url!.lastPathComponent) else {
+                return self.reply(request, body: "[]")
+            }
+            return self.reply(request, body: "{\"id\":\(id),\"name\":\"Tracked final\",\"status\":\"not_started\",\"scheduled_at\":\"2026-11-01T10:00:00Z\"}")
+        })
+        let dates = window()
+        let games: [(EsportsGame, [Int])] = [(.leagueOfLegends, Array(1...16)), (.rocketLeague, Array(101...116))]
+        for cycle in 0..<2 {
+            for (game, trackedIDs) in games {
+                let result = try await client.load(game: game, from: dates.0, to: dates.1,
+                    token: "private-test-token", trackedIDs: trackedIDs)
+                let expected = Set(trackedIDs.dropFirst(cycle * 8).prefix(8))
+                XCTAssertEqual(Set(result.matches.map(\.providerID)), expected)
+                XCTAssertEqual(result.matches.count, 8, "Each game's detail budget remains bounded")
+            }
+        }
+        for (_, trackedIDs) in games {
+            for id in trackedIDs { XCTAssertEqual(log.count("/matches/\(id)"), 1) }
+        }
+    }
+
     func testCancellationBeforeLoadMakesNoRequest() async throws {
         let log = IntegrationRequestLog()
         let client = PandaScoreClient(session: session { request in log.record("all"); return self.reply(request, body: "[]") })

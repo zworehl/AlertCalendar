@@ -92,9 +92,9 @@ extension SettingsEsportsSectionView {
                 }
                 SettingsLabeledCheckboxGroup(
                     title: L10n.text("Provider games"),
-                    helpText: L10n.text("Choose which supported games to fetch after Apply. Calendar matches remain available for all seven games.")
+                    helpText: L10n.text("Choose which supported games to fetch after Apply.")
                 ) {
-                    ForEach(EsportsGame.allCases.filter { $0.providerSlug != nil }) { game in
+                    ForEach(EsportsCatalog.providerGames) { game in
                         Toggle(game.displayName, isOn: providerGameBinding(game))
                             .accessibilityIdentifier("settings.esports.providerGame.\(game.rawValue)")
                     }

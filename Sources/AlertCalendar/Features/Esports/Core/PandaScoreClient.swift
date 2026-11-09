@@ -12,7 +12,7 @@ actor PandaScoreClient: EsportsProviding {
     private let now: @Sendable () -> Date
     private var requestDates: [Date] = []
     private var providerRetryAt: Date?
-    private var trackedCursor = 0
+    private var trackedCursors: [EsportsGame: Int] = [:]
     private let maximumTrackedDetails = 8
 
     init(session: URLSession = AlertCalendarHTTPClient.shared, transport: HTTPServiceTransport? = nil,
@@ -78,9 +78,9 @@ actor PandaScoreClient: EsportsProviding {
         // Existing matches can disappear from the three lists after cancellation
         // or postponement. Refresh their generic free endpoint explicitly.
         let missing = Array(Set(trackedIDs.filter { $0 > 0 && matches[$0] == nil })).sorted()
-        let start = missing.isEmpty ? 0 : trackedCursor % missing.count
+        let start = missing.isEmpty ? 0 : (trackedCursors[game] ?? 0) % missing.count
         let details = (0..<min(missing.count, maximumTrackedDetails)).map { missing[(start + $0) % missing.count] }
-        trackedCursor += details.count
+        trackedCursors[game] = missing.isEmpty ? 0 : (start + details.count) % missing.count
         if missing.count > maximumTrackedDetails { issues.append(.init(kind: .paginationLimit)) }
         if firstError.map(shouldStop) != true {
             for id in details {

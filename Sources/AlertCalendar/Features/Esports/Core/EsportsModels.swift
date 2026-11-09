@@ -2,6 +2,7 @@ import Foundation
 
 enum EsportsGame: String, CaseIterable, Codable, Hashable, Identifiable, Sendable {
     case leagueOfLegends, counterStrike2, rocketLeague, starCraft2
+    // Legacy values remain decodable, but are not part of the supported catalog.
     case ageOfEmpires2, geoGuessr, granTurismo7
 
     var id: String { rawValue }
@@ -112,8 +113,10 @@ enum PandaScoreError: Error, Equatable, Sendable {
 }
 
 enum EsportsCatalog {
-    static let games = EsportsGame.allCases
-    static var providerGames: [EsportsGame] { games.filter { $0.providerSlug != nil } }
+    static let games: [EsportsGame] = [.leagueOfLegends, .counterStrike2, .rocketLeague, .starCraft2]
+    static let providerGames = games
+
+    static func supports(_ game: EsportsGame) -> Bool { games.contains(game) }
 }
 
 enum EsportsStreamURLPolicy {

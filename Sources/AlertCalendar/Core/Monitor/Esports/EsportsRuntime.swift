@@ -87,7 +87,7 @@ final class EsportsRuntime: ObservableObject {
         lastLocalRefresh = nil
         // Never display a prior Focus selection while its replacement is read.
         if !hasEventsAccess || selectedCalendarIDs.isEmpty { if !localEvents.isEmpty { localEvents = [] } }
-        else { localEvents = localEvents.filter { selectedCalendarIDs.contains($0.calendarID) } }
+        else { localEvents = localEvents.filter { selectedCalendarIDs.contains($0.calendarID) && EsportsCatalog.supports($0.game) } }
         publishMatches()
     }
 
