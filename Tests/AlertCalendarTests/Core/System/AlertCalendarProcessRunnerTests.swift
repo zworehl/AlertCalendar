@@ -50,7 +50,10 @@ final class AlertCalendarProcessRunnerTests: XCTestCase {
     func testCancellationKillsRunningChild() async throws {
         let pidURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: pidURL) }
-        let task = Task { try await Self.run("echo $$ > '\(pidURL.path)'; exec /bin/sleep 30") }
+        let command = "echo $$ > '\(pidURL.path)'; exec /bin/sleep 30"
+        let task = Task { [command] in
+            try await AlertCalendarProcessRunnerTests.run(command)
+        }
         for _ in 0 ..< 100 {
             if FileManager.default.fileExists(atPath: pidURL.path) { break }
             try await Task.sleep(for: .milliseconds(10))
