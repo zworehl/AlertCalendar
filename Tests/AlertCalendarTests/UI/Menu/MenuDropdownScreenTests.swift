@@ -235,7 +235,7 @@ final class MenuDropdownScreenTests: XCTestCase {
     }
 
     func testVisibilityObservationLeavesVisiblePanelGeometryUnchanged() {
-        let panel = NSPanel(
+        let panel = UnconstrainedObservationTestPanel(
             contentRect: CGRect(x: 780, y: 220, width: 708, height: 590),
             styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false
         )
@@ -324,5 +324,14 @@ private struct TestContentHeightKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = max(value, nextValue())
+    }
+}
+
+/// The test supplies synthetic screens. Do not let WindowServer reposition the
+/// fixture to the CI runner's unrelated physical display when it becomes visible.
+@MainActor
+private final class UnconstrainedObservationTestPanel: NSPanel {
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        frameRect
     }
 }
