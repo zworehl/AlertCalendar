@@ -137,7 +137,7 @@ final class FootballFixtureRecoveryTests: FootballDataAPIClientTestCase {
         let session = makeMockSession { request in
             let dates = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems?.first?.value
             lock.withLock { requested.append(dates ?? "calendar") }
-            if dates?.contains("-") == true {
+            if dates?.contains("-") == true || dates?.count == 6 {
                 return (HTTPURLResponse(url: request.url!, statusCode: 400, httpVersion: nil, headerFields: nil)!, Data())
             }
             if dates == nil { return try self.jsonResponse(for: request, body: ["leagues": [league], "events": []]) }
@@ -151,9 +151,11 @@ final class FootballFixtureRecoveryTests: FootballDataAPIClientTestCase {
         XCTAssertEqual(result.failures.count, 1)
         XCTAssertEqual(result.failures.first?.range.start, secondDay)
         XCTAssertFalse(result.warning?.contains("400") == true)
-        XCTAssertEqual(lock.withLock { requested.count }, 4)
+        let requestCount = lock.withLock { requested.count }
+        let monthlyCount = lock.withLock { requested.filter { $0.count == 6 }.count }
+        XCTAssertEqual(requestCount, 4 + monthlyCount)
         _ = try await client.fetchFixtureLoadResult(for: [.fifaFriendlies], dateRangesByCompetitionSlug: requestedRanges, enrichTeams: false)
-        XCTAssertEqual(lock.withLock { requested.count }, 4, "Use cached calendar/pages and respect failed-day backoff")
+        XCTAssertEqual(lock.withLock { requested.count }, requestCount, "Use cached calendar/pages and respect failed-day backoff")
     }
 
     func testSingleDayQueriesAndCacheFreshness() throws {

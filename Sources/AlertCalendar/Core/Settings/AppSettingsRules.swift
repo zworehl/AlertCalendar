@@ -2,7 +2,7 @@ import Foundation
 
 enum AppSettingsRules {
     static let minimumFootballWindowDays = 1
-    static let maximumFootballWindowDays = 45
+    static let maximumFootballWindowDays = 90
     static let dropdownListItemOptions = Array(stride(from: 5, through: 100, by: 5))
     static let defaultMaximumDropdownItems = 10
     static let defaultDropdownWindowHours = 24

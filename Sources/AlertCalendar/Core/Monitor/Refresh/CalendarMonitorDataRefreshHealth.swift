@@ -24,17 +24,25 @@ extension CalendarMonitor {
             if await gameSalesClient.hasPendingRefreshFailures {
                 await refreshGameSales()
             }
-            await updateDataRefreshHealth(now: now)
-            // Only failed browse loads retry; the client enforces per-page backoff.
-            let failedBrowseIDs = Set(dataRefreshIssues.filter { $0.id.hasPrefix("football.browse.") }.map(\.id))
-            for section in footballMenuSections where !section.isLoading && (
-                section.errorMessage != nil || failedBrowseIDs.contains("football.browse.\(section.competition.slug)")
-            ) {
-                await loadFootballCompetitionSection(section.competition, force: false)
+            if googleHolidayState.lastAttemptFailed {
+                await refreshGoogleHolidays()
             }
+            await updateDataRefreshHealth(now: now)
+            await retryFailedFootballBrowseLoads()
             if footballLiveAndNextDaySection.errorMessage != nil {
                 await loadFootballLiveAndNextDaySection(force: false)
             }
+        }
+    }
+
+    func retryFailedFootballBrowseLoads() async {
+        // Availability checks have their own requested window and visible retry loop.
+        // Their errors must never start an enriched, full-season detail load here.
+        let failedBrowseIDs = Set(dataRefreshIssues.filter { $0.id.hasPrefix("football.browse.") }.map(\.id))
+        for section in footballMenuSections where !section.isLoading
+            && footballState.detailedCompetitionSlugs.contains(section.competition.slug)
+            && failedBrowseIDs.contains("football.browse.\(section.competition.slug)") {
+            await loadFootballCompetitionSection(section.competition, force: false)
         }
     }
 

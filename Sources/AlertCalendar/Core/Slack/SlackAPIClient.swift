@@ -6,6 +6,7 @@ enum SlackAPIError: LocalizedError, Equatable {
     case missingStoredToken
     case invalidResponse
     case transport(statusCode: Int)
+    case retryDeferred(statusCode: Int?, until: Date)
     case api(message: String)
     case missingScope(needed: String, provided: String?)
     case keychainFailure(status: OSStatus)
@@ -20,6 +21,9 @@ enum SlackAPIError: LocalizedError, Equatable {
             return L10n.text("Slack returned an unexpected response.")
         case let .transport(statusCode):
             return L10n.text("Slack returned HTTP \(statusCode).")
+        case let .retryDeferred(statusCode, _):
+            if let statusCode { return L10n.text("Slack returned HTTP \(statusCode).") }
+            return L10n.text("The network connection is unavailable.")
         case let .missingScope(needed, provided):
             let providedScopes = SlackConnection.normalizedValue(provided) ?? "none"
             if needed.hasPrefix("users.profile:") {
@@ -47,12 +51,15 @@ enum SlackAPIError: LocalizedError, Equatable {
 
 actor SlackAPIClient {
     let session: URLSession
+    let transport: HTTPServiceTransport
+    let clock: @Sendable () -> Date
     let tokenStore: SlackTokenKeychainStore
     var authorizedTokensByConnectionID: [String: String] = [:]
 
     init(
         session: URLSession? = nil,
-        tokenStore: SlackTokenKeychainStore = SlackTokenKeychainStore()
+        tokenStore: SlackTokenKeychainStore = SlackTokenKeychainStore(),
+        clock: @escaping @Sendable () -> Date = { Date() }
     ) {
         if let session {
             self.session = session
@@ -63,6 +70,8 @@ actor SlackAPIClient {
             configuration.waitsForConnectivity = false
             self.session = URLSession(configuration: configuration)
         }
+        self.clock = clock
+        self.transport = HTTPServiceTransport(session: self.session, maximumConcurrentRequests: 2, now: clock)
         self.tokenStore = tokenStore
     }
 

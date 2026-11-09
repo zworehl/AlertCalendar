@@ -5,7 +5,7 @@ import SwiftUI
 
 struct MenuContentView: View {
     @EnvironmentObject var monitor: CalendarMonitor
-    @Environment(\.openWindow) var openWindow
+    @Environment(\.menuDropdownActions) var dropdownActions
     let kindFilter: CalendarItemKind?
     let headerTitle: String
 

@@ -48,7 +48,7 @@ struct FootballCompetitionPreset: Identifiable, Hashable {
 
     var id: String { slug }
 
-    static let suggestionWindowLookbackDays = 45
+    static let suggestionWindowLookbackDays = 90
     static let suggestionWindowLookaheadDays = 90
 
     static var suggestionWindowDescription: String {

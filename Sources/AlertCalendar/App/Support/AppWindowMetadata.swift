@@ -6,7 +6,5 @@ enum WindowMetadata {
 }
 
 extension Notification.Name {
-    static let alertCalendarOpenSettingsRequested = Notification.Name(
-        "AlertCalendar.openSettingsRequested"
-    )
+    static let alertCalendarReopenRequested = Notification.Name("AlertCalendar.reopenRequested")
 }

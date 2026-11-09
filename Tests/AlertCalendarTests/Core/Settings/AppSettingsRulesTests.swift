@@ -2,6 +2,14 @@ import XCTest
 @testable import AlertCalendar
 
 final class AppSettingsRulesTests: XCTestCase {
+    func testFootballWindowsSupportUpToNinetyDays() {
+        XCTAssertEqual(AppSettingsRules.normalizedFootballWindowDays(0), 1)
+        XCTAssertEqual(AppSettingsRules.normalizedFootballWindowDays(45), 45)
+        XCTAssertEqual(AppSettingsRules.normalizedFootballWindowDays(46), 46)
+        XCTAssertEqual(AppSettingsRules.normalizedFootballWindowDays(90), 90)
+        XCTAssertEqual(AppSettingsRules.normalizedFootballWindowDays(91), 90)
+    }
+
     func testDropdownItemLimitUsesFiveItemStepsThroughOneHundred() {
         XCTAssertEqual(AppSettingsRules.dropdownListItemOptions, Array(stride(from: 5, through: 100, by: 5)))
         XCTAssertEqual(AppSettingsRules.defaultMaximumDropdownItems, 10)

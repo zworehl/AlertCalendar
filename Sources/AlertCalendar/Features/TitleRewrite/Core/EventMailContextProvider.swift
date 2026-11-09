@@ -51,7 +51,7 @@ actor AppleMailEventContextProvider: EventMailContextProviding {
         let content: String
     }
 
-    typealias ScriptExecutor = @Sendable (_ source: String) -> [Message]
+    typealias ScriptExecutor = @Sendable (_ source: String) async -> [Message]
 
     private static let maximumMessages = 6
     private static let maximumContextCharacters = 1_200
@@ -66,7 +66,8 @@ actor AppleMailEventContextProvider: EventMailContextProviding {
         let searchTerms = request.searchTerms
         guard !searchTerms.isEmpty else { return [] }
 
-        let messages = scriptExecutor(Self.script(searchTerms: searchTerms))
+        let messages = await scriptExecutor(Self.script(searchTerms: searchTerms))
+        guard !Task.isCancelled else { return [] }
         let referenceText = [request.title, request.description]
             .compactMap { $0 }
             + request.participantEmailAddresses
@@ -162,19 +163,22 @@ actor AppleMailEventContextProvider: EventMailContextProviding {
         return "\"\(escaped)\""
     }
 
-    nonisolated private static func execute(source: String) -> [Message] {
-        guard let script = NSAppleScript(source: source) else { return [] }
-        var errorInfo: NSDictionary?
-        let result = script.executeAndReturnError(&errorInfo)
-        guard errorInfo == nil, result.numberOfItems > 0 else { return [] }
-
-        return (1 ... result.numberOfItems).compactMap { index in
-            guard let row = result.atIndex(index), row.numberOfItems >= 2,
-                  let subject = row.atIndex(1)?.stringValue,
-                  let content = row.atIndex(2)?.stringValue else {
-                return nil
+    nonisolated private static func execute(source: String) async -> [Message] {
+        guard await AppleMailAutomationPermission.refreshStatus() == .authorized,
+              !Task.isCancelled else { return [] }
+        do {
+            let result = try await AlertCalendarAutomation.shared.execute(
+                .init(operation: .script, bundleIdentifier: "com.apple.mail", source: source),
+                timeout: 15
+            )
+            guard result.errorNumber == nil, !Task.isCancelled else { return [] }
+            return (result.rows ?? []).compactMap { row in
+                guard row.count >= 2 else { return nil }
+                return Message(subject: row[0], content: row[1])
             }
-            return Message(subject: subject, content: content)
+        } catch {
+            CalendarMonitorLog.titleRewrite.error("Mail context query failed: \(String(describing: error), privacy: .public)")
+            return []
         }
     }
 }

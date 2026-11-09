@@ -75,11 +75,15 @@ jobs:
         run: brew install ripgrep
 
       - name: Run validation
-        run: |
-          swift test --jobs "$SWIFT_TEST_JOBS"
-          ./scripts/check_architecture.sh
-          python3 ./scripts/check_localization.py
-          ./scripts/check_coverage.sh
+        run: ./scripts/verify.sh
+
+      - name: Retain measured application coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-coverage
+          path: .build/coverage-report.json
+          if-no-files-found: warn
 
       - name: Import Developer ID certificate
         if: env.NOTARIZED_RELEASE == 'true'
@@ -123,12 +127,8 @@ jobs:
           TERMINATE_RUNNING_INSTANCES=0 \
           ./install.sh
           codesign --verify --deep --strict --verbose=2 "$PACKAGE_DIR/$APP_NAME.app"
-          "$PACKAGE_DIR/$APP_NAME.app/Contents/MacOS/$APP_NAME" &
-          SMOKE_TEST_PID=$!
-          sleep 3
-          kill -0 "$SMOKE_TEST_PID"
-          kill "$SMOKE_TEST_PID"
-          wait "$SMOKE_TEST_PID" || true
+          python3 scripts/smoke_bundle.py "$PACKAGE_DIR/$APP_NAME.app" \
+            --report "$RUNNER_TEMP/bundle-smoke.json"
           echo "PACKAGE_DIR=$PACKAGE_DIR" >> "$GITHUB_ENV"
 
       - name: Notarize and staple
@@ -154,6 +154,7 @@ jobs:
       - name: Create signed update feed
         env:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           RELEASE_DIR="$RUNNER_TEMP/release-assets"
           ARCHIVE_NAME="${APP_NAME}-${APP_VERSION}.zip"
@@ -195,6 +196,10 @@ jobs:
             --verify "$RELEASE_DIR/$ARCHIVE_NAME" \
             "$("$SPARKLE_BIN/sign_update" --ed-key-file "$RUNNER_TEMP/sparkle-private-key" "$RELEASE_DIR/$ARCHIVE_NAME" -p)"
           test -s "$RELEASE_DIR/appcast.xml"
+          python3 scripts/release_assets.py retain --repo "$GITHUB_REPOSITORY" \
+            --tag "$GITHUB_REF_NAME" --directory "$RELEASE_DIR"
+          python3 scripts/release_assets.py canonicalize --repo "$GITHUB_REPOSITORY" \
+            --directory "$RELEASE_DIR"
           echo "RELEASE_DIR=$RELEASE_DIR" >> "$GITHUB_ENV"
           echo "ARCHIVE_NAME=$ARCHIVE_NAME" >> "$GITHUB_ENV"
           echo "CHECKSUM_NAME=$CHECKSUM_NAME" >> "$GITHUB_ENV"
@@ -204,24 +209,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" \
-              "$RELEASE_DIR/$ARCHIVE_NAME" \
-              "$RELEASE_DIR/$CHECKSUM_NAME" \
-              "$RELEASE_DIR/appcast.xml" \
-              --clobber
-            gh release edit "$GITHUB_REF_NAME" \
-              --title "$APP_NAME $APP_VERSION" \
-              --notes-file "$RELEASE_DIR/$RELEASE_NOTES_NAME"
-          else
-            gh release create "$GITHUB_REF_NAME" \
-              "$RELEASE_DIR/$ARCHIVE_NAME" \
-              "$RELEASE_DIR/$CHECKSUM_NAME" \
-              "$RELEASE_DIR/appcast.xml" \
-              --verify-tag \
-              --title "$APP_NAME $APP_VERSION" \
-              --notes-file "$RELEASE_DIR/$RELEASE_NOTES_NAME"
-          fi
+          python3 scripts/release_assets.py publish --repo "$GITHUB_REPOSITORY" \
+            --tag "$GITHUB_REF_NAME" --directory "$RELEASE_DIR" \
+            --asset "$ARCHIVE_NAME" --asset "$CHECKSUM_NAME" --asset appcast.xml \
+            --title "$APP_NAME $APP_VERSION" --notes "$RELEASE_DIR/$RELEASE_NOTES_NAME"
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5

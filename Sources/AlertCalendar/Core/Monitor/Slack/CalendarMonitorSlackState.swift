@@ -3,6 +3,7 @@ import Foundation
 struct CalendarMonitorSlackRuntimeState {
     var statusSyncTask: Task<Void, Never>?
     var statusSyncTaskStartedAt: Date?
+    var statusSyncLastProgressAt: Date?
     var statusSyncRunID: UUID?
     var statusSyncNeedsAnotherPass = false
     var queuedTargets: [CalendarMonitor.SlackStatusSyncTarget] = []

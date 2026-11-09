@@ -73,6 +73,12 @@ final class CalendarMonitor: ObservableObject {
     @Published private(set) var currentSettings = AppSettings.defaults
 
     let eventStore: EKEventStore
+    let calendarMutations: CalendarMutationCoordinator
+    let startsBackgroundServices: Bool
+    let cacheRepository = CalendarCacheRepository()
+    var persistentCacheRestoreTask: Task<CalendarPersistentCacheSnapshot, Never>?
+    var didRestorePersistentCaches = false
+    var persistentCacheLoadDuration: TimeInterval?
     let defaults: UserDefaults
     let footballClient: FootballDataAPIClient
     let footballImageStore: FootballImageStore
@@ -86,6 +92,7 @@ final class CalendarMonitor: ObservableObject {
     let eventMailContextProvider: any EventMailContextProviding
     let clock: AlertCalendarClockProviding
     let footballMatchCacheStore: FootballMatchCacheStore?
+    let footballCompetitionAvailabilityStore: FootballCompetitionAvailabilityStore?
     let eventTitleRewriteCacheStore: EventTitleRewriteCacheStore?
 
     var settingsStore: AppSettingsStore {
@@ -115,6 +122,7 @@ final class CalendarMonitor: ObservableObject {
     var gameSalesState = CalendarMonitorGameSalesState()
     var googleHolidayState = CalendarMonitorGoogleHolidayState()
     var menuBarRotationState = MenuBarRotationState()
+    var pinnedFootballMenuBarRotationState = MenuBarRotationState()
     var slackRuntimeState = CalendarMonitorSlackRuntimeState()
     var calendarAlertFullSyncTask: Task<Void, Never>?
     var calendarAlertFullSyncToken: UUID?
@@ -150,9 +158,16 @@ final class CalendarMonitor: ObservableObject {
         eventMailContextProvider: any EventMailContextProviding = AppleMailEventContextProvider(),
         clock: AlertCalendarClockProviding = SystemAlertCalendarClock(),
         footballMatchCacheStore: FootballMatchCacheStore? = nil,
-        eventTitleRewriteCacheStore: EventTitleRewriteCacheStore? = nil
+        footballCompetitionAvailabilityStore: FootballCompetitionAvailabilityStore? = nil,
+        eventTitleRewriteCacheStore: EventTitleRewriteCacheStore? = nil,
+        calendarMutationStore: (any CalendarEventMutationStore)? = nil,
+        startServices: Bool = true
     ) {
         self.eventStore = eventStore
+        self.calendarMutations = CalendarMutationCoordinator(
+            store: calendarMutationStore ?? EventKitCalendarMutationStore(eventStore: eventStore)
+        )
+        self.startsBackgroundServices = startServices
         self.defaults = defaults
         self.footballClient = footballClient
         self.footballImageStore = footballImageStore
@@ -167,11 +182,10 @@ final class CalendarMonitor: ObservableObject {
         self.clock = clock
         self.footballMatchCacheStore = footballMatchCacheStore
             ?? (defaults === UserDefaults.standard ? FootballMatchCacheStore.defaultStore() : nil)
+        self.footballCompetitionAvailabilityStore = footballCompetitionAvailabilityStore
+            ?? (defaults === UserDefaults.standard ? FootballCompetitionAvailabilityStore.defaultStore() : nil)
         self.eventTitleRewriteCacheStore = eventTitleRewriteCacheStore
             ?? (defaults === UserDefaults.standard ? EventTitleRewriteCacheStore.defaultStore() : nil)
-        if let cachedTitles = self.eventTitleRewriteCacheStore?.load() {
-            persistentEventTitleRewriteCache = cachedTitles
-        }
         self.agendaSummaryAvailability = agendaSummaryClient.availability
 
         registerDefaultSettings()
@@ -187,22 +201,16 @@ final class CalendarMonitor: ObservableObject {
         managedGoogleHolidayEventRecords = Self.decodeManagedGoogleHolidayEventRecords(
             from: defaults.data(forKey: DefaultsKeys.managedGoogleHolidayEventRecords)
         )
-        if let footballCache = self.footballMatchCacheStore?.load(now: clock.nowRoundedToSecond()) {
-            footballMatchesByID = Dictionary(
-                footballCache.matches.map { ($0.id, $0) },
-                uniquingKeysWith: { _, newest in newest }
-            )
-            lastFootballRefreshDate = footballCache.fetchedAt
-        }
         self.googleHolidayLastRefreshDate = defaults.object(
             forKey: DefaultsKeys.googleHolidayLastRefreshDate
         ) as? Date
         skippedItemKeys = Set(defaults.stringArray(forKey: DefaultsKeys.skippedItemKeys) ?? [])
-        startObservers()
-        startHeartbeat()
-
-        Task {
-            await bootstrap()
+        if startServices {
+            startObservers()
+            startHeartbeat()
+            Task {
+                await bootstrap()
+            }
         }
     }
 

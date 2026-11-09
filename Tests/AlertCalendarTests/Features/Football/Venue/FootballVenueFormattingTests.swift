@@ -2,6 +2,19 @@ import XCTest
 @testable import AlertCalendar
 
 final class FootballVenueFormattingTests: XCTestCase {
+    func testSaprissaCorrectsAnotherStadiumInCityField() {
+        let json: [String: Any] = [
+            "venue": [
+                "fullName": "Estadio Ricardo Saprissa",
+                "address": ["city": "Estadio Nacional de Costa Rica", "country": "Costa Rica"],
+            ],
+        ]
+        XCTAssertEqual(
+            FootballDataAPIClient.venueLocationText(from: json),
+            "Estadio Ricardo Saprissa, Tibás, Costa Rica"
+        )
+    }
+
     func testVenueLocationTextPreservesVenueCityAndCountry() {
         let json: [String: Any] = [
             "venue": [

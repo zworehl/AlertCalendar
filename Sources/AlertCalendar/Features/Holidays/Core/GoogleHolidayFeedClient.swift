@@ -6,6 +6,7 @@ actor GoogleHolidayFeedClient {
         case invalidResponse
         case unsuccessfulResponse(statusCode: Int)
         case unreadableCalendar
+        case retryDeferred(statusCode: Int?, until: Date)
 
         var errorDescription: String? {
             switch self {
@@ -13,20 +14,17 @@ actor GoogleHolidayFeedClient {
                 return L10n.text("One of the selected Google holiday calendars is unavailable.")
             case .invalidResponse, .unreadableCalendar:
                 return L10n.text("Google returned an unreadable holiday calendar.")
-            case .unsuccessfulResponse:
+            case .unsuccessfulResponse, .retryDeferred:
                 return L10n.text("Google holiday calendars are temporarily unavailable.")
             }
         }
     }
 
-    private struct CacheEntry: Sendable {
-        let events: [GoogleHolidaySourceEvent]
-        let fetchedAt: Date
-    }
-
-    private struct LoadResult: Sendable {
-        let countryID: String
-        let events: [GoogleHolidaySourceEvent]
+    private struct CountryLoad: Sendable {
+        let country: GoogleHolidayCountry
+        var events: [GoogleHolidaySourceEvent] = []
+        var error: String?
+        var cancelled = false
     }
 
     static let cacheTTL: TimeInterval = 12 * 60 * 60
@@ -34,25 +32,44 @@ actor GoogleHolidayFeedClient {
     static let maximumConcurrentRequests = 8
 
     private let session: URLSession
-    private var cache: [String: CacheEntry] = [:]
+    private let transport: HTTPServiceTransport
+    private let cacheStore: GoogleHolidayFeedCacheStore?
+    private var hasLoadedCache = false
+    private var cache: [String: GoogleHolidayFeedCacheEntry] = [:]
+    private var failedCountryIDs: Set<String> = []
 
-    init(session: URLSession? = nil) {
-        if let session {
-            self.session = session
-        } else {
+    init(session: URLSession? = nil, cacheStore: GoogleHolidayFeedCacheStore? = nil) {
+        self.cacheStore = cacheStore ?? (session == nil ? .defaultStore() : nil)
+        let resolved: URLSession
+        if let session { resolved = session }
+        else {
             let configuration = URLSessionConfiguration.ephemeral
             configuration.timeoutIntervalForRequest = Self.requestTimeout
             configuration.timeoutIntervalForResource = Self.requestTimeout
             configuration.waitsForConnectivity = false
-            self.session = URLSession(configuration: configuration)
+            resolved = URLSession(configuration: configuration)
         }
+        self.session = resolved
+        self.transport = HTTPServiceTransport(session: resolved, maximumConcurrentRequests: Self.maximumConcurrentRequests)
     }
 
-    func fetchHolidays(
-        countryIDs: Set<String>,
-        now: Date = Date(),
-        forceRefresh: Bool = false
-    ) async throws -> [GoogleHolidaySourceEvent] {
+    func fetchHolidays(countryIDs: Set<String>, now: Date = Date(), forceRefresh: Bool = false) async throws -> [GoogleHolidaySourceEvent] {
+        let result = try await fetchHolidayLoadResult(countryIDs: countryIDs, now: now, forceRefresh: forceRefresh)
+        if result.availableCountryIDs.isEmpty, !result.isComplete {
+            throw ClientError.invalidResponse
+        }
+        return result.events
+    }
+
+    func fetchHolidayLoadResult(
+        countryIDs: Set<String>, now: Date = Date(), forceRefresh: Bool = false
+    ) async throws -> GoogleHolidayFeedLoadResult {
+        if !hasLoadedCache {
+            let stored = cacheStore?.load(now: now)
+            cache = stored?.countries ?? [:]
+            failedCountryIDs = stored?.failedCountryIDs ?? []
+            hasLoadedCache = true
+        }
         let requestedIDs = Set(countryIDs.map { $0.uppercased() })
         let normalizedIDs = GoogleHolidayCountry.normalizedCountryIDs(requestedIDs)
         let countries = GoogleHolidayCountry.countries(for: normalizedIDs)
@@ -60,74 +77,68 @@ actor GoogleHolidayFeedClient {
             throw ClientError.unavailableCountry(requestedIDs.subtracting(normalizedIDs).sorted().joined(separator: ", "))
         }
         for country in countries {
-            await ExternalFeedMetrics.shared.recordCheck(
-                source: "google-holidays.\(country.id.lowercased())",
-                at: now
-            )
+            await ExternalFeedMetrics.shared.recordCheck(source: source(country.id), at: now)
         }
-
         let countriesToLoad = countries.filter { country in
-            guard !forceRefresh, let entry = cache[country.id] else { return true }
-            return now.timeIntervalSince(entry.fetchedAt) >= Self.cacheTTL
+            if forceRefresh || failedCountryIDs.contains(country.id) { return true }
+            guard let entry = cache[country.id] else { return true }
+            return now < entry.fetchedAt || now.timeIntervalSince(entry.fetchedAt) >= Self.cacheTTL
         }
-        for country in countries where !countriesToLoad.contains(country) {
-            await ExternalFeedMetrics.shared.recordCacheHit(
-                source: "google-holidays.\(country.id.lowercased())",
-                dataDate: cache[country.id]?.fetchedAt,
-                at: now
-            )
+        let loadingIDs = Set(countriesToLoad.map(\.id))
+        for country in countries where !loadingIDs.contains(country.id) {
+            await ExternalFeedMetrics.shared.recordCacheHit(source: source(country.id), dataDate: cache[country.id]?.fetchedAt, at: now)
         }
-
+        var errors: [String: String] = [:]
         let session = self.session
-        var loaded: [LoadResult] = []
-        for batchStart in stride(
-            from: 0,
-            to: countriesToLoad.count,
-            by: Self.maximumConcurrentRequests
-        ) {
-            let batchEnd = min(batchStart + Self.maximumConcurrentRequests, countriesToLoad.count)
-            let batch = Array(countriesToLoad[batchStart..<batchEnd])
-            let results = try await withThrowingTaskGroup(of: LoadResult.self) { group in
+        let transport = self.transport
+        for batchStart in stride(from: 0, to: countriesToLoad.count, by: Self.maximumConcurrentRequests) {
+            try Task.checkCancellation()
+            let batch = Array(countriesToLoad[batchStart..<min(batchStart + Self.maximumConcurrentRequests, countriesToLoad.count)])
+            let results = await withTaskGroup(of: CountryLoad.self) { group in
                 for country in batch {
                     group.addTask {
                         do {
-                            let events = try await Self.load(country: country, session: session)
-                            await DataRefreshHealth.shared.record(
-                                source: "google-holidays.\(country.id.lowercased())",
-                                title: "\(country.displayName) holidays", error: nil
-                            )
-                            return LoadResult(countryID: country.id, events: events)
+                            return CountryLoad(country: country, events: try await Self.load(country: country, session: session, transport: transport, now: now))
                         } catch {
-                            if !(error is CancellationError), (error as? URLError)?.code != .cancelled {
-                                await DataRefreshHealth.shared.record(
-                                    source: "google-holidays.\(country.id.lowercased())",
-                                    title: "\(country.displayName) holidays", error: error.localizedDescription
-                                )
+                            if error is CancellationError || (error as? URLError)?.code == .cancelled {
+                                return CountryLoad(country: country, cancelled: true)
                             }
-                            throw error
+                            return CountryLoad(country: country, error: error.localizedDescription)
                         }
                     }
                 }
-
-                var results: [LoadResult] = []
-                for try await result in group {
-                    results.append(result)
-                }
-                return results
+                var values: [CountryLoad] = []
+                for await value in group { values.append(value) }
+                return values
             }
-            loaded.append(contentsOf: results)
+            if results.contains(where: \.cancelled) { throw CancellationError() }
+            try Task.checkCancellation()
+            for result in results {
+                let id = result.country.id
+                if let error = result.error {
+                    failedCountryIDs.insert(id)
+                    errors[id] = error
+                } else {
+                    cache[id] = GoogleHolidayFeedCacheEntry(events: result.events, fetchedAt: now)
+                    failedCountryIDs.remove(id)
+                }
+                await DataRefreshHealth.shared.record(source: source(id), title: "\(result.country.displayName) holidays", error: result.error, at: now)
+            }
+            // A later country failure must not discard successful validated downloads.
+            cacheStore?.save(.init(countries: cache, failedCountryIDs: failedCountryIDs))
         }
-
-        for result in loaded {
-            cache[result.countryID] = CacheEntry(events: result.events, fetchedAt: now)
-        }
-
-        return countries.flatMap { cache[$0.id]?.events ?? [] }
+        return GoogleHolidayFeedLoadResult(
+            events: countries.flatMap { cache[$0.id]?.events ?? [] },
+            availableCountryIDs: Set(countries.compactMap { cache[$0.id] == nil ? nil : $0.id }),
+            errorsByCountryID: errors
+        )
     }
+
+    private func source(_ id: String) -> String { "google-holidays.\(id.lowercased())" }
 
     private nonisolated static func load(
         country: GoogleHolidayCountry,
-        session: URLSession
+        session: URLSession, transport: HTTPServiceTransport, now: Date
     ) async throws -> [GoogleHolidaySourceEvent] {
         var request = URLRequest(url: country.feedURL)
         request.httpMethod = "GET"
@@ -139,8 +150,11 @@ actor GoogleHolidayFeedClient {
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await session.data(for: request)
+            (data, response) = try await transport.data(for: request, at: now)
+        } catch HTTPServiceRetryError.deferred(let statusCode, let until) {
+            throw ClientError.retryDeferred(statusCode: statusCode, until: until)
         } catch {
+            if error is CancellationError || (error as? URLError)?.code == .cancelled { throw error }
             await ExternalFeedMetrics.shared.recordTransportFailure(
                 source: "google-holidays.\(country.id.lowercased())",
                 duration: Date().timeIntervalSince(requestStartedAt)
@@ -162,12 +176,20 @@ actor GoogleHolidayFeedClient {
             duration: Date().timeIntervalSince(requestStartedAt)
         )
         guard (200...299).contains(httpResponse.statusCode) else {
+            if [403, 429].contains(httpResponse.statusCode) || httpResponse.value(forHTTPHeaderField: "Retry-After") != nil {
+                throw ClientError.retryDeferred(statusCode: httpResponse.statusCode, until: HTTPServiceRetryPolicy.retryDate(
+                    statusCode: httpResponse.statusCode, retryAfter: httpResponse.value(forHTTPHeaderField: "Retry-After"), now: now
+                ))
+            }
             throw ClientError.unsuccessfulResponse(statusCode: httpResponse.statusCode)
         }
 
         do {
-            return try GoogleHolidayICSParser.parse(data: data, countryID: country.id)
+            let events = try GoogleHolidayICSParser.parse(data: data, countryID: country.id)
+            await ExternalFeedMetrics.shared.recordValidatedData(source: "google-holidays.\(country.id.lowercased())", at: now)
+            return events
         } catch {
+            await ExternalFeedMetrics.shared.recordDataFailure(source: "google-holidays.\(country.id.lowercased())", validationFailed: true)
             throw ClientError.unreadableCalendar
         }
     }

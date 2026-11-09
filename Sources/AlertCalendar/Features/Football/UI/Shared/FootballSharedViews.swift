@@ -1,5 +1,4 @@
 import AppKit
-import ImageIO
 import SwiftUI
 
 private struct FootballConstrainedWidthModifier: ViewModifier {
@@ -292,50 +291,4 @@ private enum FootballFlagCircleStyle {
     static var outerStroke: Color { .primary }
     static var innerStroke: Color { Color.black.opacity(0.18) }
     static var placeholderTint: Color { Color.white.opacity(0.82) }
-}
-
-@MainActor
-enum FootballLocalImageCache {
-    private static let cache: NSCache<NSString, NSImage> = {
-        let cache = NSCache<NSString, NSImage>()
-        cache.countLimit = 160
-        return cache
-    }()
-
-    static func cachedImage(for path: String) -> NSImage? {
-        cache.object(forKey: path as NSString)
-    }
-
-    static func store(_ image: NSImage, for path: String) {
-        cache.setObject(image, forKey: path as NSString)
-    }
-
-    static func loadImage(for path: String) async -> NSImage? {
-        if let cachedImage = cachedImage(for: path) {
-            return cachedImage
-        }
-
-        guard let cgImage = await decodedCGImage(for: path),
-              !Task.isCancelled else {
-            return nil
-        }
-
-        let image = NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
-        store(image, for: path)
-        return image
-    }
-
-    nonisolated static func decodedCGImage(for path: String) async -> CGImage? {
-        await Task.detached(priority: .utility) {
-            guard let imageSource = CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, nil) else {
-                return nil
-            }
-
-            let options = [
-                kCGImageSourceShouldCache: true,
-                kCGImageSourceShouldCacheImmediately: true,
-            ] as CFDictionary
-            return CGImageSourceCreateImageAtIndex(imageSource, 0, options)
-        }.value
-    }
 }

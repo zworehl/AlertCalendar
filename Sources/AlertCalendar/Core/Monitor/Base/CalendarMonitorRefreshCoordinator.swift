@@ -68,7 +68,7 @@ final class CalendarMonitorRefreshCoordinator {
                 task = nil
             }
 
-            while hasPendingRefresh {
+            while hasPendingRefresh && !Task.isCancelled {
                 let reasons = pendingReasons
                 let requestIDs = pendingRequestIDs
                 let reason = Self.primaryReason(from: reasons)

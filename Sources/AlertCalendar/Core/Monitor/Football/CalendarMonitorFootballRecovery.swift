@@ -25,7 +25,9 @@ extension CalendarMonitor {
                     dateRangesByCompetitionSlug: footballScoreboardDateRangesByCompetition(rangeEntries),
                     forceRefresh: forceRefresh
                 )
-                let refreshedMatches = await footballClient.refreshStatusesIfNeeded(for: fetchedMatches)
+                let refreshedMatches = await footballClient.refreshStatusesIfNeeded(
+                    for: fetchedMatches, forceRefresh: forceRefresh
+                )
                 let resolvedMatches = matchesPreservingKnownTimingContext(refreshedMatches)
                 await cacheFootballMatches(resolvedMatches)
                 markFootballRefreshed(at: now)
@@ -35,9 +37,6 @@ extension CalendarMonitor {
             }
         }
 
-        var recordsByReference = Dictionary(uniqueKeysWithValues: managedFootballEventRecords.map { ($0.reference, $0) })
-        var didRecoverRecord = false
-        var didRemoveDuplicateEvent = false
         let preferredCalendarID = resolvedFootballTargetCalendar()?.calendarIdentifier
         let matchedEventsByReference = orphanEvents.reduce(into: [ManagedFootballFixtureReference: [EKEvent]]()) { partialResult, event in
             guard let matchedFixture = matchedFootballFixture(for: event, in: candidateMatches) else { return }
@@ -48,34 +47,24 @@ extension CalendarMonitor {
             partialResult[reference, default: []].append(event)
         }
 
-        for (reference, matchedEvents) in matchedEventsByReference {
-            let sortedEvents = sortManagedFootballEvents(
-                matchedEvents,
-                preferredCalendarID: preferredCalendarID
-            )
-            guard let keeper = sortedEvents.first else { continue }
-
-            if recordsByReference[reference] == nil,
-               let recoveredRecord = managedFootballEventRecord(for: keeper, reference: reference) {
-                recordsByReference[reference] = recoveredRecord
-                didRecoverRecord = true
-            }
-
-            for duplicate in sortedEvents.dropFirst() {
-                do {
-                    try eventStore.remove(duplicate, span: .thisEvent, commit: false)
-                    didRemoveDuplicateEvent = true
-                } catch {
-                    continue
+        let groups = matchedEventsByReference.map { reference, matchedEvents in
+            sortManagedFootballEvents(matchedEvents, preferredCalendarID: preferredCalendarID).compactMap { event in
+                managedFootballEventRecord(for: event, reference: reference).map {
+                    ManagedFootballEventSnapshot(event: event, reference: reference, record: $0)
                 }
             }
         }
-
-        guard didRecoverRecord || didRemoveDuplicateEvent else { return }
-        if didRemoveDuplicateEvent {
-            try? eventStore.commit()
+        do {
+            let records = try ManagedFootballMutationCoordinator.reconcileGroups(
+                groups, records: managedFootballEventRecords, clearLegacyURLs: false,
+                replaceExistingRecords: false, mutations: calendarMutations,
+                refreshedRecord: managedFootballEventRecord(for:reference:)
+            )
+            persistManagedFootballEventRecords(records)
+            reportFootballCalendarMutation(source: "football.calendar-recovery", error: nil)
+        } catch {
+            reportFootballCalendarMutation(source: "football.calendar-recovery", error: error)
         }
-        persistManagedFootballEventRecords(Array(recordsByReference.values))
     }
 
     func unresolvedManagedFootballCandidateEvents(now: Date) -> [EKEvent] {

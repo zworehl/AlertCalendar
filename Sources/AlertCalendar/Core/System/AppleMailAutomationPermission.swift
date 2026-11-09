@@ -9,19 +9,33 @@ enum AppleMailAutomationAuthorizationStatus: Equatable, Hashable, Sendable {
     case mailUnavailable
 }
 
+@MainActor
 enum AppleMailAutomationPermission {
-    private static let mailBundleIdentifier = "com.apple.mail"
+    nonisolated private static let mailBundleIdentifier = "com.apple.mail"
+    private static let service = AppleMailAutomationPermissionService(refreshInterval: 30, probe: probePermission)
 
+    nonisolated private static func probePermission(_ asksForPermission: Bool) async throws -> AppleMailAutomationAuthorizationStatus {
+        let response = try await AlertCalendarAutomation.shared.execute(
+            .init(operation: .permission, bundleIdentifier: mailBundleIdentifier,
+                  asksForPermission: asksForPermission),
+            timeout: asksForPermission ? 120 : 3
+        )
+        return authorizationStatus(for: response.permissionStatus)
+    }
+
+    // This accessor never calls macOS. Refreshes are coalesced and bounded.
     static func currentStatus() -> AppleMailAutomationAuthorizationStatus {
-        permissionStatus(askUserIfNeeded: false)
+        service.currentStatus()
+    }
+
+    static func refreshStatus(forceRefresh: Bool = false) async -> AppleMailAutomationAuthorizationStatus {
+        await service.refresh(forceRefresh: forceRefresh)
     }
 
     static func requestAccess() async -> AppleMailAutomationAuthorizationStatus {
         let isRunning = await ensureMailIsRunning()
         guard isRunning else { return .mailUnavailable }
-        return await Task.detached(priority: .userInitiated) {
-            permissionStatus(askUserIfNeeded: true)
-        }.value
+        return await service.requestAccess()
     }
 
     @MainActor
@@ -49,27 +63,7 @@ enum AppleMailAutomationPermission {
         }
     }
 
-    private static func permissionStatus(
-        askUserIfNeeded: Bool
-    ) -> AppleMailAutomationAuthorizationStatus {
-        var target = AEAddressDesc()
-        let createStatus = mailBundleIdentifier.utf8CString.withUnsafeBytes { bytes in
-            AECreateDesc(
-                DescType(typeApplicationBundleID),
-                bytes.baseAddress,
-                mailBundleIdentifier.utf8.count,
-                &target
-            )
-        }
-        guard createStatus == noErr else { return .mailUnavailable }
-        defer { AEDisposeDesc(&target) }
-
-        let status = AEDeterminePermissionToAutomateTarget(
-            &target,
-            AEEventClass(typeWildCard),
-            AEEventID(typeWildCard),
-            askUserIfNeeded
-        )
+    nonisolated static func authorizationStatus(for status: Int32?) -> AppleMailAutomationAuthorizationStatus {
         switch status {
         case noErr:
             return .authorized
@@ -80,5 +74,67 @@ enum AppleMailAutomationPermission {
         default:
             return .mailUnavailable
         }
+    }
+}
+
+@MainActor
+final class AppleMailAutomationPermissionService {
+    typealias Probe = @Sendable (Bool) async throws -> AppleMailAutomationAuthorizationStatus
+    private let probe: Probe
+    private let refreshInterval: TimeInterval
+    private var status: AppleMailAutomationAuthorizationStatus = .notDetermined
+    private var lastRefresh: Date?
+    private var inFlight: Task<AppleMailAutomationAuthorizationStatus, Never>?
+    private var isRequestingAccess = false
+
+    init(refreshInterval: TimeInterval = 30, probe: @escaping Probe) {
+        self.refreshInterval = refreshInterval
+        self.probe = probe
+    }
+
+    func currentStatus() -> AppleMailAutomationAuthorizationStatus {
+        if needsRefresh { _ = start(asksForPermission: false) }
+        return status
+    }
+
+    func refresh(forceRefresh: Bool = false) async -> AppleMailAutomationAuthorizationStatus {
+        if let inFlight { return await inFlight.value }
+        guard forceRefresh || needsRefresh else { return status }
+        return await start(asksForPermission: false).value
+    }
+
+    func requestAccess() async -> AppleMailAutomationAuthorizationStatus {
+        if let inFlight {
+            let wasRequesting = isRequestingAccess
+            let result = await inFlight.value
+            if wasRequesting || result == .authorized { return result }
+        }
+        return await start(asksForPermission: true).value
+    }
+
+    private var needsRefresh: Bool {
+        lastRefresh.map { Date().timeIntervalSince($0) >= refreshInterval } ?? true
+    }
+
+    private func start(asksForPermission: Bool) -> Task<AppleMailAutomationAuthorizationStatus, Never> {
+        if let inFlight { return inFlight }
+        isRequestingAccess = asksForPermission
+        let probe = self.probe
+        let task = Task { [weak self] in
+            let result: AppleMailAutomationAuthorizationStatus
+            do {
+                result = try await probe(asksForPermission)
+            } catch {
+                result = .mailUnavailable
+                CalendarMonitorLog.titleRewrite.error("Mail automation permission check failed: \(String(describing: error), privacy: .public)")
+            }
+            self?.status = result
+            self?.lastRefresh = Date()
+            self?.inFlight = nil
+            self?.isRequestingAccess = false
+            return result
+        }
+        inFlight = task
+        return task
     }
 }

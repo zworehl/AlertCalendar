@@ -50,7 +50,7 @@ final class MenuBarStatusLabelTests: XCTestCase {
         XCTAssertFalse(model.isInitialLoading)
     }
 
-    func testFootballLogoIsAvailableImmediatelyFromLocalPath() throws {
+    func testFootballLogoBecomesImmediatelyAvailableAfterAsynchronousPreload() async throws {
         let image = NSImage(size: NSSize(width: 12, height: 8))
         image.lockFocus()
         NSColor.systemBlue.setFill()
@@ -65,8 +65,47 @@ final class MenuBarStatusLabelTests: XCTestCase {
         try data.write(to: URL(fileURLWithPath: path))
         defer { try? FileManager.default.removeItem(atPath: path) }
 
+        XCTAssertNil(MenuBarStatusLabel.immediatelyAvailableFootballLogo(at: path), "Rendering must not synchronously read image files")
+        let loaded = await FootballLocalImageCache.loadImage(for: path)
+        XCTAssertNotNil(loaded)
         XCTAssertNotNil(MenuBarStatusLabel.immediatelyAvailableFootballLogo(at: path))
         XCTAssertNotNil(FootballLocalImageCache.cachedImage(for: path))
+    }
+
+    func testConcurrentLogoPreloadsShareTheSameDecodedArtwork() async throws {
+        let image = NSImage(size: NSSize(width: 12, height: 8))
+        image.lockFocus()
+        NSColor.systemBlue.setFill()
+        NSRect(x: 0, y: 0, width: 12, height: 8).fill()
+        image.unlockFocus()
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).tiff")
+        try XCTUnwrap(image.tiffRepresentation).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let first = Task { @MainActor in
+            await FootballLocalImageCache.loadImage(for: url.path).map(ObjectIdentifier.init)
+        }
+        let second = Task { @MainActor in
+            await FootballLocalImageCache.loadImage(for: url.path).map(ObjectIdentifier.init)
+        }
+        let firstID = await first.value
+        let secondID = await second.value
+        XCTAssertNotNil(firstID)
+        XCTAssertEqual(firstID, secondID, "Concurrent views should receive the same decoded logo, not competing replacements")
+    }
+
+    func testFailedDecodeCanRetryWhenTheLocalFileArrives() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).tiff")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let missing = await FootballLocalImageCache.loadImage(for: url.path)
+        XCTAssertNil(missing)
+        let image = NSImage(size: NSSize(width: 12, height: 8))
+        image.lockFocus()
+        NSColor.systemBlue.setFill()
+        NSRect(x: 0, y: 0, width: 12, height: 8).fill()
+        image.unlockFocus()
+        try XCTUnwrap(image.tiffRepresentation).write(to: url)
+        let loaded = await FootballLocalImageCache.loadImage(for: url.path)
+        XCTAssertNotNil(loaded, "A completed failed decode must not remain stuck in the in-flight cache")
     }
 
     func testSymbolMarkerAspectFitPreservesWideSymbolRatio() {

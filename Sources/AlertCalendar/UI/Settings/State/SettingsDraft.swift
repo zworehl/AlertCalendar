@@ -39,6 +39,7 @@ struct SettingsDraft: Equatable {
     var footballTargetCalendarID: String
     var footballAutoAddCompetitionSlugs: Set<String>
     var footballCalendarAlertOption: FootballCalendarAlertOption
+    var pinLiveFootballScoresInMenuBar: Bool
     var enableFootballGoalNotifications: Bool
     var enableFootballDisallowedGoalNotifications: Bool
     var includeFootballGoalScorerInNotifications: Bool
@@ -97,6 +98,7 @@ struct SettingsDraft: Equatable {
         footballTargetCalendarID = settings.footballTargetCalendarID
         footballAutoAddCompetitionSlugs = settings.footballAutoAddCompetitionSlugs
         footballCalendarAlertOption = settings.footballCalendarAlertOption
+        pinLiveFootballScoresInMenuBar = settings.pinLiveFootballScoresInMenuBar
         enableFootballGoalNotifications = settings.enableFootballGoalNotifications
         enableFootballDisallowedGoalNotifications = settings.enableFootballDisallowedGoalNotifications
         includeFootballGoalScorerInNotifications = settings.includeFootballGoalScorerInNotifications

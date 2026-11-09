@@ -1,34 +1,36 @@
 name: CI
-
 on:
   pull_request:
   push:
-    branches:
-      - main
-
+    branches: [main]
+permissions:
+  contents: read
 jobs:
-  test:
-    runs-on: macos-latest
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, macos-26]
+    runs-on: ${{ matrix.runner }}
+    env:
+      SWIFT_TEST_JOBS: 4
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v5
+      - name: Select compatibility toolchain
+        if: matrix.runner == 'macos-15'
+        run: sudo xcode-select --switch /Applications/Xcode_26.3.app/Contents/Developer
       - name: Show toolchain
-        run: swift --version
-
-      - name: Run tests
-        run: swift test
-
-      - name: Run architecture checks
-        run: ./scripts/check_architecture.sh
-
-      - name: Run coverage gate
-        run: ./scripts/check_coverage.sh
-
-      - name: Build release bundle inputs
         run: |
-          xcodebuild \
-            -scheme AlertCalendar \
-            -configuration Release \
-            -destination "platform=macOS" \
-            build
+          swift --version
+          xcodebuild -version
+      - name: Install validation tooling
+        run: command -v rg >/dev/null || brew install ripgrep
+      - name: Verify source, tests, coverage and isolated app bundle
+        run: ./scripts/verify.sh
+      - name: Retain measured application coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.runner }}
+          path: .build/coverage-report.json
+          if-no-files-found: warn

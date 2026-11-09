@@ -3,6 +3,17 @@ import XCTest
 @testable import AlertCalendar
 
 final class SettingsPollingFreshnessTests: XCTestCase {
+    @MainActor
+    func testPartialFreshnessHasExplicitStatusWithoutClaimingDataWasFetched() {
+        let now = Date(timeIntervalSince1970: 100)
+        let state = SettingsView.PollingFreshness(title: "Football", checkedDate: now, fetchedDate: nil, isPartial: true)
+        let title = "Football"
+        let elapsed = "0s"
+        let checked = L10n.text("\(title) checked \(elapsed)")
+        XCTAssertEqual(SettingsView.pollingFreshnessText(state, now: now, simplified: true),
+                       L10n.text("Partial update · \(checked)"))
+    }
+
     func testPollingFreshnessUsesOnlySecondsBelowOneMinute() {
         XCTAssertEqual(elapsedText(seconds: 53), "53s")
     }

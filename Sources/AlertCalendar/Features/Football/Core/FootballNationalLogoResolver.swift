@@ -13,6 +13,11 @@ enum FootballNationalLogoResolver {
         "TBD",
     ]
     private static let codeAliases: [String: String] = [
+        "GDL": "GLP",
+        "LIB": "LBN",
+        "NCD": "NCL",
+        "SIN": "SGP",
+        "SUD": "SDN",
         "BKA": "BFA",
         "BVI": "VGB",
         "CHE": "SUI",
@@ -23,6 +28,10 @@ enum FootballNationalLogoResolver {
         "USVI": "VIR",
         "ZAF": "RSA",
     ]
+
+    // ESPN and the bundled flag assets use these legacy resource names.
+    // Display/association codes remain independent from resource identifiers.
+    private static let flagResourceCodes: [String: String] = ["GLP": "GDL", "SGP": "SIN"]
 
     static func resolvedLogoURL(
         existingLogoURL: URL?,
@@ -62,7 +71,8 @@ enum FootballNationalLogoResolver {
             return nil
         }
 
-        return URL(string: "\(countryFlagLogoBaseURL)/\(code.lowercased()).png")
+        let resourceCode = flagResourceCodes[code] ?? code
+        return URL(string: "\(countryFlagLogoBaseURL)/\(resourceCode.lowercased()).png")
     }
 
     static func localFlagImageURL(
@@ -88,7 +98,8 @@ enum FootballNationalLogoResolver {
             return nil
         }
 
-        let resourceName = "\(localFlagResourcePrefix)\(normalizedCode.lowercased())"
+        let resourceCode = flagResourceCodes[normalizedCode] ?? normalizedCode
+        let resourceName = "\(localFlagResourcePrefix)\(resourceCode.lowercased())"
         for subdirectory in localFlagResourceSubdirectories {
             if let url = Bundle.module.url(
                 forResource: resourceName,

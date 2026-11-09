@@ -15,7 +15,8 @@ extension CalendarMonitor {
         let futureWindowSeconds = TimeInterval(max(5, settings.menuBarRotationWindowMinutes) * 60)
         let futureWindowEnd = now.addingTimeInterval(futureWindowSeconds)
         let timedItems = upcomingItems.filter {
-            isTimedItemDisplayableInMenuBar($0, now: now)
+            !Self.shouldPinLiveFootballItem($0, settings: settings)
+                && isTimedItemDisplayableInMenuBar($0, now: now)
                 && Self.shouldIncludeTimedItemInMenuBarRotation(
                     $0,
                     now: now,

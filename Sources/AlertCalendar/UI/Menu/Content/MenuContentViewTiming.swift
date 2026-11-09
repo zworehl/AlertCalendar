@@ -9,7 +9,7 @@ extension MenuContentView {
 
     func prepareDropdownPresentation() {
         dropdownReferenceDate = AlertCalendarClock.nowRoundedToSecond()
-        monitor.synchronizeCalendarStateIfNeeded()
+        if monitor.startsBackgroundServices { monitor.synchronizeCalendarStateIfNeeded() }
         // Preference values can arrive before onAppear. Preserve them so this
         // presentation does not erase the split-column measurements SwiftUI just resolved.
     }

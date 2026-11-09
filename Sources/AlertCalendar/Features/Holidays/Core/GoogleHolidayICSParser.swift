@@ -27,7 +27,7 @@ enum GoogleHolidayICSParser {
         calendar: Calendar = Calendar(identifier: .gregorian)
     ) throws -> [GoogleHolidaySourceEvent] {
         let lines = unfoldedLines(text)
-        guard lines.contains("BEGIN:VCALENDAR") else {
+        guard lines.contains("BEGIN:VCALENDAR"), lines.contains("END:VCALENDAR") else {
             throw ParserError.unreadableCalendar
         }
 
@@ -38,9 +38,11 @@ enum GoogleHolidayICSParser {
         for line in lines {
             switch line {
             case "BEGIN:VEVENT":
+                guard !isInsideEvent else { throw ParserError.unreadableCalendar }
                 isInsideEvent = true
                 properties.removeAll(keepingCapacity: true)
             case "END:VEVENT":
+                guard isInsideEvent else { throw ParserError.unreadableCalendar }
                 if isInsideEvent,
                    properties["STATUS"]?.uppercased() != "CANCELLED",
                    let uid = AlertCalendarString.trimmedNonEmpty(properties["UID"]),
@@ -75,6 +77,7 @@ enum GoogleHolidayICSParser {
             }
         }
 
+        guard !isInsideEvent else { throw ParserError.unreadableCalendar }
         return events
     }
 

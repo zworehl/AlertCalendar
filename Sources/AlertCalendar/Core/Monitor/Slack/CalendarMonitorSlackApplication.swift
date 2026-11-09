@@ -17,6 +17,7 @@ extension CalendarMonitor {
                 )
                 : .stopped
             guard slackStatusSyncRunID == runID, !Task.isCancelled else { break }
+            recordSlackStatusSyncProgress(runID: runID)
             let now = fixedSecondNow()
             let playback = resolvedAppleMusicPlayback(
                 observation: musicObservation,
@@ -36,12 +37,20 @@ extension CalendarMonitor {
                 playback: playback,
                 musicExpirationTimestamp: musicExpirationTimestamp
             )
-            await applySlackStatusSyncTargets(targets)
+            await applySlackStatusSyncTargets(targets, runID: runID)
+            guard slackStatusSyncRunID == runID, !Task.isCancelled else { break }
+            if musicObservation == .unavailable {
+                appendSlackDiagnosticsLog("music-observation unavailable source=\(settings.appleMusicStatus.source.rawValue)")
+                if slackStatusSyncErrorDescription == nil {
+                    slackStatusSyncErrorDescription = L10n.text("Could not read music playback. AlertCalendar will retry.")
+                }
+            }
         }
 
         guard slackStatusSyncRunID == runID else { return }
         slackStatusSyncTask = nil
         slackStatusSyncTaskStartedAt = nil
+        slackRuntimeState.statusSyncLastProgressAt = nil
         slackStatusSyncRunID = nil
     }
 
@@ -114,16 +123,23 @@ extension CalendarMonitor {
         return expiration
     }
 
-    func applySlackStatusSyncTargets(_ targets: [SlackStatusSyncTarget]) async {
+    func recordSlackStatusSyncProgress(runID: UUID?) {
+        guard let runID, slackStatusSyncRunID == runID, !Task.isCancelled else { return }
+        slackRuntimeState.statusSyncLastProgressAt = fixedSecondNow()
+    }
+
+    func applySlackStatusSyncTargets(_ targets: [SlackStatusSyncTarget], runID: UUID) async {
         var errorMessages: [String] = []
         appendSlackDiagnosticsLog("apply-start targets=\(targets.count) \(describeSlackTargets(targets))")
 
         for target in targets {
+            guard isSlackApplicationRunning, !Task.isCancelled else { return }
             do {
                 switch target.mode {
                 case .clear:
                     if slackManagedStateByConnectionID[target.connection.id] != nil {
-                        try await restoreSlackStatusIfNeeded(for: target.connection)
+                        try await restoreSlackStatusIfNeeded(for: target.connection, runID: runID)
+                        try Task.checkCancellation()
                         appendSlackDiagnosticsLog("apply-clear success connection=\(target.connection.displayLabel)")
                     } else {
                         appendSlackDiagnosticsLog("apply-clear skipped connection=\(target.connection.displayLabel) reason=no-managed-state")
@@ -131,18 +147,24 @@ extension CalendarMonitor {
                 case let .meeting(snapshot):
                     try await applyMeetingStatusIfNeeded(
                         for: target.connection,
-                        snapshot: snapshot
+                        snapshot: snapshot,
+                        runID: runID
                     )
+                    try Task.checkCancellation()
                     appendSlackDiagnosticsLog(
                         "apply-meeting success connection=\(target.connection.displayLabel) text=\(snapshot.statusText) emoji=\(snapshot.statusEmoji) expiration=\(snapshot.statusExpiration)"
                     )
                 }
+            } catch is CancellationError {
+                return
             } catch {
+                guard !Task.isCancelled else { return }
                 appendSlackDiagnosticsLog("apply-error connection=\(target.connection.displayLabel) error=\(error.localizedDescription)")
                 errorMessages.append("\(target.connection.displayLabel): \(AlertCalendarLanguage.errorMessage(error))")
             }
         }
 
+        guard slackStatusSyncRunID == runID, isSlackApplicationRunning, !Task.isCancelled else { return }
         if errorMessages.isEmpty {
             slackStatusSyncErrorDescription = nil
             lastSlackStatusSyncDate = fixedSecondNow()
@@ -153,16 +175,24 @@ extension CalendarMonitor {
 
     func applyMeetingStatusIfNeeded(
         for connection: SlackConnection,
-        snapshot: SlackProfileStatusSnapshot
+        snapshot: SlackProfileStatusSnapshot,
+        runID: UUID? = nil
     ) async throws {
         var state = slackManagedStateByConnectionID[connection.id] ?? SlackManagedStatusState()
 
         if state.requestedStatus == snapshot {
-            return
+            let currentStatus = try await slackClient.currentProfileStatus(for: connection)
+            recordSlackStatusSyncProgress(runID: runID)
+            guard isSlackApplicationRunning, !Task.isCancelled else { return }
+            if SlackMeetingStatus.isManaged(currentStatus, managedSnapshot: state.managedStatus) {
+                return
+            }
         }
 
         if state.previousStatus == nil {
             let currentStatus = try await slackClient.currentProfileStatus(for: connection)
+            recordSlackStatusSyncProgress(runID: runID)
+            try Task.checkCancellation()
             let currentStatusLooksCalendarManaged = SlackMeetingStatus.isLikelyManaged(
                 currentStatus,
                 matching: snapshot.identity
@@ -173,19 +203,26 @@ extension CalendarMonitor {
             }
         }
 
+        guard isSlackApplicationRunning, !Task.isCancelled else { return }
         let appliedSnapshot = try await slackClient.setStatus(snapshot, for: connection)
+        try Task.checkCancellation()
+        recordSlackStatusSyncProgress(runID: runID)
         state.requestedStatus = snapshot
         state.managedStatus = appliedSnapshot
         slackManagedStateByConnectionID[connection.id] = state
     }
 
-    func restoreSlackStatusIfNeeded(for connection: SlackConnection) async throws {
+    func restoreSlackStatusIfNeeded(for connection: SlackConnection, runID: UUID? = nil) async throws {
         var state = slackManagedStateByConnectionID[connection.id] ?? SlackManagedStatusState()
         let currentStatus = try await slackClient.currentProfileStatus(for: connection)
+        recordSlackStatusSyncProgress(runID: runID)
 
+        guard isSlackApplicationRunning, !Task.isCancelled else { return }
         if SlackMeetingStatus.isManaged(currentStatus, managedSnapshot: state.managedStatus) {
             let restoredStatus = Self.slackRestoredStatus(from: state)
             _ = try await slackClient.setStatus(restoredStatus, for: connection)
+            try Task.checkCancellation()
+            recordSlackStatusSyncProgress(runID: runID)
         }
 
         state.previousStatus = nil

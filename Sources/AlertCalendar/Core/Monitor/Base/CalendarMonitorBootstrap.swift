@@ -5,6 +5,7 @@ import Foundation
 
 extension CalendarMonitor {
     func bootstrap() async {
+        await restorePersistentCachesIfNeeded()
         await refreshFocusCalendarFilterStateFromSystem()
         await requestCalendarAccess()
         await refreshUpcomingItems(reason: .launchSnapshot)
@@ -110,14 +111,6 @@ extension CalendarMonitor {
             self?.handleWorkspaceResume()
         }
 
-        terminationObserver = NotificationCenter.default.publisher(
-            for: NSApplication.willTerminateNotification
-        )
-        .receive(on: RunLoop.main)
-        .sink { [weak self] _ in
-            self?.flushFootballMatchCache()
-        }
-
     }
 
     func handleWorkspaceResume() {
@@ -169,6 +162,7 @@ extension CalendarMonitor {
     }
 
     private func performHeartbeat(now: Date, settings: AppSettings) {
+        retryIncompleteCalendarAlertRuleSyncIfNeeded(now: now)
         checkDataRefreshHealthIfNeeded(now: now)
         if CalendarMonitorTime.hasElapsed(
             since: lastAgendaSummaryAvailabilityCheckDate,
@@ -297,7 +291,7 @@ extension CalendarMonitor {
             delay = min(delay, CalendarMonitorCadence.activeProgressRefreshInterval)
         }
 
-        if let rotationStartedAt = menuBarRotationState.startedAt {
+        for rotationStartedAt in [menuBarRotationState.startedAt, pinnedFootballMenuBarRotationState.startedAt].compactMap({ $0 }) {
             let rotationInterval = TimeInterval(max(5, settings.concurrentEventRotationSeconds))
             let remaining = rotationInterval - now.timeIntervalSince(rotationStartedAt)
             delay = min(delay, max(CalendarMonitorCadence.minimumHeartbeatInterval, remaining))

@@ -31,12 +31,13 @@ struct MenuBarStatusLabel: View {
     let footballStatusColor: NSColor
     let footballGoalHighlightSide: FootballScoreSide?
     let footballGoalHighlightTextOpacity: CGFloat
+    var pinnedFootballScores: [PinnedFootballMenuBarScore] = []
     @AppStorage(DefaultsKeys.menuBarFontSize) private var menuBarFontSize = 13.0
     @State private var footballLogoRevision = 0
 
     var body: some View {
         Image(
-            nsImage: Self.makeBadgeImage(
+            nsImage: Self.makeCombinedBadgeImage(
                 text: text,
                 color: color,
                 alertedSegmentIndex: alertedSegmentIndex,
@@ -56,7 +57,8 @@ struct MenuBarStatusLabel: View {
                 footballGoalHighlightSide: footballGoalHighlightSide,
                 footballGoalHighlightTextOpacity: footballGoalHighlightTextOpacity,
                 fontSize: CGFloat(menuBarFontSize),
-                footballLogoRevision: footballLogoRevision
+                footballLogoRevision: footballLogoRevision,
+                pinnedScores: pinnedFootballScores
             )
         )
         .renderingMode(.original)
@@ -67,11 +69,9 @@ struct MenuBarStatusLabel: View {
     }
 
     private var footballLogoPaths: [String] {
-        [
-            footballDisplay?.homeLocalLogoPath,
-            footballDisplay?.awayLocalLogoPath,
-        ]
-        .compactMap { $0 }
+        ([footballDisplay] + pinnedFootballScores.map { Optional($0.display) })
+            .flatMap { [$0?.homeLocalLogoPath, $0?.awayLocalLogoPath] }
+            .compactMap { $0 }
     }
 
     private var footballLogoTaskID: String {
@@ -94,7 +94,31 @@ struct MenuBarStatusLabel: View {
     }
 
     @MainActor
-    private static func makeBadgeImage(
+    static func makeImage(
+        for state: MenuBarPresentationState,
+        fontSize: CGFloat,
+        footballLogoRevision: Int
+    ) -> NSImage {
+        makeCombinedBadgeImage(
+            text: state.label, color: state.color,
+            alertedSegmentIndex: state.alertedSegmentIndex, alertTextOpacity: state.alertTextOpacity,
+            dotColors: state.dotColors, markerStyles: state.markerStyles, segments: state.segments,
+            segmentBackgroundColors: state.segmentBackgroundColors,
+            segmentBackgroundProgresses: state.segmentBackgroundProgresses,
+            segmentParticipationStatuses: state.segmentParticipationStatuses,
+            segmentTextureStatuses: state.segmentTextureStatuses,
+            segmentAccessorySymbolNames: state.segmentAccessorySymbolNames,
+            footballDisplay: state.footballDisplay, footballTrailingText: state.footballTrailingText,
+            footballStatusText: state.footballStatusText, footballStatusColor: state.footballStatusColor,
+            footballGoalHighlightSide: state.footballGoalHighlightSide,
+            footballGoalHighlightTextOpacity: state.footballGoalHighlightTextOpacity,
+            fontSize: fontSize, footballLogoRevision: footballLogoRevision,
+            pinnedScores: state.pinnedFootballScores
+        )
+    }
+
+    @MainActor
+    static func makeBadgeImage(
         text: String,
         color: NSColor,
         alertedSegmentIndex: Int?,

@@ -29,6 +29,9 @@ extension FootballDataAPIClient {
         formatter.timeZone = .autoupdatingCurrent
         formatter.dateFormat = "yyyyMMdd"
         let today = formatter.string(from: now)
+        if dates.count == 6 {
+            return dates == String(today.prefix(6)) ? scoreboardCurrentDayCacheTTL : scoreboardDistantCacheTTL
+        }
         let bounds = dates.split(separator: "-", maxSplits: 1).map(String.init)
         guard let start = bounds.first,
               let end = bounds.last else {

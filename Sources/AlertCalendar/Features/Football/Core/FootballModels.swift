@@ -216,6 +216,7 @@ struct FootballMenuCompetitionSection: Identifiable, Equatable {
     let errorMessage: String?
     let isLoading: Bool
     let hasLoaded: Bool
+    var checkedWindow: FootballCompetitionAvailabilityWindow? = nil
 
     var id: String { competition.id }
 

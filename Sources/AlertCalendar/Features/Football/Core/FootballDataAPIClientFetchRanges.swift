@@ -50,11 +50,12 @@ extension FootballDataAPIClient {
                 FootballScoreboardDateRange(start: $0.0, end: $0.1)
             })
         })
+        let refreshStartedAt = Date()
         var result = try await withThrowingTaskGroup(of: FootballFixtureLoadResult.self) { group in
             for competition in competitions {
                 for range in rangesBySlug[competition.slug] ?? [] {
                     group.addTask {
-                        try await self.fixturePageResult(competition, range: range, forceRefresh: forceRefresh)
+                        try await self.fixturePageResult(competition, range: range, forceRefresh: forceRefresh, refreshStartedAt: refreshStartedAt)
                     }
                 }
             }
@@ -88,12 +89,13 @@ extension FootballDataAPIClient {
     }
 
     func fixturePageResult(
-        _ competition: FootballCompetitionPreset, range: FootballScoreboardDateRange, forceRefresh: Bool
+        _ competition: FootballCompetitionPreset, range: FootballScoreboardDateRange, forceRefresh: Bool,
+        refreshStartedAt: Date? = nil
     ) async throws -> FootballFixtureLoadResult {
         let isMultipleDays = !Calendar.current.isDate(range.start, inSameDayAs: range.end)
         if isMultipleDays, let rejectedAt = rejectedScoreboardRanges[competition.slug],
            Date().timeIntervalSince(rejectedAt) < 24 * 60 * 60 {
-            return try await dailyFixtureResult(competition, range: range, forceRefresh: forceRefresh)
+            return try await monthlyFixtureResult(competition, range: range, forceRefresh: forceRefresh, refreshStartedAt: refreshStartedAt)
         }
         var result = FootballFixtureLoadResult()
         var failure: String?
@@ -107,7 +109,7 @@ extension FootballDataAPIClient {
                 if isMultipleDays, scoreboardPageFailures.value(forKey: url.absoluteString)?.rejectedRange == true {
                     rejectedScoreboardRanges[competition.slug] = Date()
                     scoreboardPageFailures.removeValue(forKey: url.absoluteString)
-                    return try await dailyFixtureResult(competition, range: range, forceRefresh: forceRefresh)
+                    return try await monthlyFixtureResult(competition, range: range, forceRefresh: forceRefresh, refreshStartedAt: refreshStartedAt)
                 }
                 failure = scoreboardPageFailures.value(forKey: url.absoluteString)?.reason
             }
@@ -116,7 +118,7 @@ extension FootballDataAPIClient {
             if isMultipleDays, Self.isRejectedScoreboardRange(error) {
                 rejectedScoreboardRanges[competition.slug] = Date()
                 if let url { scoreboardPageFailures.removeValue(forKey: url.absoluteString) }
-                return try await dailyFixtureResult(competition, range: range, forceRefresh: forceRefresh)
+                return try await monthlyFixtureResult(competition, range: range, forceRefresh: forceRefresh, refreshStartedAt: refreshStartedAt)
             }
             failure = Self.fixtureFailureDescription(error)
         }

@@ -32,9 +32,8 @@ struct MenuDropdownScreen: Equatable {
         )
     }
 
-    /// Resolve the display from the panel geometry instead of trusting
-    /// `NSWindow.screen` while MenuBarExtra is moving and resizing its window.
-    /// During that transition AppKit can temporarily report an adjacent display.
+    /// Resolve the display from desktop geometry. This also supports status
+    /// button replicas on displays other than their hosting window's screen.
     static func visibleFrameForDropdown(
         windowFrame: CGRect,
         screens: [Self]
@@ -67,21 +66,4 @@ struct MenuDropdownScreen: Equatable {
         return -(horizontalDistance * horizontalDistance + verticalDistance * verticalDistance)
     }
 
-    /// MenuBarExtra can preserve the bottom edge of its initial maximum-sized
-    /// panel when SwiftUI later reports the compact content height. Correct
-    /// only conspicuous vertical drift and leave AppKit's normal small gap and
-    /// horizontal status-item anchoring intact.
-    static func correctedDropdownOrigin(
-        windowFrame: CGRect,
-        visibleFrame: CGRect,
-        preferredTopGap: CGFloat = 4,
-        maximumNativeTopGap: CGFloat = 16
-    ) -> CGPoint? {
-        let topGap = visibleFrame.maxY - windowFrame.maxY
-        guard topGap < 0 || topGap > maximumNativeTopGap else { return nil }
-        return CGPoint(
-            x: windowFrame.minX,
-            y: visibleFrame.maxY - preferredTopGap - windowFrame.height
-        )
-    }
 }

@@ -1,18 +1,6 @@
 import EventKit
 import Foundation
 
-struct CalendarAlertRuleApplicationResult {
-    var updatedCount = 0
-    var failureCount = 0
-    var commitFailed = false
-
-    mutating func merge(_ other: CalendarAlertRuleApplicationResult) {
-        updatedCount += other.updatedCount
-        failureCount += other.failureCount
-        commitFailed = commitFailed || other.commitFailed
-    }
-}
-
 extension CalendarMonitor {
     nonisolated static let calendarAlertRuleSyncBuffer: TimeInterval = 7 * 24 * 60 * 60
     nonisolated static let maximumCalendarAlertRuleSyncHorizon: TimeInterval = 372 * 24 * 60 * 60
@@ -73,78 +61,50 @@ extension CalendarMonitor {
         processedEventKeys: inout Set<String>,
         includesRecurringSeries: Bool = true
     ) -> CalendarAlertRuleApplicationResult {
+        let calendarIDs = Set(calendars.map(\.calendarIdentifier))
+        let currentCalendars = eventStore.calendars(for: .event).filter {
+            calendarIDs.contains($0.calendarIdentifier) && $0.allowsContentModifications
+        }
+        guard !currentCalendars.isEmpty else {
+            return CalendarAlertRuleApplicationResult(failureCount: 1)
+        }
         let predicate = eventStore.predicateForEvents(
-            withStart: window.start,
-            end: window.end,
-            calendars: calendars
+            withStart: window.start, end: window.end, calendars: currentCalendars
         )
-        let events = eventStore.events(matching: predicate).sorted {
-            $0.startDate < $1.startDate
-        }
+        let events = eventStore.events(matching: predicate).sorted { $0.startDate < $1.startDate }
         var result = CalendarAlertRuleApplicationResult()
-
-        for event in events {
-            guard
-                let rule = rulesByCalendarID[event.calendar.calendarIdentifier],
-                Self.calendarAlertRuleApplies(rule, to: event)
-            else {
-                continue
-            }
-
-            let recurringSeriesKey = Self.calendarAlertRecurringSeriesKey(for: event)
-            if recurringSeriesKey != nil, !includesRecurringSeries {
-                continue
-            }
-            let eventKey = Self.calendarAlertEventKey(for: event)
-            guard processedEventKeys.insert(eventKey).inserted else { continue }
-
-            let configuredAlerts = rule.alerts(isAllDay: event.isAllDay)
-            let desiredAlarms = configuredAlerts.compactMap {
-                calendarAlarm(from: $0, for: event)
-            }
-
-            if !configuredAlerts.isEmpty,
-               desiredAlarms.isEmpty,
-               configuredAlerts.allSatisfy({ $0.timingKind == .timeToLeave }) {
-                continue
-            }
-            let existingAlarms = event.alarms ?? []
-            let resolvedAlarms = Self.resolvedCalendarAlarms(
-                existing: existingAlarms,
-                desired: desiredAlarms,
-                overwriteExisting: rule.overwriteExistingAlerts,
-                maximumAlarmCount: Self.maximumCalendarAlarmCount(for: event.calendar)
-            )
-            guard !Self.calendarAlarmsAreEquivalent(existingAlarms, resolvedAlarms) else {
-                continue
-            }
-
-            event.alarms = resolvedAlarms.isEmpty ? nil : resolvedAlarms
-
-            do {
-                try eventStore.save(
-                    event,
-                    span: Self.calendarAlertMutationSpan(for: event),
-                    commit: false
-                )
-                result.updatedCount += 1
-            } catch {
-                result.failureCount += 1
-                CalendarMonitorLog.alerts.error(
-                    "Could not apply alert rule to event in calendar \(event.calendar.title, privacy: .private): \(error.localizedDescription, privacy: .public)"
-                )
-            }
-        }
-
-        guard result.updatedCount > 0 else { return result }
         do {
-            try eventStore.commit()
+            try calendarMutations.perform { batch in
+                for event in events {
+                    guard let rule = rulesByCalendarID[event.calendar.calendarIdentifier],
+                          Self.calendarAlertRuleApplies(rule, to: event) else { continue }
+                    if Self.calendarAlertRecurringSeriesKey(for: event) != nil, !includesRecurringSeries { continue }
+                    guard processedEventKeys.insert(Self.calendarAlertEventKey(for: event)).inserted else { continue }
+                    let configuredAlerts = rule.alerts(isAllDay: event.isAllDay)
+                    let desiredAlarms = configuredAlerts.compactMap { calendarAlarm(from: $0, for: event) }
+                    if !configuredAlerts.isEmpty, desiredAlarms.isEmpty,
+                       configuredAlerts.allSatisfy({ $0.timingKind == .timeToLeave }) { continue }
+                    let existingAlarms = event.alarms ?? []
+                    let resolvedAlarms = Self.resolvedCalendarAlarms(
+                        existing: existingAlarms, desired: desiredAlarms,
+                        overwriteExisting: rule.overwriteExistingAlerts,
+                        maximumAlarmCount: Self.maximumCalendarAlarmCount(for: event.calendar)
+                    )
+                    guard !Self.calendarAlarmsAreEquivalent(existingAlarms, resolvedAlarms) else { continue }
+                    event.alarms = resolvedAlarms.isEmpty ? nil : resolvedAlarms
+                    try batch.save(event, span: Self.calendarAlertMutationSpan(for: event))
+                    result.updatedCount += 1
+                }
+            }
         } catch {
-            result.commitFailed = true
-            eventStore.reset()
-            CalendarMonitorLog.alerts.error(
-                "Could not commit calendar alert rules: \(error.localizedDescription, privacy: .public)"
-            )
+            // The transaction reset discarded every staged change in this window.
+            result.updatedCount = 0
+            result.failureCount = 1
+            if case .commitFailed = error as? CalendarMutationCoordinator.TransactionError {
+                result.commitFailed = true
+            }
+            invalidateManagedFootballSnapshotCache()
+            CalendarMonitorLog.alerts.error("Could not apply calendar alert window: \(String(describing: error), privacy: .private)")
         }
         return result
     }

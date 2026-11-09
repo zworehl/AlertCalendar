@@ -7,6 +7,7 @@ import SwiftUI
 
 struct SettingsView: View {
     let monitor: CalendarMonitor
+    var runsLiveServices = true
 
     @StateObject var settingsWindowCloseGuard = SettingsWindowCloseGuard()
     @StateObject var softwareUpdateController = SoftwareUpdateController.shared
@@ -58,10 +59,8 @@ struct SettingsView: View {
     @State var draggingMusicEmojiIndex: Int?
     @State var isShowingSlackConnectionManagement = false
     @State var slackStatusRulesColumnWidth: CGFloat = 0
-    @State var installedMeetingBrowsers: [MeetingBrowserKind] = MeetingBrowserCatalog.installedBrowsers()
-    @State var meetingBrowserProfileCatalog: MeetingBrowserProfileCatalog = MeetingBrowserProfileStore.catalog(
-        for: MeetingBrowserCatalog.installedBrowsers()
-    )
+    @State var installedMeetingBrowsers: [MeetingBrowserKind] = []
+    @State var meetingBrowserProfileCatalog = MeetingBrowserProfileCatalog(profilesByBrowser: [:], issuesByBrowser: [:])
     @State var browserProfileAuthorizationErrorMessage: String?
     @State var settingsWindowWidth: CGFloat = 976
     @State var settingsColumnVisibility: NavigationSplitViewVisibility = .all
@@ -97,6 +96,12 @@ struct SettingsView: View {
             maxHeight: .infinity
         )
         .onAppear {
+            guard runsLiveServices else {
+                synchronizeSettingsStateFromMonitor()
+                synchronizeDraftWithStoredSettings(force: true)
+                didLoad = true
+                return
+            }
             activateSettingsWindowIfNeeded()
             monitor.refreshAgendaSummaryAvailability()
             agendaSummaryAvailability = monitor.agendaSummaryAvailability
@@ -145,17 +150,13 @@ struct SettingsView: View {
             astronomyLocationStatus = status
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            guard runsLiveServices else { return }
             monitor.refreshAgendaSummaryAvailability()
             eventAuthorizationStatus = SettingsPermissionKind.currentEventAuthorizationStatus()
             reminderAuthorizationStatus = SettingsPermissionKind.currentReminderAuthorizationStatus()
             locationAuthorizationStatus = SettingsPermissionKind.currentLocationAuthorizationStatus()
             contactsAuthorizationStatus = SettingsPermissionKind.currentContactsAuthorizationStatus()
-            let mailStatus = AppleMailAutomationPermission.currentStatus()
-            let didChangeMailAccess = mailStatus != mailAutomationAuthorizationStatus
-            mailAutomationAuthorizationStatus = mailStatus
-            if didChangeMailAccess {
-                monitor.refreshNow(reason: .manual)
-            }
+            refreshMailAutomationStatus(forceRefresh: true)
             refreshMeetingBrowserProfiles()
         }
         .onReceive(monitor.$lastRefreshDate.removeDuplicates()) { date in
@@ -192,6 +193,7 @@ struct SettingsView: View {
             NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
                 .debounce(for: .milliseconds(150), scheduler: RunLoop.main)
         ) { _ in
+            guard runsLiveServices else { return }
             synchronizeSettingsStateFromMonitor()
             synchronizeDraftWithStoredSettings()
         }

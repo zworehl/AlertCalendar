@@ -151,11 +151,24 @@ extension SlackAPIClient {
     }
 
     func send<Response: Decodable>(_ request: URLRequest) async throws -> Response {
-        let (data, response) = try await session.data(for: request)
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await transport.data(for: request)
+        } catch HTTPServiceRetryError.deferred(let statusCode, let until) {
+            throw SlackAPIError.retryDeferred(statusCode: statusCode, until: until)
+        }
+        try Task.checkCancellation()
         guard let httpResponse = response as? HTTPURLResponse else {
             throw SlackAPIError.invalidResponse
         }
         guard (200 ... 299).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 429 || httpResponse.value(forHTTPHeaderField: "Retry-After") != nil {
+                throw SlackAPIError.retryDeferred(statusCode: httpResponse.statusCode, until: HTTPServiceRetryPolicy.retryDate(
+                    statusCode: httpResponse.statusCode,
+                    retryAfter: httpResponse.value(forHTTPHeaderField: "Retry-After"), now: clock()
+                ))
+            }
             throw SlackAPIError.transport(statusCode: httpResponse.statusCode)
         }
 

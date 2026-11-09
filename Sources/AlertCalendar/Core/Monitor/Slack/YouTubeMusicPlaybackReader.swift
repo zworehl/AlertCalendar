@@ -46,24 +46,20 @@ enum YouTubeMusicPlaybackReader {
     private static let errorMarker = "__ALERT_CALENDAR_YT_ERROR__"
 
     nonisolated static func currentPlaybackObservation() async -> AppleMusicPlaybackObservation {
-        await Task.detached(priority: .utility) {
-            var sawStoppedPlayback = false
-            var sawUnavailableBrowser = false
+        var sawStoppedPlayback = false
+        var sawUnavailableBrowser = false
 
-            for browser in browsers where isApplicationRunning(browser.bundleIdentifier) {
-                switch browserObservation(browser) {
-                case let .playing(playback):
-                    return .playing(playback)
-                case .stopped:
-                    sawStoppedPlayback = true
-                case .unavailable:
-                    sawUnavailableBrowser = true
-                }
+        for browser in browsers where isApplicationRunning(browser.bundleIdentifier) {
+            guard !Task.isCancelled else { return .unavailable }
+            switch await browserObservation(browser) {
+            case let .playing(playback): return .playing(playback)
+            case .stopped: sawStoppedPlayback = true
+            case .unavailable: sawUnavailableBrowser = true
             }
+        }
 
-            if sawStoppedPlayback { return .stopped }
-            return sawUnavailableBrowser ? .unavailable : .stopped
-        }.value
+        if sawStoppedPlayback { return .stopped }
+        return sawUnavailableBrowser ? .unavailable : .stopped
     }
 
     nonisolated static func parsePayload(_ rawValue: String) -> AppleMusicPlayback? {
@@ -95,13 +91,20 @@ enum YouTubeMusicPlaybackReader {
 
     private nonisolated static func browserObservation(
         _ browser: BrowserDescriptor
-    ) -> AppleMusicPlaybackObservation {
+    ) async -> AppleMusicPlaybackObservation {
         let source = appleScriptSource(for: browser)
-        guard let script = NSAppleScript(source: source) else { return .unavailable }
-        var errorInfo: NSDictionary?
-        let result = script.executeAndReturnError(&errorInfo)
-        guard errorInfo == nil, let rawValue = result.stringValue else { return .unavailable }
-
+        let rawValue: String
+        do {
+            let result = try await AlertCalendarAutomation.shared.execute(
+                .init(operation: .script, bundleIdentifier: browser.bundleIdentifier, source: source),
+                timeout: 3
+            )
+            guard result.errorNumber == nil, let value = result.value else { return .unavailable }
+            rawValue = value
+        } catch {
+            CalendarMonitorLog.slack.error("Browser playback observation failed: \(String(describing: error), privacy: .public)")
+            return .unavailable
+        }
         switch rawValue {
         case noTabMarker:
             return .stopped
@@ -125,6 +128,7 @@ enum YouTubeMusicPlaybackReader {
         }
 
         return """
+        with timeout of 2 seconds
         tell application id "\(browser.bundleIdentifier)"
             try
                 set foundMusicTab to false
@@ -148,6 +152,7 @@ enum YouTubeMusicPlaybackReader {
                 return "\(errorMarker)"
             end try
         end tell
+        end timeout
         """
     }
 

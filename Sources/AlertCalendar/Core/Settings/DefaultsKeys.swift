@@ -42,6 +42,7 @@ enum DefaultsKeys {
     static let footballTargetCalendarID = "footballTargetCalendarID"
     static let footballAutoAddCompetitionSlugs = "footballAutoAddCompetitionSlugs"
     static let footballCalendarAlertOption = "footballCalendarAlertOption"
+    static let pinLiveFootballScoresInMenuBar = "pinLiveFootballScoresInMenuBar"
     static let enableFootballGoalNotifications = "enableFootballGoalNotifications"
     static let enableFootballDisallowedGoalNotifications = "enableFootballDisallowedGoalNotifications"
     static let includeFootballGoalScorerInNotifications = "includeFootballGoalScorerInNotifications"

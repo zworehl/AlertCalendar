@@ -9,6 +9,7 @@ enum SettingsVisualMetrics {
     static let sidebarIconSize: CGFloat = 14
     static let sidebarIconCornerRadius: CGFloat = 5
     static let generalTwoColumnMinimumWidth: CGFloat = 960
+    static let generalFooterTwoColumnMinimumWidth: CGFloat = 1_320
     static let detailHorizontalPadding: CGFloat = 24
     static let detailVerticalPadding: CGFloat = 20
     static let pageSpacing: CGFloat = 14

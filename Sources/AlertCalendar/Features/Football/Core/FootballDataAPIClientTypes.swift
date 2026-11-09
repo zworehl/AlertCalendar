@@ -3,13 +3,14 @@ import Foundation
 extension FootballDataAPIClient {
     enum ClientError: LocalizedError, Sendable {
         case invalidResponse
+        case incompleteScoreboardMonth
         case unsuccessfulResponse(statusCode: Int)
         case unavailable(String)
         case rateLimited(until: Date)
 
         var errorDescription: String? {
             switch self {
-            case .invalidResponse:
+            case .invalidResponse, .incompleteScoreboardMonth:
                 return L10n.text("The football feed returned an unreadable response.")
             case .unsuccessfulResponse(let statusCode):
                 return statusCode == 429

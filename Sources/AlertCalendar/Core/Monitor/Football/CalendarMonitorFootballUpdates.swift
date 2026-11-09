@@ -6,13 +6,13 @@ import Foundation
 extension CalendarMonitor {
     func applyFootballEventUpdates(_ trackedEvents: [ManagedFootballEventSnapshot], using matches: [FootballFixtureMatch]) async {
         let matchesByID = Dictionary(uniqueKeysWithValues: matches.map { ($0.id, $0) })
-        var hasPendingChanges = false
         var refreshedRecordsByReference = Dictionary(uniqueKeysWithValues: managedFootballEventRecords.map { ($0.reference, $0) })
         var updatedReferences: [ManagedFootballFixtureReference] = []
         var repairedVenueCount = 0
         var saveFailureCount = 0
 
         for snapshot in trackedEvents {
+            if Task.isCancelled { break }
             guard let match = matchesByID[snapshot.reference.matchID] else { continue }
             let updatedTitle = FootballFixtureFormatter.calendarTitle(for: match)
             let updatedLocation = FootballCalendarLocation.resolvedText(
@@ -50,6 +50,7 @@ extension CalendarMonitor {
 
             guard needsUpdate else { continue }
 
+            if Task.isCancelled { break }
             snapshot.event.title = updatedTitle
             await applyFootballLocation(to: snapshot.event, locationText: updatedLocation)
             await applyFootballTimeZone(to: snapshot.event, locationText: updatedLocation)
@@ -62,7 +63,7 @@ extension CalendarMonitor {
             applyFootballAlertConfiguration(to: snapshot.event)
 
             do {
-                try eventStore.save(snapshot.event, span: .thisEvent, commit: false)
+                try calendarMutations.perform { try $0.save(snapshot.event) }
                 if let refreshedRecord = managedFootballEventRecord(
                     for: snapshot.event,
                     reference: snapshot.reference
@@ -71,25 +72,16 @@ extension CalendarMonitor {
                 }
                 updatedReferences.append(snapshot.reference)
                 if repairsMissingVenue { repairedVenueCount += 1 }
-                hasPendingChanges = true
             } catch {
                 saveFailureCount += 1
-                continue
+                invalidateManagedFootballSnapshotCache()
+                // Reset invalidates the remaining fetched EventKit objects; retry
+                // them from a fresh snapshot instead of writing stale instances.
+                break
             }
         }
 
-        if hasPendingChanges {
-            do {
-                try eventStore.commit()
-            } catch {
-                footballState.managedRefreshFailed = true
-                CalendarMonitorLog.football.error("Could not commit football calendar updates: \(error.localizedDescription, privacy: .public)")
-                await DataRefreshHealth.shared.record(
-                    source: "football.calendar-update", title: L10n.text("Football calendar updates"),
-                    error: "Could not save football event updates to Calendar. The app will retry automatically."
-                )
-                return
-            }
+        if !updatedReferences.isEmpty {
             refreshManagedFootballRecordsAfterPersistedAlertCleanup(
                 &refreshedRecordsByReference,
                 references: updatedReferences

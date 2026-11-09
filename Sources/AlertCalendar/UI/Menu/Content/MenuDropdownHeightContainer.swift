@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Give MenuBarExtra a finite ideal AND minimum height. ViewThatFits with a
+/// Give the dropdown a finite ideal AND minimum height. ViewThatFits with a
 /// ScrollView alternative accepts every proposed height, including zero during
 /// native window measurement. Start with a small nonzero viewport, then grow to
 /// the measured content height so AppKit keeps the panel's top edge anchored.

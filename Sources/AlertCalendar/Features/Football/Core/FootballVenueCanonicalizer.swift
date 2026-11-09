@@ -50,6 +50,13 @@ enum FootballVenueCanonicalizer {
 
     private static let rules: [Rule] = [
         rule(
+            venueIDs: [],
+            names: ["Estadio Ricardo Saprissa", "Estadio Ricardo Saprissa Aymá"],
+            cities: [],
+            countries: ["Costa Rica"],
+            locationText: "Estadio Ricardo Saprissa, Tibás, Costa Rica"
+        ),
+        rule(
             venueIDs: ["1672"],
             names: ["Estadio Banorte", "Estadio Azteca"],
             cities: ["Mexico City", "Ciudad de México"],

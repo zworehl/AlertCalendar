@@ -2,7 +2,11 @@ import Foundation
 
 actor FootballDataAPIClient {
     let session: URLSession
+    let transport: FootballDataAPITransport
     let teamCacheStore: FootballTeamCacheStore?
+    var hasLoadedPersistedTeams = false
+    var teamDetailTasks: [String: Task<TeamResponse?, Never>] = [:]
+    var teamDetailFailures = AlertCalendarLRUCache<String, Date>(capacity: 320)
     var teamCache: [String: TeamResponse] = [:]
     var teamCacheFetchedAt: [String: Date] = [:]
     var scoreboardPageCache: [String: ScoreboardPageCacheEntry] = [:]
@@ -17,7 +21,7 @@ actor FootballDataAPIClient {
     var statisticsCache = AlertCalendarLRUCache<String, [FootballMatchStatistic]>(capacity: 160)
     var summaryRootCache: [String: SummaryRootCacheEntry] = [:]
     var summaryRootTasks: [String: Task<Data?, Error>] = [:]
-    var summaryRootFailures = AlertCalendarLRUCache<String, (count: Int, nextRetryAt: Date)>(capacity: 120)
+    var summaryRootFailures = AlertCalendarLRUCache<String, (count: Int, nextRetryAt: Date, error: ClientError)>(capacity: 120)
 
     init(
         session: URLSession? = nil,
@@ -25,16 +29,9 @@ actor FootballDataAPIClient {
     ) {
         let resolvedTeamCacheStore = teamCacheStore ?? (session == nil ? FootballTeamCacheStore.defaultStore() : nil)
         self.teamCacheStore = resolvedTeamCacheStore
-        if let persistedTeamCache = resolvedTeamCacheStore?.load(
-            now: AlertCalendarClock.nowRoundedToSecond(),
-            ttl: Self.teamCacheTTL
-        ) {
-            self.teamCache = persistedTeamCache.mapValues(\.response)
-            self.teamCacheFetchedAt = persistedTeamCache.mapValues(\.fetchedAt)
-        }
-
         if let session {
             self.session = session
+            self.transport = FootballDataAPITransport(session: session)
             return
         }
 
@@ -42,8 +39,10 @@ actor FootballDataAPIClient {
         configuration.timeoutIntervalForRequest = Self.requestTimeout
         configuration.timeoutIntervalForResource = Self.resourceTimeout
         configuration.waitsForConnectivity = false
-        configuration.httpMaximumConnectionsPerHost = 12
-        self.session = URLSession(configuration: configuration)
+        configuration.httpMaximumConnectionsPerHost = 2
+        let resolvedSession = URLSession(configuration: configuration)
+        self.session = resolvedSession
+        self.transport = FootballDataAPITransport(session: resolvedSession)
     }
 
     func fetchMatches(
@@ -75,16 +74,17 @@ actor FootballDataAPIClient {
         slug: String,
         competitionName: String,
         competitionCategory: FootballCompetitionCategory? = nil,
-        forceRefresh: Bool = false
+        forceRefresh: Bool = false,
+        refreshStartedAt: Date? = nil
     ) async throws -> [FootballFixtureMatch] {
         let cacheKey = url.absoluteString
         let now = AlertCalendarClock.nowRoundedToSecond()
         let diagnosticsSource = "football.scoreboard.\(slug)"
         await ExternalFeedMetrics.shared.recordCheck(source: diagnosticsSource, at: now)
 
-        if !forceRefresh,
-           scoreboardPageFailures.value(forKey: cacheKey) == nil,
+        if scoreboardPageFailures.value(forKey: cacheKey) == nil,
            let cached = scoreboardPageCache[cacheKey],
+           !forceRefresh || refreshStartedAt.map({ cached.fetchedAt >= $0 }) == true,
            now.timeIntervalSince(cached.fetchedAt) <= Self.scoreboardPageCacheTTL(for: url, now: now) {
             await ExternalFeedMetrics.shared.recordCacheHit(
                 source: diagnosticsSource,
@@ -129,10 +129,10 @@ actor FootballDataAPIClient {
         do {
             let matches = try await Self.fetchScoreboardPageWithRetry(
                 url: url, slug: slug, competitionName: competitionName, session: session,
-                competitionCategory: competitionCategory
+                competitionCategory: competitionCategory, transport: transport
             )
             scoreboardPageFailures.removeValue(forKey: cacheKey)
-            cacheScoreboardMatchesPage(matches, for: cacheKey, fetchedAt: AlertCalendarClock.nowRoundedToSecond())
+            cacheScoreboardMatchesPage(matches, for: cacheKey, fetchedAt: Date())
             return matches
         } catch {
             if error is CancellationError || (error as? URLError)?.code == .cancelled { throw error }
@@ -147,7 +147,7 @@ actor FootballDataAPIClient {
                     failedAt: failedAt,
                     reason: Self.fixtureFailureDescription(error),
                     rateLimitedUntil: limitedUntil,
-                    rejectedRange: Self.isRejectedScoreboardRange(error)
+                    rejectedRange: Self.isRejectedScoreboardRange(error) || Self.isIncompleteScoreboardMonth(error)
                 ),
                 forKey: cacheKey
             )
@@ -183,13 +183,14 @@ actor FootballDataAPIClient {
     func summaryRoot(
         url: URL,
         match: FootballFixtureMatch,
-        requirement: SummaryRootCacheRequirement = .any
+        requirement: SummaryRootCacheRequirement = .any,
+        forceRefresh: Bool = false
     ) async throws -> [String: Any]? {
         let cacheKey = Self.summaryRootCacheKey(url: url, match: match)
         let now = AlertCalendarClock.nowRoundedToSecond()
         await ExternalFeedMetrics.shared.recordCheck(source: "football.summary", at: now)
 
-        if let cached = summaryRootCache[cacheKey],
+        if !forceRefresh, let cached = summaryRootCache[cacheKey],
            now.timeIntervalSince(cached.fetchedAt) <= Self.summaryRootCacheTTL,
            Self.summaryRoot(cached.root, satisfies: requirement, match: match) {
             await ExternalFeedMetrics.shared.recordCacheHit(
@@ -210,7 +211,7 @@ actor FootballDataAPIClient {
                 )
                 return cached.root
             }
-            throw ClientError.unsuccessfulResponse(statusCode: 429)
+            throw failure.error
         }
 
         do {
@@ -219,8 +220,8 @@ actor FootballDataAPIClient {
                 await ExternalFeedMetrics.shared.recordCoalescedRequest(source: "football.summary")
                 data = try await task.value
             } else {
-                let task = Task { [session] in
-                    try await Self.fetchSummaryData(url: url, session: session)
+                let task = Task { [session, transport] in
+                    try await Self.fetchSummaryData(url: url, session: session, transport: transport)
                 }
                 summaryRootTasks[cacheKey] = task
                 defer { summaryRootTasks[cacheKey] = nil }
@@ -228,17 +229,23 @@ actor FootballDataAPIClient {
             }
 
             guard let data else { return nil }
-            let root = try Self.jsonDictionary(from: data)
+            let root = try Self.validatedSummaryDictionary(from: data)
+            await ExternalFeedMetrics.shared.recordValidatedData(source: "football.summary", at: now)
             summaryRootFailures.removeValue(forKey: cacheKey)
             cacheSummaryRoot(root, for: cacheKey, fetchedAt: now)
             return root
         } catch {
+            if error is CancellationError || (error as? URLError)?.code == .cancelled { throw error }
+            if case .invalidResponse = error as? ClientError {
+                await ExternalFeedMetrics.shared.recordDataFailure(source: "football.summary", validationFailed: true)
+            }
             let count = (summaryRootFailures.value(forKey: cacheKey)?.count ?? 0) + 1
+            let failure = (error as? ClientError) ?? .unavailable(Self.fixtureFailureDescription(error))
+            let retryAt = now.addingTimeInterval(Self.scoreboardRetryDelay(forFailureCount: count))
+            let limitedUntil: Date
+            if case .rateLimited(let until) = failure { limitedUntil = until } else { limitedUntil = now }
             summaryRootFailures.insert(
-                (
-                    count,
-                    now.addingTimeInterval(Self.scoreboardRetryDelay(forFailureCount: count))
-                ),
+                (count, max(retryAt, limitedUntil), failure),
                 forKey: cacheKey
             )
             if let cached = summaryRootCache[cacheKey],
@@ -319,7 +326,8 @@ actor FootballDataAPIClient {
 
     func refreshStatusesIfNeeded(
         for matches: [FootballFixtureMatch],
-        forceSummaryForMatchIDs: Set<String> = []
+        forceSummaryForMatchIDs: Set<String> = [],
+        forceRefresh: Bool = false
     ) async -> [FootballFixtureMatch] {
         guard !matches.isEmpty else { return matches }
 
@@ -347,7 +355,7 @@ actor FootballDataAPIClient {
         let snapshots = await withTaskGroup(of: (String, SummarySnapshot?).self) { group in
             for match in candidates {
                 group.addTask {
-                    let snapshot = await self.summarySnapshot(for: match)
+                    let snapshot = await self.summarySnapshot(for: match, forceRefresh: forceRefresh)
                     return (match.id, snapshot)
                 }
             }

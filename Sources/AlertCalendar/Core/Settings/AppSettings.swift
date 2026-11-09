@@ -39,6 +39,7 @@ struct AppSettings: Equatable {
     var footballTargetCalendarID: String
     var footballAutoAddCompetitionSlugs: Set<String>
     var footballCalendarAlertOption: FootballCalendarAlertOption
+    var pinLiveFootballScoresInMenuBar: Bool = true
     var enableFootballGoalNotifications: Bool
     var enableFootballDisallowedGoalNotifications: Bool
     var includeFootballGoalScorerInNotifications: Bool
@@ -121,6 +122,7 @@ struct AppSettings: Equatable {
         footballTargetCalendarID: "",
         footballAutoAddCompetitionSlugs: [],
         footballCalendarAlertOption: .none,
+        pinLiveFootballScoresInMenuBar: true,
         enableFootballGoalNotifications: true,
         enableFootballDisallowedGoalNotifications: true,
         includeFootballGoalScorerInNotifications: true,

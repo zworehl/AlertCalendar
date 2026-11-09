@@ -2,11 +2,14 @@ import XCTest
 @testable import AlertCalendar
 
 final class FootballTeamPresentationTests: XCTestCase {
-    func testBroadcastIdentifiersPreserveProviderCodesAndDoNotInventMissingOnes() {
-        for code in ["RMA", "ATM", "MNC", "MAN", "REMO", "CRC"] {
+    func testBroadcastIdentifiersKeepValidShortCodesAndResolveKnownTeamNames() {
+        for code in ["RMA", "ATM", "CRC", "B04", "AZ"] {
             XCTAssertEqual(FootballFixtureFormatter.normalizedAbbreviation(" \(code.lowercased()) ", fallbackName: "Team"), code)
         }
-        XCTAssertEqual(FootballFixtureFormatter.normalizedAbbreviation("", fallbackName: "Manchester United"), "Manchester United")
+        XCTAssertEqual(FootballFixtureFormatter.normalizedAbbreviation("MAN", fallbackName: "Manchester United"), "MUN")
+        XCTAssertEqual(FootballFixtureFormatter.normalizedAbbreviation("MNC", fallbackName: "Manchester City"), "MCI")
+        XCTAssertEqual(FootballFixtureFormatter.normalizedAbbreviation("REMO", fallbackName: "Remo"), "REM")
+        XCTAssertEqual(FootballFixtureFormatter.normalizedAbbreviation("", fallbackName: "Manchester United"), "MUN")
     }
 
     func testTeamNamesPreserveWordsAccentsAndNumbers() {
@@ -28,7 +31,7 @@ final class FootballTeamPresentationTests: XCTestCase {
             id: "slot", name: "Group A Winner", abbreviation: "GRO", logoURL: nil,
             countryName: nil, isNational: true
         )
-        XCTAssertEqual(FootballFixtureFormatter.teamDisplayName(for: unnamed), "PALM")
+        XCTAssertEqual(FootballFixtureFormatter.teamDisplayName(for: unnamed), "PAL")
         XCTAssertEqual(FootballFixtureFormatter.teamDisplayName(for: unresolved), "TBD")
     }
 

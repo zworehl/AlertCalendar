@@ -69,55 +69,13 @@ extension FootballDataAPIClient {
         }
     }
 
-    static func fetchSummaryRoot(
-        url: URL,
-        session: URLSession
-    ) async throws -> [String: Any]? {
-        guard let data = try await fetchSummaryData(url: url, session: session) else {
-            return nil
-        }
-        return try jsonDictionary(from: data)
-    }
-
-    static func fetchSummaryData(
-        url: URL,
-        session: URLSession
-    ) async throws -> Data? {
-        var request = URLRequest(url: url)
-        request.timeoutInterval = Self.requestTimeout
-        let requestStartedAt = Date()
-        let data: Data
-        let response: URLResponse
-        do {
-            (data, response) = try await session.data(for: request)
-        } catch {
-            await ExternalFeedMetrics.shared.recordTransportFailure(
-                source: "football.summary",
-                duration: Date().timeIntervalSince(requestStartedAt)
-            )
-            throw error
-        }
-        guard let http = response as? HTTPURLResponse else {
-            throw ClientError.invalidResponse
-        }
-        await ExternalFeedMetrics.shared.recordNetworkResponse(
-            source: "football.summary",
-            statusCode: http.statusCode,
-            responseBytes: data.count,
-            duration: Date().timeIntervalSince(requestStartedAt)
-        )
-        guard (200...299).contains(http.statusCode) else {
-            throw ClientError.unsuccessfulResponse(statusCode: http.statusCode)
-        }
-        return data
-    }
-
     static func fetchMatchesPage(
         slug: String,
         competitionName: String,
         session: URLSession,
         dateRange: (Date, Date)?,
-        competitionCategory: FootballCompetitionCategory? = nil
+        competitionCategory: FootballCompetitionCategory? = nil,
+        transport: FootballDataAPITransport? = nil
     ) async throws -> [FootballFixtureMatch] {
         guard let url = scoreboardURL(slug: slug, dateRange: dateRange) else { return [] }
         return try await fetchMatchesPage(
@@ -125,7 +83,7 @@ extension FootballDataAPIClient {
             slug: slug,
             competitionName: competitionName,
             session: session,
-            competitionCategory: competitionCategory
+            competitionCategory: competitionCategory, transport: transport
         )
     }
 
@@ -134,14 +92,23 @@ extension FootballDataAPIClient {
         slug: String,
         competitionName: String,
         session: URLSession,
-        competitionCategory: FootballCompetitionCategory? = nil
+        competitionCategory: FootballCompetitionCategory? = nil,
+        transport: FootballDataAPITransport? = nil
     ) async throws -> [FootballFixtureMatch] {
-        let root = try await fetchScoreboardRoot(url: url, slug: slug, session: session)
+        let root = try await fetchScoreboardRoot(url: url, slug: slug, session: session, transport: transport)
         let league = (root["leagues"] as? [[String: Any]])?.first
         let resolvedCompetitionName = competitionDisplayName(from: league) ?? competitionName
         let competitionLogoURL = leagueLogoURL(from: league)
         let competitionStage = leagueStageName(from: league)
-        guard let events = root["events"] as? [[String: Any]] else { throw ClientError.invalidResponse }
+        guard let events = root["events"] as? [[String: Any]] else {
+            await ExternalFeedMetrics.shared.recordDataFailure(source: "football.scoreboard.\(slug)", validationFailed: true)
+            throw ClientError.invalidResponse
+        }
+        if Self.isMonthlyScoreboardURL(url), events.count >= Self.monthlyScoreboardLimit {
+            await ExternalFeedMetrics.shared.recordDataFailure(source: "football.scoreboard.\(slug)", validationFailed: true)
+            throw ClientError.incompleteScoreboardMonth
+        }
+        await ExternalFeedMetrics.shared.recordValidatedData(source: "football.scoreboard.\(slug)")
         let isNationalCompetition = (competitionCategory ?? FootballCompetitionPreset.category(forCompetitionSlug: slug)) == .nationalTeams
         return events.compactMap {
             liveMatch(
@@ -155,15 +122,18 @@ extension FootballDataAPIClient {
         }
     }
 
-    static func fetchScoreboardRoot(url: URL, slug: String, session: URLSession) async throws -> [String: Any] {
-        var request = URLRequest(url: url)
+    static func fetchScoreboardRoot(
+        url: URL, slug: String, session: URLSession, transport: FootballDataAPITransport? = nil
+    ) async throws -> [String: Any] {
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
         request.timeoutInterval = Self.requestTimeout
         let requestStartedAt = Date()
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await session.data(for: request)
+            (data, response) = try await Self.apiData(for: request, session: session, transport: transport)
         } catch {
+            if error is ClientError || error is CancellationError || (error as? URLError)?.code == .cancelled { throw error }
             await ExternalFeedMetrics.shared.recordTransportFailure(
                 source: "football.scoreboard.\(slug)",
                 duration: Date().timeIntervalSince(requestStartedAt)
@@ -188,10 +158,16 @@ extension FootballDataAPIClient {
             throw ClientError.unsuccessfulResponse(statusCode: http.statusCode)
         }
 
-        return try jsonDictionary(from: data)
+        do { return try jsonDictionary(from: data) }
+        catch {
+            await ExternalFeedMetrics.shared.recordDataFailure(source: "football.scoreboard.\(slug)", validationFailed: true)
+            throw error
+        }
     }
 
-    static func fetchTeamDetails(teamID: String, session: URLSession) async -> TeamResponse? {
+    static func fetchTeamDetails(
+        teamID: String, session: URLSession, transport: FootballDataAPITransport? = nil
+    ) async -> TeamResponse? {
         guard !teamID.isEmpty,
               let url = URL(string: "https://sports.core.api.espn.com/v2/sports/soccer/teams/\(teamID)?lang=en&region=us") else {
             return nil
@@ -200,7 +176,7 @@ extension FootballDataAPIClient {
         do {
             var request = URLRequest(url: url)
             request.timeoutInterval = Self.requestTimeout
-            let (data, response) = try await session.data(for: request)
+            let (data, response) = try await Self.apiData(for: request, session: session, transport: transport)
             guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
                 return nil
             }
@@ -344,7 +320,8 @@ extension FootballDataAPIClient {
         competitionSlug: String,
         eventID: String,
         fallbackStartDate: Date,
-        session: URLSession
+        session: URLSession,
+        transport: FootballDataAPITransport? = nil
     ) async -> SummarySnapshot? {
         guard !competitionSlug.isEmpty,
               !eventID.isEmpty,
@@ -359,17 +336,17 @@ extension FootballDataAPIClient {
         guard let url = components.url else { return nil }
 
         do {
-            guard let root = try await fetchSummaryRoot(url: url, session: session) else { return nil }
+            guard let root = try await fetchSummaryRoot(url: url, session: session, transport: transport) else { return nil }
             return summarySnapshot(from: root, fallbackStartDate: fallbackStartDate)
         } catch {
             return nil
         }
     }
 
-    func summarySnapshot(for match: FootballFixtureMatch) async -> SummarySnapshot? {
+    func summarySnapshot(for match: FootballFixtureMatch, forceRefresh: Bool = false) async -> SummarySnapshot? {
         for url in Self.summaryURLs(for: match) {
             do {
-                guard let root = try await summaryRoot(url: url, match: match),
+                guard let root = try await summaryRoot(url: url, match: match, forceRefresh: forceRefresh),
                       let snapshot = Self.summarySnapshot(
                         from: root,
                         fallbackStartDate: match.startDate,

@@ -63,15 +63,20 @@ extension SettingsFootballFixturesSectionView {
     }
 
     func footballControlsPanel(showsBrowseControl: Bool) -> some View {
-        ViewThatFits(in: .horizontal) {
-            footballWideControlRow(showsBrowseControl: showsBrowseControl)
+        VStack(alignment: .leading, spacing: 12) {
+            ViewThatFits(in: .horizontal) {
+                footballWideControlRow(showsBrowseControl: showsBrowseControl)
 
-            VStack(alignment: .leading, spacing: 12) {
-                footballPrimaryControlsSection(showsBrowseControl: showsBrowseControl)
-                footballNotificationControlsSection
+                VStack(alignment: .leading, spacing: 12) {
+                    footballPrimaryControlsSection(showsBrowseControl: showsBrowseControl)
+                    footballNotificationControlsSection
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+
+            Toggle(L10n.text("Rotate live scores beside events"), isOn: $pinLiveFootballScoresInMenuBar)
+                .help(L10n.text("Live scores rotate one at a time on the right, independently of events, using the interval in General."))
         }
-        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     func footballWideControlRow(showsBrowseControl: Bool) -> some View {

@@ -3,6 +3,23 @@ import Combine
 import SwiftUI
 
 extension SettingsFootballFixturesSectionView {
+    var hasUnresolvedCompetitionLoads: Bool {
+        let window = FootballCompetitionAvailabilityWindow(
+            now: visibleNow, lookbackDays: normalizedFinishedMatchLookbackDays, lookaheadDays: normalizedMatchLookaheadDays
+        )
+        return footballMenuSections.contains {
+            $0.errorMessage == nil && (!$0.hasLoaded || $0.isLoading || $0.checkedWindow?.contains(window) == false)
+        }
+    }
+
+    func refreshCompetitionAvailability(force: Bool = false) async {
+        await monitor.refreshFootballCompetitionAvailability(
+            lookbackDays: normalizedFinishedMatchLookbackDays,
+            lookaheadDays: normalizedMatchLookaheadDays,
+            force: force
+        )
+    }
+
     var shouldRefreshManagedMatchesOnVisibleTick: Bool {
         !managedFootballMatchIDs.isEmpty || !managedFootballMatches.isEmpty
     }
@@ -31,8 +48,9 @@ extension SettingsFootballFixturesSectionView {
     }
 
     func loadSelectedCompetitionIfNeeded() async {
+        guard !Task.isCancelled, browseMode == .competitions else { return }
         guard let section = selectedCompetitionSection else { return }
-        await monitor.loadFootballCompetitionSection(section.competition, force: true)
+        await monitor.loadFootballCompetitionSection(section.competition, force: false)
     }
 
     func retryFailedCompetitionLoads() async {
@@ -64,10 +82,13 @@ extension SettingsFootballFixturesSectionView {
             let refreshedNow = Self.minuteReferenceDate(for: AlertCalendarClock.nowRoundedToSecond())
             await MainActor.run {
                 visibleNow = refreshedNow
+                refreshCompetitionSectionsDerivedState()
                 refreshManagedMatchesDerivedState(now: refreshedNow)
             }
 
-            if browseMode == .liveAndNextDay {
+            if browseMode == .competitions {
+                await refreshCompetitionAvailability()
+            } else if browseMode == .liveAndNextDay {
                 await monitor.loadFootballLiveAndNextDaySection(force: false)
             }
             if shouldRefreshManagedMatchesOnVisibleTick {
@@ -88,17 +109,39 @@ extension SettingsFootballFixturesSectionView {
     }
 
     func refreshCompetitionSectionsDerivedState() {
-        competitionSectionsByRegionCache = FootballCompetitionRegion.allCases.compactMap { region in
-            let sections = footballMenuSections.filter { $0.competition.region == region }
-            guard !sections.isEmpty else { return nil }
-            return (region, sections)
-        }
+        competitionSectionsByRegionCache = Self.browsableCompetitionSectionsByRegion(
+            from: footballMenuSections, now: visibleNow, lookbackDays: normalizedFinishedMatchLookbackDays,
+            lookaheadDays: normalizedMatchLookaheadDays, showFinishedMatches: showFinishedFootballMatches
+        )
         competitionSectionsWithErrorsCache = footballMenuSections.filter { $0.errorMessage != nil }
         hasAnyCompetitionCardsCache = footballMenuSections.contains { !displayedMatches($0.matches).isEmpty }
         hasAttemptedCompetitionLoadsCache = footballMenuSections.contains {
             $0.hasLoaded || $0.isLoading || $0.errorMessage != nil
         }
         synchronizeCompetitionSelection()
+    }
+
+    nonisolated static func browsableCompetitionSectionsByRegion(
+        from sections: [FootballMenuCompetitionSection],
+        now: Date = AlertCalendarClock.nowRoundedToSecond(),
+        lookbackDays: Int = FootballCompetitionPreset.suggestionWindowLookbackDays,
+        lookaheadDays: Int = FootballCompetitionPreset.suggestionWindowLookaheadDays,
+        showFinishedMatches: Bool = true
+    ) -> [(region: FootballCompetitionRegion, sections: [FootballMenuCompetitionSection])] {
+        let availableSections = sections.filter { section in
+            // Unknown competitions are checked before becoming selectable. Failures stay retryable.
+            if section.errorMessage != nil { return true }
+            guard section.hasLoaded else { return false }
+            return !displayedMatches(
+                section.matches, now: now, lookbackDays: lookbackDays,
+                lookaheadDays: lookaheadDays, showFinishedMatches: showFinishedMatches
+            ).isEmpty
+        }
+        return FootballCompetitionRegion.allCases.compactMap { region in
+            let regionalSections = availableSections.filter { $0.competition.region == region }
+            guard !regionalSections.isEmpty else { return nil }
+            return (region, regionalSections)
+        }
     }
 
     func refreshLiveAndNextDayDerivedState() {
@@ -114,11 +157,20 @@ extension SettingsFootballFixturesSectionView {
     }
 
     func displayedMatches(_ matches: [FootballFixtureMatch]) -> [FootballFixtureMatch] {
-        let now = visibleNow
-        let lookbackStart = Calendar.autoupdatingCurrent.date(byAdding: .day, value: -normalizedFinishedMatchLookbackDays, to: now)
-            ?? now.addingTimeInterval(-Double(normalizedFinishedMatchLookbackDays) * 24 * 60 * 60)
-        let lookaheadEnd = Calendar.autoupdatingCurrent.date(byAdding: .day, value: normalizedMatchLookaheadDays, to: now)
-            ?? now.addingTimeInterval(Double(normalizedMatchLookaheadDays) * 24 * 60 * 60)
+        Self.displayedMatches(
+            matches, now: visibleNow, lookbackDays: normalizedFinishedMatchLookbackDays,
+            lookaheadDays: normalizedMatchLookaheadDays, showFinishedMatches: showFinishedFootballMatches
+        )
+    }
+
+    nonisolated static func displayedMatches(
+        _ matches: [FootballFixtureMatch], now: Date, lookbackDays: Int,
+        lookaheadDays: Int, showFinishedMatches: Bool
+    ) -> [FootballFixtureMatch] {
+        let lookbackStart = Calendar.autoupdatingCurrent.date(byAdding: .day, value: -lookbackDays, to: now)
+            ?? now.addingTimeInterval(-Double(lookbackDays) * 24 * 60 * 60)
+        let lookaheadEnd = Calendar.autoupdatingCurrent.date(byAdding: .day, value: lookaheadDays, to: now)
+            ?? now.addingTimeInterval(Double(lookaheadDays) * 24 * 60 * 60)
 
         return Self.matchesEligibleForFootballCards(matches).filter { match in
             if match.statusState == .inProgress {
@@ -126,11 +178,11 @@ extension SettingsFootballFixturesSectionView {
             }
 
             if match.statusState == .finished {
-                guard showFinishedFootballMatches else { return false }
+                guard showFinishedMatches else { return false }
                 return CalendarMonitor.shouldDisplayFinishedFootballMatch(
                     match,
                     now: now,
-                    lookbackDays: normalizedFinishedMatchLookbackDays
+                    lookbackDays: lookbackDays
                 )
             }
 
@@ -166,11 +218,15 @@ extension SettingsFootballFixturesSectionView {
             selectedCompetitionRegionID = regionEntry.region.id
         }
 
-        let availableCompetitionIDs = Set(regionEntry.sections.map(\.id))
-        guard availableCompetitionIDs.contains(selectedCompetitionID ?? "") else {
-            selectedCompetitionID = regionEntry.sections.first?.id
-            return
-        }
+        let preferredID = Self.preferredCompetitionID(in: regionEntry.sections, currentID: selectedCompetitionID)
+        if selectedCompetitionID != preferredID { selectedCompetitionID = preferredID }
+    }
+
+    nonisolated static func preferredCompetitionID(
+        in sections: [FootballMenuCompetitionSection], currentID: String?
+    ) -> String? {
+        if let currentID, sections.contains(where: { $0.id == currentID }) { return currentID }
+        return sections.first?.id
     }
 
     static func normalizedFootballWindowDays(_ value: Int) -> Int {

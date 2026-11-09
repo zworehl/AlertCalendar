@@ -9,96 +9,6 @@ extension CalendarMonitor {
         "Managed by Alert Calendar • Google Holidays v2",
     ]
 
-    func refreshGoogleHolidays(forceRefresh: Bool = false) async {
-        guard !isSyncingGoogleHolidays else { return }
-
-        let settings = snapshotSettings()
-        let countryIDs = GoogleHolidayCountry.normalizedCountryIDs(settings.googleHolidayCountryIDs)
-
-        guard hasEventsAccess else {
-            googleHolidaySyncErrorDescription = nil
-            return
-        }
-
-        guard !countryIDs.isEmpty else {
-            googleHolidaySyncErrorDescription = nil
-            if forceRefresh || !managedGoogleHolidayEventRecords.isEmpty {
-                isSyncingGoogleHolidays = true
-                await removeAllManagedGoogleHolidayEvents()
-                isSyncingGoogleHolidays = false
-                defaults.set(
-                    Self.currentGoogleHolidayIdentityVersion,
-                    forKey: DefaultsKeys.googleHolidayIdentityVersion
-                )
-            }
-            return
-        }
-
-        guard let targetCalendar = resolvedGoogleHolidayTargetCalendar(settings: settings) else {
-            googleHolidaySyncErrorDescription = nil
-            return
-        }
-
-        let now = fixedSecondNow()
-        let calendar = holidayCalendar()
-        let requiresIdentityMigration =
-            defaults.integer(forKey: DefaultsKeys.googleHolidayIdentityVersion)
-                < Self.currentGoogleHolidayIdentityVersion
-            || managedGoogleHolidayEventRecords.contains { record in
-                record.holiday.id != GoogleHolidayMerger.semanticKey(
-                    title: record.holiday.title,
-                    startDate: record.holiday.startDate,
-                    calendar: calendar
-                )
-        }
-        guard shouldRefreshGoogleHolidays(
-            now: now,
-            forceRefresh: forceRefresh || requiresIdentityMigration
-        ) else {
-            return
-        }
-
-        isSyncingGoogleHolidays = true
-        defer { isSyncingGoogleHolidays = false }
-        lastGoogleHolidayRefreshAttemptDate = now
-        googleHolidaySyncErrorDescription = nil
-
-        do {
-            let fetched = try await googleHolidayClient.fetchHolidays(
-                countryIDs: countryIDs,
-                now: now,
-                forceRefresh: true
-            )
-            let inWindow = fetched.filter { googleHolidaySyncWindowContains($0, now: now) }
-            let merged = GoogleHolidayMerger.merge(inWindow, calendar: calendar)
-            try await reconcileGoogleHolidayEvents(
-                merged,
-                targetCalendar: targetCalendar
-            )
-            ensureGoogleHolidayTargetCalendarIsSelected(targetCalendar.calendarIdentifier)
-            markGoogleHolidaysRefreshed(at: now)
-            defaults.set(now, forKey: DefaultsKeys.googleHolidayLastRefreshDate)
-            defaults.set(
-                Self.currentGoogleHolidayIdentityVersion,
-                forKey: DefaultsKeys.googleHolidayIdentityVersion
-            )
-        } catch {
-            googleHolidaySyncErrorDescription = AlertCalendarLanguage.errorMessage(error)
-        }
-    }
-
-    private func shouldRefreshGoogleHolidays(
-        now: Date,
-        forceRefresh: Bool
-    ) -> Bool {
-        GoogleHolidayRefreshPolicy.isDue(
-            lastRefreshDate: googleHolidayLastRefreshDate,
-            lastAttemptDate: lastGoogleHolidayRefreshAttemptDate,
-            now: now,
-            forceRefresh: forceRefresh
-        )
-    }
-
     func persistManagedGoogleHolidayEventRecords(_ records: [ManagedGoogleHolidayEventRecord]) {
         var byHolidayID: [String: ManagedGoogleHolidayEventRecord] = [:]
         for record in records {
@@ -126,9 +36,11 @@ extension CalendarMonitor {
         }
     }
 
-    private func reconcileGoogleHolidayEvents(
+    func reconcileGoogleHolidayEvents(
         _ desiredHolidays: [GoogleHolidayEvent],
-        targetCalendar: EKCalendar
+        targetCalendar: EKCalendar,
+        allowsDeletion: Bool = true,
+        expectedSettings: AppSettings
     ) async throws {
         let calendar = holidayCalendar()
         var existingByHolidayID: [String: [ExistingGoogleHolidayEvent]] = [:]
@@ -141,6 +53,7 @@ extension CalendarMonitor {
             records: managedGoogleHolidayEventRecords,
             including: [targetCalendar]
         )
+        try ensureGoogleHolidayRequestIsCurrent(expectedSettings)
         for event in existingEvents {
             guard let holidayID = managedGoogleHolidayID(
                 for: event,
@@ -182,15 +95,15 @@ extension CalendarMonitor {
                 event = preferred.event
                 if googleHolidayEventNeedsUpdate(event, holiday: holiday, calendar: targetCalendar) {
                     applyGoogleHoliday(holiday, to: event, calendar: targetCalendar)
-                    try eventStore.save(event, span: .thisEvent, commit: false)
+                    try Self.withGoogleHolidayRollback({ try eventStore.save(event, span: .thisEvent, commit: false) }, rollback: { eventStore.reset() })
                     pendingMutationCount += 1
                     pendingMutationCount = try await commitGoogleHolidayBatchIfNeeded(
                         pendingMutationCount
                     )
                 }
 
-                for duplicate in candidates where duplicate.event !== event {
-                    try eventStore.remove(duplicate.event, span: .thisEvent, commit: false)
+                for duplicate in candidates where allowsDeletion && duplicate.event !== event {
+                    try Self.withGoogleHolidayRollback({ try eventStore.remove(duplicate.event, span: .thisEvent, commit: false) }, rollback: { eventStore.reset() })
                     pendingMutationCount += 1
                     pendingMutationCount = try await commitGoogleHolidayBatchIfNeeded(
                         pendingMutationCount
@@ -199,7 +112,7 @@ extension CalendarMonitor {
             } else {
                 event = EKEvent(eventStore: eventStore)
                 applyGoogleHoliday(holiday, to: event, calendar: targetCalendar)
-                try eventStore.save(event, span: .thisEvent, commit: false)
+                try Self.withGoogleHolidayRollback({ try eventStore.save(event, span: .thisEvent, commit: false) }, rollback: { eventStore.reset() })
                 pendingMutationCount += 1
                 pendingMutationCount = try await commitGoogleHolidayBatchIfNeeded(
                     pendingMutationCount
@@ -208,9 +121,9 @@ extension CalendarMonitor {
             retained.append((holiday, event))
         }
 
-        for staleEvents in existingByHolidayID.values {
+        for staleEvents in existingByHolidayID.values where allowsDeletion {
             for stale in staleEvents {
-                try eventStore.remove(stale.event, span: .thisEvent, commit: false)
+                try Self.withGoogleHolidayRollback({ try eventStore.remove(stale.event, span: .thisEvent, commit: false) }, rollback: { eventStore.reset() })
                 pendingMutationCount += 1
                 pendingMutationCount = try await commitGoogleHolidayBatchIfNeeded(
                     pendingMutationCount
@@ -220,7 +133,7 @@ extension CalendarMonitor {
 
         _ = try await commitGoogleHolidayBatchIfNeeded(pendingMutationCount, force: true)
 
-        let nextRecords = retained.compactMap { holiday, event -> ManagedGoogleHolidayEventRecord? in
+        var nextRecords = retained.compactMap { holiday, event -> ManagedGoogleHolidayEventRecord? in
             guard let calendarIdentifier = event.calendar?.calendarIdentifier else { return nil }
             return ManagedGoogleHolidayEventRecord(
                 holiday: holiday,
@@ -229,10 +142,14 @@ extension CalendarMonitor {
                 eventUID: normalizedEventUID(for: event)
             )
         }
+        if !allowsDeletion {
+            let retainedIDs = Set(nextRecords.map { $0.holiday.id })
+            nextRecords += managedGoogleHolidayEventRecords.filter { !retainedIDs.contains($0.holiday.id) }
+        }
         persistManagedGoogleHolidayEventRecords(nextRecords)
     }
 
-    private func removeAllManagedGoogleHolidayEvents() async {
+    func removeAllManagedGoogleHolidayEvents(expectedSettings: AppSettings) async {
         var removedEventIdentities: Set<String> = []
         var pendingMutationCount = 0
 
@@ -242,10 +159,11 @@ extension CalendarMonitor {
                 records: managedGoogleHolidayEventRecords,
                 including: targetCalendars
             )
+            try ensureGoogleHolidayRequestIsCurrent(expectedSettings)
             for event in events {
                 let identity = event.eventIdentifier ?? normalizedEventUID(for: event) ?? UUID().uuidString
                 guard removedEventIdentities.insert(identity).inserted else { continue }
-                try eventStore.remove(event, span: .thisEvent, commit: false)
+                try Self.withGoogleHolidayRollback({ try eventStore.remove(event, span: .thisEvent, commit: false) }, rollback: { eventStore.reset() })
                 pendingMutationCount += 1
                 pendingMutationCount = try await commitGoogleHolidayBatchIfNeeded(
                     pendingMutationCount
@@ -253,6 +171,8 @@ extension CalendarMonitor {
             }
             _ = try await commitGoogleHolidayBatchIfNeeded(pendingMutationCount, force: true)
             persistManagedGoogleHolidayEventRecords([])
+        } catch is CancellationError {
+            return
         } catch {
             googleHolidaySyncErrorDescription = L10n.text("Some managed holiday events could not be removed.")
         }
@@ -338,7 +258,7 @@ extension CalendarMonitor {
         guard pendingMutationCount >= batchSize || (force && pendingMutationCount > 0) else {
             return pendingMutationCount
         }
-        try eventStore.commit()
+        try Self.withGoogleHolidayRollback({ try eventStore.commit() }, rollback: { eventStore.reset() })
         await Task.yield()
         return 0
     }
@@ -402,7 +322,7 @@ extension CalendarMonitor {
             ?? endDay.addingTimeInterval(86_400)
     }
 
-    private func googleHolidaySyncWindowContains(
+    func googleHolidaySyncWindowContains(
         _ event: GoogleHolidaySourceEvent,
         now: Date
     ) -> Bool {
@@ -415,7 +335,7 @@ extension CalendarMonitor {
         return event.endDateExclusive > start && event.startDate < end
     }
 
-    private func holidayCalendar() -> Calendar {
+    func holidayCalendar() -> Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = .current
         return calendar

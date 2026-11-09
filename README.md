@@ -69,7 +69,7 @@ By default, this writes:
 
 1. Builds with `xcodebuild` using the `AlertCalendar` scheme.
 2. Uses `BUILD_CONFIGURATION` and `BUILD_ARCH` when provided.
-3. Removes duplicate `AlertCalendar.app` installs in `/Applications` and `~/Applications`.
+3. Removes and unregisters duplicate bundles by application identifier in `/Applications`, `~/Applications`, and this repository's `tmp` directory, including renamed build copies.
 4. Recreates the target app bundle.
 5. Copies the executable and SwiftPM resource bundle.
 6. Generates `AppIcon.icns` from `Sources/AlertCalendar/Resources/Images/icon.png`.
@@ -132,6 +132,8 @@ Configuration controls are staged in the window until you choose `Apply`. The fi
 
 Pending configuration changes also show a persistent amber banner above the action bar. Its background gently pulses while Settings is active, and stays still when macOS Reduce Motion is enabled. Apply or Revert removes the banner.
 
+Refresh diagnostics distinguish successful HTTP responses, validated data, and applied snapshots. Partial refreshes show the oldest validated source age and retain previously validated data for unavailable sources. Slack, game-sale feeds, and holiday feeds share bounded request budgets and respect server Retry-After deadlines even during a manual refresh.
+
 Unresolved data-update problems appear in Settings > Access > Diagnostics and in the action bar. After a problem lasts five minutes, AlertCalendar groups affected sources into a macOS notification, with at most one reminder per hour until recovery. The notification cooldown survives relaunches. This covers football fixtures, game-sale sources, holidays, Calendar/Reminders access and reminder timeouts, automatic location, Slack sync, and agenda/title generation failures. Notifications respect macOS permissions; the in-app diagnostics remain available when notifications are denied.
 
 - `General`: app language (English or Spanish for Latin America), menu bar behavior, alerts, countdowns, active-event focus, rotation, look-ahead windows, font size, title truncation, and automatic software updates.
@@ -139,6 +141,10 @@ Unresolved data-update problems appear in Settings > Access > Diagnostics and in
 - `Calendars`: source inclusion, usual calendar and reminder-list selection, per-calendar event alert rules, and native Focus Filters.
 - `Integrations`: connected services such as Slack status sync.
 - `Access`: Calendar, Reminders, Location, and Contacts access cards with actions and System Settings shortcuts.
+
+Background refreshes preserve visible fixture cards and feedback instead of replacing the viewport. Status-bar artwork is reused for identical visual states, logo decoding is shared, and optional local-logo handoff waits for a decoded image. Urgent-event and goal highlights continue to follow their configured alert behavior.
+
+General adapts to the available content width: Language joins the right-hand column below Alert Behavior when two columns fit. On wide windows, Software Updates and Live Preview share a row with more room for the preview; narrower windows stack those cards.
 
 AlertCalendar supports English and **Spanish (Latin America, `es-419`)**. Choose the language in Settings > General > Language, then Apply. Menus, settings, app-authored messages, country names, dates, and agenda summaries use the selected language immediately. The choice persists across launches; system permission prompts and Sparkle dialogs pick it up on the next launch. Time zones and the system's 12/24-hour clock preference remain independent. Names, brands, and imported event/reminder text retain their original spelling. Semantic title shortening currently supports English source titles; other source text keeps its original wording for visual truncation.
 
@@ -161,9 +167,11 @@ Football fixture management supports:
 - A writable target calendar.
 - One alert policy for managed football events.
 - Supported competition browsing.
+- Past and upcoming match filters support 1–90 days. Competitions confirmed to have no fixtures are hidden from the browse list and return when a refresh finds matches.
 - Live and next-day match overview.
+- Live menu bar scores rotate one match at a time beside the event rotation, with an independent selection and the rotation interval configured in General.
 - Managed match review.
-- ESPN's published team abbreviations beside crests or flags, without forcing every code to three letters; full names remain available in tooltips and match details.
+- Team abbreviations use at most three characters, with reviewed broadcast labels such as MUN, MCI, BAY, SCA, ROM, and TIG. Full names remain available in tooltips and match details.
 - Goal scorers appear as soon as ESPN provides them, without waiting for optional nationality lookups. When details are missing, the panel explains their availability and offers Retry instead of staying on loading placeholders.
 - A changed score blinks for at most one configured queue-rotation interval from its first menu bar appearance, even when active-event focus keeps the match selected. Each new goal starts a fresh highlight.
 - Calendar flags resolve team country details before adding fixtures; missing country data is retried after 15 minutes, with verified club identity fallbacks for known ESPN omissions.
@@ -171,9 +179,11 @@ Football fixture management supports:
 - Stadium names survive temporary geocoding failures; managed-event sync repairs missing locations and queries match details when the venue is absent. Existing coordinates are retained only for the same stadium.
 - `Show FT matches` is an immediate, remembered display filter. It does not enter the Apply/Revert draft or change calendar data.
 - Adaptive polling: every 30 seconds while live, every minute around kickoff or during the first 10 minutes after a known final, every 5 minutes while approaching or recovering a delayed result, every 15 minutes for the next 24 hours, and every 3 hours for distant fixtures. Settled finished matches stop polling until a manual or event-driven refresh.
+- ESPN API requests share a two-request concurrency limit and start at least 250 milliseconds apart. HTTP 403 pauses the affected host for five minutes; HTTP 429 respects Retry-After across endpoints, including manual refreshes. Availability recovery keeps the configured date window and only explicitly opened competitions receive full detail refreshes.
+- Launch and Mac wake request fresh football data. Live score updates reach the menu bar directly without waiting for an Apple Calendar change notification.
 - Fixture refreshes retain successful date ranges and restore saved matches only for failed ranges. Warnings stay above the available matches. Transient connection/server failures receive two bounded retries; continued failures use per-page exponential backoff. HTTP 429 respects ESPN's Retry-After even for manual retries. Failed browse loads retry in the background, and Refresh Now also reloads previously opened competitions.
-- When ESPN rejects a multi-day scoreboard query with HTTP 400, the client switches that competition to single-day requests. ESPN's published season calendar limits those requests to match days; dates outside its coverage are still checked. The calendar and individual pages are cached and concurrent requests are coalesced.
-- Contextual ESPN scoreboard caching: five minutes for ranges containing today and one hour for distant ranges; per-match summaries retain their 15-second cache.
+- When ESPN rejects a multi-day scoreboard query with HTTP 400, the client uses monthly queries with an explicit 1,000-event limit. Overlapping ranges share cached month responses and retain only matches in the requested dates. Unsupported or potentially truncated months fall back to single-day requests, using ESPN's published match calendar where available.
+- Contextual ESPN scoreboard caching: five minutes for ranges containing today and one hour for distant ranges; per-match summaries retain their 15-second cache. Launch, wake, and manual refresh bypass these caches, and network requests bypass macOS HTTP caching so it cannot extend their lifetimes.
 - Automatic cleanup when fixtures fall outside the suggestion window.
 
 Google Holidays supports:

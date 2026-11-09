@@ -6,6 +6,7 @@ extension CalendarMonitor {
         store: FootballMatchCacheStore
     ) {
         pendingFootballMatchCacheSnapshot = snapshot
+        guard !footballState.isShuttingDown else { return }
         guard footballMatchCacheWriteTask == nil else { return }
 
         let minimumInterval: TimeInterval = 5 * 60
@@ -20,9 +21,7 @@ extension CalendarMonitor {
             guard !Task.isCancelled, let self,
                   let pending = self.pendingFootballMatchCacheSnapshot else { return }
             self.pendingFootballMatchCacheSnapshot = nil
-            await Task.detached(priority: .utility) {
-                store.save(pending)
-            }.value
+            await self.cacheRepository.saveFootball(pending, store: store)
             self.lastFootballMatchCacheWriteDate = pending.fetchedAt
             self.footballMatchCacheWriteTask = nil
             if let next = self.pendingFootballMatchCacheSnapshot {
@@ -31,13 +30,29 @@ extension CalendarMonitor {
         }
     }
 
-    func flushFootballMatchCache() {
-        footballMatchCacheWriteTask?.cancel()
+    func flushPersistentCachesForTermination() async {
+        footballState.isShuttingDown = true
+        heartbeatTask?.cancel()
+        heartbeatTask = nil
+        defaultsObserver = nil
+        eventStoreObserver = nil
+        workspaceResumeObserver = nil
+        appActivationObserver = nil
+        refreshCoordinator.task?.cancel()
+        calendarAlertFullSyncTask?.cancel()
+        eventTitleRewriteTask?.cancel()
+        eventTitleRewriteRetryTask?.cancel()
+        agendaSummaryTask?.cancel()
+        agendaSummaryRetryTask?.cancel()
+        footballState.availabilityRefreshTask?.cancel()
+        footballState.logoLoadingCoordinator?.cancel()
+        let currentWrite = footballMatchCacheWriteTask
+        currentWrite?.cancel()
+        await currentWrite?.value
         footballMatchCacheWriteTask = nil
-        guard let snapshot = pendingFootballMatchCacheSnapshot,
-              let footballMatchCacheStore else { return }
+        let snapshot = pendingFootballMatchCacheSnapshot
         pendingFootballMatchCacheSnapshot = nil
-        footballMatchCacheStore.save(snapshot)
-        lastFootballMatchCacheWriteDate = snapshot.fetchedAt
+        await cacheRepository.finish(football: snapshot, store: footballMatchCacheStore)
+        if let snapshot { lastFootballMatchCacheWriteDate = snapshot.fetchedAt }
     }
 }

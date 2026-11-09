@@ -11,12 +11,14 @@ extension SettingsView {
                 title: L10n.text("App language"),
                 pickerTitle: L10n.text("App language"),
                 selection: $draft.language,
-                helpText: L10n.text("The language changes when you apply your settings.")
+                helpText: L10n.text("The language changes when you apply your settings."),
+                layout: .inline(labelWidth: 160)
             ) {
                 ForEach(AppLanguage.allCases) { language in
                     Text(language.nativeName).tag(language)
                 }
             }
         }
+        .accessibilityIdentifier("settings.general.language")
     }
 }

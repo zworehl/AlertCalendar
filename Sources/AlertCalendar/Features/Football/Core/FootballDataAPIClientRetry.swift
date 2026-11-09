@@ -42,14 +42,15 @@ extension FootballDataAPIClient {
 
     static func fetchScoreboardPageWithRetry(
         url: URL, slug: String, competitionName: String, session: URLSession,
-        competitionCategory: FootballCompetitionCategory?
+        competitionCategory: FootballCompetitionCategory?,
+        transport: FootballDataAPITransport? = nil
     ) async throws -> [FootballFixtureMatch] {
         for attempt in 0...2 {
             do {
                 try Task.checkCancellation()
                 return try await fetchMatchesPage(
                     url: url, slug: slug, competitionName: competitionName,
-                    session: session, competitionCategory: competitionCategory
+                    session: session, competitionCategory: competitionCategory, transport: transport
                 )
             } catch {
                 guard attempt < 2, isRetryableFixtureError(error) else { throw error }

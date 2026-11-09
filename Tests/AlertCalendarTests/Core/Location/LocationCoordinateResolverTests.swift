@@ -2,6 +2,18 @@ import XCTest
 @testable import AlertCalendar
 
 final class LocationCoordinateResolverTests: XCTestCase {
+    func testSaprissaResolvesWithoutNetworkLookup() async {
+        let coordinate = await LocationCoordinateResolver.shared.coordinate(for: "Estadio Ricardo Saprissa")
+        XCTAssertEqual(coordinate, ResolvedLocationCoordinate(latitude: 9.96557, longitude: -84.07526))
+    }
+
+    func testSaprissaResolvesExistingMalformedCalendarLocation() async {
+        let coordinate = await LocationCoordinateResolver.shared.coordinate(
+            for: "Estadio Ricardo Saprissa, Estadio Nacional de Costa Rica, Costa Rica"
+        )
+        XCTAssertEqual(coordinate, ResolvedLocationCoordinate(latitude: 9.96557, longitude: -84.07526))
+    }
+
     func testSearchQueriesIncludeVenueAliasesWithLocationContext() {
         let queries = LocationCoordinateResolver.searchQueries(
             from: "Alberto Jose Armando (La Bombonera), Buenos Aires, Argentina"

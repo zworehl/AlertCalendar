@@ -2,15 +2,17 @@ import Foundation
 
 enum GoogleHolidayRefreshPolicy {
     static let interval: TimeInterval = 7 * 24 * 60 * 60
-    static let failureRetryInterval: TimeInterval = 6 * 60 * 60
+    static let failureRetryInterval: TimeInterval = 60
 
     static func isDue(
         lastRefreshDate: Date?,
         lastAttemptDate: Date? = nil,
         now: Date,
-        forceRefresh: Bool = false
+        forceRefresh: Bool = false,
+        lastAttemptFailed: Bool = false
     ) -> Bool {
         if forceRefresh { return true }
+        if lastAttemptFailed { return lastAttemptDate.map { now.timeIntervalSince($0) >= failureRetryInterval } ?? true }
         if let lastRefreshDate,
            now.timeIntervalSince(lastRefreshDate) < interval {
             return false
@@ -118,7 +120,7 @@ struct GoogleHolidayCountry: Identifiable, Hashable, Sendable {
     }
 }
 
-struct GoogleHolidaySourceEvent: Equatable, Sendable {
+struct GoogleHolidaySourceEvent: Codable, Equatable, Sendable {
     let sourceUID: String
     let countryID: String
     let title: String

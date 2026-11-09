@@ -100,9 +100,9 @@ extension CalendarMonitor {
 
         Task { @MainActor in
             _ = openCalendarApplication()
-            if revealCalendarEvent(event) { return }
+            if await revealCalendarEvent(event) { return }
             try? await Task.sleep(nanoseconds: 350_000_000)
-            if revealCalendarEvent(event) { return }
+            if await revealCalendarEvent(event) { return }
             calendarAccessDescription = "Could not reveal the event directly in Calendar."
         }
     }

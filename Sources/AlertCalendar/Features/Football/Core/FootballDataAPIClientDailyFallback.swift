@@ -66,9 +66,9 @@ extension FootballDataAPIClient {
             return cached.calendar
         }
         if let task = scoreboardCalendarTasks[competition.slug] { return await task.value }
-        let task = Task { [session] () -> FootballScoreboardCalendar? in
+        let task = Task { [session, transport] () -> FootballScoreboardCalendar? in
             guard let url = Self.scoreboardURL(slug: competition.slug, dateRange: nil),
-                  let root = try? await Self.fetchScoreboardRoot(url: url, slug: competition.slug, session: session) else { return nil }
+                  let root = try? await Self.fetchScoreboardRoot(url: url, slug: competition.slug, session: session, transport: transport) else { return nil }
             return FootballScoreboardCalendar(root: root)
         }
         scoreboardCalendarTasks[competition.slug] = task

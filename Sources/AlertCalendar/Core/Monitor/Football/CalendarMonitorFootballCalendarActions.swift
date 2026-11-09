@@ -41,7 +41,7 @@ extension CalendarMonitor {
         applyFootballAlertConfiguration(to: event)
 
         do {
-            try eventStore.save(event, span: .thisEvent, commit: true)
+            try calendarMutations.perform { try $0.save(event) }
             let persistedEvent = persistCleanFootballAlertConfigurationIfNeeded(for: event.eventIdentifier) ?? event
             await cacheFootballMatches([match])
             ensureFootballTargetCalendarIsSelected(calendar.calendarIdentifier)
@@ -49,8 +49,10 @@ extension CalendarMonitor {
             managedFootballMatchIDs.insert(match.id)
             updateManagedFootballMatches(using: trackedFootballEvents(now: now), now: now)
             refreshNow(reason: .footballCalendarAction)
+            reportFootballCalendarMutation(source: "football.calendar-add", error: nil)
             return true
         } catch {
+            reportFootballCalendarMutation(source: "football.calendar-add", error: error)
             calendarAccessDescription = "Could not save the selected fixture."
             return false
         }
@@ -95,17 +97,17 @@ extension CalendarMonitor {
         Task { @MainActor in
             _ = openCalendarApplication()
 
-            if revealCalendarEvent(snapshot.event) {
+            if await revealCalendarEvent(snapshot.event) {
                 return
             }
 
             try? await Task.sleep(nanoseconds: 350_000_000)
-            if revealCalendarEvent(snapshot.event) {
+            if await revealCalendarEvent(snapshot.event) {
                 return
             }
 
             try? await Task.sleep(nanoseconds: 850_000_000)
-            if revealCalendarEvent(snapshot.event) {
+            if await revealCalendarEvent(snapshot.event) {
                 return
             }
 
@@ -135,28 +137,17 @@ extension CalendarMonitor {
             return
         }
 
-        var removedAny = false
-        for snapshot in trackedSnapshots {
-            do {
-                try eventStore.remove(snapshot.event, span: .thisEvent, commit: false)
-                removedAny = true
-            } catch {
-                continue
-            }
-        }
-
-        guard removedAny else {
-            calendarAccessDescription = "Could not remove the selected fixture."
-            return
-        }
-
         do {
-            try eventStore.commit()
+            try calendarMutations.perform { batch in
+                for snapshot in trackedSnapshots { try batch.remove(snapshot.event) }
+            }
             removeManagedFootballEventRecord(for: reference)
             managedFootballMatchIDs.remove(match.id)
             updateManagedFootballMatches(using: trackedFootballEvents(now: now), now: now)
             refreshNow(reason: .footballCalendarAction)
+            reportFootballCalendarMutation(source: "football.calendar-removal", error: nil)
         } catch {
+            reportFootballCalendarMutation(source: "football.calendar-removal", error: error)
             calendarAccessDescription = "Could not remove the selected fixture."
         }
     }
@@ -294,6 +285,7 @@ extension CalendarMonitor {
         for _ in 0 ..< 2 {
             guard let event = latestEvent else { return nil }
             guard footballAlertConfigurationNeedsUpdate(for: event, desiredRelativeOffset: desiredRelativeOffset) else {
+                reportFootballCalendarMutation(source: "football.calendar-alert-cleanup", error: nil)
                 return event
             }
 
@@ -305,9 +297,10 @@ extension CalendarMonitor {
             }
 
             do {
-                try eventStore.save(event, span: .thisEvent, commit: true)
+                try calendarMutations.perform { try $0.save(event) }
             } catch {
-                return event
+                reportFootballCalendarMutation(source: "football.calendar-alert-cleanup", error: error)
+                return eventStore.event(withIdentifier: eventIdentifier)
             }
 
             latestEvent = eventStore.event(withIdentifier: eventIdentifier) ?? event
@@ -336,44 +329,30 @@ extension CalendarMonitor {
 
     func applyManagedFootballAlertConfigurationIfNeeded(to trackedEvents: [ManagedFootballEventSnapshot]) {
         let desiredRelativeOffset = footballCalendarAlertRelativeOffset()
-        var hasPendingChanges = false
         var refreshedRecordsByReference = Dictionary(uniqueKeysWithValues: managedFootballEventRecords.map { ($0.reference, $0) })
         var updatedReferences: [ManagedFootballFixtureReference] = []
-
-        for snapshot in trackedEvents {
-            guard footballAlertConfigurationNeedsUpdate(for: snapshot.event, desiredRelativeOffset: desiredRelativeOffset) else {
-                continue
-            }
-
-            resetFootballTravelTime(on: snapshot.event)
-            if let desiredRelativeOffset {
-                snapshot.event.alarms = [EKAlarm(relativeOffset: desiredRelativeOffset)]
-            } else {
-                snapshot.event.alarms = nil
-            }
-
-            do {
-                try eventStore.save(snapshot.event, span: .thisEvent, commit: false)
-                if let refreshedRecord = managedFootballEventRecord(
-                    for: snapshot.event,
-                    reference: snapshot.reference
-                ) {
-                    refreshedRecordsByReference[snapshot.reference] = refreshedRecord
+        do {
+            try calendarMutations.perform { batch in
+                for snapshot in trackedEvents {
+                    guard footballAlertConfigurationNeedsUpdate(for: snapshot.event, desiredRelativeOffset: desiredRelativeOffset) else {
+                        continue
+                    }
+                    resetFootballTravelTime(on: snapshot.event)
+                    snapshot.event.alarms = desiredRelativeOffset.map { [EKAlarm(relativeOffset: $0)] }
+                    try batch.save(snapshot.event)
+                    if let record = managedFootballEventRecord(for: snapshot.event, reference: snapshot.reference) {
+                        refreshedRecordsByReference[snapshot.reference] = record
+                    }
+                    updatedReferences.append(snapshot.reference)
                 }
-                updatedReferences.append(snapshot.reference)
-                hasPendingChanges = true
-            } catch {
-                continue
             }
-        }
-
-        if hasPendingChanges {
-            try? eventStore.commit()
-            refreshManagedFootballRecordsAfterPersistedAlertCleanup(
-                &refreshedRecordsByReference,
-                references: updatedReferences
-            )
-            persistManagedFootballEventRecords(Array(refreshedRecordsByReference.values))
+            if !updatedReferences.isEmpty {
+                refreshManagedFootballRecordsAfterPersistedAlertCleanup(&refreshedRecordsByReference, references: updatedReferences)
+                persistManagedFootballEventRecords(Array(refreshedRecordsByReference.values))
+            }
+            reportFootballCalendarMutation(source: "football.calendar-alerts", error: nil)
+        } catch {
+            reportFootballCalendarMutation(source: "football.calendar-alerts", error: error)
         }
     }
 

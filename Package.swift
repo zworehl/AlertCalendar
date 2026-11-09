@@ -28,7 +28,8 @@ let package = Package(
         .testTarget(
             name: "AlertCalendarTests",
             dependencies: ["AlertCalendar"],
-            path: "Tests/AlertCalendarTests"
+            path: "Tests/AlertCalendarTests",
+            resources: [.process("Fixtures")]
         ),
     ]
 )

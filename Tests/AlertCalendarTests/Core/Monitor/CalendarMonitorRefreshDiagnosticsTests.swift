@@ -84,6 +84,19 @@ final class CalendarMonitorRefreshDiagnosticsTests: XCTestCase {
         XCTAssertFalse(CalendarMonitorRefreshReason.footballHeartbeat.forcesExternalFeedRefresh)
     }
 
+    func testLaunchAndWakeForceFreshFootballWithoutForcingOtherFeeds() {
+        for reason in [CalendarMonitorRefreshReason.launch, .workspaceResumed] {
+            let plan = CalendarMonitorRefreshPlan(reasons: [.calendarSync, reason])
+            XCTAssertTrue(plan.forcesFootballRefresh)
+            XCTAssertTrue(plan.triggersManagedFootballSync)
+            XCTAssertFalse(plan.forcesExternalFeedRefresh)
+        }
+        XCTAssertTrue(CalendarMonitorRefreshPlan(reasons: [.manual]).forcesFootballRefresh)
+        for reason in [CalendarMonitorRefreshReason.launchSnapshot, .launchConfirmation, .footballHeartbeat, .periodic] {
+            XCTAssertFalse(CalendarMonitorRefreshPlan(reasons: [reason]).forcesFootballRefresh)
+        }
+    }
+
     func testCalendarSyncUsesLightweightCalendarOnlyRefresh() {
         XCTAssertTrue(CalendarMonitorRefreshReason.calendarSync.refreshesCalendarStateOnly)
         XCTAssertFalse(CalendarMonitorRefreshReason.calendarSync.triggersManagedFootballSync)

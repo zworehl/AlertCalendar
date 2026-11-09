@@ -62,11 +62,20 @@ extension SettingsView {
         calendarAccessDescription = monitor.calendarAccessDescription
         calendarAlertRuleStatusDescription = monitor.calendarAlertRuleStatusDescription
         astronomyLocationStatus = monitor.astronomyLocationStatus
-        eventAuthorizationStatus = SettingsPermissionKind.currentEventAuthorizationStatus()
-        reminderAuthorizationStatus = SettingsPermissionKind.currentReminderAuthorizationStatus()
-        locationAuthorizationStatus = SettingsPermissionKind.currentLocationAuthorizationStatus()
-        contactsAuthorizationStatus = SettingsPermissionKind.currentContactsAuthorizationStatus()
-        mailAutomationAuthorizationStatus = AppleMailAutomationPermission.currentStatus()
+        if runsLiveServices {
+            eventAuthorizationStatus = SettingsPermissionKind.currentEventAuthorizationStatus()
+            reminderAuthorizationStatus = SettingsPermissionKind.currentReminderAuthorizationStatus()
+            locationAuthorizationStatus = SettingsPermissionKind.currentLocationAuthorizationStatus()
+            contactsAuthorizationStatus = SettingsPermissionKind.currentContactsAuthorizationStatus()
+            mailAutomationAuthorizationStatus = AppleMailAutomationPermission.currentStatus()
+            refreshMailAutomationStatus()
+        } else {
+            eventAuthorizationStatus = .denied
+            reminderAuthorizationStatus = .denied
+            locationAuthorizationStatus = .denied
+            contactsAuthorizationStatus = .denied
+            mailAutomationAuthorizationStatus = .denied
+        }
         lastRefreshDate = monitor.lastRefreshDate
         lastGameSalesRefreshDate = monitor.lastGameSalesRefreshDate
         googleHolidayLastRefreshDate = monitor.googleHolidayLastRefreshDate
@@ -80,7 +89,7 @@ extension SettingsView {
         }
         slackConnectionStatusMessage = monitor.slackConnectionStatusMessage
         slackRuntimeStatusDescription = monitor.slackRuntimeStatusDescription
-        if refreshBrowserProfiles {
+        if refreshBrowserProfiles && runsLiveServices {
             refreshMeetingBrowserProfiles()
         }
         syncSlackDraftSelectionIfNeeded()

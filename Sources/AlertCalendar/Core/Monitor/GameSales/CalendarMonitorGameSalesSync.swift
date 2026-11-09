@@ -92,6 +92,11 @@ extension CalendarMonitor {
         reconcileManagedGameSalesWithFetchedSchedule()
         refreshGameSaleTrackingSnapshot(now: now, calendarSnapshots: calendarSnapshots)
         await autoAddGameSalesIfNeeded(now: now, existingSnapshots: calendarSnapshots)
+        if !lastGameSalesRefreshAttemptFailed {
+            for store in ["steam", "xbox", "playStation", "nintendoSitemap"] {
+                await ExternalFeedMetrics.shared.recordAppliedData(source: "game-sales.\(store)", at: now)
+            }
+        }
         // Publish recovery immediately, including a retry triggered by network changes.
         await updateDataRefreshHealth(now: fixedSecondNow())
     }

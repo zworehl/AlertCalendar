@@ -58,7 +58,7 @@ extension FootballDataAPIClient {
         do {
             var request = URLRequest(url: url)
             request.timeoutInterval = Self.requestTimeout
-            let (data, response) = try await session.data(for: request)
+            let (data, response) = try await transport.data(for: request)
             guard let http = response as? HTTPURLResponse else {
                 return nil
             }

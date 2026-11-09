@@ -12,6 +12,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let settingsWindowIdentifier = NSUserInterfaceItemIdentifier(WindowMetadata.preferencesID)
     private var emojiShortcutMonitor: Any?
     private weak var settingsWindowCloseGuard: SettingsWindowCloseGuard?
+    private var runtime: AlertCalendarApp?
+    private var isPreparingForTermination = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         SoftwareUpdateController.shared.start()
@@ -25,6 +27,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         installEmojiShortcutMonitor()
         ensureAccessoryActivationPolicy()
+        runtime = AlertCalendarApp(appDelegate: self)
+        runtime?.start()
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(openSettingsFromMainMenu(_:)),
+            name: .alertCalendarReopenRequested,
+            object: nil
+        )
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleWindowDidBecomeKey(_:)),
@@ -43,16 +53,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         false
     }
 
-    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard settingsWindowCloseGuard?.hasUnsavedChanges == true else {
-            return .terminateNow
-        }
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        openSettingsFromMainMenu(nil)
+        return false
+    }
 
-        let choice = presentUnsavedSettingsAlert()
-        return resolveUnsavedSettingsChanges(choice) ? .terminateNow : .terminateCancel
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if settingsWindowCloseGuard?.hasUnsavedChanges == true {
+            guard resolveUnsavedSettingsChanges(presentUnsavedSettingsAlert()) else { return .terminateCancel }
+        }
+        guard let runtime else { return .terminateNow }
+        guard !isPreparingForTermination else { return .terminateLater }
+        isPreparingForTermination = true
+        Task { @MainActor in
+            await runtime.prepareForTermination()
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        runtime?.stop()
         if let emojiShortcutMonitor {
             NSEvent.removeMonitor(emojiShortcutMonitor)
             self.emojiShortcutMonitor = nil
@@ -61,6 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+        DistributedNotificationCenter.default().removeObserver(self)
     }
 
     private func installEmojiShortcutMonitor() {
@@ -94,6 +116,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         settingsWindowCloseGuard?.clear()
         settingsWindowCloseGuard = nil
         DispatchQueue.main.async { [weak self] in
+            self?.runtime?.settingsDidClose(window)
             self?.restoreAccessoryActivationPolicyIfNeeded()
         }
     }
@@ -138,7 +161,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
 
-        NotificationCenter.default.post(name: .alertCalendarOpenSettingsRequested, object: nil)
+        runtime?.showSettings()
     }
 
     func restoreAccessoryActivationPolicyIfNeeded() {
@@ -147,10 +170,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func ensureAccessoryActivationPolicy() {
+        guard NSApplication.shared.activationPolicy() != .accessory else { return }
         _ = NSApplication.shared.setActivationPolicy(.accessory)
     }
 
     private func ensureRegularActivationPolicy() {
+        guard NSApplication.shared.activationPolicy() != .regular else { return }
         _ = NSApplication.shared.setActivationPolicy(.regular)
     }
 

@@ -39,6 +39,7 @@ struct SettingsFootballFixturesSectionView: View {
     @Binding var footballTargetCalendarID: String
     @Binding var autoAddFootballCompetitionSlugs: Set<String>
     @Binding var footballCalendarAlertOption: FootballCalendarAlertOption
+    @Binding var pinLiveFootballScoresInMenuBar: Bool
     @Binding var enableFootballGoalNotifications: Bool
     @Binding var enableFootballDisallowedGoalNotifications: Bool
     @Binding var includeFootballGoalScorerInNotifications: Bool
@@ -91,6 +92,8 @@ struct SettingsFootballFixturesSectionView: View {
         .task(id: browseMode) {
             switch browseMode {
             case .competitions:
+                await refreshCompetitionAvailability()
+                guard !Task.isCancelled, browseMode == .competitions else { return }
                 await loadSelectedCompetitionIfNeeded()
             case .liveAndNextDay:
                 await monitor.loadFootballLiveAndNextDaySection(force: false)
@@ -111,9 +114,12 @@ struct SettingsFootballFixturesSectionView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             let now = Self.minuteReferenceDate(for: AlertCalendarClock.nowRoundedToSecond())
             visibleNow = now
+            refreshCompetitionSectionsDerivedState()
             refreshManagedMatchesDerivedState(now: now)
             Task {
-                if browseMode == .liveAndNextDay {
+                if browseMode == .competitions {
+                    await refreshCompetitionAvailability()
+                } else if browseMode == .liveAndNextDay {
                     await monitor.loadFootballLiveAndNextDaySection(force: false)
                 }
                 if shouldRefreshManagedMatchesOnVisibleTick {
@@ -134,6 +140,7 @@ struct SettingsFootballFixturesSectionView: View {
 
             refreshCompetitionSectionsDerivedState()
             refreshLiveAndNextDayDerivedState()
+            Task { await refreshCompetitionAvailability() }
         }
         .onChange(of: footballMatchLookaheadDays) { newValue in
             let normalizedValue = Self.normalizedFootballWindowDays(newValue)
@@ -144,6 +151,7 @@ struct SettingsFootballFixturesSectionView: View {
 
             refreshCompetitionSectionsDerivedState()
             refreshLiveAndNextDayDerivedState()
+            Task { await refreshCompetitionAvailability() }
         }
         .onReceive(monitor.$hasEventsAccess.removeDuplicates()) { value in
             guard hasEventsAccess != value else { return }

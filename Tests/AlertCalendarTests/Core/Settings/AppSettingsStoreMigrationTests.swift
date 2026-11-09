@@ -3,6 +3,21 @@ import XCTest
 @testable import AlertCalendar
 
 final class AppSettingsStoreMigrationTests: XCTestCase {
+    func testNinetyDayFootballWindowsSurviveDraftAndPersistence() {
+        let suiteName = "AppSettingsStoreMigrationTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = AppSettingsStore(defaults: defaults)
+        store.registerDefaults()
+        var draft = SettingsDraft(settings: store.load())
+        draft.finishedFootballMatchLookbackDays = 90
+        draft.footballMatchLookaheadDays = 90
+        store.save(draft.applied(to: store.load(), availableEventCalendarIDs: []))
+
+        XCTAssertEqual(store.load().finishedFootballMatchLookbackDays, 90)
+        XCTAssertEqual(store.load().footballMatchLookaheadDays, 90)
+    }
+
     func testRegisterDefaultsRemovesLegacyFocusFilterState() {
         let suiteName = "AppSettingsStoreMigrationTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

@@ -44,16 +44,6 @@ final class MenuDropdownScreenTests: XCTestCase {
         )
     }
 
-    func testLargeVerticalGapIsReanchoredWithoutChangingHorizontalPosition() {
-        let window = CGRect(x: 48, y: 120, width: 708, height: 590)
-        let visible = CGRect(x: 0, y: 40, width: 1512, height: 904)
-
-        XCTAssertEqual(
-            MenuDropdownScreen.correctedDropdownOrigin(windowFrame: window, visibleFrame: visible),
-            CGPoint(x: 48, y: 350)
-        )
-    }
-
     func testDropdownScreenIsResolvedFromPanelIntersection() {
         let panelOnLaptop = CGRect(x: 48, y: 120, width: 708, height: 590)
         let panelOnExternal = CGRect(x: 2100, y: 1200, width: 708, height: 590)
@@ -86,14 +76,11 @@ final class MenuDropdownScreenTests: XCTestCase {
         )
     }
 
-    func testNormalNativeMenuGapIsPreserved() {
-        let visible = CGRect(x: 0, y: 40, width: 1512, height: 904)
-        let normallyAnchored = CGRect(x: 48, y: 346, width: 708, height: 590)
-
+    func testNoConnectedDisplaysHaveNoPlacementFrame() {
         XCTAssertNil(
-            MenuDropdownScreen.correctedDropdownOrigin(
-                windowFrame: normallyAnchored,
-                visibleFrame: visible
+            MenuDropdownScreen.visibleFrameForDropdown(
+                windowFrame: CGRect(x: 48, y: 346, width: 708, height: 590),
+                screens: []
             )
         )
     }
@@ -125,8 +112,8 @@ final class MenuDropdownScreenTests: XCTestCase {
         }.fixedSize(horizontal: false, vertical: true).frame(width: 708))
         settleLayout(host.view, size: CGSize(width: 708, height: 640))
 
-        // MenuBarExtra probes minimum, ideal, and maximum sizes. Previously the
-        // same content reported 43, 360, and 888 points depending on the proposal.
+        // Content must report the same natural height across minimum, ideal,
+        // and maximum proposals so the controller can resize it consistently.
         let expected = host.sizeThatFits(in: CGSize(width: 708, height: 640))
         XCTAssertEqual(expected.height, 587, accuracy: 1)
         for proposedHeight: CGFloat in [0, 100, 360, 600, 982, 1620, 10_000] {
@@ -170,7 +157,7 @@ final class MenuDropdownScreenTests: XCTestCase {
         XCTAssertLessThan(
             initialSize.height,
             100,
-            "The initial MenuBarExtra probe must stay compact so its top edge remains anchored"
+            "The initial size probe must stay compact until the natural content height is measured"
         )
     }
 
@@ -229,10 +216,15 @@ final class MenuDropdownScreenTests: XCTestCase {
         XCTAssertEqual(published, CGSize(width: 708, height: 800))
         XCTAssertEqual(window.frame, originalFrame)
 
-        screens = [external]
+        screens = [MenuDropdownScreen(
+            id: 3,
+            frame: CGRect(x: 0, y: 0, width: 1024, height: 600),
+            visibleFrame: CGRect(x: 0, y: 40, width: 1024, height: 536),
+            backingScaleFactor: 2
+        )]
         NotificationCenter.default.post(name: NSApplication.didChangeScreenParametersNotification, object: NSApp)
         RunLoop.main.run(until: Date().addingTimeInterval(0.03))
-        XCTAssertEqual(published, CGSize(width: 708, height: 800))
+        XCTAssertEqual(published, CGSize(width: 708, height: 520))
         XCTAssertEqual(window.frame, originalFrame)
 
         observer.stopObserving()
@@ -240,6 +232,79 @@ final class MenuDropdownScreenTests: XCTestCase {
         NotificationCenter.default.post(name: NSApplication.didChangeScreenParametersNotification, object: NSApp)
         RunLoop.main.run(until: Date().addingTimeInterval(0.03))
         XCTAssertNil(published)
+    }
+
+    func testVisibilityObservationLeavesVisiblePanelGeometryUnchanged() {
+        let panel = NSPanel(
+            contentRect: CGRect(x: 780, y: 220, width: 708, height: 590),
+            styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false
+        )
+        let originalFrame = panel.frame
+        let observer = MenuDropdownWindowObserverView()
+        observer.connectedScreens = { [self.laptop] }
+        var isVisible: Bool?
+        observer.presentationDidChange = { visible, _ in isVisible = visible }
+        panel.contentView = observer
+        defer {
+            observer.stopObserving()
+            panel.orderOut(nil)
+        }
+
+        panel.orderFront(nil)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+        XCTAssertEqual(isVisible, true)
+        XCTAssertEqual(panel.frame, originalFrame, "Observation must not repair vertical placement")
+
+        panel.orderOut(nil)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+        XCTAssertEqual(isVisible, false)
+        XCTAssertEqual(panel.frame, originalFrame)
+    }
+
+    func testDetachingObserverClearsVisibilityAndStopsNotifications() {
+        let panel = NSPanel(
+            contentRect: CGRect(x: 100, y: 100, width: 100, height: 100),
+            styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false
+        )
+        let observer = MenuDropdownWindowObserverView()
+        var visibilityChanges: [Bool] = []
+        observer.presentationDidChange = { visible, _ in visibilityChanges.append(visible) }
+        panel.contentView = observer
+        panel.orderFront(nil)
+        observer.updatePresentation()
+        XCTAssertEqual(visibilityChanges.last, true)
+
+        panel.contentView = nil
+        XCTAssertEqual(visibilityChanges.last, false)
+        let countAfterDetaching = visibilityChanges.count
+        NotificationCenter.default.post(name: NSWindow.didChangeScreenNotification, object: panel)
+        NotificationCenter.default.post(name: NSApplication.didChangeScreenParametersNotification, object: NSApp)
+        observer.scheduleUpdate()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+        XCTAssertEqual(visibilityChanges.count, countAfterDetaching)
+        panel.orderOut(nil)
+    }
+
+    func testDisplayChangesCoalesceIntoOnePresentationUpdate() {
+        let window = NSWindow(
+            contentRect: CGRect(x: 100, y: 100, width: 100, height: 100),
+            styleMask: [.borderless], backing: .buffered, defer: false
+        )
+        let observer = MenuDropdownWindowObserverView()
+        var updateCount = 0
+        observer.presentationDidChange = { _, _ in updateCount += 1 }
+        window.contentView = observer
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+        updateCount = 0
+
+        for name in [NSWindow.didChangeScreenNotification,
+                     NSWindow.didChangeBackingPropertiesNotification,
+                     NSApplication.didChangeScreenParametersNotification] {
+            NotificationCenter.default.post(name: name, object: window)
+        }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+        XCTAssertEqual(updateCount, 1)
+        observer.stopObserving()
     }
 
     private func settleLayout(_ view: NSView, size: CGSize) {

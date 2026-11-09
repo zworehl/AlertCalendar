@@ -102,7 +102,7 @@ extension MenuContentView {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .layoutPriority(1)
-            .animation(.easeInOut(duration: 0.18), value: monitor.agendaSummaryState)
+            .transaction { $0.animation = nil }
         }
     }
 }

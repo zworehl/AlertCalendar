@@ -83,6 +83,31 @@ final class FootballNationalLogoResolverTests: XCTestCase {
         XCTAssertEqual(FootballNationalLogoResolver.normalizedAssociationCode(from: "South Africa"), "RSA")
     }
 
+    func testReviewedAssociationCodesKeepBundledAndESPNFlagResourcesAvailable() throws {
+        let cases = [
+            ("New Caledonia", "NCD", "NCL", "ncl"),
+            ("Sudan", "SUD", "SDN", "sdn"),
+            ("Lebanon", "LIB", "LBN", "lbn"),
+            ("Singapore", "SIN", "SGP", "sin"),
+            ("Guadeloupe", "GDL", "GLP", "gdl"),
+        ]
+        for (name, previous, current, resource) in cases {
+            for abbreviation in [previous, current] {
+                XCTAssertEqual(FootballNationalLogoResolver.associationCode(
+                    name: name, abbreviation: abbreviation, countryName: name
+                ), current)
+                let localURL = try XCTUnwrap(FootballNationalLogoResolver.localFlagImageURL(
+                    name: name, abbreviation: abbreviation, countryName: name
+                ), name)
+                XCTAssertTrue(localURL.path.hasSuffix("/football-flag-\(resource).png"), name)
+                XCTAssertTrue(FileManager.default.fileExists(atPath: localURL.path), name)
+                XCTAssertEqual(FootballNationalLogoResolver.nationalFlagLogoURL(
+                    name: name, abbreviation: abbreviation, countryName: name
+                )?.absoluteString, "https://a.espncdn.com/i/teamlogos/countries/500/\(resource).png")
+            }
+        }
+    }
+
     func testNationalTeamKeepsExistingCountryFlagURL() throws {
         let existingURL = try XCTUnwrap(URL(string: "https://a.espncdn.com/i/teamlogos/countries/500/mtq.png"))
 

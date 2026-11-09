@@ -84,8 +84,10 @@ actor GameSalesFeedClient {
     }
 
     private let session: URLSession
+    private let transport: HTTPServiceTransport
     private let cacheStore: GameSalesFeedCacheStore?
     private let health: DataRefreshHealth
+    private var hasLoadedCache = false
     private var sourceCache: [String: GameSalesFeedSourceCacheEntry]
     private var sourceFailures: [String: GameSalesFeedFailureState]
     private var nintendoArticleLastModified: [String: Date]
@@ -96,23 +98,15 @@ actor GameSalesFeedClient {
         health: DataRefreshHealth = .shared
     ) {
         let resolvedCacheStore = cacheStore ?? (session == nil ? GameSalesFeedCacheStore.defaultStore() : nil)
-        let persisted = resolvedCacheStore?.load() ?? .empty
         self.cacheStore = resolvedCacheStore
         self.health = health
-        self.sourceCache = persisted.sources
-        self.sourceFailures = persisted.failures.mapValues { failure in
-            var restored = failure
-            // A previous process's offline state must not postpone recovery on launch.
-            // Older cache files did not distinguish connectivity from server failures.
-            if failure.error == nil || failure.error?.isTransientTransportFailure == true {
-                restored.nextRetryAt = .distantPast
-            }
-            return restored
-        }
-        self.nintendoArticleLastModified = persisted.nintendoArticleLastModified
+        self.sourceCache = [:]
+        self.sourceFailures = [:]
+        self.nintendoArticleLastModified = [:]
 
         if let session {
             self.session = session
+            self.transport = HTTPServiceTransport(session: session)
             return
         }
 
@@ -120,18 +114,36 @@ actor GameSalesFeedClient {
         configuration.timeoutIntervalForRequest = Self.requestTimeout
         configuration.timeoutIntervalForResource = 30
         configuration.waitsForConnectivity = true
-        self.session = URLSession(configuration: configuration)
+        let resolvedSession = URLSession(configuration: configuration)
+        self.session = resolvedSession
+        self.transport = HTTPServiceTransport(session: resolvedSession)
     }
 
-    var hasPendingRefreshFailures: Bool { !sourceFailures.isEmpty }
+    private func restoreCacheIfNeeded() {
+        guard !hasLoadedCache else { return }
+        hasLoadedCache = true
+        let persisted = cacheStore?.load() ?? .empty
+        sourceCache = persisted.sources
+        sourceFailures = persisted.failures.mapValues { failure in
+            var restored = failure
+            if failure.error == nil || failure.error?.isTransientTransportFailure == true { restored.nextRetryAt = .distantPast }
+            return restored
+        }
+        nintendoArticleLastModified = persisted.nintendoArticleLastModified
+    }
+
+    var hasPendingRefreshFailures: Bool { restoreCacheIfNeeded(); return !sourceFailures.isEmpty }
 
     var lastSuccessfulRefreshDate: Date? {
+        restoreCacheIfNeeded()
         guard sourceFailures.isEmpty, RemoteSource.allCases.allSatisfy({ sourceCache[$0.rawValue] != nil }) else { return nil }
         return RemoteSource.allCases.compactMap { sourceCache[$0.rawValue]?.fetchedAt }.min()
     }
 
     @discardableResult
-    func retryAfterConnectivityRecovery() -> Bool {
+    func retryAfterConnectivityRecovery() async -> Bool {
+        restoreCacheIfNeeded()
+        await transport.resumeAfterConnectivityRecovery()
         var needsRetry = false
         for key in Array(sourceFailures.keys) {
             guard let failure = sourceFailures[key],
@@ -146,10 +158,12 @@ actor GameSalesFeedClient {
         now: Date = Date(),
         forceRefresh: Bool = false
     ) async throws -> [GameSaleEvent] {
+        restoreCacheIfNeeded()
         for source in RemoteSource.allCases {
             await ExternalFeedMetrics.shared.recordCheck(source: source.diagnosticsKey, at: now)
         }
         let sourcesToRefresh = RemoteSource.allCases.filter { source in
+            if let until = sourceFailures[source.rawValue]?.error?.retryDate, now < until { return false }
             if forceRefresh {
                 return true
             }
@@ -182,6 +196,7 @@ actor GameSalesFeedClient {
         }
 
         let session = self.session
+        let transport = self.transport
         let validators = Dictionary(uniqueKeysWithValues: sourcesToRefresh.map { source in
             let cached = sourceCache[source.rawValue]
             return (source, (cached?.eTag, cached?.lastModified))
@@ -196,7 +211,7 @@ actor GameSalesFeedClient {
                             eTag: validators[source]?.0,
                             lastModified: validators[source]?.1,
                             diagnosticsSource: source.diagnosticsKey,
-                            session: session
+                            session: session, transport: transport, now: now
                         )
                         if let document {
                             try source.validate(document.text)
@@ -315,15 +330,19 @@ actor GameSalesFeedClient {
                 ? 1 : (previous?.consecutiveFailureCount ?? 0) + 1
             let failure = GameSalesFeedFailureState(
                 consecutiveFailureCount: failureCount,
-                nextRetryAt: now.addingTimeInterval(Self.retryDelay(forFailureCount: failureCount, error: error)),
+                nextRetryAt: error.retryDate ?? now.addingTimeInterval(Self.retryDelay(forFailureCount: failureCount, error: error)),
                 error: error,
                 firstFailedAt: previous?.firstFailedAt ?? now,
                 lastFailedAt: now
             )
             sourceFailures[key] = failure
+            let invalid: Bool
+            switch error { case .invalidResponse, .unreadableHTML: invalid = true; default: invalid = false }
+            await ExternalFeedMetrics.shared.recordDataFailure(source: source.diagnosticsKey, validationFailed: invalid)
             await restoreHealth(source: source, failure: failure, now: now)
         } else {
             sourceFailures[key] = nil
+            await ExternalFeedMetrics.shared.recordValidatedData(source: source.diagnosticsKey, at: now)
             await health.record(source: source.diagnosticsKey, title: "\(source.store.title) sales", error: nil, at: now)
         }
     }
@@ -355,6 +374,7 @@ actor GameSalesFeedClient {
             }
             .prefix(Self.nintendoArticleRequestLimit)
 
+        let transport = self.transport
         let results = try await withThrowingTaskGroup(of: (NintendoSaleArticleReference, GameSaleEvent?, ClientError?).self) { group in
             for reference in references {
                 group.addTask {
@@ -365,9 +385,10 @@ actor GameSalesFeedClient {
                             eTag: nil,
                             lastModified: nil,
                             diagnosticsSource: "game-sales.nintendo-article",
-                            session: session
+                            session: session, transport: transport, now: now
                         ) else { throw ClientError.invalidResponse }
                         guard Self.isReadableNintendoArticle(html.text) else { throw ClientError.invalidResponse }
+                        await ExternalFeedMetrics.shared.recordValidatedData(source: "game-sales.nintendo-article", at: now)
                         return (reference, Self.parseNintendoSaleArticle(html.text, url: reference.url, now: now), nil)
                     } catch is CancellationError {
                         throw CancellationError()

@@ -142,6 +142,7 @@ extension SettingsView {
             footballTargetCalendarID: $draft.footballTargetCalendarID,
             autoAddFootballCompetitionSlugs: $draft.footballAutoAddCompetitionSlugs,
             footballCalendarAlertOption: $draft.footballCalendarAlertOption,
+            pinLiveFootballScoresInMenuBar: $draft.pinLiveFootballScoresInMenuBar,
             enableFootballGoalNotifications: $draft.enableFootballGoalNotifications,
             enableFootballDisallowedGoalNotifications: $draft.enableFootballDisallowedGoalNotifications,
             includeFootballGoalScorerInNotifications: $draft.includeFootballGoalScorerInNotifications,

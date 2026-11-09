@@ -150,7 +150,7 @@ extension CalendarMonitor {
                     originalTitle: item.title
                 ) {
                     rewrittenEventTitlesByItemKey[itemKey] = cachedTitle
-                    eventTitleRewriteCacheStore?.save(persistentEventTitleRewriteCache)
+                    await persistTitleRewriteCache()
                     updateMenuBarState(now: fixedSecondNow(), settings: snapshotSettings())
                     continue
                 }
@@ -212,7 +212,7 @@ extension CalendarMonitor {
                         maximumCharacters: maximumCharacters,
                         now: fixedSecondNow()
                     )
-                    eventTitleRewriteCacheStore?.save(persistentEventTitleRewriteCache)
+                    await persistTitleRewriteCache()
                 } catch is CancellationError {
                     return
                 } catch {
@@ -320,7 +320,7 @@ extension CalendarMonitor {
         hasher.combine(maximumCharacters)
         hasher.combine(includesDropdown)
         hasher.combine(usesMailContext)
-        if usesMailContext {
+        if usesMailContext, !candidates.isEmpty {
             hasher.combine(AppleMailAutomationPermission.currentStatus())
         }
         for item in candidates {

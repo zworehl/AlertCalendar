@@ -50,6 +50,21 @@ esac
 BINARY_PATH="$PRODUCTS_DIR/$BINARY_NAME"
 
 APP_BUNDLE="$APP_DIR/${APP_NAME}.app"
+TARGET_APP_BUNDLE="$APP_BUNDLE"
+STAGING_ROOT=""
+
+cleanup_staging() {
+  if [[ -n "$STAGING_ROOT" && "$STAGING_ROOT" == "$APP_DIR"/.AlertCalendar.install.* ]]; then
+    if [[ -e "$STAGING_ROOT/previous.app" || -L "$STAGING_ROOT/previous.app" ]]; then
+      echo "Preserving the previous app for recovery: $STAGING_ROOT/previous.app" >&2
+    else
+      rm -rf "$STAGING_ROOT"
+    fi
+  fi
+}
+trap cleanup_staging EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 check_duplicate_source_copies() {
   "$ROOT/scripts/check_duplicate_sources.sh"
@@ -183,7 +198,8 @@ compile_asset_catalog() {
   local asset_tmp
   local asset_catalog
 
-  asset_tmp="$(mktemp -d)"
+  asset_tmp="$STAGING_ROOT/AssetBuild"
+  mkdir -p "$asset_tmp"
   asset_catalog="$asset_tmp/Assets.xcassets"
 
   mkdir -p "$asset_catalog/AccentColor.colorset"
@@ -232,17 +248,14 @@ JSON
 }
 
 remove_duplicate_installs() {
-  local candidate
-
-  for search_dir in "$USER_APP_DIR" /Applications; do
-    [[ -d "$search_dir" ]] || continue
-    while IFS= read -r candidate; do
-      if [[ "$candidate" != "$APP_BUNDLE" ]]; then
-        echo "Removing duplicate install: $candidate"
-        rm -rf "$candidate"
-      fi
-    done < <(find "$search_dir" -maxdepth 2 -iname "${APP_NAME}.app" -print 2>/dev/null)
-  done
+  python3 "$ROOT/scripts/clean_duplicate_installs.py" \
+    --keep "$TARGET_APP_BUNDLE" \
+    --bundle-identifier "$BUNDLE_IDENTIFIER" \
+    --bundle-identifier com.alertcalendar.app \
+    --bundle-identifier com.zworehl.alertcalendar.localizationQA \
+    --search-dir "$USER_APP_DIR" \
+    --search-dir /Applications \
+    --search-dir "$ROOT/tmp"
 }
 
 check_duplicate_source_copies
@@ -260,15 +273,16 @@ if [[ ! -f "$ENTITLEMENTS_PATH" ]]; then
 fi
 
 echo "[1/4] Building ${APP_NAME} (${BUILD_CONFIGURATION})..."
+BUILD_ACTIONS=(build)
 if [[ "$CLEAN_BUILD" == "1" ]]; then
-  rm -rf "$DERIVED_DATA"
+  BUILD_ACTIONS=(clean build)
 fi
 xcodebuild \
   -scheme "$APP_NAME" \
   -configuration "$BUILD_CONFIGURATION" \
   -destination "platform=macOS,arch=$BUILD_ARCH" \
   -derivedDataPath "$DERIVED_DATA" \
-  build
+  "${BUILD_ACTIONS[@]}"
 
 if [[ ! -f "$BINARY_PATH" ]]; then
   echo "Unable to locate built binary: ${BINARY_NAME}"
@@ -288,14 +302,12 @@ fi
 
 generate_app_intents_metadata
 
-echo "[2/4] Installing to ${APP_BUNDLE}..."
-if [[ "$TERMINATE_RUNNING_INSTANCES" == "1" ]]; then
-  terminate_running_instances
-fi
-if [[ "$REMOVE_DUPLICATE_INSTALLS" == "1" ]]; then
-  remove_duplicate_installs
-fi
-rm -rf "$APP_BUNDLE"
+mkdir -p "$APP_DIR"
+APP_DIR="$(cd "$APP_DIR" && pwd -P)"
+TARGET_APP_BUNDLE="$APP_DIR/${APP_NAME}.app"
+STAGING_ROOT="$(mktemp -d "$APP_DIR/.AlertCalendar.install.XXXXXX")"
+APP_BUNDLE="$STAGING_ROOT/${APP_NAME}.app"
+echo "[2/4] Preparing the new bundle without changing ${TARGET_APP_BUNDLE}..."
 mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources" "$APP_BUNDLE/Contents/Frameworks"
 cp "$BINARY_PATH" "$APP_BUNDLE/Contents/MacOS/${BINARY_NAME}"
 chmod +x "$APP_BUNDLE/Contents/MacOS/${BINARY_NAME}"
@@ -311,7 +323,7 @@ done
 ditto "$SPARKLE_FRAMEWORK_SOURCE" "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
 ditto "$FOCUS_METADATA_DIR/Metadata.appintents" "$APP_BUNDLE/Contents/Resources/Metadata.appintents"
 if [[ -f "$ICON_SOURCE" ]]; then
-  ICONSET_DIR="$(mktemp -d)/AppIcon.iconset"
+  ICONSET_DIR="$STAGING_ROOT/AppIcon.iconset"
   mkdir -p "$ICONSET_DIR"
   sips -z 16 16 "$ICON_SOURCE" --out "$ICONSET_DIR/icon_16x16.png" >/dev/null
   sips -z 32 32 "$ICON_SOURCE" --out "$ICONSET_DIR/icon_16x16@2x.png" >/dev/null
@@ -356,6 +368,8 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
   <key>LSMinimumSystemVersion</key>
   <string>13.0</string>
   <key>LSMultipleInstancesProhibited</key>
+  <true/>
+  <key>LSUIElement</key>
   <true/>
   <key>NSCalendarsUsageDescription</key>
   <string>AlertCalendar needs Calendar access to show events, apply your per-calendar alert rules, and manage selected holidays, football fixtures, and game-sale campaigns.</string>
@@ -412,10 +426,27 @@ CODE_SIGN_COMMAND+=( \
 )
 "${CODE_SIGN_COMMAND[@]}"
 codesign --verify --deep --strict "$APP_BUNDLE"
+python3 "$ROOT/scripts/smoke_bundle.py" "$APP_BUNDLE"
 
-echo "[4/4] Done."
-echo "Installed: $APP_BUNDLE"
-
-if [[ "$OPEN_AFTER_INSTALL" == "1" ]]; then
-  open "$APP_BUNDLE" || true
+echo "[4/4] Activating the validated bundle..."
+PREVIOUS_WAS_RUNNING=0
+if [[ -n "$(running_app_pids)" ]]; then
+  PREVIOUS_WAS_RUNNING=1
 fi
+if [[ "$TERMINATE_RUNNING_INSTANCES" == "1" ]]; then
+  terminate_running_instances
+fi
+TRANSACTION_ARGS=(--staged "$APP_BUNDLE" --target "$TARGET_APP_BUNDLE")
+if [[ "$OPEN_AFTER_INSTALL" == "1" ]]; then
+  TRANSACTION_ARGS+=(--launch)
+fi
+if ! python3 "$ROOT/scripts/install_bundle.py" "${TRANSACTION_ARGS[@]}"; then
+  if [[ "$PREVIOUS_WAS_RUNNING" == "1" && -d "$TARGET_APP_BUNDLE" && ! -e "$STAGING_ROOT/previous.app" ]]; then
+    open "$TARGET_APP_BUNDLE" || true
+  fi
+  exit 1
+fi
+if [[ "$REMOVE_DUPLICATE_INSTALLS" == "1" ]]; then
+  remove_duplicate_installs
+fi
+echo "Installed and verified: $TARGET_APP_BUNDLE"

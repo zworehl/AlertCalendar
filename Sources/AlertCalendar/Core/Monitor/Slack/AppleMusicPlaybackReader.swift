@@ -97,12 +97,12 @@ enum AppleMusicPlaybackReader {
     }
 
     nonisolated static func currentPlaybackObservation() async -> AppleMusicPlaybackObservation {
-        await Task.detached(priority: .utility) {
-            guard !NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.Music").isEmpty else {
-                return .stopped
-            }
+        guard !NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.Music").isEmpty else {
+            return .stopped
+        }
 
-            let source = """
+        let source = """
+            with timeout of 3 seconds
             tell application id "com.apple.Music"
                 if player state is playing then
                     set currentSong to current track
@@ -113,6 +113,7 @@ enum AppleMusicPlaybackReader {
                             set sourcePlaylist to current playlist
                             set currentIndex to index of currentSong
                             set trackCount to count of tracks of sourcePlaylist
+                            if trackCount > currentIndex + 100 then set trackCount to currentIndex + 100
                             repeat with nextIndex from (currentIndex + 1) to trackCount
                                 set candidateTrack to track nextIndex of sourcePlaylist
                                 if enabled of candidateTrack is true and artist of candidateTrack is currentArtist then
@@ -128,12 +129,14 @@ enum AppleMusicPlaybackReader {
                 end if
                 return "__ALERT_CALENDAR_NOT_PLAYING__"
             end tell
+            end timeout
             """
-            guard let script = NSAppleScript(source: source) else { return .unavailable }
-            var errorInfo: NSDictionary?
-            let result = script.executeAndReturnError(&errorInfo)
-            guard errorInfo == nil,
-                  let rawValue = result.stringValue else {
+        do {
+            let result = try await AlertCalendarAutomation.shared.execute(
+                .init(operation: .script, bundleIdentifier: "com.apple.Music", source: source)
+            )
+            guard result.errorNumber == nil, let rawValue = result.value else {
+                CalendarMonitorLog.slack.error("Music automation failed with code \(result.errorNumber ?? -1)")
                 return .unavailable
             }
             guard rawValue != "__ALERT_CALENDAR_NOT_PLAYING__" else { return .stopped }
@@ -175,6 +178,9 @@ enum AppleMusicPlaybackReader {
                     durationIsKnown: durationIsKnown
                 )
             )
-        }.value
+        } catch {
+            CalendarMonitorLog.slack.error("Music playback observation failed: \(String(describing: error), privacy: .public)")
+            return .unavailable
+        }
     }
 }

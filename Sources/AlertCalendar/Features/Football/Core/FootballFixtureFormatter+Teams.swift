@@ -13,6 +13,17 @@ extension FootballFixtureFormatter {
         let teams = [match.homeTeam, match.awayTeam]
         keys.insert(teams.map { String(teamDisplayIdentifier(for: $0).prefix(3)) }.joined(separator: "|"))
         keys.insert(teams.map { compactIdentifier(teamDisplayName(for: $0)) }.joined(separator: "|"))
+        let providerIdentifiers = teams.map { team in
+            let code = compactIdentifier(team.abbreviation)
+            return code.isEmpty ? compactIdentifier(team.name) : code
+        }
+        keys.insert(providerIdentifiers.joined(separator: "|"))
+        keys.insert(providerIdentifiers.map { String($0.prefix(3)) }.joined(separator: "|"))
+        for homeCode in FootballTeamBroadcastCode.calendarRecoveryIdentifiers(for: match.homeTeam) {
+            for awayCode in FootballTeamBroadcastCode.calendarRecoveryIdentifiers(for: match.awayTeam) {
+                keys.insert("\(homeCode)|\(awayCode)")
+            }
+        }
         return keys
     }
 }

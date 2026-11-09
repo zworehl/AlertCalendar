@@ -480,6 +480,8 @@
 "Off" = "Off";
 "Off by default. When enabled, connects directly to up to three public HTTPS pages, which can observe the request. Meeting links, private networks, files, credentials, and sensitive URL parameters stay blocked." = "Off by default. When enabled, connects directly to up to three public HTTPS pages, which can observe the request. Meeting links, private networks, files, credentials, and sensitive URL parameters stay blocked.";
 "Offseason" = "Offseason";
+"No competitions with fixtures are available right now." = "No competitions with fixtures are available right now.";
+"Checking competitions for available fixtures..." = "Checking competitions for available fixtures...";
 "On" = "On";
 "On day of event (9:00 AM)" = "On day of event (9:00 AM)";
 "One of the selected Google holiday calendars is unavailable." = "One of the selected Google holiday calendars is unavailable.";
@@ -794,3 +796,10 @@
 "Hide selected calendars or show only selected calendars while this Focus is active." = "Hide selected calendars or show only selected calendars while this Focus is active.";
 "event calendar" = "event calendar";
 "reminder list" = "reminder list";
+"Rotate live scores beside events" = "Rotate live scores beside events";
+"Live scores rotate one at a time on the right, independently of events, using the interval in General." = "Live scores rotate one at a time on the right, independently of events, using the interval in General.";
+"Could not read music playback. AlertCalendar will retry." = "Could not read music playback. AlertCalendar will retry.";
+"Calendar changes could not be saved. Existing managed events are still tracked." = "Calendar changes could not be saved. Existing managed events are still tracked.";
+"Calendar alert changes could not be completed. Failed date ranges will be retried automatically." = "Calendar alert changes could not be completed. Failed date ranges will be retried automatically.";
+"Partial update · %@" = "Partial update · %@";
+"Last applied: %@" = "Last applied: %@";

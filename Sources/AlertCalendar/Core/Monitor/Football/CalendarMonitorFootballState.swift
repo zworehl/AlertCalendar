@@ -1,6 +1,13 @@
 import Foundation
 
 struct CalendarMonitorFootballState {
+    var logoLoadingCoordinator: FootballLogoLoadingCoordinator?
+    var availabilityBySlug: [String: FootballCompetitionAvailability] = [:]
+    var availabilityRefreshTask: Task<Void, Never>?
+    var pendingAvailabilityRequest: FootballCompetitionAvailabilityRequest?
+    var lastAvailabilityRequest: FootballCompetitionAvailabilityRequest?
+    var detailedCompetitionSlugs: Set<String> = []
+    var detailedCompetitionLoadDates: [String: Date] = [:]
     var matchesByID: [String: FootballFixtureMatch] = [:]
     var managedEventRecords: [ManagedFootballEventRecord] = []
     var localLogoPathsByCompetitionSlug: [String: String] = [:]
@@ -22,6 +29,7 @@ struct CalendarMonitorFootballState {
     var matchCacheWriteTask: Task<Void, Never>?
     var pendingMatchCacheSnapshot: FootballMatchCacheSnapshot?
     var lastMatchCacheWriteDate: Date?
+    var isShuttingDown = false
 }
 
 extension CalendarMonitor {

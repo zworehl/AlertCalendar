@@ -21,7 +21,7 @@ final class GoogleHolidayIntegrationTests: XCTestCase {
 
     func testRefreshPolicyUsesFixedWeeklyCadenceAndDueBoundaries() {
         XCTAssertEqual(GoogleHolidayRefreshPolicy.interval, 604_800)
-        XCTAssertEqual(GoogleHolidayRefreshPolicy.failureRetryInterval, 21_600)
+        XCTAssertEqual(GoogleHolidayRefreshPolicy.failureRetryInterval, 60)
 
         let now = Date(timeIntervalSince1970: 1_000_000)
         XCTAssertTrue(
@@ -47,14 +47,14 @@ final class GoogleHolidayIntegrationTests: XCTestCase {
         XCTAssertFalse(
             GoogleHolidayRefreshPolicy.isDue(
                 lastRefreshDate: now.addingTimeInterval(-604_800),
-                lastAttemptDate: now.addingTimeInterval(-21_599),
+                lastAttemptDate: now.addingTimeInterval(-59),
                 now: now
             )
         )
         XCTAssertTrue(
             GoogleHolidayRefreshPolicy.isDue(
                 lastRefreshDate: now.addingTimeInterval(-604_800),
-                lastAttemptDate: now.addingTimeInterval(-21_600),
+                lastAttemptDate: now.addingTimeInterval(-60),
                 now: now
             )
         )

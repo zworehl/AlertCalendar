@@ -22,6 +22,7 @@ struct MenuBarPresentationState: Equatable {
     var footballGoalHighlightSide: FootballScoreSide?
     var footballGoalHighlightTextOpacity: CGFloat
     var fullTitleText: String? = nil
+    var pinnedFootballScores: [PinnedFootballMenuBarScore] = []
 
     static let loading = MenuBarPresentationState(
         label: "Loading...",
@@ -68,7 +69,8 @@ struct MenuBarPresentationState: Equatable {
     }
 
     static func == (lhs: MenuBarPresentationState, rhs: MenuBarPresentationState) -> Bool {
-        lhs.label == rhs.label
+        lhs.pinnedFootballScores == rhs.pinnedFootballScores
+            && lhs.label == rhs.label
             && lhs.fullTitleText == rhs.fullTitleText
             && lhs.color.isEqual(rhs.color)
             && lhs.alertedSegmentIndex == rhs.alertedSegmentIndex

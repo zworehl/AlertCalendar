@@ -72,6 +72,7 @@ extension SettingsView {
                 }
             }
         }
+        .accessibilityIdentifier("settings.general.updates")
     }
 
     private var softwareUpdateStatusDescription: String {

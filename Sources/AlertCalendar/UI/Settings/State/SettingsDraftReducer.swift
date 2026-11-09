@@ -68,6 +68,7 @@ extension SettingsDraft {
             )
         )
         settings.footballCalendarAlertOption = footballCalendarAlertOption
+        settings.pinLiveFootballScoresInMenuBar = pinLiveFootballScoresInMenuBar
         settings.enableFootballGoalNotifications = enableFootballGoalNotifications
         settings.enableFootballDisallowedGoalNotifications = enableFootballDisallowedGoalNotifications
         settings.includeFootballGoalScorerInNotifications = includeFootballGoalScorerInNotifications

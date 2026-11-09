@@ -242,7 +242,8 @@ final class FootballCompetitionPresentationTests: FootballFixtureFormatterTestCa
             awayScore: "0"
         )
 
-        XCTAssertEqual(FootballFixtureFormatter.calendarIdentityKey(for: match), "CRC|PALM")
+        XCTAssertEqual(FootballFixtureFormatter.calendarIdentityKey(for: match), "CRC|PAL")
+        XCTAssertTrue(FootballFixtureFormatter.calendarIdentityKeys(for: match).contains("CRC|PALM"))
     }
     func testCompetitionPresetsCoverSupportedLeaguesAndUseConfiguredSuggestionWindow() {
         let expectedSlugs: Set<String> = [
@@ -284,13 +285,13 @@ final class FootballCompetitionPresentationTests: FootballFixtureFormatterTestCa
             }
         )
     }
-    func testManagedFootballSuggestionWindowUsesFortyFiveDayLookbackAndNinetyDayLookahead() {
+    func testManagedFootballSuggestionWindowUsesNinetyDayLookbackAndLookahead() {
         let calendar = Calendar(identifier: .gregorian)
         let now = Date(timeIntervalSince1970: 1_720_000_000)
 
-        let insidePast = calendar.date(byAdding: .day, value: -45, to: now)!
+        let insidePast = calendar.date(byAdding: .day, value: -90, to: now)!
         let insideFuture = calendar.date(byAdding: .day, value: 90, to: now)!
-        let outsidePast = calendar.date(byAdding: .day, value: -46, to: now)!
+        let outsidePast = calendar.date(byAdding: .day, value: -91, to: now)!
         let outsideFuture = calendar.date(byAdding: .day, value: 91, to: now)!
 
         XCTAssertTrue(CalendarMonitor.isManagedFootballEventWithinSuggestionWindow(startDate: insidePast, now: now, calendar: calendar))

@@ -6,6 +6,9 @@ struct ExternalFeedSourceMetrics: Equatable, Sendable {
     var cacheHits = 0
     var coalescedRequests = 0
     var failures = 0
+    var validationFailures = 0
+    var hasUnresolvedFailure = false
+    var lastAppliedDate: Date?
     var responseBytes = 0
     var lastStatusCode: Int?
     var lastCheckedDate: Date?
@@ -65,6 +68,33 @@ struct ExternalFeedDiagnostics: Equatable, Sendable {
             .max()
     }
 
+    /// Oldest active source makes a partial refresh visible instead of letting
+    /// the newest successful endpoint hide older data from another source.
+    func oldestDataDate(sourcePrefix: String) -> Date? {
+        let active = sources.filter {
+            $0.key.hasPrefix(sourcePrefix) && !$0.key.hasSuffix(".stale") && !$0.key.hasSuffix(".negative")
+        }.map(\.value)
+        guard !active.isEmpty, active.allSatisfy({ $0.lastDataDate != nil }) else { return nil }
+        return active.compactMap(\.lastDataDate).min()
+    }
+
+    func latestAppliedDate(sourcePrefix: String) -> Date? {
+        sources.filter { $0.key.hasPrefix(sourcePrefix) }.compactMap(\.value.lastAppliedDate).max()
+    }
+
+    func oldestDataDate(sources keys: [String]) -> Date? {
+        guard !keys.isEmpty, keys.allSatisfy({ sources[$0]?.lastDataDate != nil }) else { return nil }
+        return keys.compactMap { sources[$0]?.lastDataDate }.min()
+    }
+
+    func hasUnresolvedFailure(sources keys: [String]) -> Bool {
+        keys.contains { sources[$0]?.hasUnresolvedFailure == true }
+    }
+
+    func hasUnresolvedFailure(sourcePrefix: String) -> Bool {
+        sources.contains { $0.key.hasPrefix(sourcePrefix) && $0.value.hasUnresolvedFailure }
+    }
+
     private func requestDurationPercentile(_ percentile: Double) -> TimeInterval? {
         let values = sources.values.flatMap(\.recentRequestDurations).sorted()
         guard !values.isEmpty else { return nil }
@@ -101,13 +131,13 @@ actor ExternalFeedMetrics {
         metrics.lastRequestDate = date
         if (200...399).contains(statusCode) {
             metrics.lastSuccessfulRequestDate = date
-            metrics.lastDataDate = date
         }
         if let duration {
             metrics.recordRequestDuration(duration)
         }
         if !(200...399).contains(statusCode) {
             metrics.failures += 1
+            metrics.hasUnresolvedFailure = true
         }
         sources[source] = metrics
     }
@@ -120,12 +150,33 @@ actor ExternalFeedMetrics {
         var metrics = sources[source, default: ExternalFeedSourceMetrics()]
         metrics.networkRequests += 1
         metrics.failures += 1
+        metrics.hasUnresolvedFailure = true
         metrics.lastStatusCode = nil
         metrics.lastCheckedDate = date
         metrics.lastRequestDate = date
         if let duration {
             metrics.recordRequestDuration(duration)
         }
+        sources[source] = metrics
+    }
+
+    func recordValidatedData(source: String, at date: Date = Date()) {
+        var metrics = sources[source, default: ExternalFeedSourceMetrics()]
+        metrics.lastDataDate = date
+        metrics.hasUnresolvedFailure = false
+        sources[source] = metrics
+    }
+
+    func recordDataFailure(source: String, validationFailed: Bool = false) {
+        var metrics = sources[source, default: ExternalFeedSourceMetrics()]
+        metrics.hasUnresolvedFailure = true
+        if validationFailed { metrics.validationFailures += 1 }
+        sources[source] = metrics
+    }
+
+    func recordAppliedData(source: String, at date: Date = Date()) {
+        var metrics = sources[source, default: ExternalFeedSourceMetrics()]
+        metrics.lastAppliedDate = date
         sources[source] = metrics
     }
 

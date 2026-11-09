@@ -102,6 +102,10 @@ enum CalendarMonitorRefreshReason: String, CaseIterable, Hashable {
         self == .manual
     }
 
+    var forcesFootballRefresh: Bool {
+        self == .manual || self == .launch || self == .workspaceResumed
+    }
+
     var refreshesCalendarStateOnly: Bool {
         self == .launchSnapshot || self == .launchConfirmation || self == .focusFilterChanged || self == .calendarSync || self == .remindersChanged
     }
@@ -148,6 +152,10 @@ struct CalendarMonitorRefreshPlan {
 
     var forcesExternalFeedRefresh: Bool {
         reasons.contains(where: \.forcesExternalFeedRefresh)
+    }
+
+    var forcesFootballRefresh: Bool {
+        reasons.contains(where: \.forcesFootballRefresh)
     }
 
     var includesEventStoreChange: Bool {

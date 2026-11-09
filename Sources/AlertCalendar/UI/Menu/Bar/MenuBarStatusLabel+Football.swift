@@ -174,16 +174,7 @@ extension MenuBarStatusLabel {
 
     @MainActor
     static func immediatelyAvailableFootballLogo(at path: String) -> NSImage? {
-        if let cachedImage = FootballLocalImageCache.cachedImage(for: path) {
-            return cachedImage
-        }
-
-        guard let localImage = NSImage(contentsOfFile: path) else {
-            return nil
-        }
-
-        FootballLocalImageCache.store(localImage, for: path)
-        return localImage
+        FootballLocalImageCache.cachedImage(for: path)
     }
 
     @MainActor

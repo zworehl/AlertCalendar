@@ -4,8 +4,8 @@ import MapKit
 import SwiftUI
 
 private enum MiniLocationMapPreviewTiming {
-    static let loadingTimeoutNanoseconds: UInt64 = 8_000_000_000
-    static let snapshotTimeoutSeconds: TimeInterval = 6
+    static let loadingTimeoutNanoseconds: UInt64 = 45_000_000_000
+    static let snapshotTimeoutSeconds: TimeInterval = 20
 }
 
 private enum MiniLocationMapPreviewSnapshot {

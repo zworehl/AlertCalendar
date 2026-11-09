@@ -103,7 +103,7 @@ actor LocationCoordinateResolver {
             // Stadiums and venues behave more like POIs than postal addresses, so let Maps search first.
             switch await Self.localSearchLocation(for: query) {
             case .found(let location):
-                if location.timeZoneIdentifier != nil {
+                if mode == .coordinate || location.timeZoneIdentifier != nil {
                     cache.insert(.found(location), forKey: cacheKey)
                     return location
                 }

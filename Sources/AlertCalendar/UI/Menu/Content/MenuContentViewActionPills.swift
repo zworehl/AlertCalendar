@@ -68,7 +68,7 @@ extension MenuContentView {
     }
 
     func openMeetingFromDropdown(_ item: UpcomingItem) {
-        NSApp.keyWindow?.orderOut(nil)
+        dropdownActions.dismiss()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             monitor.openMeeting(item)
         }
@@ -85,7 +85,7 @@ extension MenuContentView {
 
     func openLinkFromDropdown(_ item: UpcomingItem) {
         guard let url = item.openLinkURL else { return }
-        NSApp.keyWindow?.orderOut(nil)
+        dropdownActions.dismiss()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             AlertCalendarWorkspace.open(url)
         }

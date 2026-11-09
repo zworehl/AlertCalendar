@@ -480,6 +480,8 @@
 "Off" = "Desactivado";
 "Off by default. When enabled, connects directly to up to three public HTTPS pages, which can observe the request. Meeting links, private networks, files, credentials, and sensitive URL parameters stay blocked." = "Desactivado de forma predeterminada. Al activarlo, se conecta directamente a un máximo de tres páginas HTTPS públicas, que pueden registrar la solicitud. Los enlaces de reuniones, redes privadas, archivos, credenciales y parámetros sensibles siguen bloqueados.";
 "Offseason" = "Fuera de temporada";
+"No competitions with fixtures are available right now." = "No hay competiciones con partidos disponibles en este momento.";
+"Checking competitions for available fixtures..." = "Comprobando competiciones con partidos disponibles...";
 "On" = "Activado";
 "On day of event (9:00 AM)" = "El día del evento (9:00 a. m.)";
 "One of the selected Google holiday calendars is unavailable." = "Uno de los calendarios seleccionados de días festivos de Google no está disponible.";
@@ -794,3 +796,10 @@
 "Hide selected calendars or show only selected calendars while this Focus is active." = "Oculta los calendarios seleccionados o muestra solo los seleccionados mientras este modo de Concentración esté activo.";
 "event calendar" = "calendario de eventos";
 "reminder list" = "lista de recordatorios";
+"Rotate live scores beside events" = "Rotar marcadores en vivo junto a los eventos";
+"Live scores rotate one at a time on the right, independently of events, using the interval in General." = "Los marcadores en vivo rotan de uno en uno a la derecha, independientemente de los eventos, con el intervalo de General.";
+"Could not read music playback. AlertCalendar will retry." = "No se pudo leer la reproducción de música. AlertCalendar lo volverá a intentar.";
+"Calendar changes could not be saved. Existing managed events are still tracked." = "No se pudieron guardar los cambios del calendario. Los eventos administrados siguen registrados.";
+"Calendar alert changes could not be completed. Failed date ranges will be retried automatically." = "No se pudieron completar los cambios de las alertas del calendario. Los intervalos fallidos se volverán a intentar automáticamente.";
+"Partial update · %@" = "Actualización parcial · %@";
+"Last applied: %@" = "Última aplicación: %@";

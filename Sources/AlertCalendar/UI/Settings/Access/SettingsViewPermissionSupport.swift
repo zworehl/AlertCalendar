@@ -248,6 +248,7 @@ extension SettingsView {
         locationAuthorizationStatus = SettingsPermissionKind.currentLocationAuthorizationStatus(forceRefresh: forceRefresh)
         contactsAuthorizationStatus = SettingsPermissionKind.currentContactsAuthorizationStatus(forceRefresh: forceRefresh)
         mailAutomationAuthorizationStatus = AppleMailAutomationPermission.currentStatus()
+        refreshMailAutomationStatus(forceRefresh: forceRefresh)
         for permission in SettingsPermissionKind.allCases
             where permissionGrantState(for: permission) == .allowed
                 && permissionActionMessages[permission] != L10n.text("Access granted.") {
@@ -256,6 +257,15 @@ extension SettingsView {
         monitor.refreshAvailableCalendars()
         synchronizeSettingsStateFromMonitor()
         monitor.refreshNow(reason: .manual)
+    }
+
+    func refreshMailAutomationStatus(forceRefresh: Bool = false) {
+        Task { @MainActor in
+            let status = await AppleMailAutomationPermission.refreshStatus(forceRefresh: forceRefresh)
+            let didChange = mailAutomationAuthorizationStatus != status
+            mailAutomationAuthorizationStatus = status
+            if didChange { monitor.refreshNow(reason: .manual) }
+        }
     }
 
     func openPrivacySettings() {

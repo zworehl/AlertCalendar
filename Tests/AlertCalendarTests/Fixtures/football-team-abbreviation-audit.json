@@ -1,0 +1,6404 @@
+{
+  "checkedAt": "2026-10-14",
+  "sources": [
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/afc.asian.cup/teams?limit=1000",
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/teams?limit=1000",
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/bra.1/teams?limit=1000",
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/caf.nations/teams?limit=1000",
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/col.1/teams?limit=1000",
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/concacaf.central.american.cup/teams?limit=1000",
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/concacaf.gold/teams?limit=1000",
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/concacaf.nations.league/teams?limit=1000",
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/conmebol.america/teams?limit=1000",
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/conmebol.libertadores/teams?limit=1000",
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/crc.1/teams?limit=1000",
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/teams?limit=1000",
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/esp.1/teams?limit=1000",
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.cwc/teams?limit=1000",
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.friendly/teams?limit=1000",
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/teams?limit=1000",
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/fra.1/teams?limit=1000",
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/ger.1/teams?limit=1000",
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/ita.1/teams?limit=1000",
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/teams?limit=1000",
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/ned.1/teams?limit=1000",
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/por.1/teams?limit=1000",
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/teams?limit=1000",
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.euro/teams?limit=1000",
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.europa/teams?limit=1000",
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.nations/teams?limit=1000",
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.super_cup/teams?limit=1000",
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/usa.1/teams?limit=1000",
+    "https://fantasy.premierleague.com/api/bootstrap-static/",
+    "https://cscartagines.com/",
+    "https://www.concacaf.com/competitions/central-american-cup/clubs/alianza-f.c",
+    "https://www.uefa.com/uefaeuropaleague/clubs/53043--celta/",
+    "https://www.bundesliga.com/en/bundesliga/clubs/borussia-dortmund",
+    "https://gol.conmebol.com/es/fixture/view/544",
+    "https://www.oncecaldas.com.co/boleteria-vs-racing-uru",
+    "https://gpcustomersupportfcwc2025.tickets.fifa.com/hc/en-us/articles/23802248983453-3-Which-clubs-are-participating-in-the-FIFA-Club-World-Cup-2025",
+    "https://inside.fifa.com/fifa-rankings/world-ranking/NCL",
+    "https://inside.fifa.com/fifa-rankings/world-ranking/SDN",
+    "https://inside.fifa.com/associations/LBN",
+    "https://inside.fifa.com/fifa-rankings/world-ranking/SGP",
+    "https://www.concacaf.com/inside-concacaf/member-associations/guadeloupe"
+  ],
+  "teams": [
+    {
+      "id": "628",
+      "name": "Australia",
+      "shortName": "Australia",
+      "providerCode": "AUS",
+      "expectedCode": "AUS",
+      "isNational": true,
+      "competitions": [
+        "afc.asian.cup",
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "4381",
+      "name": "Bahrain",
+      "shortName": "Bahrain",
+      "providerCode": "BHR",
+      "expectedCode": "BHR",
+      "isNational": true,
+      "competitions": [
+        "afc.asian.cup",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "658",
+      "name": "China",
+      "shortName": "China",
+      "providerCode": "CHN",
+      "expectedCode": "CHN",
+      "isNational": true,
+      "competitions": [
+        "afc.asian.cup",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "4895",
+      "name": "Indonesia",
+      "shortName": "Indonesia",
+      "providerCode": "IDN",
+      "expectedCode": "IDN",
+      "isNational": true,
+      "competitions": [
+        "afc.asian.cup",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "469",
+      "name": "Iran",
+      "shortName": "Iran",
+      "providerCode": "IRN",
+      "expectedCode": "IRN",
+      "isNational": true,
+      "competitions": [
+        "afc.asian.cup",
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "4375",
+      "name": "Iraq",
+      "shortName": "Iraq",
+      "providerCode": "IRQ",
+      "expectedCode": "IRQ",
+      "isNational": true,
+      "competitions": [
+        "afc.asian.cup",
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "627",
+      "name": "Japan",
+      "shortName": "Japan",
+      "providerCode": "JPN",
+      "expectedCode": "JPN",
+      "isNational": true,
+      "competitions": [
+        "afc.asian.cup",
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "2917",
+      "name": "Jordan",
+      "shortName": "Jordan",
+      "providerCode": "JOR",
+      "expectedCode": "JOR",
+      "isNational": true,
+      "competitions": [
+        "afc.asian.cup",
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "841",
+      "name": "Kuwait",
+      "shortName": "Kuwait",
+      "providerCode": "KUW",
+      "expectedCode": "KUW",
+      "isNational": true,
+      "competitions": [
+        "afc.asian.cup",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "6724",
+      "name": "Kyrgyz Republic",
+      "shortName": "Kyrgyz Rep.",
+      "providerCode": "KGZ",
+      "expectedCode": "KGZ",
+      "isNational": true,
+      "competitions": [
+        "afc.asian.cup",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "4860",
+      "name": "North Korea",
+      "shortName": "North Korea",
+      "providerCode": "PRK",
+      "expectedCode": "PRK",
+      "isNational": true,
+      "competitions": [
+        "afc.asian.cup"
+      ]
+    },
+    {
+      "id": "2841",
+      "name": "Oman",
+      "shortName": "Oman",
+      "providerCode": "OMA",
+      "expectedCode": "OMA",
+      "isNational": true,
+      "competitions": [
+        "afc.asian.cup",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "6167",
+      "name": "Palestine",
+      "shortName": "Palestine",
+      "providerCode": "PLE",
+      "expectedCode": "PLE",
+      "isNational": true,
+      "competitions": [
+        "afc.asian.cup",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "4398",
+      "name": "Qatar",
+      "shortName": "Qatar",
+      "providerCode": "QAT",
+      "expectedCode": "QAT",
+      "isNational": true,
+      "competitions": [
+        "afc.asian.cup",
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "655",
+      "name": "Saudi Arabia",
+      "shortName": "Saudi Arabia",
+      "providerCode": "KSA",
+      "expectedCode": "KSA",
+      "isNational": true,
+      "competitions": [
+        "afc.asian.cup",
+        "concacaf.gold",
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "4384",
+      "name": "Singapore",
+      "shortName": "Singapore",
+      "providerCode": "SIN",
+      "expectedCode": "SGP",
+      "isNational": true,
+      "competitions": [
+        "afc.asian.cup",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "451",
+      "name": "South Korea",
+      "shortName": "South Korea",
+      "providerCode": "KOR",
+      "expectedCode": "KOR",
+      "isNational": true,
+      "competitions": [
+        "afc.asian.cup",
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "4380",
+      "name": "Syria",
+      "shortName": "Syria",
+      "providerCode": "SYR",
+      "expectedCode": "SYR",
+      "isNational": true,
+      "competitions": [
+        "afc.asian.cup",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "6723",
+      "name": "Tajikistan",
+      "shortName": "Tajikistan",
+      "providerCode": "TJK",
+      "expectedCode": "TJK",
+      "isNational": true,
+      "competitions": [
+        "afc.asian.cup",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "4396",
+      "name": "Thailand",
+      "shortName": "Thailand",
+      "providerCode": "THA",
+      "expectedCode": "THA",
+      "isNational": true,
+      "competitions": [
+        "afc.asian.cup",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "4397",
+      "name": "United Arab Emirates",
+      "shortName": "UAE",
+      "providerCode": "UAE",
+      "expectedCode": "UAE",
+      "isNational": true,
+      "competitions": [
+        "afc.asian.cup",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "2570",
+      "name": "Uzbekistan",
+      "shortName": "Uzbekistan",
+      "providerCode": "UZB",
+      "expectedCode": "UZB",
+      "isNational": true,
+      "competitions": [
+        "afc.asian.cup",
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "7349",
+      "name": "Vietnam",
+      "shortName": "Vietnam",
+      "providerCode": "VIE",
+      "expectedCode": "VIE",
+      "isNational": true,
+      "competitions": [
+        "afc.asian.cup",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "6014",
+      "name": "Yemen",
+      "shortName": "Yemen",
+      "providerCode": "YEM",
+      "expectedCode": "YEM",
+      "isNational": true,
+      "competitions": [
+        "afc.asian.cup",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "9739",
+      "name": "Aldosivi",
+      "shortName": "Aldosivi",
+      "providerCode": "ALDO",
+      "expectedCode": "ALD",
+      "isNational": false,
+      "competitions": [
+        "arg.1"
+      ]
+    },
+    {
+      "id": "3",
+      "name": "Argentinos Juniors",
+      "shortName": "Argentinos ",
+      "providerCode": "ARGJ",
+      "expectedCode": "ARG",
+      "isNational": false,
+      "competitions": [
+        "arg.1",
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "9785",
+      "name": "Atlético Tucumán",
+      "shortName": "Atl Tucumán",
+      "providerCode": "CAT",
+      "expectedCode": "CAT",
+      "isNational": false,
+      "competitions": [
+        "arg.1"
+      ]
+    },
+    {
+      "id": "235",
+      "name": "Banfield",
+      "shortName": "Banfield",
+      "providerCode": "BAN",
+      "expectedCode": "BAN",
+      "isNational": false,
+      "competitions": [
+        "arg.1"
+      ]
+    },
+    {
+      "id": "10060",
+      "name": "Barracas Central",
+      "shortName": "Barracas",
+      "providerCode": "BAR",
+      "expectedCode": "BAR",
+      "isNational": false,
+      "competitions": [
+        "arg.1"
+      ]
+    },
+    {
+      "id": "4",
+      "name": "Belgrano (Córdoba)",
+      "shortName": "Belgrano ",
+      "providerCode": "BEL",
+      "expectedCode": "BEL",
+      "isNational": false,
+      "competitions": [
+        "arg.1"
+      ]
+    },
+    {
+      "id": "5",
+      "name": "Boca Juniors",
+      "shortName": "Boca ",
+      "providerCode": "CABJ",
+      "expectedCode": "BOC",
+      "isNational": false,
+      "competitions": [
+        "arg.1",
+        "conmebol.libertadores",
+        "fifa.cwc"
+      ]
+    },
+    {
+      "id": "11989",
+      "name": "Central Córdoba (Santiago del Estero)",
+      "shortName": "C. Córdoba (SE)",
+      "providerCode": "CTR",
+      "expectedCode": "CCO",
+      "isNational": false,
+      "competitions": [
+        "arg.1"
+      ]
+    },
+    {
+      "id": "8950",
+      "name": "Defensa y Justicia",
+      "shortName": "Def. y Jus.",
+      "providerCode": "DYJ",
+      "expectedCode": "DYJ",
+      "isNational": false,
+      "competitions": [
+        "arg.1"
+      ]
+    },
+    {
+      "id": "17702",
+      "name": "Deportivo Riestra",
+      "shortName": "Riestra",
+      "providerCode": "RIE",
+      "expectedCode": "RIE",
+      "isNational": false,
+      "competitions": [
+        "arg.1"
+      ]
+    },
+    {
+      "id": "8",
+      "name": "Estudiantes de La Plata",
+      "shortName": "Estudiantes",
+      "providerCode": "EST",
+      "expectedCode": "EST",
+      "isNational": false,
+      "competitions": [
+        "arg.1",
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "19685",
+      "name": "Estudiantes de Río Cuarto",
+      "shortName": "Estudiantes RC",
+      "providerCode": "AAE",
+      "expectedCode": "ERC",
+      "isNational": false,
+      "competitions": [
+        "arg.1"
+      ]
+    },
+    {
+      "id": "11972",
+      "name": "Gimnasia (Mendoza)",
+      "shortName": "Gimnasia (M)",
+      "providerCode": "GMZ",
+      "expectedCode": "GMZ",
+      "isNational": false,
+      "competitions": [
+        "arg.1"
+      ]
+    },
+    {
+      "id": "9",
+      "name": "Gimnasia La Plata",
+      "shortName": "Gimnasia LP",
+      "providerCode": "GLP",
+      "expectedCode": "GLP",
+      "isNational": false,
+      "competitions": [
+        "arg.1"
+      ]
+    },
+    {
+      "id": "10",
+      "name": "Huracán",
+      "shortName": "Huracán ",
+      "providerCode": "HUR",
+      "expectedCode": "HUR",
+      "isNational": false,
+      "competitions": [
+        "arg.1"
+      ]
+    },
+    {
+      "id": "11",
+      "name": "Independiente",
+      "shortName": "Independiente",
+      "providerCode": "IND",
+      "expectedCode": "IND",
+      "isNational": false,
+      "competitions": [
+        "arg.1"
+      ]
+    },
+    {
+      "id": "9744",
+      "name": "Independiente Rivadavia",
+      "shortName": "Ind. Rivadavia",
+      "providerCode": "RIV",
+      "expectedCode": "IRV",
+      "isNational": false,
+      "competitions": [
+        "arg.1",
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "2975",
+      "name": "Instituto (Córdoba)",
+      "shortName": "Instituto",
+      "providerCode": "IACC",
+      "expectedCode": "INS",
+      "isNational": false,
+      "competitions": [
+        "arg.1"
+      ]
+    },
+    {
+      "id": "12",
+      "name": "Lanús",
+      "shortName": "Lanús ",
+      "providerCode": "LAN",
+      "expectedCode": "LAN",
+      "isNational": false,
+      "competitions": [
+        "arg.1",
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "14",
+      "name": "Newell's Old Boys",
+      "shortName": "Newell's",
+      "providerCode": "NOB",
+      "expectedCode": "NOB",
+      "isNational": false,
+      "competitions": [
+        "arg.1"
+      ]
+    },
+    {
+      "id": "7764",
+      "name": "Platense",
+      "shortName": "Platense",
+      "providerCode": "PLA",
+      "expectedCode": "PLA",
+      "isNational": false,
+      "competitions": [
+        "arg.1",
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "15",
+      "name": "Racing Club",
+      "shortName": "Racing ",
+      "providerCode": "RAC",
+      "expectedCode": "RAC",
+      "isNational": false,
+      "competitions": [
+        "arg.1"
+      ]
+    },
+    {
+      "id": "16",
+      "name": "River Plate",
+      "shortName": "River Plate",
+      "providerCode": "RIV",
+      "expectedCode": "RIV",
+      "isNational": false,
+      "competitions": [
+        "arg.1",
+        "fifa.cwc"
+      ]
+    },
+    {
+      "id": "17",
+      "name": "Rosario Central",
+      "shortName": "Rosario Central",
+      "providerCode": "ROS",
+      "expectedCode": "ROS",
+      "isNational": false,
+      "competitions": [
+        "arg.1",
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "18",
+      "name": "San Lorenzo",
+      "shortName": "San Lorenzo ",
+      "providerCode": "SLO",
+      "expectedCode": "SLO",
+      "isNational": false,
+      "competitions": [
+        "arg.1"
+      ]
+    },
+    {
+      "id": "10158",
+      "name": "Sarmiento (Junín)",
+      "shortName": "Sarmiento (J)",
+      "providerCode": "SARM",
+      "expectedCode": "SAR",
+      "isNational": false,
+      "competitions": [
+        "arg.1"
+      ]
+    },
+    {
+      "id": "19",
+      "name": "Talleres (Córdoba)",
+      "shortName": "Talleres ",
+      "providerCode": "TALL",
+      "expectedCode": "TAL",
+      "isNational": false,
+      "competitions": [
+        "arg.1"
+      ]
+    },
+    {
+      "id": "7767",
+      "name": "Tigre",
+      "shortName": "Tigre",
+      "providerCode": "TIG",
+      "expectedCode": "TIG",
+      "isNational": false,
+      "competitions": [
+        "arg.1"
+      ]
+    },
+    {
+      "id": "20",
+      "name": "Unión (Santa Fe)",
+      "shortName": "Unión (SF)",
+      "providerCode": "USF",
+      "expectedCode": "USF",
+      "isNational": false,
+      "competitions": [
+        "arg.1"
+      ]
+    },
+    {
+      "id": "21",
+      "name": "Vélez Sarsfield",
+      "shortName": "Vélez ",
+      "providerCode": "VEL",
+      "expectedCode": "VEL",
+      "isNational": false,
+      "competitions": [
+        "arg.1"
+      ]
+    },
+    {
+      "id": "3458",
+      "name": "Athletico-PR",
+      "shortName": "Athletico-PR",
+      "providerCode": "CAP",
+      "expectedCode": "CAP",
+      "isNational": false,
+      "competitions": [
+        "bra.1"
+      ]
+    },
+    {
+      "id": "7632",
+      "name": "Atlético-MG",
+      "shortName": "Atlético-MG",
+      "providerCode": "CAM",
+      "expectedCode": "CAM",
+      "isNational": false,
+      "competitions": [
+        "bra.1"
+      ]
+    },
+    {
+      "id": "9967",
+      "name": "Bahia",
+      "shortName": "Bahia",
+      "providerCode": "BAH",
+      "expectedCode": "BAH",
+      "isNational": false,
+      "competitions": [
+        "bra.1",
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "6086",
+      "name": "Botafogo",
+      "shortName": "Botafogo",
+      "providerCode": "BOT",
+      "expectedCode": "BOT",
+      "isNational": false,
+      "competitions": [
+        "bra.1",
+        "conmebol.libertadores",
+        "fifa.cwc"
+      ]
+    },
+    {
+      "id": "9318",
+      "name": "Chapecoense",
+      "shortName": "Chapecoense",
+      "providerCode": "CHA",
+      "expectedCode": "CHA",
+      "isNational": false,
+      "competitions": [
+        "bra.1"
+      ]
+    },
+    {
+      "id": "874",
+      "name": "Corinthians",
+      "shortName": "Corinthians",
+      "providerCode": "COR",
+      "expectedCode": "COR",
+      "isNational": false,
+      "competitions": [
+        "bra.1",
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "3456",
+      "name": "Coritiba",
+      "shortName": "Coritiba",
+      "providerCode": "CFC",
+      "expectedCode": "CFC",
+      "isNational": false,
+      "competitions": [
+        "bra.1"
+      ]
+    },
+    {
+      "id": "2022",
+      "name": "Cruzeiro",
+      "shortName": "Cruzeiro",
+      "providerCode": "CRU",
+      "expectedCode": "CRU",
+      "isNational": false,
+      "competitions": [
+        "bra.1",
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "819",
+      "name": "Flamengo",
+      "shortName": "Flamengo",
+      "providerCode": "FLA",
+      "expectedCode": "FLA",
+      "isNational": false,
+      "competitions": [
+        "bra.1",
+        "conmebol.libertadores",
+        "fifa.cwc"
+      ]
+    },
+    {
+      "id": "3445",
+      "name": "Fluminense",
+      "shortName": "Fluminense",
+      "providerCode": "FLU",
+      "expectedCode": "FLU",
+      "isNational": false,
+      "competitions": [
+        "bra.1",
+        "conmebol.libertadores",
+        "fifa.cwc"
+      ]
+    },
+    {
+      "id": "6273",
+      "name": "Grêmio",
+      "shortName": "Grêmio",
+      "providerCode": "GRE",
+      "expectedCode": "GRE",
+      "isNational": false,
+      "competitions": [
+        "bra.1"
+      ]
+    },
+    {
+      "id": "1936",
+      "name": "Internacional",
+      "shortName": "Internacional",
+      "providerCode": "INT",
+      "expectedCode": "INT",
+      "isNational": false,
+      "competitions": [
+        "bra.1"
+      ]
+    },
+    {
+      "id": "9169",
+      "name": "Mirassol",
+      "shortName": "Mirassol",
+      "providerCode": "MIR",
+      "expectedCode": "MIR",
+      "isNational": false,
+      "competitions": [
+        "bra.1",
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "2029",
+      "name": "Palmeiras",
+      "shortName": "Palmeiras",
+      "providerCode": "PAL",
+      "expectedCode": "PAL",
+      "isNational": false,
+      "competitions": [
+        "bra.1",
+        "conmebol.libertadores",
+        "fifa.cwc"
+      ]
+    },
+    {
+      "id": "6079",
+      "name": "Red Bull Bragantino",
+      "shortName": "Bragantino",
+      "providerCode": "BRA",
+      "expectedCode": "BRA",
+      "isNational": false,
+      "competitions": [
+        "bra.1"
+      ]
+    },
+    {
+      "id": "4936",
+      "name": "Remo",
+      "shortName": "Remo",
+      "providerCode": "REMO",
+      "expectedCode": "REM",
+      "isNational": false,
+      "competitions": [
+        "bra.1"
+      ]
+    },
+    {
+      "id": "2674",
+      "name": "Santos",
+      "shortName": "Santos",
+      "providerCode": "SAN",
+      "expectedCode": "SAN",
+      "isNational": false,
+      "competitions": [
+        "bra.1"
+      ]
+    },
+    {
+      "id": "2026",
+      "name": "São Paulo",
+      "shortName": "São Paulo",
+      "providerCode": "SAO",
+      "expectedCode": "SAO",
+      "isNational": false,
+      "competitions": [
+        "bra.1"
+      ]
+    },
+    {
+      "id": "3454",
+      "name": "Vasco da Gama",
+      "shortName": "Vasco",
+      "providerCode": "VAS",
+      "expectedCode": "VAS",
+      "isNational": false,
+      "competitions": [
+        "bra.1"
+      ]
+    },
+    {
+      "id": "3457",
+      "name": "Vitória",
+      "shortName": "Vitória",
+      "providerCode": "VIT",
+      "expectedCode": "VIT",
+      "isNational": false,
+      "competitions": [
+        "bra.1"
+      ]
+    },
+    {
+      "id": "624",
+      "name": "Algeria",
+      "shortName": "Algeria",
+      "providerCode": "ALG",
+      "expectedCode": "ALG",
+      "isNational": true,
+      "competitions": [
+        "caf.nations",
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "653",
+      "name": "Angola",
+      "shortName": "Angola",
+      "providerCode": "ANG",
+      "expectedCode": "ANG",
+      "isNational": true,
+      "competitions": [
+        "caf.nations",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "2844",
+      "name": "Benin",
+      "shortName": "Benin",
+      "providerCode": "BEN",
+      "expectedCode": "BEN",
+      "isNational": true,
+      "competitions": [
+        "caf.nations",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "4245",
+      "name": "Botswana",
+      "shortName": "Botswana",
+      "providerCode": "BOT",
+      "expectedCode": "BOT",
+      "isNational": true,
+      "competitions": [
+        "caf.nations",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "2845",
+      "name": "Burkina Faso",
+      "shortName": "Burkina Faso",
+      "providerCode": "BKA",
+      "expectedCode": "BFA",
+      "isNational": true,
+      "competitions": [
+        "caf.nations",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "656",
+      "name": "Cameroon",
+      "shortName": "Cameroon",
+      "providerCode": "CMR",
+      "expectedCode": "CMR",
+      "isNational": true,
+      "competitions": [
+        "caf.nations",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "8601",
+      "name": "Comoros",
+      "shortName": "Comoros",
+      "providerCode": "COM",
+      "expectedCode": "COM",
+      "isNational": true,
+      "competitions": [
+        "caf.nations",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "2850",
+      "name": "Congo DR",
+      "shortName": "Congo DR",
+      "providerCode": "COD",
+      "expectedCode": "COD",
+      "isNational": true,
+      "competitions": [
+        "caf.nations",
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "2620",
+      "name": "Egypt",
+      "shortName": "Egypt",
+      "providerCode": "EGY",
+      "expectedCode": "EGY",
+      "isNational": true,
+      "competitions": [
+        "caf.nations",
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "8938",
+      "name": "Equatorial Guinea",
+      "shortName": "Eq. Guinea",
+      "providerCode": "EQG",
+      "expectedCode": "EQG",
+      "isNational": true,
+      "competitions": [
+        "caf.nations",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "4231",
+      "name": "Gabon",
+      "shortName": "Gabon",
+      "providerCode": "GAB",
+      "expectedCode": "GAB",
+      "isNational": true,
+      "competitions": [
+        "caf.nations",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "4789",
+      "name": "Ivory Coast",
+      "shortName": "Ivory Coast",
+      "providerCode": "CIV",
+      "expectedCode": "CIV",
+      "isNational": true,
+      "competitions": [
+        "caf.nations",
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "2849",
+      "name": "Mali",
+      "shortName": "Mali",
+      "providerCode": "MLI",
+      "expectedCode": "MLI",
+      "isNational": true,
+      "competitions": [
+        "caf.nations",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "2869",
+      "name": "Morocco",
+      "shortName": "Morocco",
+      "providerCode": "MAR",
+      "expectedCode": "MAR",
+      "isNational": true,
+      "competitions": [
+        "caf.nations",
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "8939",
+      "name": "Mozambique",
+      "shortName": "Mozambique",
+      "providerCode": "MOZ",
+      "expectedCode": "MOZ",
+      "isNational": true,
+      "competitions": [
+        "caf.nations",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "657",
+      "name": "Nigeria",
+      "shortName": "Nigeria",
+      "providerCode": "NGA",
+      "expectedCode": "NGA",
+      "isNational": true,
+      "competitions": [
+        "caf.nations",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "654",
+      "name": "Senegal",
+      "shortName": "Senegal",
+      "providerCode": "SEN",
+      "expectedCode": "SEN",
+      "isNational": true,
+      "competitions": [
+        "caf.nations",
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "467",
+      "name": "South Africa",
+      "shortName": "South Africa",
+      "providerCode": "RSA",
+      "expectedCode": "RSA",
+      "isNational": true,
+      "competitions": [
+        "caf.nations",
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "4319",
+      "name": "Sudan",
+      "shortName": "Sudan",
+      "providerCode": "SUD",
+      "expectedCode": "SDN",
+      "isNational": true,
+      "competitions": [
+        "caf.nations",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "5778",
+      "name": "Tanzania",
+      "shortName": "Tanzania",
+      "providerCode": "TAN",
+      "expectedCode": "TAN",
+      "isNational": true,
+      "competitions": [
+        "caf.nations",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "659",
+      "name": "Tunisia",
+      "shortName": "Tunisia",
+      "providerCode": "TUN",
+      "expectedCode": "TUN",
+      "isNational": true,
+      "competitions": [
+        "caf.nations",
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "4211",
+      "name": "Uganda",
+      "shortName": "Uganda",
+      "providerCode": "UGA",
+      "expectedCode": "UGA",
+      "isNational": true,
+      "competitions": [
+        "caf.nations",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "4277",
+      "name": "Zambia",
+      "shortName": "Zambia",
+      "providerCode": "ZAM",
+      "expectedCode": "ZAM",
+      "isNational": true,
+      "competitions": [
+        "caf.nations",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "4214",
+      "name": "Zimbabwe",
+      "shortName": "Zimbabwe",
+      "providerCode": "ZIM",
+      "expectedCode": "ZIM",
+      "isNational": true,
+      "competitions": [
+        "caf.nations",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "9761",
+      "name": "Alianza FC",
+      "shortName": "Alianza FC",
+      "providerCode": "AFC",
+      "expectedCode": "AFC",
+      "isNational": false,
+      "competitions": [
+        "col.1"
+      ]
+    },
+    {
+      "id": "8109",
+      "name": "América de Cali",
+      "shortName": "América Cali",
+      "providerCode": "AME",
+      "expectedCode": "AME",
+      "isNational": false,
+      "competitions": [
+        "col.1"
+      ]
+    },
+    {
+      "id": "6137",
+      "name": "Atlético Bucaramanga",
+      "shortName": "Bucaramanga",
+      "providerCode": "BUC",
+      "expectedCode": "BUC",
+      "isNational": false,
+      "competitions": [
+        "col.1"
+      ]
+    },
+    {
+      "id": "4815",
+      "name": "Atlético Junior",
+      "shortName": "Atl. Junior",
+      "providerCode": "JUN",
+      "expectedCode": "JUN",
+      "isNational": false,
+      "competitions": [
+        "col.1",
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "5264",
+      "name": "Atlético Nacional",
+      "shortName": "Atl. Nacional",
+      "providerCode": "NAL",
+      "expectedCode": "NAL",
+      "isNational": false,
+      "competitions": [
+        "col.1"
+      ]
+    },
+    {
+      "id": "5480",
+      "name": "Boyacá Chicó FC",
+      "shortName": "Chicó FC",
+      "providerCode": "CHI",
+      "expectedCode": "CHI",
+      "isNational": false,
+      "competitions": [
+        "col.1"
+      ]
+    },
+    {
+      "id": "6101",
+      "name": "Cúcuta Deportivo",
+      "shortName": "Cúcuta",
+      "providerCode": "CUC",
+      "expectedCode": "CUC",
+      "isNational": false,
+      "competitions": [
+        "col.1"
+      ]
+    },
+    {
+      "id": "5489",
+      "name": "Deportes Tolima",
+      "shortName": "Tolima",
+      "providerCode": "TOL",
+      "expectedCode": "TOL",
+      "isNational": false,
+      "competitions": [
+        "col.1",
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "2672",
+      "name": "Deportivo Cali",
+      "shortName": "Cali",
+      "providerCode": "DCI",
+      "expectedCode": "DCI",
+      "isNational": false,
+      "competitions": [
+        "col.1"
+      ]
+    },
+    {
+      "id": "5485",
+      "name": "Deportivo Pasto",
+      "shortName": "Pasto",
+      "providerCode": "PAS",
+      "expectedCode": "PAS",
+      "isNational": false,
+      "competitions": [
+        "col.1"
+      ]
+    },
+    {
+      "id": "5486",
+      "name": "Deportivo Pereira",
+      "shortName": "Pereira",
+      "providerCode": "PER",
+      "expectedCode": "PER",
+      "isNational": false,
+      "competitions": [
+        "col.1"
+      ]
+    },
+    {
+      "id": "4928",
+      "name": "Fortaleza CEIF",
+      "shortName": "Fortaleza",
+      "providerCode": "FOR",
+      "expectedCode": "FOR",
+      "isNational": false,
+      "competitions": [
+        "col.1"
+      ]
+    },
+    {
+      "id": "2690",
+      "name": "Independiente Medellín",
+      "shortName": "Ind. Medellín",
+      "providerCode": "DIM",
+      "expectedCode": "DIM",
+      "isNational": false,
+      "competitions": [
+        "col.1",
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "5488",
+      "name": "Independiente Santa Fe",
+      "shortName": "Santa Fe",
+      "providerCode": "SFE",
+      "expectedCode": "SFE",
+      "isNational": false,
+      "competitions": [
+        "col.1",
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "7445",
+      "name": "Internacional de Bogotá",
+      "shortName": "Inter Bogotá",
+      "providerCode": "BOG",
+      "expectedCode": "BOG",
+      "isNational": false,
+      "competitions": [
+        "col.1"
+      ]
+    },
+    {
+      "id": "10309",
+      "name": "Jaguares de Córdoba",
+      "shortName": "Jaguares",
+      "providerCode": "COR",
+      "expectedCode": "COR",
+      "isNational": false,
+      "competitions": [
+        "col.1"
+      ]
+    },
+    {
+      "id": "7915",
+      "name": "Llaneros FC",
+      "shortName": "Llaneros FC",
+      "providerCode": "LLA",
+      "expectedCode": "LLA",
+      "isNational": false,
+      "competitions": [
+        "col.1"
+      ]
+    },
+    {
+      "id": "5484",
+      "name": "Millonarios",
+      "shortName": "Millonarios",
+      "providerCode": "MIL",
+      "expectedCode": "MIL",
+      "isNational": false,
+      "competitions": [
+        "col.1"
+      ]
+    },
+    {
+      "id": "2919",
+      "name": "Once Caldas",
+      "shortName": "Once Caldas",
+      "providerCode": "CAL",
+      "expectedCode": "ONC",
+      "isNational": false,
+      "competitions": [
+        "col.1"
+      ]
+    },
+    {
+      "id": "9762",
+      "name": "Águilas Doradas",
+      "shortName": "Águilas Doradas",
+      "providerCode": "AGD",
+      "expectedCode": "AGD",
+      "isNational": false,
+      "competitions": [
+        "col.1"
+      ]
+    },
+    {
+      "id": "2057",
+      "name": "Alajuelense",
+      "shortName": "Alajuelense",
+      "providerCode": "ALA",
+      "expectedCode": "LDA",
+      "isNational": false,
+      "competitions": [
+        "concacaf.central.american.cup",
+        "crc.1"
+      ]
+    },
+    {
+      "id": "7225",
+      "name": "Alianza FC",
+      "shortName": "Alianza FC",
+      "providerCode": "ALI",
+      "expectedCode": "ALI",
+      "isNational": false,
+      "competitions": [
+        "concacaf.central.american.cup"
+      ]
+    },
+    {
+      "id": "21520",
+      "name": "Alianza FC",
+      "shortName": "Alianza",
+      "providerCode": "ALI",
+      "expectedCode": "AFC",
+      "isNational": false,
+      "competitions": [
+        "concacaf.central.american.cup"
+      ]
+    },
+    {
+      "id": "7253",
+      "name": "Antigua GFC",
+      "shortName": "Antigua",
+      "providerCode": "ANT",
+      "expectedCode": "ANT",
+      "isNational": false,
+      "competitions": [
+        "concacaf.central.american.cup"
+      ]
+    },
+    {
+      "id": "7229",
+      "name": "CD FAS",
+      "shortName": "CD FAS",
+      "providerCode": "FAS",
+      "expectedCode": "FAS",
+      "isNational": false,
+      "competitions": [
+        "concacaf.central.american.cup"
+      ]
+    },
+    {
+      "id": "7239",
+      "name": "Cartaginés",
+      "shortName": "Cartaginés",
+      "providerCode": "CAR",
+      "expectedCode": "CSC",
+      "isNational": false,
+      "competitions": [
+        "concacaf.central.american.cup",
+        "crc.1"
+      ]
+    },
+    {
+      "id": "7249",
+      "name": "Club Deportivo Marathón",
+      "shortName": "Marathón",
+      "providerCode": "MAR",
+      "expectedCode": "MAR",
+      "isNational": false,
+      "competitions": [
+        "concacaf.central.american.cup"
+      ]
+    },
+    {
+      "id": "884",
+      "name": "Club Deportivo Olimpia",
+      "shortName": "Olimpia",
+      "providerCode": "OLI",
+      "expectedCode": "OLI",
+      "isNational": false,
+      "competitions": [
+        "concacaf.central.american.cup"
+      ]
+    },
+    {
+      "id": "20036",
+      "name": "Deportivo Mixco",
+      "shortName": "Deportivo",
+      "providerCode": "DEP",
+      "expectedCode": "MIX",
+      "isNational": false,
+      "competitions": [
+        "concacaf.central.american.cup"
+      ]
+    },
+    {
+      "id": "19231",
+      "name": "Diriangén",
+      "shortName": "Diriangén",
+      "providerCode": "DIR",
+      "expectedCode": "DIR",
+      "isNational": false,
+      "competitions": [
+        "concacaf.central.american.cup"
+      ]
+    },
+    {
+      "id": "7242",
+      "name": "FC Motagua",
+      "shortName": "Motagua",
+      "providerCode": "MOT",
+      "expectedCode": "MOT",
+      "isNational": false,
+      "competitions": [
+        "concacaf.central.american.cup"
+      ]
+    },
+    {
+      "id": "862",
+      "name": "Herediano",
+      "shortName": "Herediano",
+      "providerCode": "HER",
+      "expectedCode": "CSH",
+      "isNational": false,
+      "competitions": [
+        "concacaf.central.american.cup",
+        "crc.1"
+      ]
+    },
+    {
+      "id": "7232",
+      "name": "Luis Ángel Firpo",
+      "shortName": "Luis Ángel Firpo",
+      "providerCode": "LAF",
+      "expectedCode": "LAF",
+      "isNational": false,
+      "competitions": [
+        "concacaf.central.american.cup"
+      ]
+    },
+    {
+      "id": "7258",
+      "name": "Municipal",
+      "shortName": "Municipal",
+      "providerCode": "MUN",
+      "expectedCode": "MUN",
+      "isNational": false,
+      "competitions": [
+        "concacaf.central.american.cup"
+      ]
+    },
+    {
+      "id": "8317",
+      "name": "Plaza Amador",
+      "shortName": "Plaza Amador",
+      "providerCode": "PA",
+      "expectedCode": "PA",
+      "isNational": false,
+      "competitions": [
+        "concacaf.central.american.cup"
+      ]
+    },
+    {
+      "id": "9945",
+      "name": "Real Estelí",
+      "shortName": "Real Estelí",
+      "providerCode": "EST",
+      "expectedCode": "EST",
+      "isNational": false,
+      "competitions": [
+        "concacaf.central.american.cup"
+      ]
+    },
+    {
+      "id": "858",
+      "name": "Saprissa",
+      "shortName": "Saprissa",
+      "providerCode": "SAP",
+      "expectedCode": "SAP",
+      "isNational": false,
+      "competitions": [
+        "concacaf.central.american.cup",
+        "crc.1"
+      ]
+    },
+    {
+      "id": "131783",
+      "name": "UMECIT FC",
+      "shortName": "UMECIT",
+      "providerCode": "UME",
+      "expectedCode": "UME",
+      "isNational": false,
+      "competitions": [
+        "concacaf.central.american.cup"
+      ]
+    },
+    {
+      "id": "9943",
+      "name": "Verdes FC",
+      "shortName": "Verdes",
+      "providerCode": "VFC",
+      "expectedCode": "VFC",
+      "isNational": false,
+      "competitions": [
+        "concacaf.central.american.cup"
+      ]
+    },
+    {
+      "id": "7259",
+      "name": "Xelajú MC",
+      "shortName": "Xelajú MC",
+      "providerCode": "XEL",
+      "expectedCode": "XEL",
+      "isNational": false,
+      "competitions": [
+        "concacaf.central.american.cup"
+      ]
+    },
+    {
+      "id": "206",
+      "name": "Canada",
+      "shortName": "Canada",
+      "providerCode": "CAN",
+      "expectedCode": "CAN",
+      "isNational": true,
+      "competitions": [
+        "concacaf.gold",
+        "concacaf.nations.league",
+        "conmebol.america",
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "214",
+      "name": "Costa Rica",
+      "shortName": "Costa Rica",
+      "providerCode": "CRC",
+      "expectedCode": "CRC",
+      "isNational": true,
+      "competitions": [
+        "concacaf.gold",
+        "concacaf.nations.league",
+        "conmebol.america",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "11678",
+      "name": "Curaçao",
+      "shortName": "Curaçao",
+      "providerCode": "CUW",
+      "expectedCode": "CUW",
+      "isNational": true,
+      "competitions": [
+        "concacaf.gold",
+        "concacaf.nations.league",
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "2649",
+      "name": "Dominican Republic",
+      "shortName": "Dominican Rep",
+      "providerCode": "DOM",
+      "expectedCode": "DOM",
+      "isNational": true,
+      "competitions": [
+        "concacaf.gold",
+        "concacaf.nations.league",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "2650",
+      "name": "El Salvador",
+      "shortName": "El Salvador",
+      "providerCode": "SLV",
+      "expectedCode": "SLV",
+      "isNational": true,
+      "competitions": [
+        "concacaf.gold",
+        "concacaf.nations.league",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "7657",
+      "name": "Guadeloupe",
+      "shortName": "Guadeloupe",
+      "providerCode": "GDL",
+      "expectedCode": "GLP",
+      "isNational": true,
+      "competitions": [
+        "concacaf.gold",
+        "concacaf.nations.league"
+      ]
+    },
+    {
+      "id": "2652",
+      "name": "Guatemala",
+      "shortName": "Guatemala",
+      "providerCode": "GUA",
+      "expectedCode": "GUA",
+      "isNational": true,
+      "competitions": [
+        "concacaf.gold",
+        "concacaf.nations.league",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "2654",
+      "name": "Haiti",
+      "shortName": "Haiti",
+      "providerCode": "HAI",
+      "expectedCode": "HAI",
+      "isNational": true,
+      "competitions": [
+        "concacaf.gold",
+        "concacaf.nations.league",
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "215",
+      "name": "Honduras",
+      "shortName": "Honduras",
+      "providerCode": "HON",
+      "expectedCode": "HON",
+      "isNational": true,
+      "competitions": [
+        "concacaf.gold",
+        "concacaf.nations.league",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "1038",
+      "name": "Jamaica",
+      "shortName": "Jamaica",
+      "providerCode": "JAM",
+      "expectedCode": "JAM",
+      "isNational": true,
+      "competitions": [
+        "concacaf.gold",
+        "concacaf.nations.league",
+        "conmebol.america",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "203",
+      "name": "Mexico",
+      "shortName": "Mexico",
+      "providerCode": "MEX",
+      "expectedCode": "MEX",
+      "isNational": true,
+      "competitions": [
+        "concacaf.gold",
+        "concacaf.nations.league",
+        "conmebol.america",
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "2659",
+      "name": "Panama",
+      "shortName": "Panama",
+      "providerCode": "PAN",
+      "expectedCode": "PAN",
+      "isNational": true,
+      "competitions": [
+        "concacaf.gold",
+        "concacaf.nations.league",
+        "conmebol.america",
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "2664",
+      "name": "Suriname",
+      "shortName": "Suriname",
+      "providerCode": "SUR",
+      "expectedCode": "SUR",
+      "isNational": true,
+      "competitions": [
+        "concacaf.gold",
+        "concacaf.nations.league"
+      ]
+    },
+    {
+      "id": "2627",
+      "name": "Trinidad and Tobago",
+      "shortName": "Trin & Tob",
+      "providerCode": "TRI",
+      "expectedCode": "TRI",
+      "isNational": true,
+      "competitions": [
+        "concacaf.gold",
+        "concacaf.nations.league",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "660",
+      "name": "United States",
+      "shortName": "USA",
+      "providerCode": "USA",
+      "expectedCode": "USA",
+      "isNational": true,
+      "competitions": [
+        "concacaf.gold",
+        "concacaf.nations.league",
+        "conmebol.america",
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "8942",
+      "name": "Anguilla",
+      "shortName": "Anguilla",
+      "providerCode": "AIA",
+      "expectedCode": "AIA",
+      "isNational": true,
+      "competitions": [
+        "concacaf.nations.league",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "2638",
+      "name": "Antigua and Barbuda",
+      "shortName": "Antigua Barbuda",
+      "providerCode": "ATG",
+      "expectedCode": "ATG",
+      "isNational": true,
+      "competitions": [
+        "concacaf.nations.league"
+      ]
+    },
+    {
+      "id": "2642",
+      "name": "Aruba",
+      "shortName": "Aruba",
+      "providerCode": "ARU",
+      "expectedCode": "ARU",
+      "isNational": true,
+      "competitions": [
+        "concacaf.nations.league",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "2640",
+      "name": "Bahamas",
+      "shortName": "Bahamas",
+      "providerCode": "BAH",
+      "expectedCode": "BAH",
+      "isNational": true,
+      "competitions": [
+        "concacaf.nations.league",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "2637",
+      "name": "Barbados",
+      "shortName": "Barbados",
+      "providerCode": "BRB",
+      "expectedCode": "BRB",
+      "isNational": true,
+      "competitions": [
+        "concacaf.nations.league",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "2641",
+      "name": "Belize",
+      "shortName": "Belize",
+      "providerCode": "BLZ",
+      "expectedCode": "BLZ",
+      "isNational": true,
+      "competitions": [
+        "concacaf.nations.league",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "2643",
+      "name": "Bermuda",
+      "shortName": "Bermuda",
+      "providerCode": "BER",
+      "expectedCode": "BER",
+      "isNational": true,
+      "competitions": [
+        "concacaf.nations.league",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "19314",
+      "name": "Bonaire",
+      "shortName": "Bonaire",
+      "providerCode": "BOE",
+      "expectedCode": "BOE",
+      "isNational": true,
+      "competitions": [
+        "concacaf.nations.league",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "2644",
+      "name": "British Virgin Islands",
+      "shortName": "Br Virgin Isl",
+      "providerCode": "BVI",
+      "expectedCode": "VGB",
+      "isNational": true,
+      "competitions": [
+        "concacaf.nations.league",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "2646",
+      "name": "Cayman Islands",
+      "shortName": "Cayman Isl",
+      "providerCode": "CAY",
+      "expectedCode": "CAY",
+      "isNational": true,
+      "competitions": [
+        "concacaf.nations.league",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "2647",
+      "name": "Cuba",
+      "shortName": "Cuba",
+      "providerCode": "CUB",
+      "expectedCode": "CUB",
+      "isNational": true,
+      "competitions": [
+        "concacaf.nations.league",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "13582",
+      "name": "Dominica",
+      "shortName": "Dominica",
+      "providerCode": "DMA",
+      "expectedCode": "DMA",
+      "isNational": true,
+      "competitions": [
+        "concacaf.nations.league",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "10532",
+      "name": "French Guiana",
+      "shortName": "French Guiana",
+      "providerCode": "GUF",
+      "expectedCode": "GUF",
+      "isNational": true,
+      "competitions": [
+        "concacaf.nations.league"
+      ]
+    },
+    {
+      "id": "2651",
+      "name": "Grenada",
+      "shortName": "Grenada",
+      "providerCode": "GRN",
+      "expectedCode": "GRN",
+      "isNational": true,
+      "competitions": [
+        "concacaf.nations.league",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "2653",
+      "name": "Guyana",
+      "shortName": "Guyana",
+      "providerCode": "GUY",
+      "expectedCode": "GUY",
+      "isNational": true,
+      "competitions": [
+        "concacaf.nations.league",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "2728",
+      "name": "Martinique",
+      "shortName": "Martinique",
+      "providerCode": "MTQ",
+      "expectedCode": "MTQ",
+      "isNational": true,
+      "competitions": [
+        "concacaf.nations.league",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "2655",
+      "name": "Montserrat",
+      "shortName": "Montserrat",
+      "providerCode": "MSR",
+      "expectedCode": "MSR",
+      "isNational": true,
+      "competitions": [
+        "concacaf.nations.league"
+      ]
+    },
+    {
+      "id": "2658",
+      "name": "Nicaragua",
+      "shortName": "Nicaragua",
+      "providerCode": "NCA",
+      "expectedCode": "NCA",
+      "isNational": true,
+      "competitions": [
+        "concacaf.nations.league",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "11766",
+      "name": "Puerto Rico",
+      "shortName": "Puerto Rico",
+      "providerCode": "PUR",
+      "expectedCode": "PUR",
+      "isNational": true,
+      "competitions": [
+        "concacaf.nations.league",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "18243",
+      "name": "Sint Maarten",
+      "shortName": "Sint Maarten",
+      "providerCode": "SMA",
+      "expectedCode": "SMA",
+      "isNational": true,
+      "competitions": [
+        "concacaf.nations.league",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "2662",
+      "name": "St. Kitts and Nevis",
+      "shortName": "St Kitts & Nevis",
+      "providerCode": "SKN",
+      "expectedCode": "SKN",
+      "isNational": true,
+      "competitions": [
+        "concacaf.nations.league",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "2661",
+      "name": "St. Lucia",
+      "shortName": "St Lucia",
+      "providerCode": "LCA",
+      "expectedCode": "LCA",
+      "isNational": true,
+      "competitions": [
+        "concacaf.nations.league",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "10596",
+      "name": "St. Martin",
+      "shortName": "St. Martin",
+      "providerCode": "SMN",
+      "expectedCode": "SMN",
+      "isNational": true,
+      "competitions": [
+        "concacaf.nations.league",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "13584",
+      "name": "St. Vincent and the Grenadines",
+      "shortName": "St. Vincent ",
+      "providerCode": "VIN",
+      "expectedCode": "VIN",
+      "isNational": true,
+      "competitions": [
+        "concacaf.nations.league",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "2665",
+      "name": "Turks and Caicos Islands",
+      "shortName": "Turks and Caicos",
+      "providerCode": "TCA",
+      "expectedCode": "TCA",
+      "isNational": true,
+      "competitions": [
+        "concacaf.nations.league"
+      ]
+    },
+    {
+      "id": "2645",
+      "name": "US Virgin Islands",
+      "shortName": "US Virgin Isl",
+      "providerCode": "USVI",
+      "expectedCode": "VIR",
+      "isNational": true,
+      "competitions": [
+        "concacaf.nations.league",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "202",
+      "name": "Argentina",
+      "shortName": "Argentina",
+      "providerCode": "ARG",
+      "expectedCode": "ARG",
+      "isNational": true,
+      "competitions": [
+        "conmebol.america",
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "204",
+      "name": "Bolivia",
+      "shortName": "Bolivia",
+      "providerCode": "BOL",
+      "expectedCode": "BOL",
+      "isNational": true,
+      "competitions": [
+        "conmebol.america",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "205",
+      "name": "Brazil",
+      "shortName": "Brazil",
+      "providerCode": "BRA",
+      "expectedCode": "BRA",
+      "isNational": true,
+      "competitions": [
+        "conmebol.america",
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "207",
+      "name": "Chile",
+      "shortName": "Chile",
+      "providerCode": "CHI",
+      "expectedCode": "CHI",
+      "isNational": true,
+      "competitions": [
+        "conmebol.america",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "208",
+      "name": "Colombia",
+      "shortName": "Colombia",
+      "providerCode": "COL",
+      "expectedCode": "COL",
+      "isNational": true,
+      "competitions": [
+        "conmebol.america",
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "209",
+      "name": "Ecuador",
+      "shortName": "Ecuador",
+      "providerCode": "ECU",
+      "expectedCode": "ECU",
+      "isNational": true,
+      "competitions": [
+        "conmebol.america",
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "210",
+      "name": "Paraguay",
+      "shortName": "Paraguay",
+      "providerCode": "PAR",
+      "expectedCode": "PAR",
+      "isNational": true,
+      "competitions": [
+        "conmebol.america",
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "211",
+      "name": "Peru",
+      "shortName": "Peru",
+      "providerCode": "PER",
+      "expectedCode": "PER",
+      "isNational": true,
+      "competitions": [
+        "conmebol.america",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "212",
+      "name": "Uruguay",
+      "shortName": "Uruguay",
+      "providerCode": "URU",
+      "expectedCode": "URU",
+      "isNational": true,
+      "competitions": [
+        "conmebol.america",
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "213",
+      "name": "Venezuela",
+      "shortName": "Venezuela",
+      "providerCode": "VEN",
+      "expectedCode": "VEN",
+      "isNational": true,
+      "competitions": [
+        "conmebol.america",
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "6097",
+      "name": "2 de Mayo",
+      "shortName": "2 de Mayo",
+      "providerCode": "MAY",
+      "expectedCode": "MAY",
+      "isNational": false,
+      "competitions": [
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "19425",
+      "name": "Always Ready",
+      "shortName": "Always Ready",
+      "providerCode": "CAR",
+      "expectedCode": "ALR",
+      "isNational": false,
+      "competitions": [
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "2686",
+      "name": "Barcelona SC",
+      "shortName": "Barcelona",
+      "providerCode": "BAR",
+      "expectedCode": "BAR",
+      "isNational": false,
+      "competitions": [
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "2681",
+      "name": "Bolívar",
+      "shortName": "Bolívar",
+      "providerCode": "BOL",
+      "expectedCode": "BOL",
+      "isNational": false,
+      "competitions": [
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "6037",
+      "name": "Carabobo",
+      "shortName": "Carabobo",
+      "providerCode": "CAR",
+      "expectedCode": "CAR",
+      "isNational": false,
+      "competitions": [
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "2671",
+      "name": "Cerro Porteño",
+      "shortName": "Cerro Porteño",
+      "providerCode": "CPT",
+      "expectedCode": "CCP",
+      "isNational": false,
+      "competitions": [
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "8186",
+      "name": "Coquimbo Unido",
+      "shortName": "Coquimbo",
+      "providerCode": "COQ",
+      "expectedCode": "COQ",
+      "isNational": false,
+      "competitions": [
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "11995",
+      "name": "Cusco FC",
+      "shortName": "Cusco",
+      "providerCode": "CFC",
+      "expectedCode": "CFC",
+      "isNational": false,
+      "competitions": [
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "17090",
+      "name": "Deportivo La Guaira",
+      "shortName": "La Guaira",
+      "providerCode": "LGA",
+      "expectedCode": "LGA",
+      "isNational": false,
+      "competitions": [
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "4818",
+      "name": "Deportivo Táchira",
+      "shortName": "Táchira",
+      "providerCode": "TAC",
+      "expectedCode": "TAC",
+      "isNational": false,
+      "competitions": [
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "7385",
+      "name": "Guaraní",
+      "shortName": "Guaraní",
+      "providerCode": "GUA",
+      "expectedCode": "GUA",
+      "isNational": false,
+      "competitions": [
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "4134",
+      "name": "Huachipato",
+      "shortName": "Huachipato",
+      "providerCode": "HUA",
+      "expectedCode": "HUA",
+      "isNational": false,
+      "competitions": [
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "17086",
+      "name": "Independiente del Valle",
+      "shortName": "Ind. del Valle",
+      "providerCode": "IDV",
+      "expectedCode": "IDV",
+      "isNational": false,
+      "competitions": [
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "8416",
+      "name": "Juventud",
+      "shortName": "Juventud",
+      "providerCode": "JUV",
+      "expectedCode": "JUV",
+      "isNational": false,
+      "competitions": [
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "2670",
+      "name": "Libertad",
+      "shortName": "Libertad",
+      "providerCode": "LIB",
+      "expectedCode": "LIB",
+      "isNational": false,
+      "competitions": [
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "4816",
+      "name": "Liga de Quito",
+      "shortName": "LDU",
+      "providerCode": "LDU",
+      "expectedCode": "LDU",
+      "isNational": false,
+      "competitions": [
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "5492",
+      "name": "Liverpool",
+      "shortName": "Liverpool",
+      "providerCode": "LIV",
+      "expectedCode": "LIV",
+      "isNational": false,
+      "competitions": [
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "2684",
+      "name": "Nacional",
+      "shortName": "Nacional",
+      "providerCode": "NAC",
+      "expectedCode": "NAC",
+      "isNational": false,
+      "competitions": [
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "10311",
+      "name": "Nacional Potosí",
+      "shortName": "N Potosí",
+      "providerCode": "POT",
+      "expectedCode": "POT",
+      "isNational": false,
+      "competitions": [
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "6072",
+      "name": "O'Higgins",
+      "shortName": "O'Higgins",
+      "providerCode": "OHI",
+      "expectedCode": "OHI",
+      "isNational": false,
+      "competitions": [
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "2683",
+      "name": "Peñarol",
+      "shortName": "Peñarol",
+      "providerCode": "PEN",
+      "expectedCode": "PEN",
+      "isNational": false,
+      "competitions": [
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "2673",
+      "name": "Sporting Cristal",
+      "shortName": "Sporting Cristal",
+      "providerCode": "SCR",
+      "expectedCode": "SCR",
+      "isNational": false,
+      "competitions": [
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "131554",
+      "name": "TBD Away",
+      "shortName": "TBD Away",
+      "providerCode": "TBD Away",
+      "expectedCode": "TBD",
+      "isNational": false,
+      "competitions": [
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "131556",
+      "name": "TBD Home",
+      "shortName": "TBD Home",
+      "providerCode": "TBD Home",
+      "expectedCode": "TBD",
+      "isNational": false,
+      "competitions": [
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "10094",
+      "name": "UCV FC",
+      "shortName": "UCV FC",
+      "providerCode": "UCV",
+      "expectedCode": "UCV",
+      "isNational": false,
+      "competitions": [
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "885",
+      "name": "Universidad Católica",
+      "shortName": "U Católica",
+      "providerCode": "CDUC",
+      "expectedCode": "UCA",
+      "isNational": false,
+      "competitions": [
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "2685",
+      "name": "Universitario",
+      "shortName": "Universitario",
+      "providerCode": "UNI",
+      "expectedCode": "UNI",
+      "isNational": false,
+      "competitions": [
+        "conmebol.libertadores"
+      ]
+    },
+    {
+      "id": "859",
+      "name": "AD San Carlos",
+      "shortName": "San Carlos",
+      "providerCode": "ADSC",
+      "expectedCode": "SCA",
+      "isNational": false,
+      "competitions": [
+        "crc.1"
+      ]
+    },
+    {
+      "id": "132447",
+      "name": "Escorpiones Belén",
+      "shortName": "Belén",
+      "providerCode": "BEL",
+      "expectedCode": "ESC",
+      "isNational": false,
+      "competitions": [
+        "crc.1"
+      ]
+    },
+    {
+      "id": "131790",
+      "name": "Inter de San Carlos",
+      "shortName": "San Carlos",
+      "providerCode": "ISC",
+      "expectedCode": "ISC",
+      "isNational": false,
+      "competitions": [
+        "crc.1"
+      ]
+    },
+    {
+      "id": "7237",
+      "name": "Puntarenas FC",
+      "shortName": "Puntarenas",
+      "providerCode": "PUN",
+      "expectedCode": "PFC",
+      "isNational": false,
+      "competitions": [
+        "crc.1"
+      ]
+    },
+    {
+      "id": "7234",
+      "name": "Pérez Zeledón",
+      "shortName": "Pérez Zeledón",
+      "providerCode": "ZEL",
+      "expectedCode": "PZE",
+      "isNational": false,
+      "competitions": [
+        "crc.1"
+      ]
+    },
+    {
+      "id": "20705",
+      "name": "Sporting San José",
+      "shortName": "Spr. San José",
+      "providerCode": "SSJ",
+      "expectedCode": "SFC",
+      "isNational": false,
+      "competitions": [
+        "crc.1"
+      ]
+    },
+    {
+      "id": "349",
+      "name": "AFC Bournemouth",
+      "shortName": "Bournemouth",
+      "providerCode": "BOU",
+      "expectedCode": "BOU",
+      "isNational": false,
+      "competitions": [
+        "eng.1",
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "359",
+      "name": "Arsenal",
+      "shortName": "Arsenal",
+      "providerCode": "ARS",
+      "expectedCode": "ARS",
+      "isNational": false,
+      "competitions": [
+        "eng.1",
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "362",
+      "name": "Aston Villa",
+      "shortName": "Aston Villa",
+      "providerCode": "AVL",
+      "expectedCode": "AVL",
+      "isNational": false,
+      "competitions": [
+        "eng.1",
+        "uefa.champions",
+        "uefa.super_cup"
+      ]
+    },
+    {
+      "id": "337",
+      "name": "Brentford",
+      "shortName": "Brentford",
+      "providerCode": "BRE",
+      "expectedCode": "BRE",
+      "isNational": false,
+      "competitions": [
+        "eng.1"
+      ]
+    },
+    {
+      "id": "331",
+      "name": "Brighton & Hove Albion",
+      "shortName": "Brighton",
+      "providerCode": "BHA",
+      "expectedCode": "BHA",
+      "isNational": false,
+      "competitions": [
+        "eng.1"
+      ]
+    },
+    {
+      "id": "363",
+      "name": "Chelsea",
+      "shortName": "Chelsea",
+      "providerCode": "CHE",
+      "expectedCode": "CHE",
+      "isNational": false,
+      "competitions": [
+        "eng.1",
+        "fifa.cwc"
+      ]
+    },
+    {
+      "id": "388",
+      "name": "Coventry City",
+      "shortName": "Coventry",
+      "providerCode": "COV",
+      "expectedCode": "COV",
+      "isNational": false,
+      "competitions": [
+        "eng.1"
+      ]
+    },
+    {
+      "id": "384",
+      "name": "Crystal Palace",
+      "shortName": "C Palace",
+      "providerCode": "CRY",
+      "expectedCode": "CRY",
+      "isNational": false,
+      "competitions": [
+        "eng.1",
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "368",
+      "name": "Everton",
+      "shortName": "Everton",
+      "providerCode": "EVE",
+      "expectedCode": "EVE",
+      "isNational": false,
+      "competitions": [
+        "eng.1"
+      ]
+    },
+    {
+      "id": "370",
+      "name": "Fulham",
+      "shortName": "Fulham",
+      "providerCode": "FUL",
+      "expectedCode": "FUL",
+      "isNational": false,
+      "competitions": [
+        "eng.1"
+      ]
+    },
+    {
+      "id": "306",
+      "name": "Hull City",
+      "shortName": "Hull",
+      "providerCode": "HUL",
+      "expectedCode": "HUL",
+      "isNational": false,
+      "competitions": [
+        "eng.1"
+      ]
+    },
+    {
+      "id": "373",
+      "name": "Ipswich Town",
+      "shortName": "Ipswich",
+      "providerCode": "IPS",
+      "expectedCode": "IPS",
+      "isNational": false,
+      "competitions": [
+        "eng.1"
+      ]
+    },
+    {
+      "id": "357",
+      "name": "Leeds United",
+      "shortName": "Leeds",
+      "providerCode": "LEE",
+      "expectedCode": "LEE",
+      "isNational": false,
+      "competitions": [
+        "eng.1"
+      ]
+    },
+    {
+      "id": "364",
+      "name": "Liverpool",
+      "shortName": "Liverpool",
+      "providerCode": "LIV",
+      "expectedCode": "LIV",
+      "isNational": false,
+      "competitions": [
+        "eng.1",
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "382",
+      "name": "Manchester City",
+      "shortName": "Man City",
+      "providerCode": "MNC",
+      "expectedCode": "MCI",
+      "isNational": false,
+      "competitions": [
+        "eng.1",
+        "fifa.cwc",
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "360",
+      "name": "Manchester United",
+      "shortName": "Man United",
+      "providerCode": "MAN",
+      "expectedCode": "MUN",
+      "isNational": false,
+      "competitions": [
+        "eng.1",
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "361",
+      "name": "Newcastle United",
+      "shortName": "Newcastle",
+      "providerCode": "NEW",
+      "expectedCode": "NEW",
+      "isNational": false,
+      "competitions": [
+        "eng.1"
+      ]
+    },
+    {
+      "id": "393",
+      "name": "Nottingham Forest",
+      "shortName": "Nottm Forest",
+      "providerCode": "NFO",
+      "expectedCode": "NFO",
+      "isNational": false,
+      "competitions": [
+        "eng.1"
+      ]
+    },
+    {
+      "id": "366",
+      "name": "Sunderland",
+      "shortName": "Sunderland",
+      "providerCode": "SUN",
+      "expectedCode": "SUN",
+      "isNational": false,
+      "competitions": [
+        "eng.1",
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "367",
+      "name": "Tottenham Hotspur",
+      "shortName": "Spurs",
+      "providerCode": "TOT",
+      "expectedCode": "TOT",
+      "isNational": false,
+      "competitions": [
+        "eng.1"
+      ]
+    },
+    {
+      "id": "96",
+      "name": "Alavés",
+      "shortName": "Alavés",
+      "providerCode": "ALA",
+      "expectedCode": "ALA",
+      "isNational": false,
+      "competitions": [
+        "esp.1"
+      ]
+    },
+    {
+      "id": "93",
+      "name": "Athletic Club",
+      "shortName": "Athletic",
+      "providerCode": "ATH",
+      "expectedCode": "ATH",
+      "isNational": false,
+      "competitions": [
+        "esp.1"
+      ]
+    },
+    {
+      "id": "1068",
+      "name": "Atlético Madrid",
+      "shortName": "Atlético",
+      "providerCode": "ATM",
+      "expectedCode": "ATM",
+      "isNational": false,
+      "competitions": [
+        "esp.1",
+        "fifa.cwc",
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "83",
+      "name": "Barcelona",
+      "shortName": "Barcelona",
+      "providerCode": "BAR",
+      "expectedCode": "BAR",
+      "isNational": false,
+      "competitions": [
+        "esp.1",
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "85",
+      "name": "Celta Vigo",
+      "shortName": "Celta Vigo",
+      "providerCode": "CEL",
+      "expectedCode": "CLT",
+      "isNational": false,
+      "competitions": [
+        "esp.1",
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "90",
+      "name": "Deportivo",
+      "shortName": "Deportivo",
+      "providerCode": "DEP",
+      "expectedCode": "DEP",
+      "isNational": false,
+      "competitions": [
+        "esp.1"
+      ]
+    },
+    {
+      "id": "3751",
+      "name": "Elche",
+      "shortName": "Elche",
+      "providerCode": "ELC",
+      "expectedCode": "ELC",
+      "isNational": false,
+      "competitions": [
+        "esp.1"
+      ]
+    },
+    {
+      "id": "88",
+      "name": "Espanyol",
+      "shortName": "Espanyol",
+      "providerCode": "ESP",
+      "expectedCode": "ESP",
+      "isNational": false,
+      "competitions": [
+        "esp.1"
+      ]
+    },
+    {
+      "id": "2922",
+      "name": "Getafe",
+      "shortName": "Getafe",
+      "providerCode": "GET",
+      "expectedCode": "GET",
+      "isNational": false,
+      "competitions": [
+        "esp.1"
+      ]
+    },
+    {
+      "id": "1538",
+      "name": "Levante",
+      "shortName": "Levante",
+      "providerCode": "LEV",
+      "expectedCode": "LEV",
+      "isNational": false,
+      "competitions": [
+        "esp.1"
+      ]
+    },
+    {
+      "id": "99",
+      "name": "Málaga",
+      "shortName": "Málaga",
+      "providerCode": "MCF",
+      "expectedCode": "MCF",
+      "isNational": false,
+      "competitions": [
+        "esp.1"
+      ]
+    },
+    {
+      "id": "97",
+      "name": "Osasuna",
+      "shortName": "Osasuna",
+      "providerCode": "OSA",
+      "expectedCode": "OSA",
+      "isNational": false,
+      "competitions": [
+        "esp.1"
+      ]
+    },
+    {
+      "id": "87",
+      "name": "Racing Santander",
+      "shortName": "Racing",
+      "providerCode": "RAC",
+      "expectedCode": "RAC",
+      "isNational": false,
+      "competitions": [
+        "esp.1"
+      ]
+    },
+    {
+      "id": "101",
+      "name": "Rayo Vallecano",
+      "shortName": "Rayo",
+      "providerCode": "RAY",
+      "expectedCode": "RAY",
+      "isNational": false,
+      "competitions": [
+        "esp.1"
+      ]
+    },
+    {
+      "id": "244",
+      "name": "Real Betis",
+      "shortName": "Betis",
+      "providerCode": "BET",
+      "expectedCode": "BET",
+      "isNational": false,
+      "competitions": [
+        "esp.1",
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "86",
+      "name": "Real Madrid",
+      "shortName": "Real Madrid",
+      "providerCode": "RMA",
+      "expectedCode": "RMA",
+      "isNational": false,
+      "competitions": [
+        "esp.1",
+        "fifa.cwc",
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "89",
+      "name": "Real Sociedad",
+      "shortName": "Real Sociedad",
+      "providerCode": "RSO",
+      "expectedCode": "RSO",
+      "isNational": false,
+      "competitions": [
+        "esp.1",
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "243",
+      "name": "Sevilla",
+      "shortName": "Sevilla",
+      "providerCode": "SEV",
+      "expectedCode": "SEV",
+      "isNational": false,
+      "competitions": [
+        "esp.1"
+      ]
+    },
+    {
+      "id": "94",
+      "name": "Valencia",
+      "shortName": "Valencia",
+      "providerCode": "VAL",
+      "expectedCode": "VAL",
+      "isNational": false,
+      "competitions": [
+        "esp.1"
+      ]
+    },
+    {
+      "id": "102",
+      "name": "Villarreal",
+      "shortName": "Villarreal",
+      "providerCode": "VIL",
+      "expectedCode": "VIL",
+      "isNational": false,
+      "competitions": [
+        "esp.1",
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "10207",
+      "name": "Al Ahly",
+      "shortName": "Al Ahly",
+      "providerCode": "AHL",
+      "expectedCode": "AHL",
+      "isNational": false,
+      "competitions": [
+        "fifa.cwc"
+      ]
+    },
+    {
+      "id": "7128",
+      "name": "Al Ain",
+      "shortName": "Al Ain",
+      "providerCode": "AlN",
+      "expectedCode": "AIN",
+      "isNational": false,
+      "competitions": [
+        "fifa.cwc"
+      ]
+    },
+    {
+      "id": "929",
+      "name": "Al Hilal",
+      "shortName": "Al Hilal",
+      "providerCode": "HIL",
+      "expectedCode": "HIL",
+      "isNational": false,
+      "competitions": [
+        "fifa.cwc"
+      ]
+    },
+    {
+      "id": "227",
+      "name": "América",
+      "shortName": "América",
+      "providerCode": "AME",
+      "expectedCode": "AME",
+      "isNational": false,
+      "competitions": [
+        "fifa.cwc",
+        "mex.1"
+      ]
+    },
+    {
+      "id": "7279",
+      "name": "Auckland City",
+      "shortName": "Auckland",
+      "providerCode": "ACFC",
+      "expectedCode": "AKL",
+      "isNational": false,
+      "competitions": [
+        "fifa.cwc"
+      ]
+    },
+    {
+      "id": "132",
+      "name": "Bayern Munich",
+      "shortName": "Bayern",
+      "providerCode": "MUN",
+      "expectedCode": "BAY",
+      "isNational": false,
+      "competitions": [
+        "fifa.cwc",
+        "ger.1",
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "1929",
+      "name": "Benfica",
+      "shortName": "Benfica",
+      "providerCode": "SLB",
+      "expectedCode": "SLB",
+      "isNational": false,
+      "competitions": [
+        "fifa.cwc",
+        "por.1",
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "124",
+      "name": "Borussia Dortmund",
+      "shortName": "Dortmund",
+      "providerCode": "DOR",
+      "expectedCode": "BVB",
+      "isNational": false,
+      "competitions": [
+        "fifa.cwc",
+        "ger.1",
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "8377",
+      "name": "Esperance Sportive de Tunis",
+      "shortName": "ES Tunis",
+      "providerCode": "EST",
+      "expectedCode": "EST",
+      "isNational": false,
+      "competitions": [
+        "fifa.cwc"
+      ]
+    },
+    {
+      "id": "437",
+      "name": "FC Porto",
+      "shortName": "FC Porto",
+      "providerCode": "FCP",
+      "expectedCode": "FCP",
+      "isNational": false,
+      "competitions": [
+        "fifa.cwc",
+        "por.1",
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "20232",
+      "name": "Inter Miami CF",
+      "shortName": "Miami",
+      "providerCode": "MIA",
+      "expectedCode": "MIA",
+      "isNational": false,
+      "competitions": [
+        "fifa.cwc",
+        "usa.1"
+      ]
+    },
+    {
+      "id": "110",
+      "name": "Internazionale",
+      "shortName": "Inter Milan",
+      "providerCode": "INT",
+      "expectedCode": "INT",
+      "isNational": false,
+      "competitions": [
+        "fifa.cwc",
+        "ita.1",
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "111",
+      "name": "Juventus",
+      "shortName": "Juventus",
+      "providerCode": "JUV",
+      "expectedCode": "JUV",
+      "isNational": false,
+      "competitions": [
+        "fifa.cwc",
+        "ita.1",
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "7084",
+      "name": "Mamelodi Sundowns",
+      "shortName": "M Sundowns",
+      "providerCode": "MSU",
+      "expectedCode": "MSU",
+      "isNational": false,
+      "competitions": [
+        "fifa.cwc"
+      ]
+    },
+    {
+      "id": "220",
+      "name": "Monterrey",
+      "shortName": "Monterrey",
+      "providerCode": "MTY",
+      "expectedCode": "MTY",
+      "isNational": false,
+      "competitions": [
+        "fifa.cwc",
+        "mex.1"
+      ]
+    },
+    {
+      "id": "234",
+      "name": "Pachuca",
+      "shortName": "Pachuca",
+      "providerCode": "PAC",
+      "expectedCode": "PAC",
+      "isNational": false,
+      "competitions": [
+        "fifa.cwc",
+        "mex.1"
+      ]
+    },
+    {
+      "id": "160",
+      "name": "Paris Saint-Germain",
+      "shortName": "PSG",
+      "providerCode": "PSG",
+      "expectedCode": "PSG",
+      "isNational": false,
+      "competitions": [
+        "fifa.cwc",
+        "fra.1",
+        "uefa.champions",
+        "uefa.super_cup"
+      ]
+    },
+    {
+      "id": "2790",
+      "name": "RB Salzburg",
+      "shortName": "RB Salzburg",
+      "providerCode": "SLZ",
+      "expectedCode": "SAL",
+      "isNational": false,
+      "competitions": [
+        "fifa.cwc",
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "9726",
+      "name": "Seattle Sounders FC",
+      "shortName": "Seattle",
+      "providerCode": "SEA",
+      "expectedCode": "SEA",
+      "isNational": false,
+      "competitions": [
+        "fifa.cwc",
+        "usa.1"
+      ]
+    },
+    {
+      "id": "7120",
+      "name": "Ulsan HD",
+      "shortName": "Ulsan",
+      "providerCode": "ULS",
+      "expectedCode": "UHD",
+      "isNational": false,
+      "competitions": [
+        "fifa.cwc"
+      ]
+    },
+    {
+      "id": "3385",
+      "name": "Urawa Red Diamonds",
+      "shortName": "Urawa Reds",
+      "providerCode": "URA",
+      "expectedCode": "URD",
+      "isNational": false,
+      "competitions": [
+        "fifa.cwc"
+      ]
+    },
+    {
+      "id": "8625",
+      "name": "Wydad AC",
+      "shortName": "Wydad",
+      "providerCode": "WYD",
+      "expectedCode": "WAC",
+      "isNational": false,
+      "competitions": [
+        "fifa.cwc"
+      ]
+    },
+    {
+      "id": "5780",
+      "name": "Afghanistan",
+      "shortName": "Afghanistan",
+      "providerCode": "AFG",
+      "expectedCode": "AFG",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "585",
+      "name": "Albania",
+      "shortName": "Albania",
+      "providerCode": "ALB",
+      "expectedCode": "ALB",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.euro",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "4886",
+      "name": "American Samoa",
+      "shortName": "American Samoa",
+      "providerCode": "ASA",
+      "expectedCode": "ASA",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "587",
+      "name": "Andorra",
+      "shortName": "Andorra",
+      "providerCode": "AND",
+      "expectedCode": "AND",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "579",
+      "name": "Armenia",
+      "shortName": "Armenia",
+      "providerCode": "ARM",
+      "expectedCode": "ARM",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "474",
+      "name": "Austria",
+      "shortName": "Austria",
+      "providerCode": "AUT",
+      "expectedCode": "AUT",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "fifa.world",
+        "uefa.euro",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "581",
+      "name": "Azerbaijan",
+      "shortName": "Azerbaijan",
+      "providerCode": "AZE",
+      "expectedCode": "AZE",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "5783",
+      "name": "Bangladesh",
+      "shortName": "Bangladesh",
+      "providerCode": "BAN",
+      "expectedCode": "BAN",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "583",
+      "name": "Belarus",
+      "shortName": "Belarus",
+      "providerCode": "BLR",
+      "expectedCode": "BLR",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "459",
+      "name": "Belgium",
+      "shortName": "Belgium",
+      "providerCode": "BEL",
+      "expectedCode": "BEL",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "fifa.world",
+        "uefa.euro",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "5784",
+      "name": "Bhutan",
+      "shortName": "Bhutan",
+      "providerCode": "BHU",
+      "expectedCode": "BHU",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "452",
+      "name": "Bosnia-Herzegovina",
+      "shortName": "Bosnia-Herz",
+      "providerCode": "BIH",
+      "expectedCode": "BIH",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "fifa.world",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "462",
+      "name": "Bulgaria",
+      "shortName": "Bulgaria",
+      "providerCode": "BUL",
+      "expectedCode": "BUL",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "5779",
+      "name": "Burundi",
+      "shortName": "Burundi",
+      "providerCode": "BDI",
+      "expectedCode": "BDI",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "5518",
+      "name": "Cambodia",
+      "shortName": "Cambodia",
+      "providerCode": "CAM",
+      "expectedCode": "CAM",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "2597",
+      "name": "Cape Verde",
+      "shortName": "Cape Verde",
+      "providerCode": "CPV",
+      "expectedCode": "CPV",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "10528",
+      "name": "Central African Republic",
+      "shortName": "Cent Afr Rep",
+      "providerCode": "CTA",
+      "expectedCode": "CTA",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "14561",
+      "name": "Chinese Taipei",
+      "shortName": "Taipei",
+      "providerCode": "TPE",
+      "expectedCode": "TPE",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "4884",
+      "name": "Cook Islands",
+      "shortName": "Cook Isl",
+      "providerCode": "COK",
+      "expectedCode": "COK",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "477",
+      "name": "Croatia",
+      "shortName": "Croatia",
+      "providerCode": "CRO",
+      "expectedCode": "CRO",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "fifa.world",
+        "uefa.euro",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "445",
+      "name": "Cyprus",
+      "shortName": "Cyprus",
+      "providerCode": "CYP",
+      "expectedCode": "CYP",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "450",
+      "name": "Czechia",
+      "shortName": "Czechia",
+      "providerCode": "CZE",
+      "expectedCode": "CZE",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "fifa.world",
+        "uefa.euro",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "479",
+      "name": "Denmark",
+      "shortName": "Denmark",
+      "providerCode": "DEN",
+      "expectedCode": "DEN",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.euro",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "5775",
+      "name": "Djibouti",
+      "shortName": "Djibouti",
+      "providerCode": "DJI",
+      "expectedCode": "DJI",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "448",
+      "name": "England",
+      "shortName": "England",
+      "providerCode": "ENG",
+      "expectedCode": "ENG",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "fifa.world",
+        "uefa.euro",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "444",
+      "name": "Estonia",
+      "shortName": "Estonia",
+      "providerCode": "EST",
+      "expectedCode": "EST",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "5777",
+      "name": "Ethiopia",
+      "shortName": "Ethiopia",
+      "providerCode": "ETH",
+      "expectedCode": "ETH",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "447",
+      "name": "Faroe Islands",
+      "shortName": "Faroe Islands",
+      "providerCode": "FRO",
+      "expectedCode": "FRO",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "4862",
+      "name": "Fiji",
+      "shortName": "Fiji",
+      "providerCode": "FIJ",
+      "expectedCode": "FIJ",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "458",
+      "name": "Finland",
+      "shortName": "Finland",
+      "providerCode": "FIN",
+      "expectedCode": "FIN",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "478",
+      "name": "France",
+      "shortName": "France",
+      "providerCode": "FRA",
+      "expectedCode": "FRA",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "fifa.world",
+        "uefa.euro",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "7368",
+      "name": "Gambia",
+      "shortName": "Gambia",
+      "providerCode": "GAM",
+      "expectedCode": "GAM",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "584",
+      "name": "Georgia",
+      "shortName": "Georgia",
+      "providerCode": "GEO",
+      "expectedCode": "GEO",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.euro",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "481",
+      "name": "Germany",
+      "shortName": "Germany",
+      "providerCode": "GER",
+      "expectedCode": "GER",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "fifa.world",
+        "uefa.euro",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "4469",
+      "name": "Ghana",
+      "shortName": "Ghana",
+      "providerCode": "GHA",
+      "expectedCode": "GHA",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "16721",
+      "name": "Gibraltar",
+      "shortName": "Gibraltar",
+      "providerCode": "GIB",
+      "expectedCode": "GIB",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "455",
+      "name": "Greece",
+      "shortName": "Greece",
+      "providerCode": "GRE",
+      "expectedCode": "GRE",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "10529",
+      "name": "Guam",
+      "shortName": "Guam",
+      "providerCode": "GUA",
+      "expectedCode": "GUM",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "2847",
+      "name": "Guinea",
+      "shortName": "Guinea",
+      "providerCode": "GUI",
+      "expectedCode": "GUI",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "1928",
+      "name": "Hong Kong",
+      "shortName": "Hong Kong",
+      "providerCode": "HKG",
+      "expectedCode": "HKG",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "480",
+      "name": "Hungary",
+      "shortName": "Hungary",
+      "providerCode": "HUN",
+      "expectedCode": "HUN",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.euro",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "470",
+      "name": "Iceland",
+      "shortName": "Iceland",
+      "providerCode": "ISL",
+      "expectedCode": "ISL",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "4385",
+      "name": "India",
+      "shortName": "India",
+      "providerCode": "IND",
+      "expectedCode": "IND",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "461",
+      "name": "Israel",
+      "shortName": "Israel",
+      "providerCode": "ISR",
+      "expectedCode": "ISR",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "162",
+      "name": "Italy",
+      "shortName": "Italy",
+      "providerCode": "ITA",
+      "expectedCode": "ITA",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.euro",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "2619",
+      "name": "Kazakhstan",
+      "shortName": "Kazakhstan",
+      "providerCode": "KAZ",
+      "expectedCode": "KAZ",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "2848",
+      "name": "Kenya",
+      "shortName": "Kenya",
+      "providerCode": "KEN",
+      "expectedCode": "KEN",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "18272",
+      "name": "Kosovo",
+      "shortName": "Kosovo",
+      "providerCode": "KOS",
+      "expectedCode": "KOS",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "4388",
+      "name": "Lebanon",
+      "shortName": "Lebanon",
+      "providerCode": "LIB",
+      "expectedCode": "LBN",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "6640",
+      "name": "Lesotho",
+      "shortName": "Lesotho",
+      "providerCode": "LES",
+      "expectedCode": "LES",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "4205",
+      "name": "Liberia",
+      "shortName": "Liberia",
+      "providerCode": "LBR",
+      "expectedCode": "LBR",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "2621",
+      "name": "Libya",
+      "shortName": "Libya",
+      "providerCode": "LBY",
+      "expectedCode": "LBY",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "589",
+      "name": "Liechtenstein",
+      "shortName": "Liechtenstein",
+      "providerCode": "LIE",
+      "expectedCode": "LIE",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "460",
+      "name": "Lithuania",
+      "shortName": "Lithuania",
+      "providerCode": "LTU",
+      "expectedCode": "LTU",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "582",
+      "name": "Luxembourg",
+      "shortName": "Luxembourg",
+      "providerCode": "LUX",
+      "expectedCode": "LUX",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "6722",
+      "name": "Macau",
+      "shortName": "Macau",
+      "providerCode": "MAC",
+      "expectedCode": "MAC",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "5533",
+      "name": "Madagascar",
+      "shortName": "Madagascar",
+      "providerCode": "MAD",
+      "expectedCode": "MAD",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "4325",
+      "name": "Malawi",
+      "shortName": "Malawi",
+      "providerCode": "MWI",
+      "expectedCode": "MWI",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "2405",
+      "name": "Malaysia",
+      "shortName": "Malaysia",
+      "providerCode": "MAS",
+      "expectedCode": "MAS",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "4390",
+      "name": "Maldives",
+      "shortName": "Maldives",
+      "providerCode": "MDV",
+      "expectedCode": "MDV",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "453",
+      "name": "Malta",
+      "shortName": "Malta",
+      "providerCode": "MLT",
+      "expectedCode": "MLT",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "8940",
+      "name": "Mauritania",
+      "shortName": "Mauritania",
+      "providerCode": "MTN",
+      "expectedCode": "MTN",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "5534",
+      "name": "Mauritius",
+      "shortName": "Mauritius",
+      "providerCode": "MRI",
+      "expectedCode": "MRI",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "483",
+      "name": "Moldova",
+      "shortName": "Moldova",
+      "providerCode": "MDA",
+      "expectedCode": "MDA",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "8663",
+      "name": "Mongolia",
+      "shortName": "Mongolia",
+      "providerCode": "MGL",
+      "expectedCode": "MNG",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "6775",
+      "name": "Montenegro",
+      "shortName": "Montenegro",
+      "providerCode": "MNE",
+      "expectedCode": "MNE",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "6770",
+      "name": "Myanmar",
+      "shortName": "Myanmar",
+      "providerCode": "MYA",
+      "expectedCode": "MYA",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "6725",
+      "name": "Namibia",
+      "shortName": "Namibia",
+      "providerCode": "NAM",
+      "expectedCode": "NAM",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "449",
+      "name": "Netherlands",
+      "shortName": "Netherlands",
+      "providerCode": "NED",
+      "expectedCode": "NED",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "fifa.world",
+        "uefa.euro",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "4888",
+      "name": "New Caledonia",
+      "shortName": "New Caledonia",
+      "providerCode": "NCD",
+      "expectedCode": "NCL",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "2666",
+      "name": "New Zealand",
+      "shortName": "New Zealand",
+      "providerCode": "NZL",
+      "expectedCode": "NZL",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "fifa.world"
+      ]
+    },
+    {
+      "id": "8937",
+      "name": "Niger",
+      "shortName": "Niger",
+      "providerCode": "NIG",
+      "expectedCode": "NIG",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "463",
+      "name": "North Macedonia",
+      "shortName": "North Macedonia",
+      "providerCode": "MKD",
+      "expectedCode": "MKD",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "586",
+      "name": "Northern Ireland",
+      "shortName": "N Ireland",
+      "providerCode": "NIR",
+      "expectedCode": "NIR",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "464",
+      "name": "Norway",
+      "shortName": "Norway",
+      "providerCode": "NOR",
+      "expectedCode": "NOR",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "fifa.world",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "5781",
+      "name": "Pakistan",
+      "shortName": "Pakistan",
+      "providerCode": "PAK",
+      "expectedCode": "PAK",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "4885",
+      "name": "Papua New Guinea",
+      "shortName": "Papua New Guinea",
+      "providerCode": "PNG",
+      "expectedCode": "PNG",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "7347",
+      "name": "Philippines",
+      "shortName": "Philippines",
+      "providerCode": "PHI",
+      "expectedCode": "PHI",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "471",
+      "name": "Poland",
+      "shortName": "Poland",
+      "providerCode": "POL",
+      "expectedCode": "POL",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.euro",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "482",
+      "name": "Portugal",
+      "shortName": "Portugal",
+      "providerCode": "POR",
+      "expectedCode": "POR",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "fifa.world",
+        "uefa.euro",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "476",
+      "name": "Republic of Ireland",
+      "shortName": "Rep Ireland",
+      "providerCode": "IRL",
+      "expectedCode": "IRL",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "473",
+      "name": "Romania",
+      "shortName": "Romania",
+      "providerCode": "ROU",
+      "expectedCode": "ROU",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.euro",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "454",
+      "name": "Russia",
+      "shortName": "Russia",
+      "providerCode": "RUS",
+      "expectedCode": "RUS",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "2851",
+      "name": "Rwanda",
+      "shortName": "Rwanda",
+      "providerCode": "RWA",
+      "expectedCode": "RWA",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "588",
+      "name": "San Marino",
+      "shortName": "San Marino",
+      "providerCode": "SMR",
+      "expectedCode": "SMR",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "11808",
+      "name": "Sao Tome and Principe",
+      "shortName": "Sao Tome & P",
+      "providerCode": "STP",
+      "expectedCode": "STP",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "580",
+      "name": "Scotland",
+      "shortName": "Scotland",
+      "providerCode": "SCO",
+      "expectedCode": "SCO",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "fifa.world",
+        "uefa.euro",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "6757",
+      "name": "Serbia",
+      "shortName": "Serbia",
+      "providerCode": "SRB",
+      "expectedCode": "SRB",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.euro",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "6726",
+      "name": "Seychelles",
+      "shortName": "Seychelles",
+      "providerCode": "SEY",
+      "expectedCode": "SEY",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "8600",
+      "name": "Sierra Leone",
+      "shortName": "Sierra Leone",
+      "providerCode": "SLE",
+      "expectedCode": "SLE",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "468",
+      "name": "Slovakia",
+      "shortName": "Slovakia",
+      "providerCode": "SVK",
+      "expectedCode": "SVK",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.euro",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "472",
+      "name": "Slovenia",
+      "shortName": "Slovenia",
+      "providerCode": "SVN",
+      "expectedCode": "SVN",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.euro",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "4861",
+      "name": "Solomon Islands",
+      "shortName": "Solomon Islands",
+      "providerCode": "SOL",
+      "expectedCode": "SOL",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "164",
+      "name": "Spain",
+      "shortName": "Spain",
+      "providerCode": "ESP",
+      "expectedCode": "ESP",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "fifa.world",
+        "uefa.euro",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "5782",
+      "name": "Sri Lanka",
+      "shortName": "Sri Lanka",
+      "providerCode": "SRI",
+      "expectedCode": "SRI",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "466",
+      "name": "Sweden",
+      "shortName": "Sweden",
+      "providerCode": "SWE",
+      "expectedCode": "SWE",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "fifa.world",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "475",
+      "name": "Switzerland",
+      "shortName": "Switzerland",
+      "providerCode": "SUI",
+      "expectedCode": "SUI",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "fifa.world",
+        "uefa.euro",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "4863",
+      "name": "Tahiti",
+      "shortName": "Tahiti",
+      "providerCode": "TAH",
+      "expectedCode": "TAH",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "4356",
+      "name": "Togo",
+      "shortName": "Togo",
+      "providerCode": "TOG",
+      "expectedCode": "TOG",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "7507",
+      "name": "Turkmenistan",
+      "shortName": "Turkmenistan",
+      "providerCode": "TKM",
+      "expectedCode": "TKM",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "465",
+      "name": "Türkiye",
+      "shortName": "Türkiye",
+      "providerCode": "TUR",
+      "expectedCode": "TUR",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "fifa.world",
+        "uefa.euro",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "457",
+      "name": "Ukraine",
+      "shortName": "Ukraine",
+      "providerCode": "UKR",
+      "expectedCode": "UKR",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.euro",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "4864",
+      "name": "Vanuatu",
+      "shortName": "Vanuatu",
+      "providerCode": "VAN",
+      "expectedCode": "VAN",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly"
+      ]
+    },
+    {
+      "id": "578",
+      "name": "Wales",
+      "shortName": "Wales",
+      "providerCode": "WAL",
+      "expectedCode": "WAL",
+      "isNational": true,
+      "competitions": [
+        "fifa.friendly",
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "172",
+      "name": "AJ Auxerre",
+      "shortName": "Auxerre",
+      "providerCode": "AUX",
+      "expectedCode": "AUX",
+      "isNational": false,
+      "competitions": [
+        "fra.1"
+      ]
+    },
+    {
+      "id": "174",
+      "name": "AS Monaco",
+      "shortName": "Monaco",
+      "providerCode": "MON",
+      "expectedCode": "MON",
+      "isNational": false,
+      "competitions": [
+        "fra.1"
+      ]
+    },
+    {
+      "id": "7868",
+      "name": "Angers",
+      "shortName": "Angers",
+      "providerCode": "ANG",
+      "expectedCode": "ANG",
+      "isNational": false,
+      "competitions": [
+        "fra.1"
+      ]
+    },
+    {
+      "id": "6997",
+      "name": "Brest",
+      "shortName": "Brest",
+      "providerCode": "BRE",
+      "expectedCode": "BRE",
+      "isNational": false,
+      "competitions": [
+        "fra.1"
+      ]
+    },
+    {
+      "id": "3236",
+      "name": "Le Havre AC",
+      "shortName": "Le Havre AC",
+      "providerCode": "HAC",
+      "expectedCode": "HAC",
+      "isNational": false,
+      "competitions": [
+        "fra.1"
+      ]
+    },
+    {
+      "id": "2697",
+      "name": "Le Mans",
+      "shortName": "Le Mans",
+      "providerCode": "MNS",
+      "expectedCode": "MNS",
+      "isNational": false,
+      "competitions": [
+        "fra.1"
+      ]
+    },
+    {
+      "id": "175",
+      "name": "Lens",
+      "shortName": "Lens",
+      "providerCode": "RCL",
+      "expectedCode": "RCL",
+      "isNational": false,
+      "competitions": [
+        "fra.1",
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "166",
+      "name": "Lille",
+      "shortName": "Lille",
+      "providerCode": "LILL",
+      "expectedCode": "LIL",
+      "isNational": false,
+      "competitions": [
+        "fra.1",
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "273",
+      "name": "Lorient",
+      "shortName": "Lorient",
+      "providerCode": "LOR",
+      "expectedCode": "LOR",
+      "isNational": false,
+      "competitions": [
+        "fra.1"
+      ]
+    },
+    {
+      "id": "167",
+      "name": "Lyon",
+      "shortName": "Lyon",
+      "providerCode": "LYON",
+      "expectedCode": "LYO",
+      "isNational": false,
+      "competitions": [
+        "fra.1",
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "176",
+      "name": "Marseille",
+      "shortName": "Marseille",
+      "providerCode": "OLM",
+      "expectedCode": "MAR",
+      "isNational": false,
+      "competitions": [
+        "fra.1",
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "2502",
+      "name": "Nice",
+      "shortName": "Nice",
+      "providerCode": "NICE",
+      "expectedCode": "NIC",
+      "isNational": false,
+      "competitions": [
+        "fra.1"
+      ]
+    },
+    {
+      "id": "6851",
+      "name": "Paris FC",
+      "shortName": "Paris FC",
+      "providerCode": "PAR",
+      "expectedCode": "PFC",
+      "isNational": false,
+      "competitions": [
+        "fra.1"
+      ]
+    },
+    {
+      "id": "169",
+      "name": "Stade Rennais",
+      "shortName": "Rennes",
+      "providerCode": "REN",
+      "expectedCode": "REN",
+      "isNational": false,
+      "competitions": [
+        "fra.1",
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "180",
+      "name": "Strasbourg",
+      "shortName": "Strasbourg",
+      "providerCode": "STR",
+      "expectedCode": "STR",
+      "isNational": false,
+      "competitions": [
+        "fra.1"
+      ]
+    },
+    {
+      "id": "179",
+      "name": "Toulouse",
+      "shortName": "Toulouse",
+      "providerCode": "TOU",
+      "expectedCode": "TOU",
+      "isNational": false,
+      "competitions": [
+        "fra.1"
+      ]
+    },
+    {
+      "id": "170",
+      "name": "Troyes",
+      "shortName": "Troyes",
+      "providerCode": "TRY",
+      "expectedCode": "TRY",
+      "isNational": false,
+      "competitions": [
+        "fra.1"
+      ]
+    },
+    {
+      "id": "598",
+      "name": "1. FC Union Berlin",
+      "shortName": "Union Berlin",
+      "providerCode": "FCU",
+      "expectedCode": "FCU",
+      "isNational": false,
+      "competitions": [
+        "ger.1"
+      ]
+    },
+    {
+      "id": "131",
+      "name": "Bayer Leverkusen",
+      "shortName": "Leverkusen",
+      "providerCode": "B04",
+      "expectedCode": "B04",
+      "isNational": false,
+      "competitions": [
+        "ger.1",
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "268",
+      "name": "Borussia Mönchengladbach",
+      "shortName": "Gladbach",
+      "providerCode": "BMG",
+      "expectedCode": "BMG",
+      "isNational": false,
+      "competitions": [
+        "ger.1"
+      ]
+    },
+    {
+      "id": "125",
+      "name": "Eintracht Frankfurt",
+      "shortName": "Frankfurt",
+      "providerCode": "SGE",
+      "expectedCode": "SGE",
+      "isNational": false,
+      "competitions": [
+        "ger.1"
+      ]
+    },
+    {
+      "id": "3841",
+      "name": "FC Augsburg",
+      "shortName": "Augsburg",
+      "providerCode": "FCA",
+      "expectedCode": "FCA",
+      "isNational": false,
+      "competitions": [
+        "ger.1"
+      ]
+    },
+    {
+      "id": "122",
+      "name": "FC Cologne",
+      "shortName": "Cologne",
+      "providerCode": "KOE",
+      "expectedCode": "KOE",
+      "isNational": false,
+      "competitions": [
+        "ger.1"
+      ]
+    },
+    {
+      "id": "127",
+      "name": "Hamburg SV",
+      "shortName": "Hamburg",
+      "providerCode": "HSV",
+      "expectedCode": "HSV",
+      "isNational": false,
+      "competitions": [
+        "ger.1"
+      ]
+    },
+    {
+      "id": "2950",
+      "name": "Mainz",
+      "shortName": "Mainz",
+      "providerCode": "M05",
+      "expectedCode": "M05",
+      "isNational": false,
+      "competitions": [
+        "ger.1"
+      ]
+    },
+    {
+      "id": "11420",
+      "name": "RB Leipzig",
+      "shortName": "RB Leipzig",
+      "providerCode": "RBL",
+      "expectedCode": "RBL",
+      "isNational": false,
+      "competitions": [
+        "ger.1",
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "126",
+      "name": "SC Freiburg",
+      "shortName": "Freiburg",
+      "providerCode": "SCF",
+      "expectedCode": "SCF",
+      "isNational": false,
+      "competitions": [
+        "ger.1"
+      ]
+    },
+    {
+      "id": "3307",
+      "name": "SC Paderborn 07",
+      "shortName": "Paderborn",
+      "providerCode": "SCP",
+      "expectedCode": "SCP",
+      "isNational": false,
+      "competitions": [
+        "ger.1"
+      ]
+    },
+    {
+      "id": "10388",
+      "name": "SV Elversberg",
+      "shortName": "Elversberg",
+      "providerCode": "ELV",
+      "expectedCode": "ELV",
+      "isNational": false,
+      "competitions": [
+        "ger.1"
+      ]
+    },
+    {
+      "id": "133",
+      "name": "Schalke 04",
+      "shortName": "Schalke",
+      "providerCode": "S04",
+      "expectedCode": "S04",
+      "isNational": false,
+      "competitions": [
+        "ger.1"
+      ]
+    },
+    {
+      "id": "7911",
+      "name": "TSG Hoffenheim",
+      "shortName": "Hoffenheim",
+      "providerCode": "TSG",
+      "expectedCode": "TSG",
+      "isNational": false,
+      "competitions": [
+        "ger.1",
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "134",
+      "name": "VfB Stuttgart",
+      "shortName": "Stuttgart",
+      "providerCode": "VFB",
+      "expectedCode": "VFB",
+      "isNational": false,
+      "competitions": [
+        "ger.1",
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "137",
+      "name": "Werder Bremen",
+      "shortName": "Bremen",
+      "providerCode": "SVW",
+      "expectedCode": "SVW",
+      "isNational": false,
+      "competitions": [
+        "ger.1"
+      ]
+    },
+    {
+      "id": "103",
+      "name": "AC Milan",
+      "shortName": "Milan",
+      "providerCode": "MIL",
+      "expectedCode": "MIL",
+      "isNational": false,
+      "competitions": [
+        "ita.1",
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "104",
+      "name": "AS Roma",
+      "shortName": "AS Roma",
+      "providerCode": "ROMA",
+      "expectedCode": "ROM",
+      "isNational": false,
+      "competitions": [
+        "ita.1",
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "105",
+      "name": "Atalanta",
+      "shortName": "Atalanta",
+      "providerCode": "ATA",
+      "expectedCode": "ATA",
+      "isNational": false,
+      "competitions": [
+        "ita.1"
+      ]
+    },
+    {
+      "id": "107",
+      "name": "Bologna",
+      "shortName": "Bologna",
+      "providerCode": "BOL",
+      "expectedCode": "BOL",
+      "isNational": false,
+      "competitions": [
+        "ita.1"
+      ]
+    },
+    {
+      "id": "2925",
+      "name": "Cagliari",
+      "shortName": "Cagliari",
+      "providerCode": "CAG",
+      "expectedCode": "CAG",
+      "isNational": false,
+      "competitions": [
+        "ita.1"
+      ]
+    },
+    {
+      "id": "2572",
+      "name": "Como",
+      "shortName": "Como",
+      "providerCode": "COMO",
+      "expectedCode": "COM",
+      "isNational": false,
+      "competitions": [
+        "ita.1",
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "109",
+      "name": "Fiorentina",
+      "shortName": "Fiorentina",
+      "providerCode": "FIO",
+      "expectedCode": "FIO",
+      "isNational": false,
+      "competitions": [
+        "ita.1"
+      ]
+    },
+    {
+      "id": "4057",
+      "name": "Frosinone",
+      "shortName": "Frosinone",
+      "providerCode": "FRO",
+      "expectedCode": "FRO",
+      "isNational": false,
+      "competitions": [
+        "ita.1"
+      ]
+    },
+    {
+      "id": "3263",
+      "name": "Genoa",
+      "shortName": "Genoa",
+      "providerCode": "GEN",
+      "expectedCode": "GEN",
+      "isNational": false,
+      "competitions": [
+        "ita.1"
+      ]
+    },
+    {
+      "id": "112",
+      "name": "Lazio",
+      "shortName": "Lazio",
+      "providerCode": "LAZ",
+      "expectedCode": "LAZ",
+      "isNational": false,
+      "competitions": [
+        "ita.1"
+      ]
+    },
+    {
+      "id": "113",
+      "name": "Lecce",
+      "shortName": "Lecce",
+      "providerCode": "LEC",
+      "expectedCode": "LEC",
+      "isNational": false,
+      "competitions": [
+        "ita.1"
+      ]
+    },
+    {
+      "id": "4007",
+      "name": "Monza",
+      "shortName": "Monza",
+      "providerCode": "MON",
+      "expectedCode": "MON",
+      "isNational": false,
+      "competitions": [
+        "ita.1"
+      ]
+    },
+    {
+      "id": "114",
+      "name": "Napoli",
+      "shortName": "Napoli",
+      "providerCode": "NAP",
+      "expectedCode": "NAP",
+      "isNational": false,
+      "competitions": [
+        "ita.1",
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "115",
+      "name": "Parma",
+      "shortName": "Parma",
+      "providerCode": "PAR",
+      "expectedCode": "PAR",
+      "isNational": false,
+      "competitions": [
+        "ita.1"
+      ]
+    },
+    {
+      "id": "3997",
+      "name": "Sassuolo",
+      "shortName": "Sassuolo",
+      "providerCode": "SAS",
+      "expectedCode": "SAS",
+      "isNational": false,
+      "competitions": [
+        "ita.1"
+      ]
+    },
+    {
+      "id": "239",
+      "name": "Torino",
+      "shortName": "Torino",
+      "providerCode": "TOR",
+      "expectedCode": "TOR",
+      "isNational": false,
+      "competitions": [
+        "ita.1"
+      ]
+    },
+    {
+      "id": "118",
+      "name": "Udinese",
+      "shortName": "Udinese",
+      "providerCode": "UDI",
+      "expectedCode": "UDI",
+      "isNational": false,
+      "competitions": [
+        "ita.1"
+      ]
+    },
+    {
+      "id": "17530",
+      "name": "Venezia",
+      "shortName": "Venezia",
+      "providerCode": "VEN",
+      "expectedCode": "VEN",
+      "isNational": false,
+      "competitions": [
+        "ita.1"
+      ]
+    },
+    {
+      "id": "226",
+      "name": "Atlante",
+      "shortName": "Atlante",
+      "providerCode": "ATL",
+      "expectedCode": "ATL",
+      "isNational": false,
+      "competitions": [
+        "mex.1"
+      ]
+    },
+    {
+      "id": "216",
+      "name": "Atlas",
+      "shortName": "Atlas",
+      "providerCode": "ATS",
+      "expectedCode": "ATS",
+      "isNational": false,
+      "competitions": [
+        "mex.1"
+      ]
+    },
+    {
+      "id": "15720",
+      "name": "Atlético de San Luis",
+      "shortName": "Atl. San Luis",
+      "providerCode": "ASL",
+      "expectedCode": "ASL",
+      "isNational": false,
+      "competitions": [
+        "mex.1"
+      ]
+    },
+    {
+      "id": "218",
+      "name": "Cruz Azul",
+      "shortName": "Cruz Azul",
+      "providerCode": "CAZ",
+      "expectedCode": "CAZ",
+      "isNational": false,
+      "competitions": [
+        "mex.1"
+      ]
+    },
+    {
+      "id": "17851",
+      "name": "FC Juárez",
+      "shortName": "Juárez",
+      "providerCode": "JUA",
+      "expectedCode": "JUA",
+      "isNational": false,
+      "competitions": [
+        "mex.1"
+      ]
+    },
+    {
+      "id": "219",
+      "name": "Guadalajara",
+      "shortName": "Guadalajara",
+      "providerCode": "GDL",
+      "expectedCode": "GDL",
+      "isNational": false,
+      "competitions": [
+        "mex.1"
+      ]
+    },
+    {
+      "id": "228",
+      "name": "León",
+      "shortName": "León",
+      "providerCode": "LEO",
+      "expectedCode": "LEO",
+      "isNational": false,
+      "competitions": [
+        "mex.1"
+      ]
+    },
+    {
+      "id": "229",
+      "name": "Necaxa",
+      "shortName": "Necaxa",
+      "providerCode": "NCX",
+      "expectedCode": "NEC",
+      "isNational": false,
+      "competitions": [
+        "mex.1"
+      ]
+    },
+    {
+      "id": "231",
+      "name": "Puebla",
+      "shortName": "Puebla",
+      "providerCode": "PUE",
+      "expectedCode": "PUE",
+      "isNational": false,
+      "competitions": [
+        "mex.1"
+      ]
+    },
+    {
+      "id": "233",
+      "name": "Pumas UNAM",
+      "shortName": "UNAM",
+      "providerCode": "UNAM",
+      "expectedCode": "PUM",
+      "isNational": false,
+      "competitions": [
+        "mex.1"
+      ]
+    },
+    {
+      "id": "222",
+      "name": "Querétaro",
+      "shortName": "Queretaro",
+      "providerCode": "QRO",
+      "expectedCode": "QRO",
+      "isNational": false,
+      "competitions": [
+        "mex.1"
+      ]
+    },
+    {
+      "id": "225",
+      "name": "Santos",
+      "shortName": "Santos",
+      "providerCode": "SAN",
+      "expectedCode": "SAN",
+      "isNational": false,
+      "competitions": [
+        "mex.1"
+      ]
+    },
+    {
+      "id": "232",
+      "name": "Tigres UANL",
+      "shortName": "Tigres",
+      "providerCode": "UANL",
+      "expectedCode": "TIG",
+      "isNational": false,
+      "competitions": [
+        "mex.1"
+      ]
+    },
+    {
+      "id": "10125",
+      "name": "Tijuana",
+      "shortName": "Tijuana",
+      "providerCode": "TIJ",
+      "expectedCode": "TIJ",
+      "isNational": false,
+      "competitions": [
+        "mex.1"
+      ]
+    },
+    {
+      "id": "223",
+      "name": "Toluca",
+      "shortName": "Toluca",
+      "providerCode": "TOL",
+      "expectedCode": "TOL",
+      "isNational": false,
+      "competitions": [
+        "mex.1"
+      ]
+    },
+    {
+      "id": "2726",
+      "name": "ADO Den Haag",
+      "shortName": "ADO Den Haag",
+      "providerCode": "ADO",
+      "expectedCode": "ADO",
+      "isNational": false,
+      "competitions": [
+        "ned.1"
+      ]
+    },
+    {
+      "id": "140",
+      "name": "AZ Alkmaar",
+      "shortName": "AZ Alkmaar",
+      "providerCode": "AZ",
+      "expectedCode": "AZ",
+      "isNational": false,
+      "competitions": [
+        "ned.1",
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "139",
+      "name": "Ajax Amsterdam",
+      "shortName": "Ajax",
+      "providerCode": "AJA",
+      "expectedCode": "AJA",
+      "isNational": false,
+      "competitions": [
+        "ned.1"
+      ]
+    },
+    {
+      "id": "2566",
+      "name": "Excelsior",
+      "shortName": "Excelsior",
+      "providerCode": "EXC",
+      "expectedCode": "EXC",
+      "isNational": false,
+      "competitions": [
+        "ned.1"
+      ]
+    },
+    {
+      "id": "145",
+      "name": "FC Groningen",
+      "shortName": "FC Groningen",
+      "providerCode": "GRO",
+      "expectedCode": "GRO",
+      "isNational": false,
+      "competitions": [
+        "ned.1"
+      ]
+    },
+    {
+      "id": "152",
+      "name": "FC Twente",
+      "shortName": "FC Twente",
+      "providerCode": "TWE",
+      "expectedCode": "TWE",
+      "isNational": false,
+      "competitions": [
+        "ned.1"
+      ]
+    },
+    {
+      "id": "153",
+      "name": "FC Utrecht",
+      "shortName": "FC Utrecht",
+      "providerCode": "UTR",
+      "expectedCode": "UTR",
+      "isNational": false,
+      "competitions": [
+        "ned.1"
+      ]
+    },
+    {
+      "id": "142",
+      "name": "Feyenoord Rotterdam",
+      "shortName": "Feyenoord",
+      "providerCode": "FEY",
+      "expectedCode": "FEY",
+      "isNational": false,
+      "competitions": [
+        "ned.1",
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "143",
+      "name": "Fortuna Sittard",
+      "shortName": "Fortuna",
+      "providerCode": "FOR",
+      "expectedCode": "FOR",
+      "isNational": false,
+      "competitions": [
+        "ned.1"
+      ]
+    },
+    {
+      "id": "3706",
+      "name": "Go Ahead Eagles",
+      "shortName": "Go Ahead Eagles",
+      "providerCode": "GAE",
+      "expectedCode": "GAE",
+      "isNational": false,
+      "competitions": [
+        "ned.1"
+      ]
+    },
+    {
+      "id": "146",
+      "name": "Heerenveen",
+      "shortName": "Heerenveen",
+      "providerCode": "HEE",
+      "expectedCode": "HEE",
+      "isNational": false,
+      "competitions": [
+        "ned.1"
+      ]
+    },
+    {
+      "id": "147",
+      "name": "NEC Nijmegen",
+      "shortName": "NEC",
+      "providerCode": "NEC",
+      "expectedCode": "NEC",
+      "isNational": false,
+      "competitions": [
+        "ned.1",
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "2565",
+      "name": "PEC Zwolle",
+      "shortName": "PEC Zwolle",
+      "providerCode": "PEC",
+      "expectedCode": "PEC",
+      "isNational": false,
+      "competitions": [
+        "ned.1"
+      ]
+    },
+    {
+      "id": "148",
+      "name": "PSV Eindhoven",
+      "shortName": "PSV",
+      "providerCode": "PSV",
+      "expectedCode": "PSV",
+      "isNational": false,
+      "competitions": [
+        "ned.1",
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "3736",
+      "name": "SC Cambuur",
+      "shortName": "Cambuur",
+      "providerCode": "CAM",
+      "expectedCode": "CAM",
+      "isNational": false,
+      "competitions": [
+        "ned.1"
+      ]
+    },
+    {
+      "id": "151",
+      "name": "Sparta Rotterdam",
+      "shortName": "Sparta",
+      "providerCode": "SPA",
+      "expectedCode": "SPA",
+      "isNational": false,
+      "competitions": [
+        "ned.1"
+      ]
+    },
+    {
+      "id": "3735",
+      "name": "Telstar",
+      "shortName": "Telstar",
+      "providerCode": "TEL",
+      "expectedCode": "TEL",
+      "isNational": false,
+      "competitions": [
+        "ned.1"
+      ]
+    },
+    {
+      "id": "156",
+      "name": "Willem II",
+      "shortName": "Willem II",
+      "providerCode": "WIL",
+      "expectedCode": "WIL",
+      "isNational": false,
+      "competitions": [
+        "ned.1"
+      ]
+    },
+    {
+      "id": "21607",
+      "name": "Académico de Viseu",
+      "shortName": "Académico",
+      "providerCode": "ACV",
+      "expectedCode": "ACV",
+      "isNational": false,
+      "competitions": [
+        "por.1"
+      ]
+    },
+    {
+      "id": "21613",
+      "name": "Alverca",
+      "shortName": "Alverca",
+      "providerCode": "ALV",
+      "expectedCode": "ALV",
+      "isNational": false,
+      "competitions": [
+        "por.1"
+      ]
+    },
+    {
+      "id": "15784",
+      "name": "Arouca",
+      "shortName": "Arouca",
+      "providerCode": "FCA",
+      "expectedCode": "FCA",
+      "isNational": false,
+      "competitions": [
+        "por.1"
+      ]
+    },
+    {
+      "id": "2994",
+      "name": "Braga",
+      "shortName": "Braga",
+      "providerCode": "SCB",
+      "expectedCode": "SCB",
+      "isNational": false,
+      "competitions": [
+        "por.1"
+      ]
+    },
+    {
+      "id": "3472",
+      "name": "C.D. Nacional",
+      "shortName": "Nacional",
+      "providerCode": "CDN",
+      "expectedCode": "CDN",
+      "isNational": false,
+      "competitions": [
+        "por.1"
+      ]
+    },
+    {
+      "id": "21581",
+      "name": "Casa Pia",
+      "shortName": "Casa Pia",
+      "providerCode": "CPAC",
+      "expectedCode": "CAS",
+      "isNational": false,
+      "competitions": [
+        "por.1"
+      ]
+    },
+    {
+      "id": "12216",
+      "name": "Estoril",
+      "shortName": "Estoril",
+      "providerCode": "EPF",
+      "expectedCode": "EPF",
+      "isNational": false,
+      "competitions": [
+        "por.1"
+      ]
+    },
+    {
+      "id": "21610",
+      "name": "Estrela",
+      "shortName": "Estrela",
+      "providerCode": "EST",
+      "expectedCode": "EST",
+      "isNational": false,
+      "competitions": [
+        "por.1"
+      ]
+    },
+    {
+      "id": "12698",
+      "name": "FC Famalicao",
+      "shortName": "FC Famalicao",
+      "providerCode": "FCF",
+      "expectedCode": "FCF",
+      "isNational": false,
+      "competitions": [
+        "por.1"
+      ]
+    },
+    {
+      "id": "3699",
+      "name": "Gil Vicente",
+      "shortName": "Gil Vicente",
+      "providerCode": "GVFC",
+      "expectedCode": "GIL",
+      "isNational": false,
+      "competitions": [
+        "por.1"
+      ]
+    },
+    {
+      "id": "552",
+      "name": "Maritimo",
+      "shortName": "Maritimo",
+      "providerCode": "MAR",
+      "expectedCode": "MAR",
+      "isNational": false,
+      "competitions": [
+        "por.1"
+      ]
+    },
+    {
+      "id": "3696",
+      "name": "Moreirense",
+      "shortName": "Moreirense",
+      "providerCode": "MFC",
+      "expectedCode": "MFC",
+      "isNational": false,
+      "competitions": [
+        "por.1"
+      ]
+    },
+    {
+      "id": "3822",
+      "name": "Rio Ave",
+      "shortName": "Rio Ave",
+      "providerCode": "RAFC",
+      "expectedCode": "RIO",
+      "isNational": false,
+      "competitions": [
+        "por.1"
+      ]
+    },
+    {
+      "id": "12215",
+      "name": "Santa Clara",
+      "shortName": "Santa Clara",
+      "providerCode": "CDSC",
+      "expectedCode": "SCL",
+      "isNational": false,
+      "competitions": [
+        "por.1"
+      ]
+    },
+    {
+      "id": "2250",
+      "name": "Sporting CP",
+      "shortName": "Sporting",
+      "providerCode": "SCP",
+      "expectedCode": "SCP",
+      "isNational": false,
+      "competitions": [
+        "por.1",
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "5309",
+      "name": "Vitória de Guimaraes",
+      "shortName": "Vitória ",
+      "providerCode": "VSC",
+      "expectedCode": "VSC",
+      "isNational": false,
+      "competitions": [
+        "por.1"
+      ]
+    },
+    {
+      "id": "887",
+      "name": "AEK Athens",
+      "shortName": "AEK Athens",
+      "providerCode": "AEK",
+      "expectedCode": "AEK",
+      "isNational": false,
+      "competitions": [
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "2980",
+      "name": "Bodo/Glimt",
+      "shortName": "Bodo/Glimt",
+      "providerCode": "BODO",
+      "expectedCode": "BOD",
+      "isNational": false,
+      "competitions": [
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "570",
+      "name": "Club Brugge",
+      "shortName": "Club Brugge",
+      "providerCode": "BRU",
+      "expectedCode": "BRU",
+      "isNational": false,
+      "competitions": [
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "436",
+      "name": "Fenerbahce",
+      "shortName": "Fenerbahce",
+      "providerCode": "FEN",
+      "expectedCode": "FEN",
+      "isNational": false,
+      "competitions": [
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "432",
+      "name": "Galatasaray",
+      "shortName": "Galatasaray",
+      "providerCode": "GAL",
+      "expectedCode": "GAL",
+      "isNational": false,
+      "competitions": [
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "4411",
+      "name": "LASK Linz",
+      "shortName": "LASK Linz",
+      "providerCode": "LAS",
+      "expectedCode": "LAS",
+      "isNational": false,
+      "competitions": [
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "21922",
+      "name": "Sabah FK",
+      "shortName": "Sabah",
+      "providerCode": "SAB",
+      "expectedCode": "SAB",
+      "isNational": false,
+      "competitions": [
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "493",
+      "name": "Shakhtar Donetsk",
+      "shortName": "Shakhtar",
+      "providerCode": "SHK",
+      "expectedCode": "SHK",
+      "isNational": false,
+      "competitions": [
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "494",
+      "name": "Slavia Prague",
+      "shortName": "Slavia Prague",
+      "providerCode": "SLP",
+      "expectedCode": "SLP",
+      "isNational": false,
+      "competitions": [
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "521",
+      "name": "Slovan Bratislava",
+      "shortName": "S Bratislava",
+      "providerCode": "SLB",
+      "expectedCode": "SLB",
+      "isNational": false,
+      "competitions": [
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "510",
+      "name": "Viking FK",
+      "shortName": "Viking FK",
+      "providerCode": "VIK",
+      "expectedCode": "VIK",
+      "isNational": false,
+      "competitions": [
+        "uefa.champions"
+      ]
+    },
+    {
+      "id": "441",
+      "name": "Anderlecht",
+      "shortName": "Anderlecht",
+      "providerCode": "AND",
+      "expectedCode": "AND",
+      "isNational": false,
+      "competitions": [
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "20024",
+      "name": "Ararat-Armenia",
+      "shortName": "Ararat-Armenia",
+      "providerCode": "ARA",
+      "expectedCode": "ARA",
+      "isNational": false,
+      "competitions": [
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "1895",
+      "name": "Besiktas",
+      "shortName": "Besiktas",
+      "providerCode": "BES",
+      "expectedCode": "BES",
+      "isNational": false,
+      "competitions": [
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "256",
+      "name": "Celtic",
+      "shortName": "Celtic",
+      "providerCode": "CEL",
+      "expectedCode": "CEL",
+      "isNational": false,
+      "competitions": [
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "597",
+      "name": "Dinamo Zagreb",
+      "shortName": "Dinamo Zagreb",
+      "providerCode": "DZG",
+      "expectedCode": "DZG",
+      "isNational": false,
+      "competitions": [
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "622",
+      "name": "Ferencvaros",
+      "shortName": "Ferencvaros",
+      "providerCode": "FER",
+      "expectedCode": "FER",
+      "isNational": false,
+      "competitions": [
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "13083",
+      "name": "Hapoel Be'er",
+      "shortName": "Hapoel Be'er",
+      "providerCode": "HBE",
+      "expectedCode": "HBE",
+      "isNational": false,
+      "competitions": [
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "11505",
+      "name": "Jagiellonia Bialystok",
+      "shortName": "Jagiellonia ",
+      "providerCode": "JAG",
+      "expectedCode": "JAG",
+      "isNational": false,
+      "competitions": [
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "2990",
+      "name": "Lech Poznan",
+      "shortName": "Lech Poznan",
+      "providerCode": "LECH",
+      "expectedCode": "LPO",
+      "isNational": false,
+      "competitions": [
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "490",
+      "name": "Levski Sofia",
+      "shortName": "Levski Sofia",
+      "providerCode": "LEV",
+      "expectedCode": "LEV",
+      "isNational": false,
+      "competitions": [
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "987",
+      "name": "Lillestrom",
+      "shortName": "Lillestrom",
+      "providerCode": "LSK",
+      "expectedCode": "LSK",
+      "isNational": false,
+      "competitions": [
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "3362",
+      "name": "NK Celje",
+      "shortName": "NK Celje",
+      "providerCode": "NKC",
+      "expectedCode": "NKC",
+      "isNational": false,
+      "competitions": [
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "1010",
+      "name": "OFI Crete",
+      "shortName": "OFI Crete",
+      "providerCode": "OFI",
+      "expectedCode": "OFI",
+      "isNational": false,
+      "competitions": [
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "435",
+      "name": "Olympiacos",
+      "shortName": "Olympiacos",
+      "providerCode": "OLY",
+      "expectedCode": "OLY",
+      "isNational": false,
+      "competitions": [
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "617",
+      "name": "Omonia Nicosia",
+      "shortName": "Omonia",
+      "providerCode": "OMON",
+      "expectedCode": "OMO",
+      "isNational": false,
+      "competitions": [
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "3746",
+      "name": "SK Sturm Graz",
+      "shortName": "Sturm Graz",
+      "providerCode": "STG",
+      "expectedCode": "STG",
+      "isNational": false,
+      "competitions": [
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "433",
+      "name": "Sparta Prague",
+      "shortName": "Sparta",
+      "providerCode": "SPP",
+      "expectedCode": "SPP",
+      "isNational": false,
+      "competitions": [
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "21615",
+      "name": "Torreense",
+      "shortName": "Torreense",
+      "providerCode": "TOR",
+      "expectedCode": "TOR",
+      "isNational": false,
+      "competitions": [
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "5807",
+      "name": "Union St.-Gilloise",
+      "shortName": "Union SG",
+      "providerCode": "USG",
+      "expectedCode": "USG",
+      "isNational": false,
+      "competitions": [
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "11706",
+      "name": "Viktoria Plzen",
+      "shortName": "Viktoria Plzen",
+      "providerCode": "PLZ",
+      "expectedCode": "PLZ",
+      "isNational": false,
+      "competitions": [
+        "uefa.europa"
+      ]
+    },
+    {
+      "id": "456",
+      "name": "Latvia",
+      "shortName": "Latvia",
+      "providerCode": "LVA",
+      "expectedCode": "LVA",
+      "isNational": true,
+      "competitions": [
+        "uefa.nations"
+      ]
+    },
+    {
+      "id": "18418",
+      "name": "Atlanta United FC",
+      "shortName": "Atlanta",
+      "providerCode": "ATL",
+      "expectedCode": "ATL",
+      "isNational": false,
+      "competitions": [
+        "usa.1"
+      ]
+    },
+    {
+      "id": "20906",
+      "name": "Austin FC",
+      "shortName": "Austin",
+      "providerCode": "ATX",
+      "expectedCode": "ATX",
+      "isNational": false,
+      "competitions": [
+        "usa.1"
+      ]
+    },
+    {
+      "id": "9720",
+      "name": "CF Montréal",
+      "shortName": "CF Montréal",
+      "providerCode": "MTL",
+      "expectedCode": "MTL",
+      "isNational": false,
+      "competitions": [
+        "usa.1"
+      ]
+    },
+    {
+      "id": "21300",
+      "name": "Charlotte FC",
+      "shortName": "Charlotte",
+      "providerCode": "CLT",
+      "expectedCode": "CLT",
+      "isNational": false,
+      "competitions": [
+        "usa.1"
+      ]
+    },
+    {
+      "id": "182",
+      "name": "Chicago Fire FC",
+      "shortName": "Chicago",
+      "providerCode": "CHI",
+      "expectedCode": "CHI",
+      "isNational": false,
+      "competitions": [
+        "usa.1"
+      ]
+    },
+    {
+      "id": "184",
+      "name": "Colorado Rapids",
+      "shortName": "Colorado",
+      "providerCode": "COL",
+      "expectedCode": "COL",
+      "isNational": false,
+      "competitions": [
+        "usa.1"
+      ]
+    },
+    {
+      "id": "183",
+      "name": "Columbus Crew",
+      "shortName": "Columbus",
+      "providerCode": "CLB",
+      "expectedCode": "CLB",
+      "isNational": false,
+      "competitions": [
+        "usa.1"
+      ]
+    },
+    {
+      "id": "193",
+      "name": "D.C. United",
+      "shortName": "D.C. United",
+      "providerCode": "DC",
+      "expectedCode": "DCU",
+      "isNational": false,
+      "competitions": [
+        "usa.1"
+      ]
+    },
+    {
+      "id": "18267",
+      "name": "FC Cincinnati",
+      "shortName": "Cincinnati",
+      "providerCode": "CIN",
+      "expectedCode": "CIN",
+      "isNational": false,
+      "competitions": [
+        "usa.1"
+      ]
+    },
+    {
+      "id": "185",
+      "name": "FC Dallas",
+      "shortName": "Dallas",
+      "providerCode": "DAL",
+      "expectedCode": "DAL",
+      "isNational": false,
+      "competitions": [
+        "usa.1"
+      ]
+    },
+    {
+      "id": "6077",
+      "name": "Houston Dynamo FC",
+      "shortName": "Houston",
+      "providerCode": "HOU",
+      "expectedCode": "HOU",
+      "isNational": false,
+      "competitions": [
+        "usa.1"
+      ]
+    },
+    {
+      "id": "187",
+      "name": "LA Galaxy",
+      "shortName": "LA Galaxy",
+      "providerCode": "LA",
+      "expectedCode": "LAG",
+      "isNational": false,
+      "competitions": [
+        "usa.1"
+      ]
+    },
+    {
+      "id": "18966",
+      "name": "LAFC",
+      "shortName": "LAFC",
+      "providerCode": "LAFC",
+      "expectedCode": "LAF",
+      "isNational": false,
+      "competitions": [
+        "usa.1"
+      ]
+    },
+    {
+      "id": "17362",
+      "name": "Minnesota United FC",
+      "shortName": "Minnesota",
+      "providerCode": "MIN",
+      "expectedCode": "MIN",
+      "isNational": false,
+      "competitions": [
+        "usa.1"
+      ]
+    },
+    {
+      "id": "18986",
+      "name": "Nashville SC",
+      "shortName": "Nashville",
+      "providerCode": "NSH",
+      "expectedCode": "NSH",
+      "isNational": false,
+      "competitions": [
+        "usa.1"
+      ]
+    },
+    {
+      "id": "189",
+      "name": "New England Revolution",
+      "shortName": "New England",
+      "providerCode": "NE",
+      "expectedCode": "NER",
+      "isNational": false,
+      "competitions": [
+        "usa.1"
+      ]
+    },
+    {
+      "id": "17606",
+      "name": "New York City FC",
+      "shortName": "NYCFC",
+      "providerCode": "NYC",
+      "expectedCode": "NYC",
+      "isNational": false,
+      "competitions": [
+        "usa.1"
+      ]
+    },
+    {
+      "id": "12011",
+      "name": "Orlando City SC",
+      "shortName": "Orlando",
+      "providerCode": "ORL",
+      "expectedCode": "ORL",
+      "isNational": false,
+      "competitions": [
+        "usa.1"
+      ]
+    },
+    {
+      "id": "10739",
+      "name": "Philadelphia Union",
+      "shortName": "Philadelphia",
+      "providerCode": "PHI",
+      "expectedCode": "PHI",
+      "isNational": false,
+      "competitions": [
+        "usa.1"
+      ]
+    },
+    {
+      "id": "9723",
+      "name": "Portland Timbers",
+      "shortName": "Portland",
+      "providerCode": "POR",
+      "expectedCode": "POR",
+      "isNational": false,
+      "competitions": [
+        "usa.1"
+      ]
+    },
+    {
+      "id": "4771",
+      "name": "Real Salt Lake",
+      "shortName": "Salt Lake",
+      "providerCode": "RSL",
+      "expectedCode": "RSL",
+      "isNational": false,
+      "competitions": [
+        "usa.1"
+      ]
+    },
+    {
+      "id": "190",
+      "name": "Red Bull New York",
+      "shortName": "Red Bull NY",
+      "providerCode": "RBNY",
+      "expectedCode": "NYR",
+      "isNational": false,
+      "competitions": [
+        "usa.1"
+      ]
+    },
+    {
+      "id": "22529",
+      "name": "San Diego FC",
+      "shortName": "San Diego",
+      "providerCode": "SD",
+      "expectedCode": "SDC",
+      "isNational": false,
+      "competitions": [
+        "usa.1"
+      ]
+    },
+    {
+      "id": "191",
+      "name": "San Jose Earthquakes",
+      "shortName": "San Jose",
+      "providerCode": "SJ",
+      "expectedCode": "SJE",
+      "isNational": false,
+      "competitions": [
+        "usa.1"
+      ]
+    },
+    {
+      "id": "186",
+      "name": "Sporting Kansas City",
+      "shortName": "Kansas City",
+      "providerCode": "SKC",
+      "expectedCode": "SKC",
+      "isNational": false,
+      "competitions": [
+        "usa.1"
+      ]
+    },
+    {
+      "id": "21812",
+      "name": "St. Louis CITY SC",
+      "shortName": "St. Louis",
+      "providerCode": "STL",
+      "expectedCode": "STL",
+      "isNational": false,
+      "competitions": [
+        "usa.1"
+      ]
+    },
+    {
+      "id": "7318",
+      "name": "Toronto FC",
+      "shortName": "Toronto",
+      "providerCode": "TOR",
+      "expectedCode": "TOR",
+      "isNational": false,
+      "competitions": [
+        "usa.1"
+      ]
+    },
+    {
+      "id": "9727",
+      "name": "Vancouver Whitecaps",
+      "shortName": "Vancouver",
+      "providerCode": "VAN",
+      "expectedCode": "VAN",
+      "isNational": false,
+      "competitions": [
+        "usa.1"
+      ]
+    }
+  ],
+  "codesReviewedAt": "2026-11-01"
+}

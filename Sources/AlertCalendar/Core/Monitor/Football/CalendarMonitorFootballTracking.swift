@@ -158,10 +158,12 @@ extension CalendarMonitor {
 
         for record in deduplicatedRecords {
             guard let event = resolveManagedFootballEvent(for: record) else {
+                refreshedRecords.append(record)
                 continue
             }
 
             guard let refreshedRecord = managedFootballEventRecord(for: event, reference: record.reference) else {
+                refreshedRecords.append(record)
                 continue
             }
             refreshedRecords.append(refreshedRecord)
@@ -207,40 +209,24 @@ extension CalendarMonitor {
 
     @discardableResult
     func removeManagedFootballEventsOutsideSuggestionWindow(now: Date) -> Int {
-        var removedCount = 0
-        var survivingRecords: [ManagedFootballEventRecord] = []
+        performManagedFootballCleanup(now: now) ?? 0
+    }
 
-        for record in deduplicatedManagedFootballEventRecords(managedFootballEventRecords) {
-            let resolvedEvent = resolveManagedFootballEvent(for: record)
-            let effectiveStartDate = resolvedEvent?.startDate ?? record.startDate
-
-            guard Self.isManagedFootballEventWithinSuggestionWindow(startDate: effectiveStartDate, now: now) else {
-                if let resolvedEvent {
-                    do {
-                        try eventStore.remove(resolvedEvent, span: .thisEvent, commit: false)
-                        removedCount += 1
-                    } catch {
-                        continue
-                    }
-                }
-                continue
-            }
-
-            if let resolvedEvent,
-               let survivingRecord = managedFootballEventRecord(for: resolvedEvent, reference: record.reference) {
-                survivingRecords.append(survivingRecord)
-            } else {
-                survivingRecords.append(record)
-            }
+    /// Nil means the transaction failed; the caller must not advance its cadence.
+    func performManagedFootballCleanup(now: Date) -> Int? {
+        do {
+            let result = try ManagedFootballMutationCoordinator.removeExpired(
+                records: deduplicatedManagedFootballEventRecords(managedFootballEventRecords),
+                now: now, mutations: calendarMutations, resolve: resolveManagedFootballEvent(for:),
+                refreshedRecord: managedFootballEventRecord(for:reference:)
+            )
+            persistManagedFootballEventRecords(result.records)
+            reportFootballCalendarMutation(source: "football.calendar-cleanup", error: nil)
+            return result.removedCount
+        } catch {
+            reportFootballCalendarMutation(source: "football.calendar-cleanup", error: error)
+            return nil
         }
-
-        if removedCount > 0 {
-            try? eventStore.commit()
-        }
-
-        persistManagedFootballEventRecords(survivingRecords)
-
-        return removedCount
     }
 
     func deduplicatedFootballPresets(from competitionSlugs: [String]) -> [FootballCompetitionPreset] {
@@ -313,71 +299,7 @@ extension CalendarMonitor {
             scheduleFootballMatchCacheWrite(snapshot, store: footballMatchCacheStore)
         }
 
-        let teams = matches
-            .flatMap { [$0.homeTeam, $0.awayTeam] }
-            .reduce(into: [String: FootballTeamSummary]()) { partialResult, team in
-                partialResult[team.id] = team
-            }
-
-        var teamLogoRequests: [(String, URL)] = []
-        for team in teams.values {
-            if team.isNational,
-               let localFlagURL = FootballNationalLogoResolver.localFlagImageURL(
-                   teamID: team.id,
-                   name: team.name,
-                   abbreviation: team.abbreviation,
-                   countryName: team.countryName
-               ) {
-                let localPath = localFlagURL.path
-                if footballLocalLogoPathsByTeamID[team.id] != localPath {
-                    footballLocalLogoPathsByTeamID[team.id] = localPath
-                }
-                continue
-            }
-
-            guard let logoURL = team.logoURL else {
-                continue
-            }
-            teamLogoRequests.append((team.id, logoURL))
-        }
-        let teamLogoPaths = await resolvedFootballLogoPaths(for: teamLogoRequests)
-        for (teamID, path) in teamLogoPaths where footballLocalLogoPathsByTeamID[teamID] != path {
-            footballLocalLogoPathsByTeamID[teamID] = path
-        }
-
-        let competitionLogoRequests = matches.compactMap { match -> (String, URL)? in
-            guard let logoURL = match.competitionLogoURL else {
-                return nil
-            }
-            return (match.competitionSlug, logoURL)
-        }
-        let competitionLogoPaths = await resolvedFootballLogoPaths(for: competitionLogoRequests)
-        for (competitionSlug, path) in competitionLogoPaths where footballLocalLogoPathsByCompetitionSlug[competitionSlug] != path {
-            footballLocalLogoPathsByCompetitionSlug[competitionSlug] = path
-        }
-    }
-
-    func resolvedFootballLogoPaths(for requests: [(String, URL)]) async -> [String: String] {
-        var seenIDs = Set<String>()
-        let uniqueRequests = requests.filter { seenIDs.insert($0.0).inserted }
-        guard !uniqueRequests.isEmpty else { return [:] }
-
-        return await withTaskGroup(of: (String, String?).self) { group in
-            for (id, url) in uniqueRequests {
-                group.addTask { [footballImageStore] in
-                    let localURL = await footballImageStore.localFileURL(for: url)
-                    return (id, localURL?.path)
-                }
-            }
-
-            var paths: [String: String] = [:]
-            for await (id, path) in group {
-                if let path {
-                    paths[id] = path
-                }
-            }
-            return paths
-        }
+        scheduleFootballLogoLoading(for: matches)
     }
 
     func matchesPreservingKnownTimingContext(_ matches: [FootballFixtureMatch]) -> [FootballFixtureMatch] {

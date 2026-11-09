@@ -179,28 +179,11 @@ extension MenuContentView {
     }
 
     func openSettingsWindowFromDropdown() {
-        let sourceWindow = NSApp.keyWindow
-        let appDelegate = NSApp.delegate as? AppDelegate
-
-        if let appDelegate {
-            appDelegate.prepareForSettingsPresentation()
-        } else {
-            _ = NSApplication.shared.setActivationPolicy(.regular)
-            NSRunningApplication.current.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
-        }
-
-        if sourceWindow?.identifier != NSUserInterfaceItemIdentifier(WindowMetadata.preferencesID) {
-            sourceWindow?.orderOut(nil)
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
-            openWindow(id: WindowMetadata.preferencesID)
-        }
+        dropdownActions.openSettings()
     }
 
     func openAboutPanelFromDropdown() {
-        let sourceWindow = NSApp.keyWindow
-        sourceWindow?.orderOut(nil)
+        dropdownActions.dismiss()
 
         DispatchQueue.main.async {
             NSRunningApplication.current.activate(

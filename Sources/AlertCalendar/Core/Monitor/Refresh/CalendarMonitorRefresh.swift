@@ -39,7 +39,7 @@ extension CalendarMonitor {
             ) {
                 await self.refreshFootballDataIfNeeded(
                     now: now,
-                    force: forceExternalRefresh,
+                    force: plan.forcesFootballRefresh,
                     reason: reason,
                     syncManagedEvents: plan.triggersManagedFootballSync,
                     syncAutoAdd: plan.triggersFootballAutoAddSync
@@ -67,6 +67,7 @@ extension CalendarMonitor {
         }
 
         guard plan.refreshesCalendarSnapshot else {
+            refreshUpcomingFootballItems(now: fixedSecondNow())
             lastRefreshDate = fixedSecondNow()
             evaluateAlert(now: now, settings: settings)
             updateMenuBarState(now: now, settings: settings)

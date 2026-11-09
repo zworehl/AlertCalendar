@@ -165,22 +165,35 @@ extension CalendarMonitor {
             return
         }
 
+        let pinnedScores = pinnedFootballMenuBarScores(now: now, settings: settings)
+        let selectedPinnedScore = Self.rotatingPinnedFootballMenuBarScore(
+            from: pinnedScores,
+            now: now,
+            rotationInterval: TimeInterval(max(5, settings.concurrentEventRotationSeconds)),
+            rotationState: &pinnedFootballMenuBarRotationState
+        )
         let previewItems = displayedItemsForMenuBar(now: now, settings: settings)
         let menuBarQueue = unifiedMenuBarQueue(now: now, settings: settings)
-        let queueMatchIDs = Set(menuBarQueue.compactMap { $0.footballMatch?.id })
+        let queueMatchIDs = Set(menuBarQueue.compactMap { $0.footballMatch?.id } + pinnedScores.map(\.id))
         activeFootballGoalHighlight = Self.updatedFootballGoalHighlight(
             activeFootballGoalHighlight,
             queueMatchIDs: queueMatchIDs,
-            selectedMatchID: previewItems.first?.footballMatch?.id,
+            selectedMatchID: activeFootballGoalHighlight.flatMap { highlight in
+                selectedPinnedScore?.id == highlight.matchID ? highlight.matchID : nil
+            } ?? previewItems.first?.footballMatch?.id,
             now: now,
             rotationInterval: TimeInterval(max(5, settings.concurrentEventRotationSeconds))
         )
+        let displayedPinnedScores = pinnedFootballMenuBarScores(now: now, settings: settings)
+            .filter { $0.id == selectedPinnedScore?.id }
         if previewItems.isEmpty {
             let emptyStateText = Self.menuBarEmptyStateText(
                 menuBarRotationWindowMinutes: settings.menuBarRotationWindowMinutes,
                 hasLaterItemsInDropdownWindow: hasUpcomingItemsOutsideMenuBarWindow(now: now, settings: settings)
             )
-            applyMenuBarPresentationState(.empty(text: emptyStateText))
+            var emptyState = MenuBarPresentationState.empty(text: emptyStateText)
+            emptyState.pinnedFootballScores = displayedPinnedScores
+            applyMenuBarPresentationState(emptyState)
         } else {
             let segmentBackgrounds = previewItems.map { segmentBackgroundVisual(for: $0, now: now, settings: settings) }
             let segments = previewItems.map {
@@ -261,7 +274,8 @@ extension CalendarMonitor {
                     footballStatusColor: footballStatusColor,
                     footballGoalHighlightSide: footballGoalHighlightSide,
                     footballGoalHighlightTextOpacity: footballGoalHighlightTextOpacity,
-                    fullTitleText: previewItems.map(\.title).joined(separator: "\n")
+                    fullTitleText: previewItems.map(\.title).joined(separator: "\n"),
+                    pinnedFootballScores: displayedPinnedScores
                 )
             )
         }

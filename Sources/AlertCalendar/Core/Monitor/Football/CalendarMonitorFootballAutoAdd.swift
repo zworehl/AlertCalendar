@@ -108,7 +108,7 @@ extension CalendarMonitor {
                 healthScope: "auto-add"
             )
             let fetchedMatches = result.restoringCachedMatches(Array(footballMatchesByID.values))
-            let refreshedMatches = await footballClient.refreshStatusesIfNeeded(for: fetchedMatches)
+            let refreshedMatches = await footballClient.refreshStatusesIfNeeded(for: fetchedMatches, forceRefresh: force)
             let resolvedMatches = matchesPreservingKnownTimingContext(refreshedMatches)
             await cacheFootballMatches(resolvedMatches)
             footballState.autoAddRefreshFailed = !result.failures.isEmpty
@@ -171,13 +171,17 @@ extension CalendarMonitor {
                 cachedMatchesByID: footballMatchesByID,
                 now: now
             )
-            updateFootballCompetitionSection(preset.id) { _ in
-                FootballMenuCompetitionSection(
+            updateFootballCompetitionSection(preset.id) { section in
+                let today = Calendar.autoupdatingCurrent.startOfDay(for: now)
+                let pastMatches = section.matches.filter { $0.startDate < today }
+                let retainedMatches = FootballFixtureLoadResult(matches: sectionMatches + pastMatches).restoringCachedMatches([])
+                return FootballMenuCompetitionSection(
                     competition: preset,
-                    matches: sectionMatches,
+                    matches: retainedMatches,
                     errorMessage: FootballFixtureLoadResult(failures: failures.filter { $0.competitionSlug == preset.slug }).warning,
                     isLoading: false,
-                    hasLoaded: true
+                    hasLoaded: section.hasLoaded || !sectionMatches.isEmpty,
+                    checkedWindow: section.checkedWindow
                 )
             }
         }

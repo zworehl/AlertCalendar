@@ -78,20 +78,14 @@ extension FootballFixtureFormatter {
     }
 
     static func normalizedAbbreviation(_ raw: String, fallbackName: String) -> String {
-        let compactRaw = compactIdentifier(raw)
-        if !compactRaw.isEmpty {
-            return compactRaw
-        }
-
-        let name = fallbackName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return name.isEmpty ? "TBD" : name
+        FootballTeamBroadcastCode.normalized(raw, fallbackName: fallbackName)
     }
 
     static func teamDisplayIdentifier(for team: FootballTeamSummary) -> String {
         if isUnknownTeam(team) {
             return "TBD"
         }
-        return normalizedAbbreviation(team.abbreviation, fallbackName: team.name)
+        return FootballTeamBroadcastCode.identifier(for: team)
     }
 
     static func teamFlag(for team: FootballTeamSummary) -> String {
@@ -120,7 +114,7 @@ extension FootballFixtureFormatter {
         let compactName = compactIdentifier(team.name)
         let missingCountryName = team.countryName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true
 
-        if abbreviation == "TBD" || abbreviation == "TBC" {
+        if ["TBD", "TBC", "TBDHOME", "TBDAWAY"].contains(compactIdentifier(abbreviation)) {
             return true
         }
 

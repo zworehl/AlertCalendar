@@ -319,17 +319,11 @@ struct FootballOutcomeProbabilityBar: View {
     }
 
     private var homeShortName: String {
-        nonempty(display?.homeAbbreviation)
-            ?? nonempty(match.homeTeam.abbreviation)
-            ?? nonempty(match.homeTeam.name)
-            ?? L10n.text("Home")
+        FootballFixtureFormatter.teamDisplayIdentifier(for: match.homeTeam)
     }
 
     private var awayShortName: String {
-        nonempty(display?.awayAbbreviation)
-            ?? nonempty(match.awayTeam.abbreviation)
-            ?? nonempty(match.awayTeam.name)
-            ?? L10n.text("Away")
+        FootballFixtureFormatter.teamDisplayIdentifier(for: match.awayTeam)
     }
 
     private var homeAccessibleName: String {

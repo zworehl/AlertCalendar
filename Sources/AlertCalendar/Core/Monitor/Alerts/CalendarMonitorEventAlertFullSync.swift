@@ -9,7 +9,7 @@ struct CalendarAlertRuleScanWindow: Equatable {
 
 extension CalendarMonitor {
     nonisolated static let calendarAlertRuleFullSyncFingerprintKey =
-        "calendarAlertRuleFullSyncFingerprint.v1"
+        CalendarAlertFullSyncCoordinator.completedFingerprintKey
 
     nonisolated static func completeCalendarAlertRuleScanWindows(
         start: Date = .distantPast,
@@ -52,29 +52,22 @@ extension CalendarMonitor {
         force: Bool
     ) {
         guard let fingerprint = Self.calendarAlertRuleFingerprint(enabledRules) else { return }
-        let storedFingerprint = defaults.string(
-            forKey: Self.calendarAlertRuleFullSyncFingerprintKey
-        )
-
-        if calendarAlertFullSyncFingerprintInProgress == fingerprint,
-           calendarAlertFullSyncTask != nil {
-            return
-        }
-        guard force || storedFingerprint != fingerprint else { return }
+        let coordinator = CalendarAlertFullSyncCoordinator(defaults: defaults)
+        if calendarAlertFullSyncFingerprintInProgress == fingerprint, calendarAlertFullSyncTask != nil { return }
+        guard force || !coordinator.isComplete(fingerprint: fingerprint) else { return }
+        let windowCount = Self.completeCalendarAlertRuleScanWindows().count
+        guard force || coordinator.isRetryDue(fingerprint: fingerprint, windowCount: windowCount, now: fixedSecondNow()) else { return }
 
         calendarAlertFullSyncTask?.cancel()
         let token = UUID()
         calendarAlertFullSyncToken = token
         calendarAlertFullSyncFingerprintInProgress = fingerprint
         calendarAlertRuleStatusDescription = "Starting complete calendar alert sync…"
-
         calendarAlertFullSyncTask = Task { @MainActor [weak self] in
             guard let self else { return }
             await self.performCompleteCalendarAlertRuleSync(
-                token: token,
-                fingerprint: fingerprint,
-                rulesByCalendarID: rulesByCalendarID,
-                calendars: calendars
+                token: token, fingerprint: fingerprint, rulesByCalendarID: rulesByCalendarID,
+                calendars: calendars, force: force
             )
         }
     }
@@ -83,7 +76,8 @@ extension CalendarMonitor {
         token: UUID,
         fingerprint: String,
         rulesByCalendarID: [String: CalendarAlertRule],
-        calendars: [EKCalendar]
+        calendars: [EKCalendar],
+        force: Bool = false
     ) async {
         defer {
             if calendarAlertFullSyncToken == token {
@@ -92,59 +86,63 @@ extension CalendarMonitor {
                 calendarAlertFullSyncFingerprintInProgress = nil
             }
         }
-
+        guard !Task.isCancelled, calendarAlertFullSyncToken == token else { return }
         let windows = Self.completeCalendarAlertRuleScanWindows()
-        CalendarMonitorLog.alerts.info(
-            "Starting complete calendar alert sync across \(windows.count, privacy: .public) date windows"
-        )
+        let coordinator = CalendarAlertFullSyncCoordinator(defaults: defaults)
         var processedEventKeys: Set<String> = []
-        var totalResult = CalendarAlertRuleApplicationResult()
-        var completedAllWindows = true
-
-        for (index, window) in windows.enumerated() {
-            guard !Task.isCancelled else { return }
-            let result = applyCalendarAlertRules(
-                in: window,
-                rulesByCalendarID: rulesByCalendarID,
-                calendars: calendars,
-                processedEventKeys: &processedEventKeys,
-                includesRecurringSeries: false
-            )
-            totalResult.merge(result)
-
-            if result.commitFailed {
-                completedAllWindows = false
-                break
-            }
-
-            let completedWindowCount = index + 1
-            if completedWindowCount == windows.count || completedWindowCount.isMultiple(of: 10) {
-                let percentage = Int(
-                    (Double(completedWindowCount) / Double(max(1, windows.count))) * 100
+        let outcome = await coordinator.run(
+            fingerprint: fingerprint, windowCount: windows.count, force: force,
+            now: { self.fixedSecondNow() },
+            applyWindow: { index in
+                self.applyCalendarAlertRules(
+                    in: windows[index], rulesByCalendarID: rulesByCalendarID,
+                    calendars: calendars, processedEventKeys: &processedEventKeys,
+                    includesRecurringSeries: false
                 )
-                calendarAlertRuleStatusDescription =
-                    "Complete calendar alert sync: \(percentage)%"
+            },
+            progress: { completed, total in
+                let percentage = Int(Double(completed) / Double(max(1, total)) * 100)
+                let status = "Complete calendar alert sync: \(percentage)%"
+                if self.calendarAlertRuleStatusDescription != status {
+                    self.calendarAlertRuleStatusDescription = status
+                }
             }
-            await Task.yield()
-        }
-
-        guard !Task.isCancelled else { return }
-        if completedAllWindows {
-            defaults.set(fingerprint, forKey: Self.calendarAlertRuleFullSyncFingerprintKey)
-        }
-
-        if totalResult.commitFailed {
-            calendarAlertRuleStatusDescription = "Complete calendar alert sync could not finish."
-        } else if totalResult.failureCount > 0 {
-            calendarAlertRuleStatusDescription =
-                "Complete sync updated \(totalResult.updatedCount) event(s); \(totalResult.failureCount) could not be changed."
-        } else {
-            calendarAlertRuleStatusDescription =
-                "Complete sync finished: \(totalResult.updatedCount) event(s) updated."
-        }
-        CalendarMonitorLog.alerts.info(
-            "Complete calendar alert sync finished: \(totalResult.updatedCount, privacy: .public) updated, \(totalResult.failureCount, privacy: .public) failed"
         )
+        guard !outcome.isCancelled, !Task.isCancelled, calendarAlertFullSyncToken == token else { return }
+        let result = outcome.changes
+        if !outcome.isComplete {
+            calendarAlertRuleStatusDescription = result.commitFailed
+                ? "Complete calendar alert sync could not finish."
+                : "Complete sync updated \(result.updatedCount) event(s); \(result.failureCount) could not be changed."
+        } else {
+            calendarAlertRuleStatusDescription = "Complete sync finished: \(result.updatedCount) event(s) updated."
+        }
+        await DataRefreshHealth.shared.record(
+            source: "calendar.alert-sync", title: L10n.text("Calendar"),
+            error: outcome.isComplete ? nil : L10n.text("Calendar alert changes could not be completed. Failed date ranges will be retried automatically."),
+            at: fixedSecondNow()
+        )
+        CalendarMonitorLog.alerts.info("Complete calendar alert sync pass: \(outcome.completedWindowCount, privacy: .public) windows complete; \(result.failureCount, privacy: .public) failed")
+    }
+
+    func retryIncompleteCalendarAlertRuleSyncIfNeeded(now: Date) {
+        let coordinator = CalendarAlertFullSyncCoordinator(defaults: defaults)
+        guard hasEventsAccess, calendarAlertFullSyncTask == nil, coordinator.hasPendingRetry(now: now) else { return }
+        let settings = snapshotSettings()
+        let enabledIDs = Set(CalendarAlertRule.normalized(settings.calendarAlertRules).filter {
+            $0.isEnabled && settings.selectedEventCalendarIDs.contains($0.calendarID)
+        }.map(\.calendarID))
+        guard !enabledIDs.isEmpty else {
+            cancelCompleteCalendarAlertRuleSync(clearStoredFingerprint: true)
+            return
+        }
+        guard eventStore.calendars(for: .event).contains(where: {
+            enabledIDs.contains($0.calendarIdentifier) && $0.allowsContentModifications
+        }) else {
+            coordinator.deferPendingRetry(now: now)
+            return
+        }
+        applyCalendarAlertRules(now: now, settings: settings, reason: .periodic)
     }
 
     func cancelCompleteCalendarAlertRuleSync(clearStoredFingerprint: Bool) {
@@ -152,9 +150,9 @@ extension CalendarMonitor {
         calendarAlertFullSyncTask = nil
         calendarAlertFullSyncToken = nil
         calendarAlertFullSyncFingerprintInProgress = nil
-        if clearStoredFingerprint,
-           defaults.object(forKey: Self.calendarAlertRuleFullSyncFingerprintKey) != nil {
-            defaults.removeObject(forKey: Self.calendarAlertRuleFullSyncFingerprintKey)
+        if clearStoredFingerprint {
+            CalendarAlertFullSyncCoordinator(defaults: defaults).clearProgress(includeCompletion: true)
+            Task { await DataRefreshHealth.shared.record(source: "calendar.alert-sync", title: L10n.text("Calendar"), error: nil) }
         }
     }
 }

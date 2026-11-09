@@ -61,7 +61,8 @@ extension CalendarMonitor {
             await syncAutoAddedFootballMatchesIfNeeded(now: now, force: force)
         }
         if force {
-            for section in footballMenuSections where section.hasLoaded || section.errorMessage != nil {
+            await refreshLastFootballCompetitionAvailability(force: true)
+            for section in footballMenuSections where footballState.detailedCompetitionSlugs.contains(section.competition.slug) {
                 await loadFootballCompetitionSection(section.competition, force: true)
             }
             if footballLiveAndNextDaySection.hasLoaded || footballLiveAndNextDaySection.errorMessage != nil {
@@ -105,40 +106,63 @@ extension CalendarMonitor {
     func ensureFootballCompetitionSections() {
         let existingSectionsByID = Dictionary(uniqueKeysWithValues: footballMenuSections.map { ($0.id, $0) })
         let nextSections = FootballCompetitionPreset.menuPresets.map { preset in
-            existingSectionsByID[preset.id] ?? Self.defaultFootballCompetitionSection(for: preset)
+            if let section = existingSectionsByID[preset.id] { return section }
+            if let cached = footballState.availabilityBySlug[preset.slug] {
+                return FootballMenuCompetitionSection(
+                    competition: preset, matches: cached.matches, errorMessage: nil, isLoading: false,
+                    hasLoaded: true, checkedWindow: cached.window
+                )
+            }
+            return Self.defaultFootballCompetitionSection(for: preset)
         }
         guard footballMenuSections != nextSections else { return }
         footballMenuSections = nextSections
     }
 
     func loadFootballCompetitionSection(_ competition: FootballCompetitionPreset, force: Bool = true) async {
+        await restorePersistentCachesIfNeeded()
         ensureFootballCompetitionSections()
         guard let existingSection = footballMenuSections.first(where: { $0.id == competition.id }) else { return }
         guard !existingSection.isLoading else { return }
-        guard force || !existingSection.hasLoaded || existingSection.errorMessage != nil
-            || dataRefreshIssues.contains(where: { $0.id == "football.browse.\(competition.slug)" }) else { return }
-
         let now = fixedSecondNow()
-        let cachedMatches = cachedCompetitionMatches(for: competition, now: now)
+        let needsDetailRefresh = footballState.detailedCompetitionLoadDates[competition.slug].map {
+            now.timeIntervalSince($0) >= Self.footballMenuRefreshInterval
+        } ?? true
+        guard force || !existingSection.hasLoaded || existingSection.errorMessage != nil
+            || needsDetailRefresh
+            || dataRefreshIssues.contains(where: { $0.id == "football.browse.\(competition.slug)" }) else { return }
+        footballState.detailedCompetitionSlugs.insert(competition.slug)
+
+        let cachedMatches = FootballFixtureLoadResult(
+            matches: cachedCompetitionMatches(for: competition, now: now) + existingSection.matches
+        ).restoringCachedMatches([])
         let hasCachedMatches = !cachedMatches.isEmpty
 
         updateFootballCompetitionSection(competition.id) { currentSection in
             FootballMenuCompetitionSection(
                 competition: currentSection.competition,
                 matches: hasCachedMatches ? cachedMatches : currentSection.matches,
-                errorMessage: nil,
+                errorMessage: currentSection.errorMessage,
                 isLoading: true,
-                hasLoaded: currentSection.hasLoaded || hasCachedMatches
+                hasLoaded: currentSection.hasLoaded || hasCachedMatches,
+                checkedWindow: currentSection.checkedWindow
             )
         }
 
+        let checkedWindow = FootballCompetitionAvailabilityWindow(
+            now: now, lookbackDays: competition.lookbackDays, lookaheadDays: competition.lookaheadDays
+        )
+        let ranges = FootballDataAPIClient.scoreboardDateRanges(
+            start: checkedWindow.start, end: checkedWindow.end, calendar: .autoupdatingCurrent
+        ).map { FootballScoreboardDateRange(start: $0.0, end: $0.1) }
         do {
             let result = try await footballClient.fetchFixtureLoadResult(
                 for: [competition],
+                dateRangesByCompetitionSlug: [competition.slug: ranges],
                 forceRefresh: force
             )
             let fetchedMatches = result.restoringCachedMatches(cachedMatches)
-            let refreshedMatches = await footballClient.refreshStatusesIfNeeded(for: fetchedMatches)
+            let refreshedMatches = await footballClient.refreshStatusesIfNeeded(for: fetchedMatches, forceRefresh: force)
             let resolvedMatches = matchesPreservingKnownTimingContext(refreshedMatches)
             await cacheFootballMatches(resolvedMatches)
             if result.failures.isEmpty { markFootballRefreshed(at: now) }
@@ -147,6 +171,13 @@ extension CalendarMonitor {
                 cachedMatchesByID: footballMatchesByID,
                 now: now
             )
+            if result.failures.isEmpty && result.availablePageCount > 0 {
+                footballState.detailedCompetitionLoadDates[competition.slug] = now
+                footballState.availabilityBySlug[competition.slug] = FootballCompetitionAvailability(
+                    competitionSlug: competition.slug, fetchedAt: now, window: checkedWindow, matches: matches
+                )
+                await persistFootballCompetitionAvailability()
+            }
 
             updateFootballCompetitionSection(competition.id) { _ in
                 FootballMenuCompetitionSection(
@@ -154,10 +185,21 @@ extension CalendarMonitor {
                     matches: matches,
                     errorMessage: result.warning,
                     isLoading: false,
-                    hasLoaded: result.availablePageCount > 0 || !matches.isEmpty
+                    hasLoaded: result.availablePageCount > 0 || !matches.isEmpty,
+                    checkedWindow: checkedWindow
                 )
             }
+            if result.failures.isEmpty {
+                await ExternalFeedMetrics.shared.recordAppliedData(source: "football.snapshot", at: now)
+            }
             await autoAddFootballMatches(matches, now: now)
+        } catch is CancellationError {
+            updateFootballCompetitionSection(competition.id) { section in
+                FootballMenuCompetitionSection(
+                    competition: competition, matches: section.matches, errorMessage: existingSection.errorMessage,
+                    isLoading: false, hasLoaded: existingSection.hasLoaded, checkedWindow: existingSection.checkedWindow
+                )
+            }
         } catch {
             updateFootballCompetitionSection(competition.id) { currentSection in
                 FootballMenuCompetitionSection(
@@ -165,7 +207,8 @@ extension CalendarMonitor {
                     matches: currentSection.matches,
                     errorMessage: FootballDataAPIClient.fixtureFailureDescription(error),
                     isLoading: false,
-                    hasLoaded: currentSection.hasLoaded
+                    hasLoaded: currentSection.hasLoaded,
+                    checkedWindow: currentSection.checkedWindow
                 )
             }
         }
@@ -189,7 +232,7 @@ extension CalendarMonitor {
         let loadingSection = FootballMatchesOverviewSection(
             title: footballLiveAndNextDaySection.title,
             matches: hasCachedMatches ? cachedMatches : footballLiveAndNextDaySection.matches,
-            errorMessage: nil,
+            errorMessage: footballLiveAndNextDaySection.errorMessage,
             isLoading: true,
             hasLoaded: footballLiveAndNextDaySection.hasLoaded || hasCachedMatches
         )
@@ -216,7 +259,9 @@ extension CalendarMonitor {
                 forceRefresh: force,
                 healthScope: "live"
             )
-            let refreshedMatches = await footballClient.refreshStatusesIfNeeded(for: result.restoringCachedMatches(cachedMatches))
+            let refreshedMatches = await footballClient.refreshStatusesIfNeeded(
+                for: result.restoringCachedMatches(cachedMatches), forceRefresh: force
+            )
             let resolvedMatches = matchesPreservingKnownTimingContext(refreshedMatches)
             await cacheFootballMatches(resolvedMatches)
             if result.failures.isEmpty { markFootballRefreshed(at: now) }
@@ -235,6 +280,9 @@ extension CalendarMonitor {
             )
             if footballLiveAndNextDaySection != loadedSection {
                 footballLiveAndNextDaySection = loadedSection
+            }
+            if result.failures.isEmpty {
+                await ExternalFeedMetrics.shared.recordAppliedData(source: "football.snapshot", at: now)
             }
             await autoAddFootballMatches(resolvedMatches, now: now)
         } catch {
@@ -263,8 +311,9 @@ extension CalendarMonitor {
         }
 
         if shouldRunFootballLegacyMigration(now: now, force: force) {
-            migrateLegacyManagedFootballEventsIfNeeded(now: now)
-            lastFootballLegacyMigrationDate = now
+            if migrateLegacyManagedFootballEventsIfNeeded(now: now) {
+                lastFootballLegacyMigrationDate = now
+            }
         }
         if shouldRunFootballManagedRecovery(now: now, force: force) {
             await recoverManagedFootballEventRecordsIfNeeded(
@@ -277,8 +326,7 @@ extension CalendarMonitor {
 
         let needsCleanup = force
             || CalendarMonitorTime.hasElapsed(since: lastFootballManagedCleanupDate, now: now, interval: Self.footballManagedCleanupInterval)
-        if needsCleanup {
-            _ = removeManagedFootballEventsOutsideSuggestionWindow(now: now)
+        if needsCleanup, performManagedFootballCleanup(now: now) != nil {
             lastFootballManagedCleanupDate = now
         }
 
@@ -329,7 +377,8 @@ extension CalendarMonitor {
             ))
             let refreshedMatches = await footballClient.refreshStatusesIfNeeded(
                 for: matches,
-                forceSummaryForMatchIDs: forceSummaryMatchIDs
+                forceSummaryForMatchIDs: forceSummaryMatchIDs,
+                forceRefresh: force
             )
             let resolvedMatches = matchesPreservingKnownTimingContext(refreshedMatches)
             await cacheFootballMatches(resolvedMatches)

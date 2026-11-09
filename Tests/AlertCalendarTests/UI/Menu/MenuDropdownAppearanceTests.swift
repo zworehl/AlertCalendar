@@ -30,11 +30,9 @@ final class MenuDropdownAppearanceTests: XCTestCase {
         )
         let observer = MenuDropdownWindowObserverView()
         window.contentView = observer
-        for name in [NSWindow.didBecomeKeyNotification,
-                     NSWindow.didChangeBackingPropertiesNotification,
-                     NSWindow.didChangeScreenNotification,
-                     NSWindow.didResizeNotification,
-                     NSApplication.didChangeScreenParametersNotification] {
+        let frame = window.frame
+        for name in [NSWindow.didChangeBackingPropertiesNotification,
+                     NSWindow.didChangeScreenNotification] {
             window.hasShadow = true
             window.isOpaque = true
             window.backgroundColor = .red
@@ -42,7 +40,28 @@ final class MenuDropdownAppearanceTests: XCTestCase {
             XCTAssertFalse(window.hasShadow, "\(name) must clear the window shadow")
             XCTAssertFalse(window.isOpaque)
             XCTAssertEqual(window.backgroundColor.alphaComponent, 0)
+            XCTAssertEqual(window.frame, frame)
         }
+        observer.stopObserving()
+    }
+
+    func testObserverConfiguresAppearanceWhenAttached() {
+        let window = NSWindow(
+            contentRect: CGRect(x: 100, y: 100, width: 708, height: 587),
+            styleMask: [.borderless], backing: .buffered, defer: false
+        )
+        window.hasShadow = true
+        window.isOpaque = true
+        window.backgroundColor = .red
+        let frame = window.frame
+        let observer = MenuDropdownWindowObserverView()
+
+        window.contentView = observer
+
+        XCTAssertFalse(window.hasShadow)
+        XCTAssertFalse(window.isOpaque)
+        XCTAssertEqual(window.backgroundColor.alphaComponent, 0)
+        XCTAssertEqual(window.frame, frame)
         observer.stopObserving()
     }
 

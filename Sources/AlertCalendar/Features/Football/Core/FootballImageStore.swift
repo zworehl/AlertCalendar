@@ -7,41 +7,58 @@ import UniformTypeIdentifiers
 actor FootballImageStore {
     private let fileManager: FileManager
     private let session: URLSession
+    private let transport: HTTPServiceTransport
     private let baseDirectoryURL: URL
     private var failedRequestDates = AlertCalendarLRUCache<String, Date>(capacity: 256)
     private var resolvedFiles = AlertCalendarLRUCache<String, (url: URL, modifiedAt: Date?)>(capacity: 512)
     private var normalizedFilePaths: Set<String> = []
     private var hasEnsuredDirectory = false
     private var lastCleanupDate: Date?
+    private var requests: [String: Task<URL?, Never>] = [:]
     private static let requestTimeout: TimeInterval = 6
     private static let resourceTimeout: TimeInterval = 12
     private static let failedRequestRetryInterval: TimeInterval = 30 * 60
     private static let cleanupInterval: TimeInterval = 24 * 60 * 60
     private static let cachedImageRetentionInterval: TimeInterval = 90 * 24 * 60 * 60
 
-    init(fileManager: FileManager = .default, session: URLSession? = nil) {
+    init(fileManager: FileManager = .default, session: URLSession? = nil, baseDirectoryURL: URL? = nil) {
         self.fileManager = fileManager
 
         if let session {
             self.session = session
+            self.transport = HTTPServiceTransport(session: session)
         } else {
             let configuration = URLSessionConfiguration.default
             configuration.timeoutIntervalForRequest = Self.requestTimeout
             configuration.timeoutIntervalForResource = Self.resourceTimeout
             configuration.waitsForConnectivity = false
             configuration.httpMaximumConnectionsPerHost = 8
-            self.session = URLSession(configuration: configuration)
+            let resolvedSession = URLSession(configuration: configuration)
+            self.session = resolvedSession
+            self.transport = HTTPServiceTransport(session: resolvedSession)
         }
 
         let applicationSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? fileManager.temporaryDirectory
-        self.baseDirectoryURL = applicationSupportURL
+        self.baseDirectoryURL = baseDirectoryURL ?? applicationSupportURL
             .appendingPathComponent("AlertCalendar", isDirectory: true)
             .appendingPathComponent("football-images", isDirectory: true)
     }
 
     func localFileURL(for remoteURL: URL?) async -> URL? {
         guard let remoteURL else { return nil }
+        let key = remoteURL.absoluteString
+        if let task = requests[key] {
+            await ExternalFeedMetrics.shared.recordCoalescedRequest(source: "football.images")
+            return await task.value
+        }
+        let task = Task { await self.resolveFileURL(for: remoteURL) }
+        requests[key] = task
+        defer { requests[key] = nil }
+        return await task.value
+    }
+
+    private func resolveFileURL(for remoteURL: URL) async -> URL? {
         if !hasEnsuredDirectory {
             ensureDirectoryExists(at: baseDirectoryURL)
             hasEnsuredDirectory = true
@@ -51,7 +68,7 @@ actor FootballImageStore {
         cleanupCachedImagesIfNeeded(now: now)
 
         let requestKey = remoteURL.absoluteString
-        if let cached = resolvedFiles.value(forKey: requestKey) {
+        if let cached = resolvedFiles.value(forKey: requestKey), fileManager.fileExists(atPath: cached.url.path) {
             await ExternalFeedMetrics.shared.recordCacheHit(
                 source: "football.images",
                 dataDate: cached.modifiedAt,
@@ -90,7 +107,7 @@ actor FootballImageStore {
         do {
             var request = URLRequest(url: remoteURL)
             request.timeoutInterval = Self.requestTimeout
-            let (data, response) = try await session.data(for: request)
+            let (data, response) = try await transport.data(for: request)
             guard let http = response as? HTTPURLResponse else {
                 failedRequestDates.insert(now, forKey: requestKey)
                 await ExternalFeedMetrics.shared.recordTransportFailure(
@@ -110,13 +127,21 @@ actor FootballImageStore {
                 return nil
             }
 
+            guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+                  CGImageSourceGetCount(source) > 0 else {
+                failedRequestDates.insert(now, forKey: requestKey)
+                return nil
+            }
+
             let imageData = Self.normalizedImageData(from: data, remoteURL: remoteURL)
             try imageData.write(to: destinationURL, options: [.atomic])
             failedRequestDates.removeValue(forKey: requestKey)
             normalizedFilePaths.insert(destinationURL.path)
             resolvedFiles.insert((destinationURL, now), forKey: requestKey)
+            await ExternalFeedMetrics.shared.recordValidatedData(source: "football.images", at: now)
             return destinationURL
         } catch {
+            if error is CancellationError || (error as? URLError)?.code == .cancelled || error is HTTPServiceRetryError { return nil }
             failedRequestDates.insert(now, forKey: requestKey)
             await ExternalFeedMetrics.shared.recordTransportFailure(
                 source: "football.images",
