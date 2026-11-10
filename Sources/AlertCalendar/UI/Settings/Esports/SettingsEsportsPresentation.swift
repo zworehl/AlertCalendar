@@ -6,7 +6,7 @@ enum SettingsEsportsBrowseMode: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .schedule: L10n.text("Schedule and results")
+        case .schedule: L10n.text("Schedule")
         case .nowAndNextDay: L10n.text("Now + Next 24h")
         case .added: L10n.text("Added Matches")
         }
@@ -32,8 +32,7 @@ enum SettingsEsportsPresentation {
         var unique: [String: SettingsEsportsCompetition] = [:]
         for match in matches where game == nil || match.game == game {
             guard EsportsCatalog.supports(match.game) else { continue }
-            guard let competitionID = match.competitionID else { continue }
-            let key = "\(match.game.rawValue):\(competitionID)"
+            guard let key = match.competitionKey else { continue }
             guard !match.competitionName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
             unique[key] = SettingsEsportsCompetition(id: key, name: match.competitionName, game: match.game)
         }
@@ -58,8 +57,7 @@ enum SettingsEsportsPresentation {
         return byID.values.filter { match in
             guard EsportsCatalog.supports(match.game), game == nil || match.game == game else { return false }
             if let competitionKey {
-                guard let id = match.competitionID,
-                      competitionKey == "\(match.game.rawValue):\(id)" else { return false }
+                guard competitionKey == match.competitionKey else { return false }
             }
             if mode == .added {
                 return pending[match.id]?.mutation.makesItemPresent ?? managedIDs.contains(match.id)

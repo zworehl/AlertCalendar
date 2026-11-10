@@ -6,7 +6,7 @@ extension EsportsRuntime {
         guard current(revision) else { return }
         isRefreshing = true
         restoreRecords()
-        // Local calendars become useful before any Keychain or network await.
+        // Local calendars become useful before any network await.
         if force || lastLocalRefresh.map({ now().timeIntervalSince($0) >= 300 }) ?? true {
             refreshLocalEvents(); lastLocalRefresh = now()
         }
@@ -14,18 +14,10 @@ extension EsportsRuntime {
             let cached = await cacheStore?.load() ?? []
             guard current(revision) else { return }
             merge(cached); publishMatches()
-            do {
-                let stored = try await credentials.load()
-                guard current(revision) else { return }
-                token = stored; isConnected = stored != nil
-            } catch {
-                guard current(revision) else { return }
-                errorMessage = L10n.text("Could not read the PandaScore token from Keychain.")
-            }
             didRestore = true
         }
         guard current(revision) else { return }
-        guard let token, !settings.providerGames.isEmpty else { return }
+        guard !settings.providerGames.isEmpty else { return }
         let window = dateWindow()
         var freshMatches: [EsportsMatch] = []
         var completed = true
@@ -35,21 +27,24 @@ extension EsportsRuntime {
             guard current(revision) else { return }
             if let retry = providerRetryAt[game], retry > now() {
                 completed = false
-                issueMessage = L10n.text("Some PandaScore results are unavailable. Cached events remain available.")
+                issueMessage = L10n.text("Some esports calendar events are unavailable. Cached events remain available.")
                 continue
             }
-            if !force, let last = lastProviderFetch[game], now().timeIntervalSince(last) < 300 { continue }
+            if !force, providerRetryAt[game] == nil, let last = lastProviderFetch[game], now().timeIntervalSince(last) < 7_200 { continue }
             attempted = true; lastProviderFetch[game] = now()
             do {
                 let tracked = records.keys.compactMap { matchesByID[$0] }.filter { $0.game == game }.map(\.providerID).sorted()
-                let result = try await client.load(game: game, from: window.0, to: window.1, token: token, trackedIDs: tracked)
+                let result = try await client.load(game: game, from: window.0, to: window.1, trackedIDs: tracked)
                 guard current(revision) else { return }
                 merge(result.matches); freshMatches += result.matches
                 completed = completed && result.isComplete
                 if !result.isComplete {
-                    issueMessage = L10n.text("Some PandaScore results are unavailable. Cached events remain available.")
+                    issueMessage = L10n.text("Some esports calendar events are unavailable. Cached events remain available.")
                     providerRetryAt[game] = result.issues.compactMap(\.retryAt).max() ?? now().addingTimeInterval(300)
-                } else { providerRetryAt[game] = nil }
+                } else {
+                    providerRetryAt[game] = nil
+                    validatedAtByGame[game] = result.fetchedAt
+                }
             } catch {
                 guard current(revision) else { return }
                 completed = false; issueMessage = safeError(error)
@@ -59,7 +54,9 @@ extension EsportsRuntime {
         guard current(revision) else { return }
         publishMatches()
         if attempted {
-            if completed { lastValidatedAt = now() }
+            if completed, settings.providerGames.allSatisfy({ validatedAtByGame[$0] != nil }) {
+                lastValidatedAt = settings.providerGames.compactMap { validatedAtByGame[$0] }.min()
+            }
             errorMessage = issueMessage
             scheduleCacheSave()
         }
@@ -69,7 +66,7 @@ extension EsportsRuntime {
     }
 
     func retryDate(for error: any Error) -> Date? {
-        switch error as? PandaScoreError {
+        switch error as? EsportsFeedError {
         case .rateLimited(let date): date
         case .retryDeferred(_, let date), .requestBudget(let date): date
         default: nil

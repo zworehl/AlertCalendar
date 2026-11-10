@@ -1,0 +1,2 @@
+# Preserve RFC 5545 CRLF and meaningful spaces at folded physical line endings.
+Tests/AlertCalendarTests/Fixtures/esports-public-calendar.ics text eol=crlf whitespace=-blank-at-eol

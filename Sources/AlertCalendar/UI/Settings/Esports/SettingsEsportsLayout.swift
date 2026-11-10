@@ -99,13 +99,11 @@ extension SettingsEsportsSectionView {
         )
         return VStack(alignment: .leading, spacing: 8) {
             Text(L10n.text("Competition")).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                .help(L10n.text("Competition filters apply to PandaScore matches. Calendar events keep their original titles."))
+                .help(L10n.text("Competition filters apply to public matches. Calendar events keep their original titles."))
             selectionRow(title: L10n.text("All competitions"), count: matches.count,
                          isSelected: selectedCompetitionKey == nil, id: "competition.all") { selectedCompetitionKey = nil }
             ForEach(competitionOptions) { competition in
-                let count = matches.filter { match in
-                    match.competitionID.map { "\(match.game.rawValue):\($0)" } == competition.id
-                }.count
+                let count = matches.filter { $0.competitionKey == competition.id }.count
                 selectionRow(title: selectedGame == nil ? "\(competition.name) · \(competition.game.displayName)" : competition.name,
                              count: count, isSelected: selectedCompetitionKey == competition.id,
                              id: "competition.\(competition.id)") { selectedCompetitionKey = competition.id }

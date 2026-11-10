@@ -4,7 +4,7 @@ import Foundation
 
 extension EsportsRuntime {
     static func competitionKey(for match: EsportsMatch) -> String? {
-        match.competitionID.map { "\(match.game.rawValue):\($0)" }
+        match.competitionKey
     }
 
     func canAddMatch(_ match: EsportsMatch) -> Bool {

@@ -67,7 +67,7 @@ struct EsportsEventContent: Codable, Equatable, Sendable {
         self.end = knownEnd ?? start.addingTimeInterval(7_200)
         self.title = "[\(match.game.displayName)] \(match.name)"
         self.alertLeadMinutes = match.status == .canceled || match.status == .postponed ? -1 : alertLeadMinutes
-        var lines = [ManagedEsportsEventRecord.ownershipMarker, match.id, EsportsMatch.sourceAttribution]
+        var lines = [ManagedEsportsEventRecord.ownershipMarker, match.id, match.sourceAttributionText]
         if !match.competitionName.isEmpty { lines.append(match.competitionName) }
         lines.append("Status: \(match.status.rawValue)")
         if let games = match.numberOfGames {

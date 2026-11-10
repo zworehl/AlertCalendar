@@ -2,19 +2,24 @@
 
 Esports is a separate feed under Settings. It reads gaming events from the selected Apple Calendar sources, including the active Focus filter, and distinguishes local calendar events from provider-managed encounters. Existing local events are never adopted or overwritten automatically.
 
-The browser follows the football feed's layout: encounter cards and destination controls occupy the main column, while a right sidebar holds the view mode, date window, game and competition lists. The optional provider connection stays available in that sidebar.
+The browser follows the football feed's layout: encounter cards and destination controls occupy the main column, while a right sidebar holds the view mode, date window, game and competition lists. The public source and the games to fetch are visible in that sidebar.
 
 The supported catalog is League of Legends, Counter-Strike 2, Rocket League and StarCraft II. The Esports browser classifies local competitive events only for those four games. A local event retains its original title, date, calendar and source link. Detection does not invent participants or a score. Releases and maintenance remain ordinary gaming events rather than matches.
 
-## Optional provider connection
+## Public source, without credentials
 
-PandaScore's free REST fixtures supply schedules, running/finished state, final results and streams for those four games. Coverage must still be checked for each tournament. This pilot does not offer continuous map-by-map scores or WebSocket telemetry.
+[Esports Calendar](https://www.esport-calendar.com/) offers public ICS subscriptions, updated every two hours. AlertCalendar requests its public feed directly without an account, API token, authentication header or Keychain access. The service identifies PandaScore as its upstream data source; AlertCalendar does not call PandaScore's authenticated API.
+
+The game-specific URLs are:
+
+- League of Legends: `https://www.esport-calendar.com/calendar.ics?games=league-of-legends`
+- Counter-Strike 2: `https://www.esport-calendar.com/calendar.ics?games=cs-go`
+- Rocket League: `https://www.esport-calendar.com/calendar.ics?games=rl`
+- StarCraft II: `https://www.esport-calendar.com/calendar.ics?games=starcraft-2`
+
+The application preserves feed titles, dates and source attribution (`Source: Esports Calendar · Data: PandaScore`). Competitions are grouped using stable feed keys, with legacy numeric identities retained for older managed events. Coverage depends on what the public source publishes: a game may currently have no events, and changing the browse window cannot supply dates absent from the feed. During validation, the feed included roughly three days of recent history rather than a full 90-day archive. The integration does not promise live scores, participant metadata, final results or continuous telemetry; it displays only information actually supplied and validated.
 
 Age of Empires II, GeoGuessr and Gran Turismo 7 are excluded from the Esports catalog and its local classification because a usable fixture feed was not verified. Their manual events remain unchanged in Apple Calendar and the application's general agenda, subject to the normal calendar and Focus filters. Removing a game from the catalog does not delete, edit or migrate its events. Legacy game identifiers remain decodable for stored-data compatibility.
-
-Connect a personal PandaScore token in the Esports pane. The credential is kept in a separate local Keychain service; it is never embedded in the application, saved in UserDefaults, added to URLs or included in calendar notes. Calendar titles and notes are classified locally. Only canonical game and match identifiers are requested from the provider. Provider views and managed event notes retain the attribution `Source: PandaScore`.
-
-References: [overview](https://developers.pandascore.co/docs/introduction), [authentication](https://developers.pandascore.co/docs/authentication), [fixtures and plan capabilities](https://developers.pandascore.co/docs/plan-reference), [pricing and limits](https://www.pandascore.co/pricing).
 
 ### Review of the other requested games
 
@@ -30,16 +35,17 @@ These are findings about verified integration coverage, not a claim that no API 
 
 Choose a writable destination and alert policy. Card additions and removals are staged until Apply; Revert clears the staged operations. Automatic addition is opt-in by competition. A missing participant, uncertain date or incomplete provider response does not justify inventing a schedule or deleting an event.
 
-Managed events use a provider/game/match identity separate from football. A failed EventKit transaction does not publish new ownership. Reads and refreshes preserve cached cards, and account/configuration changes invalidate stale asynchronous responses. Only events created and still owned by this integration can be removed by its card actions.
+Managed events use a provider/game/match identity separate from football. A failed EventKit transaction does not publish new ownership. Reads and refreshes preserve cached cards, and configuration changes invalidate stale asynchronous responses. Only events created and still owned by this integration can be removed by its card actions.
 
 Local duplicate detection is conservative: same-game events with overlapping or nearby times are candidates for review, rather than proof of the same encounter. A candidate prevents automatic duplication and remains read-only. Managed encounters keep their own alert policy, independent of general per-calendar alert rules. Until an actual end time is supplied, their Calendar duration is explicitly estimated at two hours.
 
+Existing manual events remain separate local entries for now. Classification is only a display aid: the application does not replace or delete an original because its title or time resembles a public fixture. A verified pairing and explicit migration workflow would be needed before changing those originals; this pilot does not perform that migration.
+
 ## Architecture
 
-- `Features/Esports/Core`: provider-neutral models, catalog, REST adapter, parsing, request budget and actor-backed cache.
+- `Features/Esports/Core`: provider-neutral models, catalog, public ICS adapter, parsing, request budget and actor-backed cache.
 - `Core/Monitor/Esports`: local EventKit snapshots, managed records and lifecycle coordination.
 - `Core/Settings/EsportsSettings.swift`: non-secret preferences and migration defaults.
-- `Core/System/PandaScoreTokenKeychainStore.swift`: independent personal credential storage.
-- `UI/Settings/Esports`: responsive cards, filters, connection state and staged calendar actions.
+- `UI/Settings/Esports`: responsive cards, filters, public source preferences and staged calendar actions.
 
 The pilot reuses shared HTTP cooldowns and synchronous Calendar mutation boundaries. It does not extend football-specific goals, stadiums, durations or home/away assumptions to other games.

@@ -63,62 +63,32 @@ extension SettingsEsportsSectionView {
     }
 
     var providerControls: some View {
-        DisclosureGroup(isExpanded: $providerIsExpanded) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(L10n.text("Schedules, match status and final results."))
-                    .font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                if runtime.isConnected {
-                    Button {
-                        token = ""
-                        connectionTask?.cancel()
-                        connectionTask = Task { await runtime.disconnect() }
-                    } label: { Label(L10n.text("Disconnect"), systemImage: "minus") }
-                    .labelStyle(.titleAndIcon)
-                    .disabled(!runsLiveServices || isConnecting)
-                    .accessibilityIdentifier("settings.esports.disconnect")
-                } else {
-                    SecureField(L10n.text("PandaScore API token"), text: $token)
-                        .textFieldStyle(.roundedBorder)
-                        .disabled(isConnecting || !runsLiveServices)
-                        .accessibilityIdentifier("settings.esports.token")
-                        .onSubmit { connectProvider() }
-                    Button { connectProvider() } label: {
-                        Label(isConnecting ? L10n.text("Connecting…") : L10n.text("Connect"), systemImage: "link")
-                    }
-                    .labelStyle(.titleAndIcon)
-                    .disabled(!runsLiveServices || isConnecting || token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    .accessibilityIdentifier("settings.esports.connect")
-                }
-                SettingsLabeledCheckboxGroup(
-                    title: L10n.text("Provider games"),
-                    helpText: L10n.text("Choose which supported games to fetch after Apply.")
-                ) {
-                    ForEach(EsportsCatalog.providerGames) { game in
-                        Toggle(game.displayName, isOn: providerGameBinding(game))
-                            .accessibilityIdentifier("settings.esports.providerGame.\(game.rawValue)")
-                    }
-                }
-                if !preferences.autoAddCompetitionIDs.isEmpty {
-                    Button { preferences.autoAddCompetitionIDs = [] } label: {
-                        Label(L10n.text("Turn off automatic additions"), systemImage: "xmark.circle")
-                    }
-                    .labelStyle(.titleAndIcon)
-                    .buttonStyle(.borderless).font(.caption)
-                    .accessibilityIdentifier("settings.esports.disableAutoAdd")
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Esports Calendar", systemImage: "globe")
+                .font(SettingsTypography.panelTitle)
+            Text(L10n.text("Public schedule. No account or API token required. Updated every 2 hours."))
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            SettingsLabeledCheckboxGroup(
+                title: L10n.text("Public feed games"),
+                helpText: L10n.text("Choose which supported games to fetch after Apply.")
+            ) {
+                ForEach(EsportsCatalog.providerGames) { game in
+                    Toggle(game.displayName, isOn: providerGameBinding(game))
+                        .accessibilityIdentifier("settings.esports.providerGame.\(game.rawValue)")
                 }
             }
-            .padding(.top, 10)
-        } label: {
-            HStack(spacing: 6) {
-                Text("PandaScore").font(SettingsTypography.panelTitle)
-                Spacer(minLength: 0)
-                Text(runtime.isConnected ? L10n.text("Connected") : L10n.text("Optional connection"))
-                    .font(.caption).foregroundStyle(.secondary)
+            if !preferences.autoAddCompetitionIDs.isEmpty {
+                Button { preferences.autoAddCompetitionIDs = [] } label: {
+                    Label(L10n.text("Turn off automatic additions"), systemImage: "xmark.circle")
+                }
+                .labelStyle(.titleAndIcon)
+                .buttonStyle(.borderless).font(.caption)
+                .accessibilityIdentifier("settings.esports.disableAutoAdd")
             }
         }
         .settingsPanelSurface(padding: SettingsVisualMetrics.interactiveCardPadding)
-        .accessibilityIdentifier("settings.esports.providerConnection")
+        .accessibilityIdentifier("settings.esports.publicSource")
     }
 
     func providerGameBinding(_ game: EsportsGame) -> Binding<Bool> {
@@ -126,19 +96,6 @@ extension SettingsEsportsSectionView {
             if selected { preferences.providerGames.insert(game) }
             else { preferences.providerGames.remove(game) }
         })
-    }
-
-    func connectProvider() {
-        guard runsLiveServices, !isConnecting else { return }
-        let credential = token.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !credential.isEmpty else { return }
-        token = ""
-        isConnecting = true
-        connectionTask?.cancel()
-        connectionTask = Task {
-            await runtime.connect(token: credential)
-            isConnecting = false
-        }
     }
 
     var browseControls: some View {

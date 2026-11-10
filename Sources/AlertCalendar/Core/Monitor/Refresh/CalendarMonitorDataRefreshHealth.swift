@@ -56,7 +56,7 @@ extension CalendarMonitor {
                 ? (hasRemindersAccess ? dataRefreshHealthState.reminderError : "Reminders access is unavailable. Check macOS permissions.") : nil),
             ("location", "Astronomy location", settings.useAutomaticAstronomyLocation ? dataRefreshHealthState.locationError : nil),
             ("slack", "Slack", settings.slackConnections.isEmpty ? nil : slackStatusSyncErrorDescription),
-            ("esports", L10n.text("Esports"), esportsRuntime.isConnected ? esportsRuntime.errorMessage : nil),
+            ("esports", L10n.text("Esports"), esportsRuntime.errorMessage),
             ("holidays.sync", L10n.text("Holidays"), settings.googleHolidayCountryIDs.isEmpty ? nil : googleHolidaySyncErrorDescription),
             ("agenda-summary", L10n.text("Agenda summary"), agendaSummaryGenerationErrorDescription),
             ("title-rewrite", "Event title summaries", settings.rewriteEventTitlesWithAppleIntelligence

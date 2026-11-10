@@ -47,7 +47,7 @@ struct SettingsEsportsProviderCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
             HStack(alignment: .center, spacing: 6) {
-                Label(L10n.text("Source: PandaScore"), systemImage: "trophy")
+                Label(L10n.lookup(match.sourceAttributionText), systemImage: "trophy")
                     .font(.caption).foregroundStyle(.secondary)
                 Spacer(minLength: 2)
                 actions

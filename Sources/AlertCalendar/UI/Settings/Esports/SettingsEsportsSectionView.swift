@@ -13,10 +13,6 @@ struct SettingsEsportsSectionView: View {
     @State var selectedCompetitionKey: String?
     @State var browseMode: SettingsEsportsBrowseMode = .schedule
     @State var visibleNow = AlertCalendarClock.nowRoundedToSecond()
-    @State var token = ""
-    @State var isConnecting = false
-    @State var connectionTask: Task<Void, Never>?
-    @State var providerIsExpanded = false
 
     var body: some View {
         esportsColumns
@@ -39,11 +35,6 @@ struct SettingsEsportsSectionView: View {
                 catch { return }
                 visibleNow = AlertCalendarClock.nowRoundedToSecond()
             }
-        }
-        .onDisappear {
-            token = ""
-            connectionTask?.cancel()
-            connectionTask = nil
         }
     }
 
@@ -89,7 +80,7 @@ struct SettingsEsportsSectionView: View {
                         Text(verified, style: .time)
                     }
                 } else {
-                    Text(L10n.text("Apple Calendar matches remain available without a provider connection."))
+                    Text(L10n.text("Public schedule from Esports Calendar."))
                 }
             }
             .font(.caption).foregroundStyle(.secondary)
@@ -131,11 +122,9 @@ struct SettingsEsportsSectionView: View {
 
     var providerSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            sectionHeader("PandaScore", count: displayedProviderMatches.count, symbol: "trophy")
-            if !runtime.isConnected && displayedProviderMatches.isEmpty {
-                feedback(L10n.text("Connect PandaScore to browse supported schedules and results."))
-            } else if displayedProviderMatches.isEmpty {
-                feedback(runtime.isRefreshing ? L10n.text("Loading esports matches…") : L10n.text("No provider matches in this view."))
+            sectionHeader("Esports Calendar", count: displayedProviderMatches.count, symbol: "trophy")
+            if displayedProviderMatches.isEmpty {
+                feedback(runtime.isRefreshing ? L10n.text("Loading esports matches…") : L10n.text("No public matches in this view."))
             } else {
                 LazyVGrid(columns: cardColumns, alignment: .leading, spacing: 10) {
                     ForEach(displayedProviderMatches) { match in

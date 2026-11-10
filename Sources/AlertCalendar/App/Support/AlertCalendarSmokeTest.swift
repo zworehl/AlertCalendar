@@ -83,14 +83,14 @@ enum AlertCalendarSmokeTest {
         }
         // Exercise the actual esports pane with isolated in-memory examples.
         // This runtime is constructed with startsServices=false, so opening the
-        // view cannot read the user's credentials, calendars or provider cache.
+        // view cannot read the user's calendars, provider cache or network.
         let esports = monitor.esportsRuntime
         let sampleDate = Date().addingTimeInterval(3_600)
         esports.providerMatches = [EsportsMatch(
             providerID: 42, game: .leagueOfLegends, name: "Blue vs Red",
-            competitionID: 7, competitionName: "Sample tournament",
-            opponents: [.init(id: 1, name: "Blue", type: .team), .init(id: 2, name: "Red", type: .team)],
-            status: .scheduled, scheduledAt: sampleDate, numberOfGames: 3
+            competitionName: "Sample tournament", status: .scheduled, scheduledAt: sampleDate,
+            feedSourceURL: URL(string: "https://www.esport-calendar.com/calendar.ics?games=league-of-legends"),
+            feedSourceAttribution: "Source: Esports Calendar · Data: PandaScore", feedCompetitionKey: "esports-calendar:leagueOfLegends:sample"
         )]
         esports.localEvents = [.init(
             id: "smoke-local", game: .leagueOfLegends, title: "League of Legends Worlds Final",
@@ -113,7 +113,7 @@ enum AlertCalendarSmokeTest {
                 window.contentView = nil
             }
         }
-        checks.append(Check(name: "esports-services-disabled", passed: !esports.startsServices && esports.refreshTask == nil && !esports.isConnected))
+        checks.append(Check(name: "esports-services-disabled", passed: !esports.startsServices && esports.refreshTask == nil))
         esports.providerMatches = []
         esports.localEvents = []
         AlertCalendarLanguage.current = oldLanguage

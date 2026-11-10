@@ -45,6 +45,23 @@ final class SettingsEsportsPresentationTests: XCTestCase {
         XCTAssertEqual(shown.map(\.id), [cs.id])
     }
 
+    func testPublicFeedCompetitionKeysWorkWithoutLegacyNumericCompetitionIDs() {
+        var first = match(1, date: now)
+        first.competitionName = "World Championship"
+        first.feedCompetitionKey = "esports-calendar:leagueOfLegends:world-championship"
+        var second = match(2, date: now, game: .starCraft2)
+        second.competitionName = first.competitionName
+        second.feedCompetitionKey = "esports-calendar:starCraft2:world-championship"
+        XCTAssertNil(first.competitionID)
+        let options = SettingsEsportsPresentation.competitions(in: [first, second], game: nil)
+        XCTAssertEqual(Set(options.map(\.id)), [first.competitionKey!, second.competitionKey!])
+        let shown = SettingsEsportsPresentation.visibleMatches(
+            [first, second], game: nil, competitionKey: second.competitionKey, mode: .schedule,
+            preferences: .defaults, now: now, managedIDs: [], pending: [:]
+        )
+        XCTAssertEqual(shown.map(\.id), [second.id])
+    }
+
     func testScoresRequireParticipantIdentityAndAReportedResultStatus() {
         let team = EsportsOpponent(id: 1, name: "Team", type: .team)
         let player = EsportsOpponent(id: 1, name: "Player", type: .player)

@@ -4,30 +4,13 @@ import Foundation
 
 enum EsportsMatchPresence: Equatable, Sendable { case absent, external, managed }
 
-actor EsportsCredentialVault {
-    private let store: any EsportsTokenStoring
-    private var latestRevision = 0
-    init(store: any EsportsTokenStoring) { self.store = store }
-    func load() throws -> String? { try store.loadToken() }
-    func save(_ token: String, revision: Int) throws -> Bool {
-        guard revision >= latestRevision else { return false }
-        latestRevision = revision; try store.saveToken(token); return true
-    }
-    func remove(revision: Int) throws -> Bool {
-        guard revision >= latestRevision else { return false }
-        latestRevision = revision; try store.removeToken(); return true
-    }
-    func finish(revision: Int) { latestRevision = max(latestRevision, revision) }
-}
-
 /// Independent feature runtime. Construction/configuration never touch Calendar,
-/// Keychain, network, or disk, including the settings smoke environment.
+/// network, or disk, including the settings smoke environment.
 @MainActor
 final class EsportsRuntime: ObservableObject {
     @Published var localEvents: [LocalGamingCalendarEvent] = []
     @Published var providerMatches: [EsportsMatch] = []
     @Published var isRefreshing = false
-    @Published var isConnected = false
     @Published var lastValidatedAt: Date?
     @Published var errorMessage: String?
     @Published var managedMatchIDs: Set<String> = []
@@ -38,7 +21,6 @@ final class EsportsRuntime: ObservableObject {
     let defaults: UserDefaults
     let calendarSource: any EsportsCalendarReading
     let client: any EsportsProviding
-    let credentials: EsportsCredentialVault
     let cacheStore: (any EsportsCaching)?
     let startsServices: Bool
     let now: @Sendable () -> Date
@@ -48,14 +30,13 @@ final class EsportsRuntime: ObservableObject {
     var records: [String: ManagedEsportsEventRecord] = [:]
     var dismissedMatchIDs: Set<String> = []
     var matchesByID: [String: EsportsMatch] = [:]
-    var token: String?
-    var connectionRevision: Int?
     var didRestore = false
     var didRestoreRecords = false
     var generation = 0
     var stopped = false
     var lastLocalRefresh: Date?
     var lastProviderFetch: [EsportsGame: Date] = [:]
+    var validatedAtByGame: [EsportsGame: Date] = [:]
     var providerRetryAt: [EsportsGame: Date] = [:]
     var refreshTask: Task<Void, Never>?
     var forceRefreshRequested = false
@@ -65,14 +46,13 @@ final class EsportsRuntime: ObservableObject {
     static let dismissedKey = "esports.dismissedMatches.v1"
 
     init(eventStore: EKEventStore, mutations: CalendarMutationCoordinator, defaults: UserDefaults,
-         client: any EsportsProviding = PandaScoreClient(),
-         tokenStore: any EsportsTokenStoring = PandaScoreTokenKeychainStore(),
+         client: any EsportsProviding = PublicEsportsCalendarClient(),
          cacheStore: (any EsportsCaching)? = nil,
          startsServices: Bool = true,
          calendarSource: (any EsportsCalendarReading)? = nil,
          now: @escaping @Sendable () -> Date = { Date() }) {
         self.eventStore = eventStore; self.mutations = mutations; self.defaults = defaults
-        self.client = client; self.credentials = EsportsCredentialVault(store: tokenStore)
+        self.client = client
         self.cacheStore = cacheStore ?? (startsServices && defaults === UserDefaults.standard ? EsportsCacheStore() : nil)
         self.startsServices = startsServices
         self.calendarSource = calendarSource ?? EventKitEsportsCalendarSource(eventStore: eventStore)
@@ -82,8 +62,13 @@ final class EsportsRuntime: ObservableObject {
     func configure(settings: EsportsSettings, selectedCalendarIDs: Set<String>, hasEventsAccess: Bool) {
         let normalized = settings.normalized
         guard self.settings != normalized || self.selectedCalendarIDs != selectedCalendarIDs || self.hasEventsAccess != hasEventsAccess else { return }
+        let fetchScopeChanged = self.settings.providerGames != normalized.providerGames
+            || self.settings.lookbackDays != normalized.lookbackDays || self.settings.lookaheadDays != normalized.lookaheadDays
         invalidate()
         self.settings = normalized; self.selectedCalendarIDs = selectedCalendarIDs; self.hasEventsAccess = hasEventsAccess
+        if fetchScopeChanged {
+            lastProviderFetch = [:]; validatedAtByGame = [:]; lastValidatedAt = nil
+        }
         lastLocalRefresh = nil
         // Never display a prior Focus selection while its replacement is read.
         if !hasEventsAccess || selectedCalendarIDs.isEmpty { if !localEvents.isEmpty { localEvents = [] } }
@@ -92,7 +77,7 @@ final class EsportsRuntime: ObservableObject {
     }
 
     func refresh(force: Bool = false) async {
-        guard startsServices, !stopped, connectionRevision == nil else { return }
+        guard startsServices, !stopped else { return }
         if let refreshTask {
             forceRefreshRequested = forceRefreshRequested || force
             await refreshTask.value; return
@@ -112,56 +97,6 @@ final class EsportsRuntime: ObservableObject {
         if revision == generation { refreshTask = nil; isRefreshing = false }
     }
 
-    func connect(token candidate: String) async {
-        let candidate = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard PandaScoreTokenKeychainStore.isValid(candidate), !stopped else {
-            errorMessage = L10n.text("Enter a valid PandaScore token."); return
-        }
-        invalidate()
-        let revision = generation
-        connectionRevision = revision
-        isRefreshing = true
-        defer {
-            if connectionRevision == revision { connectionRevision = nil }
-            if revision == generation { isRefreshing = false }
-        }
-        let game = settings.providerGames.sorted { $0.rawValue < $1.rawValue }.first ?? .leagueOfLegends
-        let window = dateWindow()
-        do {
-            let result = try await client.load(game: game, from: window.0, to: window.1, token: candidate, trackedIDs: [])
-            guard current(revision) else { return }
-            guard !result.issues.contains(where: { $0.kind == .unauthorized || $0.kind == .requestFailed || $0.kind == .unavailable || $0.kind == .rateLimited || $0.kind == .requestBudget }) else {
-                errorMessage = L10n.text("Could not validate the PandaScore connection. Try again later."); return
-            }
-            guard try await credentials.save(candidate, revision: revision) else { return }
-            guard current(revision) else { didRestore = false; return }
-            token = candidate; isConnected = true; errorMessage = nil
-            merge(result.matches); publishMatches(); scheduleCacheSave()
-            lastProviderFetch[game] = now()
-            if result.isComplete { lastValidatedAt = result.fetchedAt }
-        } catch {
-            guard current(revision) else { return }
-            errorMessage = safeError(error)
-        }
-    }
-
-    func disconnect() async {
-        invalidate()
-        let revision = generation
-        connectionRevision = revision
-        token = nil; isConnected = false
-        defer { if connectionRevision == revision { connectionRevision = nil } }
-        do {
-            guard try await credentials.remove(revision: revision) else { return }
-            guard current(revision) else { return }
-            token = nil; isConnected = false; errorMessage = nil
-            lastProviderFetch = [:]; providerRetryAt = [:]
-        } catch {
-            guard current(revision) else { return }
-            errorMessage = L10n.text("Could not remove the PandaScore token from Keychain.")
-        }
-    }
-
     func stop() {
         stopped = true; invalidate(); openTask?.cancel(); openTask = nil
     }
@@ -170,7 +105,6 @@ final class EsportsRuntime: ObservableObject {
         let active = refreshTask
         stop()
         await active?.value
-        await credentials.finish(revision: generation)
         await cacheWriteTask?.value
     }
 
@@ -222,10 +156,9 @@ final class EsportsRuntime: ObservableObject {
     }
 
     func safeError(_ error: any Error) -> String {
-        switch error as? PandaScoreError {
-        case .unauthorized: L10n.text("PandaScore rejected the token. Check your connection settings.")
-        case .rateLimited, .requestBudget, .retryDeferred: L10n.text("PandaScore requests are paused. Cached events remain available.")
-        default: L10n.text("Could not refresh PandaScore. Cached events remain available.")
+        switch error as? EsportsFeedError {
+        case .rateLimited, .requestBudget, .retryDeferred: L10n.text("Esports calendar requests are paused. Cached events remain available.")
+        default: L10n.text("Could not refresh the esports calendar. Cached events remain available.")
         }
     }
 }

@@ -38,11 +38,14 @@ final class EsportsStorageAndPolicyTests: XCTestCase {
         XCTAssertNotNil(EsportsStreamURLPolicy.safeURL(URL(string: "https://youtu.be/video")))
     }
 
-    func testTokenValidationRejectsHeaderInjectionWithoutKeychainAccess() {
-        XCTAssertTrue(PandaScoreTokenKeychainStore.isValid("personal_test_123"))
-        XCTAssertFalse(PandaScoreTokenKeychainStore.isValid(""))
-        XCTAssertFalse(PandaScoreTokenKeychainStore.isValid("token\r\nAuthorization: injected"))
-        XCTAssertFalse(PandaScoreTokenKeychainStore.isValid(String(repeating: "x", count: 4_097)))
+    func testLegacyCacheRetainsCanonicalIdentityAndAttribution() throws {
+        let original = EsportsMatch(providerID: 1711021, game: .leagueOfLegends, name: "Final")
+        let encoded = try JSONEncoder().encode(original)
+        let restored = try JSONDecoder().decode(EsportsMatch.self, from: encoded)
+        XCTAssertEqual(restored.id, "pandascore:leagueOfLegends:1711021")
+        XCTAssertEqual(restored.sourceAttributionText, "Source: PandaScore")
+        XCTAssertNil(restored.feedSourceURL)
+        XCTAssertNil(restored.feedCompetitionKey)
     }
 
     func testCatalogExposesOnlyVerifiedProviderCoverageAndDecodesLegacyGames() throws {
@@ -59,14 +62,19 @@ final class EsportsStorageAndPolicyTests: XCTestCase {
         XCTAssertNil(EsportsGame.granTurismo7.providerSlug)
     }
 
-    func testCompetitionNameDescribesTheIdentityUsedForFollowing() throws {
-        let league = #"{"id":1,"name":"Playoffs final","status":"not_started","league":{"id":10,"name":"World Championship"},"serie":{"full_name":"2026"},"tournament":{"id":20,"name":"Playoffs"}}"#
-        let fallback = #"{"id":2,"name":"Final","status":"not_started","tournament":{"id":20,"name":"Open Cup"}}"#
-        let first = try PandaScoreMatchDTO.decoder().decode(PandaScoreMatchDTO.self, from: Data(league.utf8)).match(game: .leagueOfLegends, fetchedAt: Date())
-        let second = try PandaScoreMatchDTO.decoder().decode(PandaScoreMatchDTO.self, from: Data(fallback.utf8)).match(game: .leagueOfLegends, fetchedAt: Date())
-        XCTAssertEqual(first.competitionID, 10)
-        XCTAssertEqual(first.competitionName, "World Championship")
-        XCTAssertEqual(second.competitionID, 20)
-        XCTAssertEqual(second.competitionName, "Open Cup")
+    func testPublicMetadataSurvivesCacheWithoutChangingUpstreamIdentity() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cache = EsportsCacheStore(fileURL: directory.appendingPathComponent("fixtures.json"))
+        var match = EsportsMatch(providerID: 1711021, game: .leagueOfLegends, name: "Bilibili Gaming vs Gen.G", competitionName: "Worlds")
+        match.feedSourceURL = PublicEsportsCalendarClient.sourceURL
+        match.feedSourceAttribution = PublicEsportsCalendarClient.attribution
+        match.feedCompetitionKey = "esport-calendar:leagueOfLegends:Worlds"
+        try await cache.save(matches: [match])
+        let restored = await cache.load()
+        XCTAssertEqual(restored, [match])
+        XCTAssertEqual(restored.first?.id, "pandascore:leagueOfLegends:1711021")
+        XCTAssertEqual(restored.first?.competitionKey, "esport-calendar:leagueOfLegends:Worlds")
+        XCTAssertEqual(restored.first?.sourceAttributionText, PublicEsportsCalendarClient.attribution)
     }
 }

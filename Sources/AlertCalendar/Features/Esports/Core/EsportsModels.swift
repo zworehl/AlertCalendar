@@ -1,5 +1,9 @@
 import Foundation
 
+protocol EsportsProviding: Sendable {
+    func load(game: EsportsGame, from: Date, to: Date, trackedIDs: [Int]) async throws -> EsportsLoadResult
+}
+
 enum EsportsGame: String, CaseIterable, Codable, Hashable, Identifiable, Sendable {
     case leagueOfLegends, counterStrike2, rocketLeague, starCraft2
     // Legacy values remain decodable, but are not part of the supported catalog.
@@ -19,11 +23,11 @@ enum EsportsGame: String, CaseIterable, Codable, Hashable, Identifiable, Sendabl
         }
     }
 
-    /// These are API route prefixes, not interchangeable videogame slugs.
+    /// Public calendar filter values. Canonical match IDs use the game raw value.
     var providerSlug: String? {
         switch self {
-        case .leagueOfLegends: "lol"
-        case .counterStrike2: "csgo"
+        case .leagueOfLegends: "league-of-legends"
+        case .counterStrike2: "cs-go"
         case .rocketLeague: "rl"
         case .starCraft2: "starcraft-2"
         case .ageOfEmpires2, .geoGuessr, .granTurismo7: nil
@@ -78,6 +82,19 @@ struct EsportsMatch: Identifiable, Codable, Hashable, Sendable {
     var matchType: String? = nil
     var streamURL: URL? = nil
     var fetchedAt: Date = Date()
+    var feedSourceURL: URL? = nil
+    var feedSourceAttribution: String? = nil
+    var feedCompetitionKey: String? = nil
+
+    var sourceAttributionText: String {
+        let attribution = feedSourceAttribution?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return attribution.flatMap { $0.isEmpty ? nil : $0 } ?? Self.sourceAttribution
+    }
+
+    var competitionKey: String? {
+        if let key = feedCompetitionKey?.trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty { return key }
+        return competitionID.map { "\(game.rawValue):\($0)" }
+    }
 
     /// Results are keyed by participant identity, never by array position.
     func score(for opponent: EsportsOpponent) -> Int? {
@@ -88,7 +105,7 @@ struct EsportsMatch: Identifiable, Codable, Hashable, Sendable {
 struct EsportsLoadIssue: Equatable, Sendable {
     enum Kind: String, Sendable {
         case paginationLimit, invalidPagination, invalidPayload, requestFailed
-        case rateLimited, unauthorized, unavailable, requestBudget
+        case rateLimited, unavailable, requestBudget
     }
     let kind: Kind
     var statusCode: Int? = nil
@@ -102,9 +119,9 @@ struct EsportsLoadResult: Sendable {
     let fetchedAt: Date
 }
 
-enum PandaScoreError: Error, Equatable, Sendable {
-    case unsupportedGame, missingToken, invalidToken, invalidWindow
-    case unauthorized, unavailable, invalidResponse, invalidPayload
+enum EsportsFeedError: Error, Equatable, Sendable {
+    case unsupportedGame, invalidWindow
+    case unavailable, invalidResponse, invalidPayload
     case unexpectedStatus(Int)
     case rateLimited(until: Date?)
     case retryDeferred(statusCode: Int?, until: Date)
