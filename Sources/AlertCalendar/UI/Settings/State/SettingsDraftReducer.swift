@@ -6,7 +6,6 @@ extension SettingsDraft {
         availableEventCalendarIDs: Set<String>
     ) -> AppSettings {
         var settings = currentSettings
-        settings.esports = esports.normalized
 
         settings.language = language
         settings.includeEvents = includeEvents

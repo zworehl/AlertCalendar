@@ -64,7 +64,6 @@ extension CalendarMonitor {
         }
         upcomingItems = upcomingItems.filter(isVisible)
         allDayEventItems = allDayEventItems.filter(isVisible)
-        configureEsportsRuntime()
         let now = fixedSecondNow()
         pruneAlertCaches(using: upcomingItems)
         evaluateAlert(now: now, settings: settings)

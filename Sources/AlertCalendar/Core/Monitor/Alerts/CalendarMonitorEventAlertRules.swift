@@ -141,11 +141,6 @@ extension CalendarMonitor {
         _ rule: CalendarAlertRule,
         to event: EKEvent
     ) -> Bool {
-        // Managed esports encounters use the explicit policy selected in their
-        // feed. A general rule must not change that alarm and make the next
-        // provider update look like a manual event edit.
-        if event.notes?.contains(ManagedEsportsEventRecord.ownershipMarker) == true,
-           GamingCalendarClassifier.providerReference(in: event.notes) != nil { return false }
         guard event.status != .canceled else { return false }
 
         if let currentUser = event.attendees?.first(where: \.isCurrentUser),

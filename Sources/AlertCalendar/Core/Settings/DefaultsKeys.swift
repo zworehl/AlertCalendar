@@ -1,7 +1,6 @@
 import Foundation
 
 enum DefaultsKeys {
-    static let esportsSettings = "esports.settings"
     static let language = "appLanguage"
     static let lastDataRefreshNotificationDate = "lastDataRefreshNotificationDate"
     static let focusCalendarFilterState = "focusCalendarFilterState.v2"

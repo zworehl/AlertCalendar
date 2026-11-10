@@ -28,7 +28,6 @@ AlertCalendar combines time-sensitive information into a menu bar workflow, with
 - Optional astronomy feeds for sunrise, sunset, solar noon, solar midnight, moon phases, and orbital highlights.
 - Google holiday feeds for 256 countries and territories, consolidated into one writable Apple Calendar with country flags and semantic deduplication.
 - Optional managed football fixtures backed by ESPN data and written to Apple Calendar.
-- Public Esports Calendar schedules for League of Legends, Counter-Strike 2, Rocket League and StarCraft II, without an account or API token. Existing events from selected Apple Calendar sources remain available. See [the esports pilot](docs/esports.md).
 - Scheduled game-sale campaigns from official Steam, Xbox, PlayStation, and Nintendo sources, shown as store-aware cards and optionally synchronized into Apple Calendar.
 - Meeting-aware previews, join-link extraction, attendee context, and location previews when enough metadata is available.
 

@@ -64,7 +64,6 @@ final class AlertCalendarApp {
     }
 
     func prepareForTermination() async {
-        await monitor.esportsRuntime.prepareForTermination()
         await monitor.flushPersistentCachesForTermination()
     }
 

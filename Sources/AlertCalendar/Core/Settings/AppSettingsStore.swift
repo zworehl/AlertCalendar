@@ -49,7 +49,6 @@ struct AppSettingsStore {
         )
 
         return AppSettings(
-            esports: esportsSettings(),
             language: AppLanguage(rawValue: defaults.string(forKey: DefaultsKeys.language) ?? "") ?? .english,
             includeEvents: defaults.bool(forKey: DefaultsKeys.includeEvents),
             includeAllDayEvents: defaults.bool(forKey: DefaultsKeys.includeAllDayEvents),
@@ -152,7 +151,6 @@ struct AppSettingsStore {
     }
 
     func save(_ settings: AppSettings) {
-        saveEsportsSettings(settings.esports)
         let eventTitleMaxCharacters = AppSettingsRules.normalizedEventTitleMaxCharacters(
             settings.eventTitleMaxCharacters
         )

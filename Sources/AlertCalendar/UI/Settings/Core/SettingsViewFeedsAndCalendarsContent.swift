@@ -16,15 +16,6 @@ extension SettingsView {
                 googleHolidaysSubsection
             case .football:
                 footballFeedsSubsection
-            case .esports:
-                SettingsEsportsSectionView(
-                    runtime: monitor.esportsRuntime,
-                    preferences: $draft.esports,
-                    pendingCalendarChanges: $pendingChanges.esportsMatches,
-                    calendars: availableEventCalendars,
-                    hasEventsAccess: hasEventsAccess,
-                    runsLiveServices: runsLiveServices
-                )
             case .gameSales:
                 gameSalesSubsection
             }

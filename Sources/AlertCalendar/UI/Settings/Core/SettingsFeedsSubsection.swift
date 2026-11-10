@@ -5,7 +5,6 @@ extension SettingsView {
         case atmosphere = "Atmosphere"
         case holidays = "Holidays"
         case football = "Football"
-        case esports = "Esports"
         case gameSales = "Game Sales"
 
         var id: String { rawValue }
@@ -18,8 +17,6 @@ extension SettingsView {
                 return L10n.text("Google Holidays")
             case .football:
                 return L10n.text("Football Fixtures")
-            case .esports:
-                return L10n.text("Esports")
             case .gameSales:
                 return L10n.text("Game Sales")
             }
@@ -33,8 +30,6 @@ extension SettingsView {
                 return "flag.2.crossed"
             case .football:
                 return "sportscourt"
-            case .esports:
-                return "trophy"
             case .gameSales:
                 return "gamecontroller.fill"
             }
@@ -48,8 +43,6 @@ extension SettingsView {
                 return L10n.text("Combine regional holiday feeds into a writable Apple Calendar.")
             case .football:
                 return L10n.text("Follow supported competitions and add fixtures automatically.")
-            case .esports:
-                return L10n.text("Follow gaming competitions and keep their encounters in your calendar.")
             case .gameSales:
                 return L10n.text("Track upcoming promotions from your favorite game stores.")
             }
@@ -63,8 +56,6 @@ extension SettingsView {
                 return Color(nsColor: .systemGreen)
             case .football:
                 return Color(nsColor: .systemBrown)
-            case .esports:
-                return Color(nsColor: .systemPurple)
             case .gameSales:
                 return Color(nsColor: .systemIndigo)
             }
@@ -72,7 +63,7 @@ extension SettingsView {
 
         var usesEmbeddedDetailScroller: Bool {
             switch self {
-            case .football, .esports:
+            case .football:
                 return true
             case .atmosphere, .holidays, .gameSales:
                 return false

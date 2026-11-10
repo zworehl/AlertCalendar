@@ -81,41 +81,6 @@ enum AlertCalendarSmokeTest {
                 window.contentView = nil
             }
         }
-        // Exercise the actual esports pane with isolated in-memory examples.
-        // This runtime is constructed with startsServices=false, so opening the
-        // view cannot read the user's calendars, provider cache or network.
-        let esports = monitor.esportsRuntime
-        let sampleDate = Date().addingTimeInterval(3_600)
-        esports.providerMatches = [EsportsMatch(
-            providerID: 42, game: .leagueOfLegends, name: "Blue vs Red",
-            competitionName: "Sample tournament", status: .scheduled, scheduledAt: sampleDate,
-            feedSourceURL: URL(string: "https://www.esport-calendar.com/calendar.ics?games=league-of-legends"),
-            feedSourceAttribution: "Source: Esports Calendar · Data: PandaScore", feedCompetitionKey: "esports-calendar:leagueOfLegends:sample"
-        )]
-        esports.localEvents = [.init(
-            id: "smoke-local", game: .leagueOfLegends, title: "League of Legends Worlds Final",
-            startDate: sampleDate, endDate: sampleDate.addingTimeInterval(7_200), isAllDay: false,
-            calendarID: "smoke", calendarName: "Sample calendar", sourceURL: nil,
-            eventIdentifier: nil, eventUID: nil, kind: .competitive, providerMatchID: nil
-        )]
-        defaults.set(SettingsView.SettingsTab.feeds.rawValue, forKey: SettingsNavigationPersistence.selectedTabKey)
-        defaults.set(SettingsView.FeedsSubsection.esports.rawValue, forKey: SettingsNavigationPersistence.selectedFeedsSubsectionKey)
-        for language in AppLanguage.allCases {
-            AlertCalendarLanguage.current = language
-            for width: CGFloat in [980, 1_240, 1_920] {
-                let window = makeSettingsWindow(monitor: monitor, defaults: defaults, language: language, width: width)
-                advanceLayout()
-                let size = window.contentView?.bounds.size ?? .zero
-                checks.append(Check(name: "esports-\(language.rawValue)-\(Int(width))",
-                    passed: abs(size.width - width) < 2 && size.height >= 700,
-                    details: "content=\(Int(size.width))x\(Int(size.height))"))
-                window.orderOut(nil)
-                window.contentView = nil
-            }
-        }
-        checks.append(Check(name: "esports-services-disabled", passed: !esports.startsServices && esports.refreshTask == nil))
-        esports.providerMatches = []
-        esports.localEvents = []
         AlertCalendarLanguage.current = oldLanguage
         defaults.set(SettingsView.SettingsTab.access.rawValue, forKey: SettingsNavigationPersistence.selectedTabKey)
         monitor.dataRefreshIssues = [.init(id: "smoke.offline", title: "Calendar", detail: "Offline", firstFailedAt: Date(), lastFailedAt: Date())]

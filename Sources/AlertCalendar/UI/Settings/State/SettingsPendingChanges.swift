@@ -15,7 +15,6 @@ struct SettingsPendingItemChange<Item: Equatable>: Equatable {
 }
 
 struct SettingsPendingChanges: Equatable {
-    var esportsMatches: [String: SettingsPendingItemChange<EsportsMatch>] = [:]
     var footballFixtures: [String: SettingsPendingItemChange<FootballFixtureMatch>] = [:]
     var gameSales: [String: SettingsPendingItemChange<GameSaleEvent>] = [:]
     var slackConnectionsToRemove: [String: SlackConnection] = [:]
@@ -23,7 +22,6 @@ struct SettingsPendingChanges: Equatable {
 
     var isEmpty: Bool {
         footballFixtures.isEmpty
-            && esportsMatches.isEmpty
             && gameSales.isEmpty
             && slackConnectionsToRemove.isEmpty
             && slackTokensToConnect.isEmpty
@@ -61,16 +59,6 @@ struct SettingsPendingChanges: Equatable {
         persistedIsPresent: Bool
     ) -> Bool {
         gameSales[sale.id]?.mutation.makesItemPresent ?? persistedIsPresent
-    }
-
-    func esportsMatchIsPresent(_ match: EsportsMatch, persistedIsPresent: Bool) -> Bool {
-        esportsMatches[match.id]?.mutation.makesItemPresent ?? persistedIsPresent
-    }
-
-    mutating func toggleEsportsMatch(_ match: EsportsMatch, persistedIsPresent: Bool) {
-        let desiredPresence = !esportsMatchIsPresent(match, persistedIsPresent: persistedIsPresent)
-        Self.setPendingItem(match, desiredPresence: desiredPresence, persistedIsPresent: persistedIsPresent,
-                            key: match.id, changes: &esportsMatches)
     }
 
     mutating func toggleGameSale(

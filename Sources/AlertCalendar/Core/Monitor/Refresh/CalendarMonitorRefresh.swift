@@ -28,7 +28,6 @@ extension CalendarMonitor {
         }
         let now = fixedSecondNow()
         let settings = snapshotSettings()
-        configureEsportsRuntime()
         if plan.includesEventStoreChange {
             refreshManagedFootballTrackingSnapshot(now: now)
             refreshGameSaleTrackingSnapshot(now: now)
@@ -55,14 +54,10 @@ extension CalendarMonitor {
             async let holidaysDuration = measureRefreshPhase(enabled: plan.evaluatesGoogleHolidays) {
                 await self.refreshGoogleHolidays(forceRefresh: forceExternalRefresh)
             }
-            async let esportsDuration = measureRefreshPhase(enabled: plan.refreshesCalendarSnapshot) {
-                await self.refreshEsports(force: forceExternalRefresh)
-            }
-            let externalDurations = await (footballDuration, gameSalesDuration, holidaysDuration, esportsDuration)
+            let externalDurations = await (footballDuration, gameSalesDuration, holidaysDuration)
             if let duration = externalDurations.0 { report.phaseDurations["Football"] = duration }
             if let duration = externalDurations.1 { report.phaseDurations["Game Sales"] = duration }
             if let duration = externalDurations.2 { report.phaseDurations["Holidays"] = duration }
-            if let duration = externalDurations.3 { report.phaseDurations["Esports"] = duration }
 
             if plan.refreshesCalendarSnapshot {
                 let alertsStartedAt = Date()
