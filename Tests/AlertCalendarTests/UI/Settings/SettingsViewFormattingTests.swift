@@ -1,3 +1,4 @@
+import SwiftUI
 import XCTest
 @testable import AlertCalendar
 
@@ -64,6 +65,24 @@ final class SettingsViewFormattingTests: XCTestCase {
             SettingsNavigationPersistence.selectedFeedsSubsectionKey,
             "settings.navigation.selectedFeedsSubsection"
         )
+    }
+
+    @MainActor
+    func testRetiredFeedSelectionFallsBackWithoutLosingOtherNavigationChoices() {
+        let suite = "SettingsNavigationTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let key = SettingsNavigationPersistence.selectedFeedsSubsectionKey
+        defaults.set("Esports", forKey: key)
+        let selection = AppStorage<SettingsView.FeedsSubsection>(
+            wrappedValue: .atmosphere, key, store: defaults
+        )
+        XCTAssertEqual(selection.wrappedValue, .atmosphere)
+        defaults.set(SettingsView.FeedsSubsection.football.rawValue, forKey: key)
+        let validSelection = AppStorage<SettingsView.FeedsSubsection>(
+            wrappedValue: .atmosphere, key, store: defaults
+        )
+        XCTAssertEqual(validSelection.wrappedValue, .football)
     }
 
     func testMenuBarRotationWindowValueTextUsesHoursAtSixtyMinutesAndAbove() {

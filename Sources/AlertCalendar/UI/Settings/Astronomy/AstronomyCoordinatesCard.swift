@@ -23,8 +23,10 @@ struct AstronomyCoordinatesCard: View {
                         Toggle(L10n.text("Use automatic location"), isOn: $useAutomaticAstronomyLocation)
                         InfoTipButton(text: L10n.text("Uses your current location to fill latitude/longitude for sunrise, solar noon, sunset, and solar midnight calculation."))
                     }
-                    Button(L10n.text("Detect now")) {
+                    Button {
                         onDetectNow()
+                    } label: {
+                        Label(L10n.text("Detect now"), systemImage: "location.fill")
                     }
                 }
                 .fixedSize(horizontal: true, vertical: false)
@@ -34,8 +36,10 @@ struct AstronomyCoordinatesCard: View {
                         Toggle(L10n.text("Use automatic location"), isOn: $useAutomaticAstronomyLocation)
                         InfoTipButton(text: L10n.text("Uses your current location to fill latitude/longitude for sunrise, solar noon, sunset, and solar midnight calculation."))
                     }
-                    Button(L10n.text("Detect now")) {
+                    Button {
                         onDetectNow()
+                    } label: {
+                        Label(L10n.text("Detect now"), systemImage: "location.fill")
                     }
                 }
             }

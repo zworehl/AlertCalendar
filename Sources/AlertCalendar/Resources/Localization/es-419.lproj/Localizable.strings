@@ -803,3 +803,4 @@
 "Calendar alert changes could not be completed. Failed date ranges will be retried automatically." = "No se pudieron completar los cambios de las alertas del calendario. Los intervalos fallidos se volverán a intentar automáticamente.";
 "Partial update · %@" = "Actualización parcial · %@";
 "Last applied: %@" = "Última aplicación: %@";
+"Now + Next 24h" = "Ahora y próximas 24 h";

@@ -33,12 +33,16 @@ struct SettingsFocusFiltersSectionView: View {
             }
 
             HStack {
-                Button(L10n.text("Open Focus Settings")) {
+                Button {
                     guard let url = URL(string: "x-apple.systempreferences:com.apple.Focus-Settings.extension") else { return }
                     AlertCalendarWorkspace.open(url)
+                } label: {
+                    Label(L10n.text("Open Focus Settings"), systemImage: "gearshape")
                 }
-                Button(L10n.text("Refresh Focus")) {
+                Button {
                     monitor.scheduleFocusFilterRefresh()
+                } label: {
+                    Label(L10n.text("Refresh Focus"), systemImage: "arrow.clockwise")
                 }
             }
         }

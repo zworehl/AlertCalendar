@@ -75,7 +75,7 @@ def run_session(executable: Path, report: Path, timeout: float) -> list[dict]:
                 for check in checks if isinstance(checks, list) else []:
                     if isinstance(check, dict) and check.get("passed") is not True:
                         name = str(check.get("name", "unnamed check"))
-                        message = str(check.get("detail") or check.get("message") or "")
+                        message = str(check.get("details") or check.get("detail") or check.get("message") or "")
                         failed.append(f"{name}: {message}" if message else name)
                 if failed:
                     details = f"Failed checks: {'; '.join(failed)[:4000]}. {details}"

@@ -193,17 +193,23 @@ struct SettingsGoogleHolidaysSectionView: View {
     private var countryActions: some View {
         HStack(spacing: 8) {
             if !subscribedCountryIDs.isEmpty {
-                Button(L10n.text("Use Subscribed (\(subscribedCountryIDs.count))")) {
+                Button {
                     selectedCountryIDs.formUnion(subscribedCountryIDs)
+                } label: {
+                    Label(L10n.text("Use Subscribed (\(subscribedCountryIDs.count))"), systemImage: "calendar.badge.checkmark")
                 }
                 .help(L10n.text("Select countries detected from subscribed holiday calendars in Apple Calendar."))
             }
 
-            Button(L10n.text("Select All")) {
+            Button {
                 selectedCountryIDs = GoogleHolidayCountry.validIDs
+            } label: {
+                Label(L10n.text("Select All"), systemImage: "checkmark.circle")
             }
-            Button(L10n.text("Clear")) {
+            Button {
                 selectedCountryIDs.removeAll()
+            } label: {
+                Label(L10n.text("Clear"), systemImage: "xmark.circle")
             }
             .disabled(selectedCountryIDs.isEmpty)
         }

@@ -803,3 +803,4 @@
 "Calendar alert changes could not be completed. Failed date ranges will be retried automatically." = "Calendar alert changes could not be completed. Failed date ranges will be retried automatically.";
 "Partial update · %@" = "Partial update · %@";
 "Last applied: %@" = "Last applied: %@";
+"Now + Next 24h" = "Now + Next 24h";
